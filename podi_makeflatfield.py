@@ -52,7 +52,7 @@ if __name__ == "__main__":
         del one_d
 
     # Now we are through all flatfields, compute the median value
-    ff_median_level = numpy.median(flatfield_data)
+    ff_median_level = numpy.median(flatfield_data[:datapos])
     if (ff_median_level <= 0):
         print "Something went wrong or this is no flatfield frame"
         ff_median_level = 1.0
