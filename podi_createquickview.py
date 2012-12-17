@@ -32,6 +32,9 @@ be crossed out in the full focalplane jpeg.
 
 """
 
+limit_overexposed = 55000
+overexposed = [1.0, 0.0, 0.0]
+
 crossout_missing_otas = True
 from podi_definitions import *
 
@@ -131,7 +134,31 @@ if __name__ == "__main__":
         image = Image.fromarray(numpy.uint8(greyscale*255))
         image_filename = "%s/%s.%02d.jpg" % (output_directory, obsid, fppos)
         image.transpose(Image.FLIP_TOP_BOTTOM).save(image_filename, "JPEG")
+        
+        #
+        # Mark all overexposed pixels in a different color
+        #
+        channel_r = greyscale + 0
+        channel_g = greyscale + 0
+        channel_b = greyscale + 0
+
+        channel_r[binned > limit_overexposed] = overexposed[0]
+        channel_g[binned > limit_overexposed] = overexposed[1]
+        channel_b[binned > limit_overexposed] = overexposed[2]
+
+        im_r = Image.fromarray(numpy.uint8(channel_r*255))
+        im_g = Image.fromarray(numpy.uint8(channel_g*255))
+        im_b = Image.fromarray(numpy.uint8(channel_b*255))
+        im_rgb = Image.merge('RGB', (im_r, im_g, im_b))
+        image_filename = "%s/%s.%02d.rgb.jpg" % (output_directory, obsid, fppos)
+        im_rgb.transpose(Image.FLIP_TOP_BOTTOM).save(image_filename, "JPEG")
+
+        # Delete all temporary images to keep memory demands low
         del image
+        del im_r
+        del im_g
+        del im_b
+        del im_rgb
 
     #
     # Prepare the preview for the full focal plane
