@@ -112,7 +112,13 @@ if __name__ == "__main__":
 
         # Insert the new image data. This also makes sure that the headers
         # NAXIS, NAXIS1, NAXIS2 are set correctly
-        hdu.data = hdulist[0].data
+        data_4K = numpy.ones(shape=(4096,4096), dtype=numpy.float32)
+        data_4K[:,:] = numpy.NaN
+        size_x = numpy.min([data_4K.shape[0], hdulist[0].data.shape[0]])
+        size_y = numpy.min([data_4K.shape[1], hdulist[0].data.shape[1]])
+        data_4K[0:size_x, 0:size_y] = hdulist[0].data[0:size_x, 0:size_y]
+
+        hdu.data = data_4K
         #hdu.verify('fix')
 
         # Insert into the list to be used later
