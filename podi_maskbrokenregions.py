@@ -6,6 +6,8 @@ import pyfits
 import numpy
 import scipy
 
+from podi_definitions import *
+
 def mask_broken_regions(datablock, regionfile):
 
     counter = 0
@@ -33,11 +35,6 @@ def mask_broken_regions(datablock, regionfile):
     print "Marked",counter,"bad pixel regions"
     return datablock
 
-
-def stdout_write(str):
-    sys.stdout.write(str)
-    sys.stdout.flush()
-    return
 
 if __name__ == "__main__":
 
