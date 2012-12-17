@@ -73,7 +73,7 @@ def mask_broken_regions(datablock, regionfile, verbose=False):
         print "Marked",counter,"bad pixel regions"
     return datablock
 
-def read_reduction_directories(start=1):
+def read_reduction_directories(start=1, warn=True):
     #
     # Read other parameters, specifying the directories for the 
     # flatfields, darks and biases
@@ -106,7 +106,9 @@ def read_reduction_directories(start=1):
                 if (bpm_dir == ""):
                     bpm_dir = "."
         else:
-            print "Don't understand parameter %d: %s" % (i, sys.argv[i])
+            if (warn):
+                print "Don't understand parameter %d: %s" % (i, sys.argv[i])
+            break
         i += 1
 
 
@@ -312,6 +314,7 @@ def collectcells(input, outputfile,
 	os.remove(outputfile)
     hdulist.writeto(outputfile, clobber=True)
 
+    stdout_write(" done!\n")
     return 0
 
 if __name__ == "__main__":
@@ -333,6 +336,4 @@ if __name__ == "__main__":
     # Collect all cells, perform reduction and write result file
     collectcells(input, outputfile,
                  bias_dir, dark_dir, flatfield_dir, bpm_dir)
-    
-    stdout_write(" done!\n")
     
