@@ -73,33 +73,7 @@ def mask_broken_regions(datablock, regionfile, verbose=False):
         print "Marked",counter,"bad pixel regions"
     return datablock
 
-if __name__ == "__main__":
-
-    # check if the filename contains a / indicating it's located somewhere
-    # else in a different directory
-    
-    input = sys.argv[1]
-    # As a safety precaution, if the first parameter is the directory containing 
-    # the files, extract just the ID string to be used for this script
-    if (input[-1] == "/"):
-	input = input[:-1]
-
-    directory,basename = os.path.split(input)
-    if (directory == ""):
-        directory = "."
-
-    print "Merging cells for frame %s" % (basename)
-    
-    # Assign a fallback output filename if none is given 
-    if (len(sys.argv)>2):
-        outputfile = sys.argv[2]
-        if (outputfile == "---"):
-	    outputfile = basename+".fits"
-    else:
-        print "No output filename has been given, setting to default mergedcells.fits"
-        outputfile = "mergedcells.fits"
-    print "Writing results into",outputfile
-
+def read_reduction_directories(start=1):
     #
     # Read other parameters, specifying the directories for the 
     # flatfields, darks and biases
@@ -112,7 +86,7 @@ if __name__ == "__main__":
     #
     # Then deal with the user-specified values from the command line
     #
-    i=3
+    i=start
     while i<len(sys.argv):
         cmd = sys.argv[i]
         if (cmd == "-flat" and i+1<len(sys.argv)):
@@ -145,11 +119,24 @@ Calibration data:
   Bad pixel mask: %s
 """ % (bias_dir, dark_dir, flatfield_dir, bpm_dir)
 
-    #flatfield_dir = None
-    #if (len(sys.argv) > 3):
-    #    flatfield_dir = sys.argv[3]#
-    # print "Applying flatfield correction from directory",flatfield_dir
+    return bias_dir, dark_dir, flatfield_dir, bpm_dir
 
+def collectcells(input, outputfile,
+                 bias_dir, dark_dir, flatfield_dir, bpm_dir):
+
+    # As a safety precaution, if the first parameter is the directory containing 
+    # the files, extract just the ID string to be used for this script
+    if (input[-1] == "/"):
+	input = input[:-1]
+
+    directory,basename = os.path.split(input)
+    if (directory == ""):
+        directory = "."
+    print "Merging cells for frame %s" % (basename)
+
+    if (outputfile == None):
+        outputfile = "%s/%s.fits" % (directory, basename)
+        
     ota_list = []
 
     primhdu = pyfits.PrimaryHDU()
@@ -159,7 +146,7 @@ Calibration data:
         ota_c_x, ota_c_y = available_ota_coords[ota_id]        
         ota = ota_c_x * 10 + ota_c_y
 
-        filename = "%s/%s/%s.%02d.fits" % (directory,basename, basename, ota)
+        filename = "%s/%s/%s.%02d.fits" % (directory, basename, basename, ota)
         #print filename
         hdulist = pyfits.open(filename)
 
@@ -325,6 +312,27 @@ Calibration data:
 	os.remove(outputfile)
     hdulist.writeto(outputfile, clobber=True)
 
-    sys.stdout.write(" done!\n")
-    sys.stdout.flush()
+    return 0
 
+if __name__ == "__main__":
+
+    # Read the input directory that contains the individual OTA files
+    input = sys.argv[1]
+
+    # Assign a fallback output filename if none is given 
+    if (len(sys.argv)>2):
+        outputfile = sys.argv[2]
+    else:
+        print "No output filename has been given, setting to default mergedcells.fits"
+        outputfile = "mergedcells.fits"
+    print "Writing results into",outputfile
+
+    # Handle all reduction flags from command line
+    bias_dir, dark_dir, flatfield_dir, bpm_dir = read_reduction_directories(start=3)
+
+    # Collect all cells, perform reduction and write result file
+    collectcells(input, outputfile,
+                 bias_dir, dark_dir, flatfield_dir, bpm_dir)
+    
+    stdout_write(" done!\n")
+    
