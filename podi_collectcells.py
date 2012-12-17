@@ -119,7 +119,7 @@ Calibration data:
   Bad pixel mask: %s
 """ % (bias_dir, dark_dir, flatfield_dir, bpm_dir)
 
-    return bias_dir, dark_dir, flatfield_dir, bpm_dir
+    return bias_dir, dark_dir, flatfield_dir, bpm_dir, i
 
 def collectcells(input, outputfile,
                  bias_dir, dark_dir, flatfield_dir, bpm_dir):
@@ -328,7 +328,7 @@ if __name__ == "__main__":
     print "Writing results into",outputfile
 
     # Handle all reduction flags from command line
-    bias_dir, dark_dir, flatfield_dir, bpm_dir = read_reduction_directories(start=3)
+    bias_dir, dark_dir, flatfield_dir, bpm_dir, start = read_reduction_directories(start=3)
 
     # Collect all cells, perform reduction and write result file
     collectcells(input, outputfile,
