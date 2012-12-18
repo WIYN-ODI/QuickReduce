@@ -8,14 +8,15 @@ import scipy
 
 from podi_definitions import *
 
-def normalize_flatfield(filename, outputfile):
+def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=3):
     hdulist = pyfits.open(filename)
     filter = hdulist[1].header['FILTER']
     print "This is filter",filter
+    print "Using binning %d,%d" % (binning_x, binning_y)
 
     list_of_otas_to_normalize = which_otas_to_use[filter]
 
-    flatfield_data = numpy.zeros(shape=(13*4100*4100), dtype=numpy.float32)
+    flatfield_data = numpy.zeros(shape=(13*4096*4096/(binning_x*binning_y)), dtype=numpy.float32)
     flatfield_data[:] = numpy.NaN
 
     datapos = 0
@@ -38,8 +39,13 @@ def normalize_flatfield(filename, outputfile):
 	stdout_write("\rAdding OTA %02d to flat-field ..." % fppos)
 	#flatfield_data = numpy.concatenate((flatfield_data, extension.data.flatten()))
 	#flatfield_data[extension,:,:] = extension.data
-        
-        one_d = hdulist[extension].data.flatten()
+
+        if (binning_x>1 or binning_y>1):
+            sx, sy = hdulist[extension].data.shape[0], hdulist[extension].data.shape[1]
+            bx, by = sx/binning_x, sy/binning_y
+            one_d = numpy.reshape(hdulist[extension].data, (by,binning_y,bx,binning_x)).mean(axis=-1).mean(axis=1).flatten()
+        else:
+            one_d = hdulist[extension].data.flatten()
         flatfield_data[datapos:datapos+one_d.shape[0]] = one_d
 
         datapos += one_d.shape[0]
@@ -47,11 +53,23 @@ def normalize_flatfield(filename, outputfile):
 
     # Now we are through all flatfields, compute the median value
     stdout_write(" computing median ...")
-    ff_median_level = numpy.median(flatfield_data[:datapos])
+    sigma_min, sigma_max = -1e5, 1e6
+    for i in range(repeats):
+        valid = (flatfield_data[:datapos] > sigma_min) & (flatfield_data[:datapos] < sigma_max)
+
+        ff_median_level = numpy.median(flatfield_data[:datapos][valid])
+        ff_std = numpy.std(flatfield_data[:datapos][valid])
+
+        sigma_min = ff_median_level - 2 * ff_std
+        sigma_max = ff_median_level + 3 * ff_std
+        #print i, ff_median_level, ff_std, sigma_min, sigma_max
+        
     if (ff_median_level <= 0):
         print "Something went wrong or this is no flatfield frame"
         ff_median_level = 1.0
 
+    stdout_write("\b\b\b(% 7.1f) ..." % (ff_median_level))
+    
     # Now normalize all OTAs with the median flatfield level
     stdout_write(" normalizing ...")
     for extension in range(1, len(hdulist)):
@@ -66,13 +84,18 @@ def normalize_flatfield(filename, outputfile):
        
 if __name__ == "__main__":
 
-    if (sys.argv[1] == "-multi"):
-        for filename in sys.argv[2:]:
+    binning_x = int(cmdline_arg_set_or_default("-binx", 8))
+    binning_y = int(cmdline_arg_set_or_default("-biny", 8))
+    repeats = int(cmdline_arg_set_or_default("-reps", 3))
+    
+    clean_list = get_clean_cmdline()
+    if (cmdline_arg_isset("-multi")):
+        for filename in clean_list[1:]:
             outputfile = filename[:-5]+".norm.fits"
             print filename, outputfile            
-            normalize_flatfield(filename, outputfile)
+            normalize_flatfield(filename, outputfile, binning_x=binning_x, binning_y=binning_y, repeats=repeats)
     else:
-        filename = sys.argv[1]
-        outputfile = sys.argv[2]
-        normalize_flatfield(filename, outputfile)
+        filename = clean_list[1]
+        outputfile = clean_list[2]
+        normalize_flatfield(filename, outputfile, binning_x=binning_x, binning_y=binning_y, repeats=repeats)
 
