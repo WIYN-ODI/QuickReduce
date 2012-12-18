@@ -8,13 +8,7 @@ import scipy
 
 from podi_definitions import *
 
-if __name__ == "__main__":
-
-    filename = sys.argv[1]
-    print filename
-
-    outputfile = sys.argv[2]
-
+def normalize_flatfield(filename, outputfile):
     hdulist = pyfits.open(filename)
     filter = hdulist[1].header['FILTER']
     print "This is filter",filter
@@ -27,7 +21,7 @@ if __name__ == "__main__":
     datapos = 0
     for extension in range(1, len(hdulist)): #hdulist[1:]:
         fppos = int(hdulist[extension].header['FPPOS'][2:4])
- 	print fppos
+ 	#print fppos
 
  	try:
 	    index = list_of_otas_to_normalize.index(fppos)
@@ -41,7 +35,7 @@ if __name__ == "__main__":
         
         # We now know that we should include this OTA in the
 	# calculation of the flat-field normalization
-	print "Adding OTA",fppos,"to flat-field"
+	stdout_write("\rAdding OTA %02d to flat-field ..." % fppos)
 	#flatfield_data = numpy.concatenate((flatfield_data, extension.data.flatten()))
 	#flatfield_data[extension,:,:] = extension.data
         
@@ -52,21 +46,33 @@ if __name__ == "__main__":
         del one_d
 
     # Now we are through all flatfields, compute the median value
+    stdout_write(" computing median ...")
     ff_median_level = numpy.median(flatfield_data[:datapos])
     if (ff_median_level <= 0):
         print "Something went wrong or this is no flatfield frame"
         ff_median_level = 1.0
 
     # Now normalize all OTAs with the median flatfield level
+    stdout_write(" normalizing ...")
     for extension in range(1, len(hdulist)):
         hdulist[extension].data /= ff_median_level
         hdulist[extension].data[hdulist[extension].data < 0.2] = numpy.NaN
 
+    stdout_write(" writing results ...")
     if (os.path.isfile(outputfile)):
 	os.remove(outputfile)
-
     hdulist.writeto(outputfile, clobber=True)
+    stdout_write(" done!\n")
+       
+if __name__ == "__main__":
 
-    sys.stdout.write(" done!\n")
-    sys.stdout.flush()
+    if (sys.argv[1] == "-multi"):
+        for filename in sys.argv[2:]:
+            outputfile = filename[:-5]+".norm.fits"
+            print filename, outputfile            
+            normalize_flatfield(filename, outputfile)
+    else:
+        filename = sys.argv[1]
+        outputfile = sys.argv[2]
+        normalize_flatfield(filename, outputfile)
 
