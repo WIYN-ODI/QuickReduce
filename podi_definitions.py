@@ -6,12 +6,12 @@
 
 
 """
-Some general definitions useful ina number of podi scripts
+Some general definitions useful in a number of podi scripts
 
 """
 
 import sys
-
+import os
 
 
 available_otas = [00, 16, 22, 23, 24, 32, 33, 34, 42, 43, 44, 55, 61]
@@ -56,4 +56,9 @@ which_otas_to_use = {"odi_g": all_otas,
 def stdout_write(str):
     sys.stdout.write(str)
     sys.stdout.flush()
+    return
+
+def clobberfile(filename):
+    if (os.path.isfile(filename)):
+        os.remove(filename)
     return
