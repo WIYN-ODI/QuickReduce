@@ -95,3 +95,37 @@ def shmem_as_ndarray( raw_array ):
          'version' : 3
     }
     return numpy.asarray(d)#.view( dtype=numpy.float32 )
+
+
+
+def cmdline_arg_isset(arg):
+    # Go through all command line arguments and check
+    # if the requested argument is one of them
+    for cur in sys.argv[1:]:
+        name,sep,value = cur.partition("=")
+        if (name == arg):
+            return True
+    return False
+
+
+def get_cmdline_arg(arg):
+    # Check all arguments if 
+    for cur in sys.argv[1:]:
+        name,sep,value = cur.partition("=")
+        if (name == arg):
+            return value
+    return None
+
+
+def get_clean_cmdline():
+    list = []
+    for cur in sys.argv:
+        if (cur[0] != "-"):
+            list.append(cur)
+    return list
+
+
+def cmdline_arg_set_or_default(name, defvalue):
+    if (cmdline_arg_isset(name)):
+        return get_cmdline_arg(name)
+    return defvalue
