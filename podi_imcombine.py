@@ -51,14 +51,19 @@ def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_fil
 def imcombine(filelist, outputfile):
     queue = multiprocessing.JoinableQueue()
 
-    # For now assume we have 13 extensions, and all extensions are in the same order
+    # Read the input parameters
+    # Note that file headers are copied from the first file
     reference_filename = filelist[0]
     ref_hdulist = pyfits.open(reference_filename)
     filter = ref_hdulist[1].header['FILTER']
 
+    # Create the primary extension of the output file
     primhdu = pyfits.PrimaryHDU()
     out_hdulist = [primhdu]
-    
+
+    #
+    # Now loop over all extensions and compute the mean
+    #
     for cur_ext in range(1, len(ref_hdulist)):
         # Check what OTA we are dealing with
         ref_fppos = ref_hdulist[cur_ext].header['FPPOS']
@@ -110,9 +115,11 @@ def imcombine(filelist, outputfile):
             #print "Adding line",line,"to queue"
             queue.put((False,line))
 
+        # Tell all workers to shut down when no more data is left to work on
         for i in range(number_cpus):
             queue.put((True,None))
 
+        # Once all command are sent out to the workers, join them to speed things up
         try:
             queue.join()
         except KeyboardInterrupt:
@@ -120,9 +127,6 @@ def imcombine(filelist, outputfile):
                 p.terminate()
             sys.exit(-1)
 
-        #avg = numpy.mean(buffer, axis=2)
-        #print avg.shape
-            
         # Create new ImageHDU
         hdu = pyfits.ImageHDU()
 
