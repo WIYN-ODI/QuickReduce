@@ -123,33 +123,13 @@ Calibration data:
 
     return bias_dir, dark_dir, flatfield_dir, bpm_dir, i
 
-def collectcells(input, outputfile,
-                 bias_dir, dark_dir, flatfield_dir, bpm_dir):
+def collect_reduce_ota(filename,
+                       bias_dir, dark_dir, flatfield_dir, bpm_dir):
 
-    # As a safety precaution, if the first parameter is the directory containing 
-    # the files, extract just the ID string to be used for this script
-    if (input[-1] == "/"):
-	input = input[:-1]
+    # Create an fits extension to hold the output
+    hdu = pyfits.ImageHDU()
 
-    directory,basename = os.path.split(input)
-    if (directory == ""):
-        directory = "."
-    print "Merging cells for frame %s" % (basename)
-
-    if (outputfile == None):
-        outputfile = "%s/%s.fits" % (directory, basename)
-        
-    ota_list = []
-
-    primhdu = pyfits.PrimaryHDU()
-    ota_list.append(primhdu)
-
-    for ota_id in range(len(available_ota_coords)):
-        ota_c_x, ota_c_y = available_ota_coords[ota_id]        
-        ota = ota_c_x * 10 + ota_c_y
-
-        filename = "%s/%s/%s.%02d.fits" % (directory, basename, basename, ota)
-        #print filename
+    if (os.path.isfile(filename)):
         hdulist = pyfits.open(filename)
 
         detsize = break_region_string(hdulist[0].header['DETSIZE'])
@@ -161,11 +141,19 @@ def collectcells(input, outputfile,
         size_x, size_y = 4096, 4096
         #print size_x, size_y
 
-	merged = numpy.ones(shape=(size_x, size_y), dtype=numpy.float32) * -1e8
+        obsid = hdulist[0].header["OBSID"]
+        ota = int(hdulist[0].header['FPPOS'][2:])
+        try:
+            ota_id = all_otas.index(ota)
+        except:
+            stdout_write("Something is wrong with this OTA, it's not among those listed as available")
+            sys.exit(-1)
+        ota_c_x, ota_c_y = available_ota_coords[ota_id]
 
+	merged = numpy.ones(shape=(size_x, size_y), dtype=numpy.float32) * -1e8
+        
         for cell in range(1,65):
-            sys.stdout.write("\r%s:   OTA %02d, cell %s ..." % (basename, ota, hdulist[cell].header['EXTNAME']))
-            sys.stdout.flush()
+            stdout_write("\r%s:   OTA %02d, cell %s ..." % (obsid, ota, hdulist[cell].header['EXTNAME']))
 
             # Check if this is one of the broken cells
             wm_cellx, wm_celly = hdulist[cell].header['WN_CELLX'], hdulist[cell].header['WN_CELLY']
@@ -281,11 +269,6 @@ def collectcells(input, outputfile,
                 # all bad pixels as NaNs
                 mask_broken_regions(merged, region_file)
 
-
-
-	# Create an fits extension
-        hdu = pyfits.ImageHDU()
-
         # Now copy the headers from the original file into the new one
         cards = hdulist[0].header.ascardlist()
         for c in cards:
@@ -302,6 +285,39 @@ def collectcells(input, outputfile,
         # Insert the new image data. This also makes sure that the headers
         # NAXIS, NAXIS1, NAXIS2 are set correctly
         hdu.data = merged
+
+    return hdu
+    
+
+def collectcells(input, outputfile,
+                 bias_dir, dark_dir, flatfield_dir, bpm_dir):
+
+    # As a safety precaution, if the first parameter is the directory containing 
+    # the files, extract just the ID string to be used for this script
+    if (input[-1] == "/"):
+	input = input[:-1]
+
+    directory,basename = os.path.split(input)
+    if (directory == ""):
+        directory = "."
+    print "Merging cells for frame %s" % (basename)
+
+    if (outputfile == None):
+        outputfile = "%s/%s.fits" % (directory, basename)
+        
+    ota_list = []
+
+    primhdu = pyfits.PrimaryHDU()
+    ota_list.append(primhdu)
+
+    for ota_id in range(len(available_ota_coords)):
+        ota_c_x, ota_c_y = available_ota_coords[ota_id]        
+        ota = ota_c_x * 10 + ota_c_y
+
+        filename = "%s/%s/%s.%02d.fits" % (directory, basename, basename, ota)
+
+        hdu = collect_reduce_ota(filename,
+                                 bias_dir, dark_dir, flatfield_dir, bpm_dir)
 
         # Insert into the list to be used later
         ota_list.append(hdu)
