@@ -90,8 +90,16 @@ if __name__ == "__main__":
     
     clean_list = get_clean_cmdline()
     if (cmdline_arg_isset("-multi")):
+        add_filter_to_output_filename = cmdline_arg_isset("-addfilter")
         for filename in clean_list[1:]:
-            outputfile = filename[:-5]+".norm.fits"
+            if (add_filter_to_output_filename):
+                hdulist = pyfits.open(filename)
+                filter = hdulist[1].header['FILTER']
+                outputfile = "%s.norm.%s.fits" % (filename[:-5], filter)
+                hdulist.close()
+                del hdulist
+            else:
+                outputfile = filename[:-5]+".norm.fits"
             print filename, outputfile            
             normalize_flatfield(filename, outputfile, binning_x=binning_x, binning_y=binning_y, repeats=repeats)
     else:
