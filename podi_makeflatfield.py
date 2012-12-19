@@ -90,17 +90,45 @@ if __name__ == "__main__":
     
     clean_list = get_clean_cmdline()
     if (cmdline_arg_isset("-multi")):
+        #
+        # Ok, we should work on a number of files
+        #
         add_filter_to_output_filename = cmdline_arg_isset("-addfilter")
         for filename in clean_list[1:]:
+            directory, basename = os.path.split(filename)
+
+            # If -keeppath is specified, put the normalized output file in
+            # the same directory where we got the files from
+            if (cmdline_arg_isset("-keeppath")):
+                if (directory == ""):
+                    out_directory = "."
+                else:
+                    out_directory = directory
+            #
+            # Or maybe the user specified the output directory explicitely?
+            #
+            elif (cmdline_arg_isset("-outdir")):
+                out_directory = get_cmdline_arg("-outdir")
+            #
+            # by default, put all output files in the current directory
+            #
+            else:
+                out_directory = "."
+
+            #
+            # Now construct the output filename
+            #
             if (add_filter_to_output_filename):
                 hdulist = pyfits.open(filename)
                 filter = hdulist[1].header['FILTER']
-                outputfile = "%s.norm.%s.fits" % (filename[:-5], filter)
+                outputfile = "%s/%s.norm.%s.fits" % (out_directory, basename[:-5], filter)
                 hdulist.close()
                 del hdulist
             else:
-                outputfile = filename[:-5]+".norm.fits"
+                outputfile = "%s/%s.norm.fits" % (out_directory, basename[:-5])
             print filename, outputfile            
+
+            # And finally, do the actual work
             normalize_flatfield(filename, outputfile, binning_x=binning_x, binning_y=binning_y, repeats=repeats)
     else:
         filename = clean_list[1]
