@@ -12,6 +12,8 @@ Some general definitions useful in a number of podi scripts
 
 import sys
 import os
+import numpy
+import ctypes
 
 
 available_otas = [00, 16, 22, 23, 24, 32, 33, 34, 42, 43, 44, 55, 61]
