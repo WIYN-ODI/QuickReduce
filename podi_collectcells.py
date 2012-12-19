@@ -129,7 +129,9 @@ def collect_reduce_ota(filename,
     # Create an fits extension to hold the output
     hdu = pyfits.ImageHDU()
 
-    if (os.path.isfile(filename)):
+    if (not os.path.isfile(filename)):
+        stdout_write("Couldn't find file %s ..." % (filename))
+    else:
         hdulist = pyfits.open(filename)
 
         detsize = break_region_string(hdulist[0].header['DETSIZE'])
@@ -282,10 +284,24 @@ def collect_reduce_ota(filename,
 	detsec_str = "[%d:%d,%d:%d]" % (start_x, end_x, start_y, end_y)
 	hdu.header.update("DETSEC", detsec_str, "position of OTA in focal plane")
 
+        # Also add the CRPIX1 and CRPIX2 headers to make for a complete
+        # (but not necessarily perfect) WCS solution
+        crpix = wcs_crpix[ota_id]
+        print crpix
+        hdu.header.update("CRPIX1", crpix[0], "")
+        hdu.header.update("CRPIX2", crpix[1], "")
+
+        hdu.header['CD1_1'] = wcs_cd[ota_id][0]
+        hdu.header['CD2_2'] = wcs_cd[ota_id][1]
+        hdu.header['CD1_2'] = wcs_cd[ota_id][2]
+        hdu.header['CD2_1'] = wcs_cd[ota_id][3]
+        
+        #hdu.header['CRVAL1'] -= wcs_crval_offsets[0]
+        #hdu.header['CRVAL2'] -= wcs_crval_offsets[1]
+        
         # Insert the new image data. This also makes sure that the headers
         # NAXIS, NAXIS1, NAXIS2 are set correctly
         hdu.data = merged
-
     return hdu
     
 
@@ -315,7 +331,7 @@ def collectcells(input, outputfile,
         ota = ota_c_x * 10 + ota_c_y
 
         filename = "%s/%s/%s.%02d.fits" % (directory, basename, basename, ota)
-
+                
         hdu = collect_reduce_ota(filename,
                                  bias_dir, dark_dir, flatfield_dir, bpm_dir)
 
