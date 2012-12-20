@@ -14,7 +14,8 @@ import sys
 import os
 import numpy
 import ctypes
-
+import math
+import numpy
 
 available_otas = [00, 16, 22, 23, 24, 32, 33, 34, 42, 43, 44, 55, 61]
 available_ota_coords = [(0,0), (1,6), 
@@ -166,3 +167,38 @@ def cmdline_arg_set_or_default(name, defvalue):
     if (cmdline_arg_isset(name)):
         return get_cmdline_arg(name)
     return defvalue
+
+
+
+def sexa2deg(sexa):
+    components = sexa.split(":")
+    
+    if (len(components) != 3):
+        return 1e99
+    
+    deg = float(components[0])
+    min = float(components[1])
+    sec = float(components[2])
+    
+    return math.copysign(math.fabs(deg) + math.fabs(min/60.0) + math.fabs(sec/3600.0), deg)
+
+def deg2sexa(deg, signed=False):
+
+    unsigned = math.fabs(deg)
+
+    degrees = math.floor(unsigned)
+    rest = (unsigned - degrees) * 60.0
+
+    minutes = math.floor(rest)
+    rest = (rest - minutes) * 60.0
+
+    seconds = math.floor(rest)
+
+    num = [math.copysign(degrees, deg), minutes, seconds]
+
+    if (signed):
+        text = "%+03d:%02d:%04.1f" % (int(math.copysign(degrees, deg)), int(minutes), seconds)
+    else:
+        text = "%02d:%02d:%04.1f" % (int(math.copysign(degrees, deg)), int(minutes), seconds)
+
+    return text, num
