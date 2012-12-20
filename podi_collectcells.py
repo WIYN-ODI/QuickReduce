@@ -315,14 +315,34 @@ def collect_reduce_ota(filename,
         del hdu.header['WAT2_005']
         
         #print hdu.header['RA'], hdu.header['DEC'], hdu.header['EQUINOX']
-        coord = ephem.Equatorial(hdu.header['RA'], hdu.header['DEC'], epoch=str(hdu.header['EQUINOX']))
-        coord_j2000 = ephem.Equatorial(coord, epoch=ephem.J2000)
+        #coord = ephem.Equatorial(hdu.header['RA'], hdu.header['DEC'], epoch=str(hdu.header['EQUINOX']))
+        #coord_j2000 = ephem.Equatorial(coord, epoch=ephem.J2000)
+        coord_j2000 = ephem.Equatorial(hdu.header['RA'], hdu.header['DEC'], epoch=ephem.J2000)
         
         # Add some offsets, again from the PPA pipeline, to correct the pODI pointing
-        hdu.header['CRVAL1'] = numpy.degrees(coord_j2000.ra)
-        hdu.header['CRVAL2'] = numpy.degrees(coord_j2000.dec)
-        del hdu.header['EQUINOX']
+        #hdu.header['CRVAL1'] = numpy.degrees(coord_j2000.ra)  #+ 0.2630/numpy.cos(coord_j2000.dec)
+        #hdu.header['CRVAL2'] = numpy.degrees(coord_j2000.dec) #- 0.0435
+
+        # This works for NGC2146
+        #hdu.header['CRVAL1'] = numpy.degrees(coord_j2000.ra)  + 0.1592/numpy.cos(coord_j2000.dec)
+        #hdu.header['CRVAL2'] = numpy.degrees(coord_j2000.dec) - 0.0386
+
+        hdu.header.update('XXVAL1', numpy.degrees(coord_j2000.ra),  "CRPIX1 w/o correction")
+        hdu.header.update('XXVAL2', numpy.degrees(coord_j2000.dec), "CRPIX2 w/o correction")
         
+        del hdu.header['EQUINOX']
+
+        # THis works for NGC2146
+        #hdu.header['CRVAL1'] = numpy.degrees(coord_j2000.ra)  
+        #hdu.header['CRVAL2'] = numpy.degrees(coord_j2000.dec) 
+        #print hdu.header['CRPIX1'], hdu.header['CRPIX2']
+        #hdu.header['CRPIX1'] -= 5123
+        #hdu.header['CRPIX2'] += 1254
+
+        # This works for the Crab Nebula
+        hdu.header['CRVAL1'] = numpy.degrees(coord_j2000.ra)  
+        hdu.header['CRVAL2'] = numpy.degrees(coord_j2000.dec) 
+
         # Also update the CD matric with data from the official pipeline to
         # account for small misalignments between the different OTAs
         hdu.header['CD1_1'] = wcs_cd[ota_id][0]
