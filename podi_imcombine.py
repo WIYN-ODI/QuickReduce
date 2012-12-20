@@ -76,7 +76,7 @@ def imcombine(filelist, outputfile):
         shmem_buffer = multiprocessing.RawArray(ctypes.c_float, size_x*size_y*len(filelist))
         shmem_results = multiprocessing.RawArray(ctypes.c_float, size_x*size_y)
         
-        # Extratc the shared memory buffer as numpy array to make things easier
+        # Extract the shared memory buffer as numpy array to make things easier
         buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len(filelist)))
 
         # Set the full buffer to NaN

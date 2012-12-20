@@ -17,6 +17,7 @@ import os
 import pyfits
 import numpy
 import scipy
+import ephem
 
 gain_correct_frames = False
 from podi_definitions import *
@@ -189,7 +190,16 @@ def collect_reduce_ota(filename,
                                   hdulist[cell].header['DATASEC'],
                                   merged,
                                   hdulist[cell].header['DETSEC'])
-            
+
+            #
+            # Special case for cell 0,7 (the one in the bottom left corner):
+            # Copy the CRPIX values into the merged image header 
+            #
+            if (hdulist[cell].header['EXTNAME'] == "XY07"):
+                # print "Setting CRPIXs", hdulist[cell].header['CRPIX1'], hdulist[cell].header['CRPIX2']
+                hdu.header.update("CRPIX1", hdulist[cell].header['CRPIX1'], "Ref. pixel RA")
+                hdu.header.update("CRPIX2", hdulist[cell].header['CRPIX2'], "Ref. pixel DEC")
+                
         # Set all unset pixels to NaN 
         merged[merged < -1e5] = numpy.NaN
 
@@ -283,22 +293,43 @@ def collect_reduce_ota(filename,
 	end_y = start_y + det_y2 - det_y1
 	detsec_str = "[%d:%d,%d:%d]" % (start_x, end_x, start_y, end_y)
 	hdu.header.update("DETSEC", detsec_str, "position of OTA in focal plane")
-
-        # Also add the CRPIX1 and CRPIX2 headers to make for a complete
-        # (but not necessarily perfect) WCS solution
-        crpix = wcs_crpix[ota_id]
-        print crpix
-        hdu.header.update("CRPIX1", crpix[0], "")
-        hdu.header.update("CRPIX2", crpix[1], "")
-
+                
+        #
+        # Fudge with the WCS headers, largely undoing what's in the fits file right now,
+        # and replacing it with a simpler version that hopefully works better
+        #
+        hdu.header['CTYPE1'] = "RA---TAN"
+        hdu.header['CTYPE2'] = "DEC--TAN"
+        hdu.header.update("CUNIT1", "deg", "")
+        hdu.header.update("CUNIT2", "deg", "")
+        del hdu.header['WAT0_001']
+        del hdu.header['WAT1_001']
+        del hdu.header['WAT1_002']
+        del hdu.header['WAT1_003']
+        del hdu.header['WAT1_004']
+        del hdu.header['WAT1_005']
+        del hdu.header['WAT2_001']
+        del hdu.header['WAT2_002']
+        del hdu.header['WAT2_003']
+        del hdu.header['WAT2_004']
+        del hdu.header['WAT2_005']
+        
+        #print hdu.header['RA'], hdu.header['DEC'], hdu.header['EQUINOX']
+        coord = ephem.Equatorial(hdu.header['RA'], hdu.header['DEC'], epoch=str(hdu.header['EQUINOX']))
+        coord_j2000 = ephem.Equatorial(coord, epoch=ephem.J2000)
+        
+        # Add some offsets, again from the PPA pipeline, to correct the pODI pointing
+        hdu.header['CRVAL1'] = numpy.degrees(coord_j2000.ra)
+        hdu.header['CRVAL2'] = numpy.degrees(coord_j2000.dec)
+        del hdu.header['EQUINOX']
+        
+        # Also update the CD matric with data from the official pipeline to
+        # account for small misalignments between the different OTAs
         hdu.header['CD1_1'] = wcs_cd[ota_id][0]
         hdu.header['CD2_2'] = wcs_cd[ota_id][1]
         hdu.header['CD1_2'] = wcs_cd[ota_id][2]
         hdu.header['CD2_1'] = wcs_cd[ota_id][3]
-        
-        #hdu.header['CRVAL1'] -= wcs_crval_offsets[0]
-        #hdu.header['CRVAL2'] -= wcs_crval_offsets[1]
-        
+
         # Insert the new image data. This also makes sure that the headers
         # NAXIS, NAXIS1, NAXIS2 are set correctly
         hdu.data = merged
@@ -320,12 +351,17 @@ def collectcells(input, outputfile,
 
     if (outputfile == None):
         outputfile = "%s/%s.fits" % (directory, basename)
-        
+
+    # Check if the user requested us to prepare the frame for SExtractor
+    prep_for_sextractor = cmdline_arg_isset("-prep4sex")
+
+    # Start new list of HDUs
     ota_list = []
 
+    # And add the primary HDU to make the fits file a valid one
     primhdu = pyfits.PrimaryHDU()
     ota_list.append(primhdu)
-
+    
     for ota_id in range(len(available_ota_coords)):
         ota_c_x, ota_c_y = available_ota_coords[ota_id]        
         ota = ota_c_x * 10 + ota_c_y
@@ -335,15 +371,18 @@ def collectcells(input, outputfile,
         hdu = collect_reduce_ota(filename,
                                  bias_dir, dark_dir, flatfield_dir, bpm_dir)
 
+        # SExtractor doesn't like NaNs, so replace all of them with something
+        # more negative than -1e30 (that's -1 times SEx's BIG variable)
+        if (prep_for_sextractor):
+            hdu.data[numpy.isnan(hdu.data)] = -1e31 
+
         # Insert into the list to be used later
         ota_list.append(hdu)
 
-    sys.stdout.write(" writing ...")
-    sys.stdout.flush()
-
+    stdout_write(" writing ...")
+    
     hdulist = pyfits.HDUList(ota_list)
-    if (os.path.isfile(outputfile)):
-	os.remove(outputfile)
+    clobberfile(outputfile)
     hdulist.writeto(outputfile, clobber=True)
 
     stdout_write(" done!\n")
