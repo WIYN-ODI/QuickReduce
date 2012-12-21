@@ -428,10 +428,11 @@ def collectcells(input, outputfile,
         clobberfile(outputfile)
         hdulist.writeto(outputfile, clobber=True)
     else:
+        stdout_write(" continuing ...")
         return hdulist
 
-        stdout_write(" done!\n")
-        return 0
+    stdout_write(" done!\n")
+    return 0
 
 if __name__ == "__main__":
 
