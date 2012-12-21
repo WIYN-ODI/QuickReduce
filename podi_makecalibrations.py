@@ -32,7 +32,7 @@ if __name__ == "__main__":
     # Assign a fallback output filename if none is given 
     output_directory = sys.argv[2]
 
-    tmp_directory = output_directory + "/tmp"
+    tmp_directory = cmdline_arg_set_or_default("-tmpdir", output_directory + "/tmp")
 
     if (not os.path.isfile(filelist_filename)):
         stdout_write("Unable to open input filelist %s" % (filelist_filename))
@@ -111,7 +111,7 @@ if __name__ == "__main__":
     if (not os.path.isfile(bias_frame) and not cmdline_arg_isset("-redo")):
         stdout_write("Stacking %d frames into %s ..." % (len(bias_to_stack), bias_frame))
         imcombine(bias_to_stack, bias_frame)
-    if (not cmdline_arg_isset("-keeptemps") and False):
+    if (not cmdline_arg_isset("-keeptemps")):
         for file in bias_to_stack:
             clobberfile(file)
 
@@ -136,7 +136,7 @@ if __name__ == "__main__":
     if (not os.path.isfile(dark_frame) and not cmdline_arg_isset("-redo")):
         stdout_write("Stacking %d frames into %s ..." % (len(darks_to_stack), dark_frame))
         imcombine(darks_to_stack, dark_frame)
-    if (not cmdline_arg_isset("-keeptemps") and False):
+    if (not cmdline_arg_isset("-keeptemps")):
         for file in darks_to_stack:
             clobberfile(file)
 
@@ -166,7 +166,7 @@ if __name__ == "__main__":
         if (not os.path.isfile(flat_frame) and not cmdline_arg_isset("-redo")):
             stdout_write("Stacking %d frames into %s ..." % (len(flats_to_stack), flat_frame))
             imcombine(flats_to_stack, flat_frame)
-        if (not cmdline_arg_isset("-keeptemps") and False):
+        if (not cmdline_arg_isset("-keeptemps")):
             for file in flats_to_stack:
                 clobberfile(file)
 
