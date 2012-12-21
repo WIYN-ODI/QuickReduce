@@ -153,9 +153,20 @@ def collect_reduce_ota(filename,
         except:
             stdout_write("Something is wrong with this OTA, it's not among those listed as available")
             sys.exit(-1)
+
+        # Now copy the headers from the original file into the new one
+        cards = hdulist[0].header.ascardlist()
+        for c in cards:
+            hdu.header.update(c.key, c.value, c.comment)
+
         ota_c_x, ota_c_y = available_ota_coords[ota_id]
 
-	merged = numpy.ones(shape=(size_x, size_y), dtype=numpy.float32) * -1e8
+        #
+        # Allocate memory for the merged frame, and set all pixels by default to NaN.
+        # Valid pixels will subsequently be overwritten with real numbers
+        #
+	merged = numpy.ones(shape=(size_x, size_y), dtype=numpy.float32)
+        merged[:,:] = numpy.NaN
         
         for cell in range(1,65):
             stdout_write("\r%s:   OTA %02d, cell %s ..." % (obsid, ota, hdulist[cell].header['EXTNAME']))
@@ -202,9 +213,6 @@ def collect_reduce_ota(filename,
                 hdu.header.update("CRPIX1", hdulist[cell].header['CRPIX1'], "Ref. pixel RA")
                 hdu.header.update("CRPIX2", hdulist[cell].header['CRPIX2'], "Ref. pixel DEC")
                 
-        # Set all unset pixels to NaN 
-        merged[merged < -1e5] = numpy.NaN
-
         #
         # Get some information for the OTA
         #
@@ -227,6 +235,7 @@ def collect_reduce_ota(filename,
                 	break
 
                 bias.close()
+                hdu.header.add_history("CC-BIAS: %s" % (os.path.abspath(bias_filename)))
                 del bias
  
 
@@ -253,6 +262,7 @@ def collect_reduce_ota(filename,
                 	break
 
                 dark.close()
+                hdu.header.add_history("CC-DARK: %s" % (os.path.abspath(dark_filename)))
                 del dark
  
 
@@ -272,6 +282,7 @@ def collect_reduce_ota(filename,
                 	break
 
                 flatfield.close()
+                hdu.header.add_history("CC-FLAT: %s" % (os.path.abspath(flatfield_filename)))
                 del flatfield
 
         # Finally, apply bad pixel masks 
@@ -282,11 +293,7 @@ def collect_reduce_ota(filename,
                 # Apply the bad pixel regions to file, marking
                 # all bad pixels as NaNs
                 mask_broken_regions(merged, region_file)
-
-        # Now copy the headers from the original file into the new one
-        cards = hdulist[0].header.ascardlist()
-        for c in cards:
-            hdu.header.update(c.key, c.value, c.comment)
+                hdu.header.add_history("CC-BPM: %s" % (os.path.abspath(region_file)))
 
         # Insert the DETSEC header so IRAF understands where to put the extensions
 	start_x = ota_c_x * 4100
@@ -364,7 +371,7 @@ def collectcells(input, outputfile,
     directory,basename = os.path.split(input)
     if (directory == ""):
         directory = "."
-    print "Merging cells for frame %s" % (basename)
+    #print "Merging cells for frame %s" % (basename)
 
     if (outputfile == None):
         outputfile = "%s/%s.fits" % (directory, basename)
