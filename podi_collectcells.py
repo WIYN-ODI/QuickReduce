@@ -125,7 +125,8 @@ Calibration data:
     return bias_dir, dark_dir, flatfield_dir, bpm_dir, i
 
 def collect_reduce_ota(filename,
-                       bias_dir, dark_dir, flatfield_dir, bpm_dir):
+                       bias_dir, dark_dir, flatfield_dir, bpm_dir,
+                       offset_pointing=[0,0], offset_dither=[0,0], target_coords=None):
 
     # Create an fits extension to hold the output
     hdu = pyfits.ImageHDU()
@@ -313,36 +314,30 @@ def collect_reduce_ota(filename,
         del hdu.header['WAT2_003']
         del hdu.header['WAT2_004']
         del hdu.header['WAT2_005']
-        
-        #print hdu.header['RA'], hdu.header['DEC'], hdu.header['EQUINOX']
-        #coord = ephem.Equatorial(hdu.header['RA'], hdu.header['DEC'], epoch=str(hdu.header['EQUINOX']))
-        #coord_j2000 = ephem.Equatorial(coord, epoch=ephem.J2000)
-        coord_j2000 = ephem.Equatorial(hdu.header['RA'], hdu.header['DEC'], epoch=ephem.J2000)
-        
-        # Add some offsets, again from the PPA pipeline, to correct the pODI pointing
-        #hdu.header['CRVAL1'] = numpy.degrees(coord_j2000.ra)  #+ 0.2630/numpy.cos(coord_j2000.dec)
-        #hdu.header['CRVAL2'] = numpy.degrees(coord_j2000.dec) #- 0.0435
-
-        # This works for NGC2146
-        #hdu.header['CRVAL1'] = numpy.degrees(coord_j2000.ra)  + 0.1592/numpy.cos(coord_j2000.dec)
-        #hdu.header['CRVAL2'] = numpy.degrees(coord_j2000.dec) - 0.0386
-
-        hdu.header.update('XXVAL1', numpy.degrees(coord_j2000.ra),  "CRPIX1 w/o correction")
-        hdu.header.update('XXVAL2', numpy.degrees(coord_j2000.dec), "CRPIX2 w/o correction")
-        
         del hdu.header['EQUINOX']
 
-        # THis works for NGC2146
-        #hdu.header['CRVAL1'] = numpy.degrees(coord_j2000.ra)  
-        #hdu.header['CRVAL2'] = numpy.degrees(coord_j2000.dec) 
-        #print hdu.header['CRPIX1'], hdu.header['CRPIX2']
-        #hdu.header['CRPIX1'] -= 5123
-        #hdu.header['CRPIX2'] += 1254
+        coord_j2000 = ephem.Equatorial(hdu.header['RA'], hdu.header['DEC'], epoch=ephem.J2000)
+        if (not target_coords == None):
+            ra, dec = target_coords
+            coord_j2000 = ephem.Equatorial(ra, dec, epoch=ephem.J2000)
 
-        # This works for the Crab Nebula
+        # Write the CRVALs with the pointing information
+        print numpy.degrees(coord_j2000.ra), numpy.degrees(coord_j2000.dec)  
         hdu.header['CRVAL1'] = numpy.degrees(coord_j2000.ra)  
         hdu.header['CRVAL2'] = numpy.degrees(coord_j2000.dec) 
 
+        # Compute total offsets as the sum from pointing and dither offset
+        offset_total = numpy.array(offset_pointing) + numpy.array(offset_dither)
+        print offset_pointing
+        print offset_dither
+        print offset_total
+
+        # Now add the pointing and dither offsets
+        print offset_total[0] / 3600. / numpy.cos(numpy.radians(hdu.header['CRVAL2']))
+        print hdu.header['CRVAL2'], numpy.cos(numpy.radians(hdu.header['CRVAL2']))
+        hdu.header['CRVAL1'] += offset_total[0] / 3600. / numpy.cos(numpy.radians(hdu.header['CRVAL2']))
+        hdu.header['CRVAL2'] += offset_total[1] / 3600.
+        
         # Also update the CD matric with data from the official pipeline to
         # account for small misalignments between the different OTAs
         hdu.header['CD1_1'] = wcs_cd[ota_id][0]
@@ -375,6 +370,28 @@ def collectcells(input, outputfile,
     # Check if the user requested us to prepare the frame for SExtractor
     prep_for_sextractor = cmdline_arg_isset("-prep4sex")
 
+
+    #
+    # Read all offsets from command line
+    # For convenience, there are two sets of offset parameters, that internally simply 
+    # get added up. The reason for this is to make specifying them on the command line 
+    # easier, since the pointing offsets stay constant across a dither pattern, while 
+    # the dither offsets change.
+    #
+    _offset_pointing = cmdline_arg_set_or_default("-pointing", "0,0")
+    dx,dummy,dy = _offset_pointing.partition(",")
+    offset_pointing = [float(dx), float(dy)]
+
+    _offset_dither = cmdline_arg_set_or_default("-dither", "0,0")
+    dx,dummy,dy = _offset_dither.partition(",")
+    offset_dither = [float(dx), float(dy)]
+
+    target_coords = None
+    if (cmdline_arg_isset("-target")):
+        _target_coords = cmdline_arg_set_or_default("-target", "0,0")
+        ra,dummy,dec = _target_coords.partition(",")
+        target_coords = (ra, dec)
+
     # Start new list of HDUs
     ota_list = []
 
@@ -389,7 +406,10 @@ def collectcells(input, outputfile,
         filename = "%s/%s/%s.%02d.fits" % (directory, basename, basename, ota)
                 
         hdu = collect_reduce_ota(filename,
-                                 bias_dir, dark_dir, flatfield_dir, bpm_dir)
+                                 bias_dir, dark_dir, flatfield_dir, bpm_dir,
+                                 offset_pointing=offset_pointing,
+                                 offset_dither=offset_dither,
+                                 target_coords=target_coords)
 
         # SExtractor doesn't like NaNs, so replace all of them with something
         # more negative than -1e30 (that's -1 times SEx's BIG variable)
