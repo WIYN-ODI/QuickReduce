@@ -8,8 +8,13 @@ import scipy
 
 from podi_definitions import *
 
-def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=3):
-    hdulist = pyfits.open(filename)
+def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=3, batchmode_hdu=None):
+
+    if (not batchmode_hdu == None):
+        hdulist = batchmode_hdu
+    else:
+        hdulist = pyfits.open(filename)
+        
     filter = hdulist[1].header['FILTER']
     print "This is filter",filter
     print "Using binning %d,%d" % (binning_x, binning_y)
