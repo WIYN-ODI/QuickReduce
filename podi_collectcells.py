@@ -74,7 +74,7 @@ def mask_broken_regions(datablock, regionfile, verbose=False):
         print "Marked",counter,"bad pixel regions"
     return datablock
 
-def read_reduction_directories(start=1, warn=True):
+def read_reduction_directories(start=1, warn=True, verbose=True):
     #
     # Read other parameters, specifying the directories for the 
     # flatfields, darks and biases
@@ -114,7 +114,8 @@ def read_reduction_directories(start=1, warn=True):
 
 
     # Output some summary on the reduction
-    print """
+    if (verbose):
+        print """
 Calibration data:
             Bias: %s
             Dark: %s
@@ -322,19 +323,19 @@ def collect_reduce_ota(filename,
             coord_j2000 = ephem.Equatorial(ra, dec, epoch=ephem.J2000)
 
         # Write the CRVALs with the pointing information
-        print numpy.degrees(coord_j2000.ra), numpy.degrees(coord_j2000.dec)  
+        #print numpy.degrees(coord_j2000.ra), numpy.degrees(coord_j2000.dec)  
         hdu.header['CRVAL1'] = numpy.degrees(coord_j2000.ra)  
         hdu.header['CRVAL2'] = numpy.degrees(coord_j2000.dec) 
 
         # Compute total offsets as the sum from pointing and dither offset
         offset_total = numpy.array(offset_pointing) + numpy.array(offset_dither)
-        print offset_pointing
-        print offset_dither
-        print offset_total
+        #print offset_pointing
+        #print offset_dither
+        #print offset_total
 
         # Now add the pointing and dither offsets
-        print offset_total[0] / 3600. / numpy.cos(numpy.radians(hdu.header['CRVAL2']))
-        print hdu.header['CRVAL2'], numpy.cos(numpy.radians(hdu.header['CRVAL2']))
+        #print offset_total[0] / 3600. / numpy.cos(numpy.radians(hdu.header['CRVAL2']))
+        #print hdu.header['CRVAL2'], numpy.cos(numpy.radians(hdu.header['CRVAL2']))
         hdu.header['CRVAL1'] += offset_total[0] / 3600. / numpy.cos(numpy.radians(hdu.header['CRVAL2']))
         hdu.header['CRVAL2'] += offset_total[1] / 3600.
         
@@ -352,7 +353,8 @@ def collect_reduce_ota(filename,
     
 
 def collectcells(input, outputfile,
-                 bias_dir, dark_dir, flatfield_dir, bpm_dir):
+                 bias_dir=None, dark_dir=None, flatfield_dir=None, bpm_dir=None,
+                 batchmode=False):
 
     # As a safety precaution, if the first parameter is the directory containing 
     # the files, extract just the ID string to be used for this script
@@ -419,14 +421,17 @@ def collectcells(input, outputfile,
         # Insert into the list to be used later
         ota_list.append(hdu)
 
-    stdout_write(" writing ...")
-    
     hdulist = pyfits.HDUList(ota_list)
-    clobberfile(outputfile)
-    hdulist.writeto(outputfile, clobber=True)
+    if (not batchmode):
+        stdout_write(" writing ...")
+    
+        clobberfile(outputfile)
+        hdulist.writeto(outputfile, clobber=True)
+    else:
+        return hdulist
 
-    stdout_write(" done!\n")
-    return 0
+        stdout_write(" done!\n")
+        return 0
 
 if __name__ == "__main__":
 
