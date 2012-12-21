@@ -120,7 +120,8 @@ if __name__ == "__main__":
     # Now that we have the master bias frame, go ahead and reduce the darks
     #
     stdout_write("####################\n#\n# Creating dark-frame\n#\n####################\n")
-    dark_frame = "%s/dark.fits" % (output_directory)
+    # For now set all darks to detector-glow "yes"
+    dark_frame = "%s/dark_yes.fits" % (output_directory)
     darks_to_stack = []
     for cur_dark in dark_list:
         # First run collectcells
