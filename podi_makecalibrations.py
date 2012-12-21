@@ -31,7 +31,21 @@ if __name__ == "__main__":
 
     # Assign a fallback output filename if none is given 
     output_directory = sys.argv[2]
-    
+
+    tmp_directory = output_directory + "/tmp"
+
+    if (not os.path.isfile(filelist_filename)):
+        stdout_write("Unable to open input filelist %s" % (filelist_filename))
+        sys.exit(-1)
+
+    if (not os.path.isdir(output_directory)):
+        stdout_write("Specified output directory does not exists..." % (output_directory))
+        sys.exit(-2)
+
+    # We also need a "tmp" subdirectory  directory in the output directory
+    if (not os.path.exists(tmp_directory)):
+        os.makedirs(tmp_directory)
+
 
     #
     # Read the list of files
@@ -86,7 +100,7 @@ if __name__ == "__main__":
     for cur_bias in bias_list:
         # First run collectcells
         dummy, basename = os.path.split(cur_bias)
-        bias_outfile = "%s/tmp/bias.%s.fits" % (output_directory, basename)
+        bias_outfile = "%s/bias.%s.fits" % (tmp_directory, basename)
         if (not os.path.isfile(bias_outfile) and not cmdline_arg_isset("-redo")):
             collectcells(cur_bias, bias_outfile,
                          bias_dir=None, dark_dir=None, flatfield_dir=None, bpm_dir=None, 
@@ -111,7 +125,7 @@ if __name__ == "__main__":
     for cur_dark in dark_list:
         # First run collectcells
         dummy, basename = os.path.split(cur_dark)
-        dark_outfile = "%s/tmp/dark.%s.fits" % (output_directory, basename)
+        dark_outfile = "%s/dark.%s.fits" % (tmp_directory, basename)
         if (not os.path.isfile(dark_outfile) and not cmdline_arg_isset("-redo")):
             collectcells(cur_dark, dark_outfile,
                          bias_dir=output_directory, dark_dir=None, flatfield_dir=None, bpm_dir=None, 
@@ -140,12 +154,11 @@ if __name__ == "__main__":
         for cur_flat in flat_list[cur_filter_id]:
             # First run collectcells
             dummy, basename = os.path.split(cur_flat)
-            flat_outfile = "%s/tmp/nflat.%s.%s.fits" % (output_directory, filter, basename)
+            flat_outfile = "%s/nflat.%s.%s.fits" % (tmp_directory, filter, basename)
             if (not os.path.isfile(flat_outfile) and not cmdline_arg_isset("-redo")):
                 hdu_list = collectcells(cur_flat, flat_outfile,
                              bias_dir=output_directory, dark_dir=output_directory, flatfield_dir=None, bpm_dir=None, 
                              batchmode=True)
-                #hdu_list.writeto("tmp.fits", clobber=True)
                 normalize_flatfield(None, flat_outfile, binning_x=8, binning_y=8, repeats=3, batchmode_hdu=hdu_list)
             flats_to_stack.append(flat_outfile)
         #print flats_to_stack
