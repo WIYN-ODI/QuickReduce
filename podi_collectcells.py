@@ -428,6 +428,33 @@ def collectcells(input, outputfile,
         # Insert into the list to be used later
         ota_list.append(hdu)
 
+    #
+    # Now do some post-processing:
+    # 1) Move a couple of headers out of each individual extension and put it in the 
+    #    primary extension instead (defined in headers_to_inherit, see podi_definitions)
+    # 2) Delete a bunch of headers that are no longer necessary (defined in 
+    #    headers_to_delete_from_otas, see podi_definitions)
+    #
+    for ota in ota_list[1:]:
+        for header in headers_to_inherit:
+            # Check if the header already exists in the primary header. If not add it!
+            if (not header in ota_list[0].header):
+                card = ota.header.ascardlist()[header]
+                ota_list[0].header.update(card.key, card.value, card.comment)
+                #value = ota.header[header]
+                #ota_list[0].header.update(header, value, "DESCRIPTION")
+            
+            # By now the value should exist in the primary header, 
+            # so delete it from each of the extensions
+            del ota.header[header]
+                
+        # Set the inherit keyword so that the headers removed from each 
+        # extension are instead inherited from the primary
+        ota.header.update("INHERIT", True, "Inherit headers from PrimaryHDU")
+
+        for header in headers_to_delete_from_otas:
+            del ota.header[header]
+
     hdulist = pyfits.HDUList(ota_list)
     if (not batchmode):
         stdout_write(" writing ...")

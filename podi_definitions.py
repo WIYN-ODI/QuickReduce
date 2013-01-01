@@ -1,4 +1,3 @@
-
 #
 # (c) Ralf Kotulla for WIYN/pODI
 #
@@ -202,3 +201,48 @@ def deg2sexa(deg, signed=False):
         text = "%02d:%02d:%04.1f" % (int(math.copysign(degrees, deg)), int(minutes), seconds)
 
     return text, num
+
+
+
+
+headers_to_inherit = [
+    'CTYPE1', 'CTYPE2', 'CRVAL1', 'CRVAL2', 'CUNIT1', 'CUNIT2',
+    'RA', 'DEC', 'TARGRA', 'TARGDEC', 'TELRAOFF', 'TELDECOF', 
+    'FILTER', 'FILTERID', 'FILTDSCR', 'EXPTIME',
+    'OBSID', 'OBJECT', 'OBSTYPE',
+    'WCSASTRM',
+    'EXPMEAS',
+    
+    'ORIGIN', 'INSTRUME',
+    'FILENAME', 
+    'OBSLOGIN',
+    'RADESYS', 'TIMESYS', 'LSTHDR',
+    'OBSERVAT', 'TELESCOP',
+    'OBSERVER', 'PROPOSER', 'PROPID', 'PROGID', 'TACID', 'PROPPERD',
+    'DATE-OBS', 'TIME-OBS', 'MJD-OBS', 'DATE',
+    'ZD', 'AIRMASS',
+    'TELFOCUS',
+    'TRACK',
+    'ELMAP', 'AZMAP', 'ROTPORT',
+    'FOLDPOS','OBSBLOCK',
+    'ADCMODE', 'ADCANG1', 'ADCANG2', 'ADCJD',
+    'ROTSTART', 'ROTEND', 'ROTOFF', 
+    
+    'TEMPSTAT', 'DEWAR', 'COOLHEAD', 'COLPLATE', 'FOCPLATE', 'DEWPRESS',
+    'FLTARM1A', 'FLTARM1B', 'FLTARM1C',
+    'FLTARM2A', 'FLTARM2B', 'FLTARM2C',
+    'FLTARM3A', 'FLTARM3B', 'FLTARM3C',
+    'SHUTDIR', 'SHUTOPEN', 'SHUTCLOS',
+    'CONTROLR',
+    'IMAGESWV',
+    ]
+
+headers_to_delete_from_otas = [
+    'CELLGAP1', 'CELLGAP2',
+    'CNAXIS1', 'CNAXIS2',
+    'NAMPS', 'NEXTEND', 
+    'PRESCAN1', 'PRESCAN2',
+    'OVRSCAN1', 'OVRSCAN2',
+    'IMNAXIS1', 'IMNAXIS2',
+    'EXTEND'
+    ]
