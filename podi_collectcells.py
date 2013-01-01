@@ -303,25 +303,29 @@ def collect_reduce_ota(filename,
 	detsec_str = "[%d:%d,%d:%d]" % (start_x, end_x, start_y, end_y)
 	hdu.header.update("DETSEC", detsec_str, "position of OTA in focal plane")
                 
-        #
-        # Fudge with the WCS headers, largely undoing what's in the fits file right now,
-        # and replacing it with a simpler version that hopefully works better
-        #
-        hdu.header['CTYPE1'] = "RA---TAN"
-        hdu.header['CTYPE2'] = "DEC--TAN"
+        if (cmdline_arg_isset("-simplewcs")):
+            #
+            # Fudge with the WCS headers, largely undoing what's in the fits file right now,
+            # and replacing it with a simpler version that hopefully works better
+            #
+            hdu.header['CTYPE1'] = "RA---TAN"
+            hdu.header['CTYPE2'] = "DEC--TAN"
+            del hdu.header['WAT0_001']
+            del hdu.header['WAT1_001']
+            del hdu.header['WAT1_002']
+            del hdu.header['WAT1_003']
+            del hdu.header['WAT1_004']
+            del hdu.header['WAT1_005']
+            del hdu.header['WAT2_001']
+            del hdu.header['WAT2_002']
+            del hdu.header['WAT2_003']
+            del hdu.header['WAT2_004']
+            del hdu.header['WAT2_005']
+        # in any case, add the CUNIT headers and get rid of the EQUINOX keyword
+        # The former are missing by default, and the latter is written by the TCS, 
+        # but is conflicting with the value of EPOCH
         hdu.header.update("CUNIT1", "deg", "")
         hdu.header.update("CUNIT2", "deg", "")
-        del hdu.header['WAT0_001']
-        del hdu.header['WAT1_001']
-        del hdu.header['WAT1_002']
-        del hdu.header['WAT1_003']
-        del hdu.header['WAT1_004']
-        del hdu.header['WAT1_005']
-        del hdu.header['WAT2_001']
-        del hdu.header['WAT2_002']
-        del hdu.header['WAT2_003']
-        del hdu.header['WAT2_004']
-        del hdu.header['WAT2_005']
         del hdu.header['EQUINOX']
 
         coord_j2000 = ephem.Equatorial(hdu.header['RA'], hdu.header['DEC'], epoch=ephem.J2000)
@@ -437,6 +441,10 @@ def collectcells(input, outputfile,
     #
     for ota in ota_list[1:]:
         for header in headers_to_inherit:
+            # Make sure the header we are about to move exists in the first place
+            if (not header in ota.header):
+                continue
+
             # Check if the header already exists in the primary header. If not add it!
             if (not header in ota_list[0].header):
                 card = ota.header.ascardlist()[header]
@@ -453,6 +461,9 @@ def collectcells(input, outputfile,
         ota.header.update("INHERIT", True, "Inherit headers from PrimaryHDU")
 
         for header in headers_to_delete_from_otas:
+            # As above, make sure header exists
+            if (not header in ota.header):
+                continue
             del ota.header[header]
 
     hdulist = pyfits.HDUList(ota_list)
