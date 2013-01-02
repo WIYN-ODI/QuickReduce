@@ -16,7 +16,6 @@ def rsync(queue, target):
             queue.task_done()
             return
 
-        status = "Running '%s' with parameter '%s', %d more to come\n" % (target, file, queue.qsize())
         rsync_cmd = 'rsync -au "%s" %s' % (file, target)
             
         print rsync_cmd
@@ -47,6 +46,7 @@ if __name__ == "__main__":
         #    continue
 
         queue.put((False,file))
+        time.sleep(0.1)
 
     for i in range(number_cpus):
         queue.put((True,None))
