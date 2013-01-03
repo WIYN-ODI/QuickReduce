@@ -152,17 +152,18 @@ if __name__ == "__main__":
 
     # Obtain catalog listing from USNO-B1
     #usno = query_usno(10.74225833333333, 41.37409777777778, 45, 1000, "usno.cat")
-    usno = query_usno(ra, dec, 45, 10000, "usno.cat", download=False)
+    usno_cat = fitsfile[:-5]+".usno.cat"
+    usno = query_usno(ra, dec, 45, 10000, usno_cat, download=True)
     #usno = numpy.loadtxt("test.debug_ref")
     stdout_write("Read %s stars from USNO-B1\n" % (usno.shape[0]))
     
 
     # Run Sextractor on the datafile
-    sex_catalogfile = "test.cat"
+    sex_catalogfile = fitsfile[:-5]+".source.cat"
     sex_config_file = "sex.conf"
-    sex_cmd = "sex -c %s %s" % (sex_config_file, fitsfile)
+    sex_cmd = "sex -c %s -CATALOG_NAME %s %s" % (sex_config_file, sex_catalogfile, fitsfile)
     print sex_cmd
-    #os.system(sex_cmd)
+    os.system(sex_cmd)
 
     # Read the Sextractor output catalog
     #sex_catalogfile = "test.debug_ota"
@@ -226,6 +227,7 @@ if __name__ == "__main__":
         print "##"
         print "#######################"
 
+    #for ext in range(1, len(hdulist)):
         hdulist[ext].header['CRVAL1'] += dx
         hdulist[ext].header['CRVAL2'] += dy
 
