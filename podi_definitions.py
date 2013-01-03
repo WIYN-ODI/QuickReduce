@@ -205,8 +205,9 @@ def deg2sexa(deg, signed=False):
 
 
 
+#    'CTYPE1', 'CTYPE2', 'CRVAL1', 'CRVAL2', 'CUNIT1', 'CUNIT2',
+
 headers_to_inherit = [
-    'CTYPE1', 'CTYPE2', 'CRVAL1', 'CRVAL2', 'CUNIT1', 'CUNIT2',
     'RA', 'DEC', 'TARGRA', 'TARGDEC', 'TELRAOFF', 'TELDECOF', 
     'FILTER', 'FILTERID', 'FILTDSCR', 'EXPTIME',
     'OBSID', 'OBJECT', 'OBSTYPE',
@@ -246,3 +247,15 @@ headers_to_delete_from_otas = [
     'IMNAXIS1', 'IMNAXIS2',
     'EXTEND'
     ]
+
+
+def inherit_headers(header, primary_header):
+    for header in headers_to_inherit:
+        if (not header in primary_header):
+            print "Problem with header ",header
+            continue
+
+        card = primary_header.ascardlist()[header]
+        header.update(card.key, card.value, card.comment)
+
+        
