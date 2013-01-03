@@ -43,8 +43,7 @@ if __name__ == "__main__":
     bias_dir, dark_dir, flatfield_dir, bpm_dir, start = read_reduction_directories(start=start, warn=False)
 
     # Now loop over all files and run collectcells
-    for folder in sys.argv[start:]:
-
+    for folder in get_clean_cmdline()[1:]:
         if (folder[-1] == "/"):
             folder = folder[:-1]
 
@@ -59,7 +58,7 @@ if __name__ == "__main__":
         else:
             outputfile = "%s.fits" % (basename)
 
-        stdout_write("Collecting cells from %s ==> %s" % (folder,outputfile))
+        stdout_write("Collecting cells from %s ==> %s\n" % (folder,outputfile))
 
         # Collect all cells, perform reduction and write result file
         collectcells(folder, outputfile,
