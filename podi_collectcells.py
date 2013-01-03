@@ -84,34 +84,17 @@ def read_reduction_directories(start=1, warn=True, verbose=True):
     bias_dir = None
     dark_dir = None
     bpm_dir = None
-    #
-    # Then deal with the user-specified values from the command line
-    #
-    i=start
-    while i<len(sys.argv):
-        cmd = sys.argv[i]
-        if (cmd == "-flat" and i+1<len(sys.argv)):
-            flatfield_dir = sys.argv[i+1]
-            i += 1
-        elif (cmd == "-bias" and i+1<len(sys.argv)):
-            bias_dir = sys.argv[i+1]
-            i += 1
-        elif (cmd == "-dark" and i+1<len(sys.argv)):
-            dark_dir = sys.argv[i+1]
-            i += 1
-        elif (cmd == "-bpm" and i+1<len(sys.argv)):
-            bpm_dir = sys.argv[i+1]
-            i += 1
-            if (bpm_dir == "auto"):
-                bpm_dir, py = os.path.split(sys.argv[0])
-                if (bpm_dir == ""):
-                    bpm_dir = "."
-        else:
-            if (warn):
-                print "Don't understand parameter %d: %s" % (i, sys.argv[i])
-            break
-        i += 1
 
+    if (cmdline_arg_isset("-cals")):
+        bias_dir = get_cmdline_arg("-cals")
+        dark_dir = get_cmdline_arg("-cals")
+        flatfield_dir = get_cmdline_arg("-cals")
+
+    bias_dir = cmdline_arg_set_or_default("-bias", bias_dir)
+    dark_dir = cmdline_arg_set_or_default("-dark", dark_dir)
+    flatfield_dir = cmdline_arg_set_or_default("-flat", flatfield_dir)
+
+    bpm_dir = cmdline_arg_set_or_default("-bpm", bpm_dir)
 
     # Output some summary on the reduction
     if (verbose):
@@ -123,6 +106,7 @@ Calibration data:
   Bad pixel mask: %s
 """ % (bias_dir, dark_dir, flatfield_dir, bpm_dir)
 
+    i = 0
     return bias_dir, dark_dir, flatfield_dir, bpm_dir, i
 
 def collect_reduce_ota(filename,
