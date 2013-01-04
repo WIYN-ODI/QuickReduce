@@ -287,7 +287,7 @@ def collect_reduce_ota(filename,
 	detsec_str = "[%d:%d,%d:%d]" % (start_x, end_x, start_y, end_y)
 	hdu.header.update("DETSEC", detsec_str, "position of OTA in focal plane")
                 
-        if (cmdline_arg_isset("-simplewcs")):
+        if (cmdline_arg_isset("-simplewcs") or cmdline_arg_isset("-scamp")):
             #
             # Fudge with the WCS headers, largely undoing what's in the fits file right now,
             # and replacing it with a simpler version that hopefully works better
@@ -305,12 +305,9 @@ def collect_reduce_ota(filename,
             del hdu.header['WAT2_003']
             del hdu.header['WAT2_004']
             del hdu.header['WAT2_005']
-        # in any case, add the CUNIT headers and get rid of the EQUINOX keyword
-        # The former are missing by default, and the latter is written by the TCS, 
-        # but is conflicting with the value of EPOCH
+        # in any case, add the CUNIT headers that are missing by default
         hdu.header.update("CUNIT1", "deg", "")
         hdu.header.update("CUNIT2", "deg", "")
-        del hdu.header['EQUINOX']
 
         coord_j2000 = ephem.Equatorial(hdu.header['RA'], hdu.header['DEC'], epoch=ephem.J2000)
         if (not target_coords == None):
@@ -324,28 +321,76 @@ def collect_reduce_ota(filename,
 
         # Compute total offsets as the sum from pointing and dither offset
         offset_total = numpy.array(offset_pointing) + numpy.array(offset_dither)
-        #print offset_pointing
-        #print offset_dither
-        #print offset_total
 
         # Now add the pointing and dither offsets
         #print offset_total[0] / 3600. / numpy.cos(numpy.radians(hdu.header['CRVAL2']))
         #print hdu.header['CRVAL2'], numpy.cos(numpy.radians(hdu.header['CRVAL2']))
         hdu.header['CRVAL1'] += offset_total[0] / 3600. / numpy.cos(numpy.radians(hdu.header['CRVAL2']))
         hdu.header['CRVAL2'] += offset_total[1] / 3600.
+        #
+        # To do:
+        # =========================================================
+        # Check if the above still makes sense !!!!
+        # In particular the addition of the telescope offsets 
+        # should be included in RA/DEC already !!!
+        # =========================================================
+        #
         
-        # Also update the CD matric with data from the official pipeline to
-        # account for small misalignments between the different OTAs
-        hdu.header['CD1_1'] = wcs_cd[ota_id][0]
-        hdu.header['CD2_2'] = wcs_cd[ota_id][1]
-        hdu.header['CD1_2'] = wcs_cd[ota_id][2]
-        hdu.header['CD2_1'] = wcs_cd[ota_id][3]
-
         # Insert the new image data. This also makes sure that the headers
         # NAXIS, NAXIS1, NAXIS2 are set correctly
         hdu.data = merged
     return hdu
     
+
+def read_scamp_header(filename, dump_header=False):
+
+    if (not os.path.isfile(filename)):
+        return None
+
+    headfile = open(filename, "r")
+    lines = headfile.readlines()
+
+    head = []
+    head_list = []
+    for line in lines:
+        #print line
+
+        key, value, comment = line[0:8].strip(), line[9:30].strip(), line[32:].strip()
+        if (key in ("HISTORY", "COMMENT",
+                    ) ):
+            # Don't know what to do with those, so skip'em
+            continue
+        elif (key in ("CRVAL1", "CRVAL2",
+                      ) ):
+            # Skip these headers, otherwise we're in trouble
+            continue
+        elif (key in ("FGROUPNO", "FLXSCALE", "MAGZEROP", 
+                      "ASTINST",
+                      "PHOTIRMS", "PHOTINST", "PHOTLINK",
+                      ) ):
+            # These are some scamp-specific headers, let's not copy them
+            continue
+        elif (key in ("CRPIX1", "CRPIX2", "CD1_1", "CD1_2", "CD2_1", "CD2_2",) ):
+            value = float(value)
+        elif (key in ("RADCSYS", "CTYPE1", "CTYPE2", "CUNIT1", "CUNIT2") ):
+            value = value[1:-1].strip()
+        elif (key == "END"):
+            # This concludes one extension, add it to list and start new 
+            # list for the next OTA
+            head_list.append(head)
+            head = []
+            continue
+
+        head.append((key,value,comment))
+
+    #print head_list
+    if (dump_header):
+        for ota in head_list:
+            for key,value,comment in ota:
+                print key,"=",value,"(",comment,")"
+            print "\n\n\n"
+
+    return head_list
 
 def collectcells(input, outputfile,
                  bias_dir=None, dark_dir=None, flatfield_dir=None, bpm_dir=None,
@@ -389,6 +434,14 @@ def collectcells(input, outputfile,
         ra,dummy,dec = _target_coords.partition(",")
         target_coords = (ra, dec)
 
+
+    # If the user specified to overwrite the WCS with a SCAMP solution,
+    # Read the solution and store it for later use
+    scamp_solution = cmdline_arg_set_or_default("-scamp", None)
+    scamp_header = None
+    if (not scamp_solution == None):
+        scamp_header = read_scamp_header(scamp_solution)
+
     # Start new list of HDUs
     ota_list = []
 
@@ -423,7 +476,24 @@ def collectcells(input, outputfile,
     # 2) Delete a bunch of headers that are no longer necessary (defined in 
     #    headers_to_delete_from_otas, see podi_definitions)
     #
-    for ota in ota_list[1:]:
+    #print "scamp_header=",scamp_header
+
+    # Save the old CRPIX1, CRPIX2. 
+    # The scamp header doesn't necessarily have the same reference 
+    # point, so we have to change the reference coordinates accordingly
+    crpix1, crpix2 = ota_list[7].header['CRPIX1'], ota_list[7].header['CRPIX2']
+
+    for extension in range(1, len(ota_list)):
+        ota = ota_list[extension]
+        if (cmdline_arg_isset("-scamp") and not scamp_header == None):
+            # Now add/change all the headers that are given in the SCAMP header
+            ota_head = scamp_header[extension-1]
+            for key,value,comment in ota_head:
+                ota.header.update(key, value, comment)
+
+        if (cmdline_arg_isset("-prep4sex")):
+            continue
+
         for header in headers_to_inherit:
             # Make sure the header we are about to move exists in the first place
             if (not header in ota.header):
@@ -449,6 +519,22 @@ def collectcells(input, outputfile,
             if (not header in ota.header):
                 continue
             del ota.header[header]
+
+    # Now get the new crpix1/2 from scamp
+    s_crpix1, s_crpix2 = ota_list[7].header['CRPIX1'], ota_list[7].header['CRPIX2']
+    # compute shift, first in pixel coordinates
+    dx = s_crpix1 - crpix1
+    dy = s_crpix2 - crpix2
+    # and then convert it into sky-coordinates
+    d_ra  = dx * ota_list[7].header['CD1_1'] + dy * ota_list[7].header['CD1_2']
+    d_dec = dx * ota_list[7].header['CD2_1'] + dy * ota_list[7].header['CD2_2']
+    # and finally apply the offset to the crval values of each frame
+    for ota in ota_list:
+        if ("CRVAL1" in ota.header):
+            print "appliying offset in d_ra",
+            ota.header['CRVAL1'] += d_ra
+        if ("CRVAL2" in ota.header):
+            ota.header['CRVAL2'] += d_dec
 
     hdulist = pyfits.HDUList(ota_list)
     if (not batchmode):

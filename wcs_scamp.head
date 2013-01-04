@@ -1,0 +1,377 @@
+HISTORY   Astrometric solution by SCAMP version 1.7.0 (2010-04-20)
+COMMENT   (c) Emmanuel BERTIN <bertin@iap.fr>
+COMMENT   
+EQUINOX =            2000.0000 / Mean equinox                                  
+RADECSYS= 'ICRS    '           / Astrometric system                            
+CTYPE1  = 'RA---TAN'           / WCS projection type for this axis             
+CTYPE2  = 'DEC--TAN'           / WCS projection type for this axis             
+CUNIT1  = 'deg     '           / Axis unit                                     
+CUNIT2  = 'deg     '           / Axis unit                                     
+CRVAL1  =      8.347817909E+01 / World coordinate on this axis                 
+CRVAL2  =      2.209283046E+01 / World coordinate on this axis                 
+CRPIX1  =      9.817903450E+03 / Reference pixel on this axis                  
+CRPIX2  =      1.593082751E+04 / Reference pixel on this axis                  
+CD1_1   =      3.064264870E-05 / Linear projection matrix                      
+CD1_2   =     -3.432020556E-07 / Linear projection matrix                      
+CD2_1   =      1.927644505E-07 / Linear projection matrix                      
+CD2_2   =      3.071381197E-05 / Linear projection matrix                      
+FGROUPNO=                    1 / SCAMP field group label                       
+ASTIRMS1=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTIRMS2=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTRRMS1=      6.469600592E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTRRMS2=      6.611945091E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTINST =                    1 / SCAMP astrometric instrument label            
+FLXSCALE=      5.000000000E-03 / SCAMP relative flux scale                     
+MAGZEROP=               0.0000 / SCAMP zero-point                              
+PHOTIRMS=               0.0000 / mag dispersion RMS (internal, high S/N)       
+PHOTINST=                    1 / SCAMP photometric instrument label            
+PHOTLINK=                    F / True if linked to a photometric field         
+END     
+HISTORY   Astrometric solution by SCAMP version 1.7.0 (2010-04-20)
+COMMENT   (c) Emmanuel BERTIN <bertin@iap.fr>
+COMMENT   
+EQUINOX =            2000.0000 / Mean equinox                                  
+RADECSYS= 'ICRS    '           / Astrometric system                            
+CTYPE1  = 'RA---TAN'           / WCS projection type for this axis             
+CTYPE2  = 'DEC--TAN'           / WCS projection type for this axis             
+CUNIT1  = 'deg     '           / Axis unit                                     
+CUNIT2  = 'deg     '           / Axis unit                                     
+CRVAL1  =      8.347817909E+01 / World coordinate on this axis                 
+CRVAL2  =      2.209283046E+01 / World coordinate on this axis                 
+CRPIX1  =      5.627535235E+03 / Reference pixel on this axis                  
+CRPIX2  =     -1.004043543E+04 / Reference pixel on this axis                  
+CD1_1   =      3.073448659E-05 / Linear projection matrix                      
+CD1_2   =      1.302055669E-07 / Linear projection matrix                      
+CD2_1   =      3.795246390E-07 / Linear projection matrix                      
+CD2_2   =      3.082470069E-05 / Linear projection matrix                      
+FGROUPNO=                    1 / SCAMP field group label                       
+ASTIRMS1=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTIRMS2=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTRRMS1=      6.469600592E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTRRMS2=      6.611945091E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTINST =                    1 / SCAMP astrometric instrument label            
+FLXSCALE=      5.000000000E-03 / SCAMP relative flux scale                     
+MAGZEROP=               0.0000 / SCAMP zero-point                              
+PHOTIRMS=               0.0000 / mag dispersion RMS (internal, high S/N)       
+PHOTINST=                    1 / SCAMP photometric instrument label            
+PHOTLINK=                    F / True if linked to a photometric field         
+END     
+HISTORY   Astrometric solution by SCAMP version 1.7.0 (2010-04-20)
+COMMENT   (c) Emmanuel BERTIN <bertin@iap.fr>
+COMMENT   
+EQUINOX =            2000.0000 / Mean equinox                                  
+RADECSYS= 'ICRS    '           / Astrometric system                            
+CTYPE1  = 'RA---TAN'           / WCS projection type for this axis             
+CTYPE2  = 'DEC--TAN'           / WCS projection type for this axis             
+CUNIT1  = 'deg     '           / Axis unit                                     
+CUNIT2  = 'deg     '           / Axis unit                                     
+CRVAL1  =      8.347817909E+01 / World coordinate on this axis                 
+CRVAL2  =      2.209283046E+01 / World coordinate on this axis                 
+CRPIX1  =      1.365125703E+03 / Reference pixel on this axis                  
+CRPIX2  =      7.311812666E+03 / Reference pixel on this axis                  
+CD1_1   =      3.106048162E-05 / Linear projection matrix                      
+CD1_2   =     -2.070219906E-07 / Linear projection matrix                      
+CD2_1   =      3.290923323E-08 / Linear projection matrix                      
+CD2_2   =      3.118423463E-05 / Linear projection matrix                      
+FGROUPNO=                    1 / SCAMP field group label                       
+ASTIRMS1=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTIRMS2=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTRRMS1=      6.469600592E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTRRMS2=      6.611945091E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTINST =                    1 / SCAMP astrometric instrument label            
+FLXSCALE=      5.000000000E-03 / SCAMP relative flux scale                     
+MAGZEROP=               0.0000 / SCAMP zero-point                              
+PHOTIRMS=               0.0000 / mag dispersion RMS (internal, high S/N)       
+PHOTINST=                    1 / SCAMP photometric instrument label            
+PHOTLINK=                    F / True if linked to a photometric field         
+END     
+HISTORY   Astrometric solution by SCAMP version 1.7.0 (2010-04-20)
+COMMENT   (c) Emmanuel BERTIN <bertin@iap.fr>
+COMMENT   
+EQUINOX =            2000.0000 / Mean equinox                                  
+RADECSYS= 'ICRS    '           / Astrometric system                            
+CTYPE1  = 'RA---TAN'           / WCS projection type for this axis             
+CTYPE2  = 'DEC--TAN'           / WCS projection type for this axis             
+CUNIT1  = 'deg     '           / Axis unit                                     
+CUNIT2  = 'deg     '           / Axis unit                                     
+CRVAL1  =      8.347817909E+01 / World coordinate on this axis                 
+CRVAL2  =      2.209283046E+01 / World coordinate on this axis                 
+CRPIX1  =      1.352340317E+03 / Reference pixel on this axis                  
+CRPIX2  =      3.004615940E+03 / Reference pixel on this axis                  
+CD1_1   =      3.110030706E-05 / Linear projection matrix                      
+CD1_2   =     -8.450530739E-08 / Linear projection matrix                      
+CD2_1   =      1.978126002E-08 / Linear projection matrix                      
+CD2_2   =      3.129688730E-05 / Linear projection matrix                      
+FGROUPNO=                    1 / SCAMP field group label                       
+ASTIRMS1=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTIRMS2=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTRRMS1=      6.469600592E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTRRMS2=      6.611945091E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTINST =                    1 / SCAMP astrometric instrument label            
+FLXSCALE=      5.000000000E-03 / SCAMP relative flux scale                     
+MAGZEROP=               0.0000 / SCAMP zero-point                              
+PHOTIRMS=               0.0000 / mag dispersion RMS (internal, high S/N)       
+PHOTINST=                    1 / SCAMP photometric instrument label            
+PHOTLINK=                    F / True if linked to a photometric field         
+END     
+HISTORY   Astrometric solution by SCAMP version 1.7.0 (2010-04-20)
+COMMENT   (c) Emmanuel BERTIN <bertin@iap.fr>
+COMMENT   
+EQUINOX =            2000.0000 / Mean equinox                                  
+RADECSYS= 'ICRS    '           / Astrometric system                            
+CTYPE1  = 'RA---TAN'           / WCS projection type for this axis             
+CTYPE2  = 'DEC--TAN'           / WCS projection type for this axis             
+CUNIT1  = 'deg     '           / Axis unit                                     
+CUNIT2  = 'deg     '           / Axis unit                                     
+CRVAL1  =      8.347817909E+01 / World coordinate on this axis                 
+CRVAL2  =      2.209283046E+01 / World coordinate on this axis                 
+CRPIX1  =      1.353887511E+03 / Reference pixel on this axis                  
+CRPIX2  =     -1.306401315E+03 / Reference pixel on this axis                  
+CD1_1   =      3.109925249E-05 / Linear projection matrix                      
+CD1_2   =     -1.906468873E-07 / Linear projection matrix                      
+CD2_1   =      2.644227208E-07 / Linear projection matrix                      
+CD2_2   =      3.129211128E-05 / Linear projection matrix                      
+FGROUPNO=                    1 / SCAMP field group label                       
+ASTIRMS1=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTIRMS2=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTRRMS1=      6.469600592E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTRRMS2=      6.611945091E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTINST =                    1 / SCAMP astrometric instrument label            
+FLXSCALE=      5.000000000E-03 / SCAMP relative flux scale                     
+MAGZEROP=               0.0000 / SCAMP zero-point                              
+PHOTIRMS=               0.0000 / mag dispersion RMS (internal, high S/N)       
+PHOTINST=                    1 / SCAMP photometric instrument label            
+PHOTLINK=                    F / True if linked to a photometric field         
+END     
+HISTORY   Astrometric solution by SCAMP version 1.7.0 (2010-04-20)
+COMMENT   (c) Emmanuel BERTIN <bertin@iap.fr>
+COMMENT   
+EQUINOX =            2000.0000 / Mean equinox                                  
+RADECSYS= 'ICRS    '           / Astrometric system                            
+CTYPE1  = 'RA---TAN'           / WCS projection type for this axis             
+CTYPE2  = 'DEC--TAN'           / WCS projection type for this axis             
+CUNIT1  = 'deg     '           / Axis unit                                     
+CUNIT2  = 'deg     '           / Axis unit                                     
+CRVAL1  =      8.347817909E+01 / World coordinate on this axis                 
+CRVAL2  =      2.209283046E+01 / World coordinate on this axis                 
+CRPIX1  =     -2.859600589E+03 / Reference pixel on this axis                  
+CRPIX2  =      7.311666227E+03 / Reference pixel on this axis                  
+CD1_1   =      3.118279293E-05 / Linear projection matrix                      
+CD1_2   =     -1.087703992E-07 / Linear projection matrix                      
+CD2_1   =      6.150909981E-08 / Linear projection matrix                      
+CD2_2   =      3.123081332E-05 / Linear projection matrix                      
+FGROUPNO=                    1 / SCAMP field group label                       
+ASTIRMS1=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTIRMS2=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTRRMS1=      6.469600592E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTRRMS2=      6.611945091E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTINST =                    1 / SCAMP astrometric instrument label            
+FLXSCALE=      5.000000000E-03 / SCAMP relative flux scale                     
+MAGZEROP=               0.0000 / SCAMP zero-point                              
+PHOTIRMS=               0.0000 / mag dispersion RMS (internal, high S/N)       
+PHOTINST=                    1 / SCAMP photometric instrument label            
+PHOTLINK=                    F / True if linked to a photometric field         
+END     
+HISTORY   Astrometric solution by SCAMP version 1.7.0 (2010-04-20)
+COMMENT   (c) Emmanuel BERTIN <bertin@iap.fr>
+COMMENT   
+EQUINOX =            2000.0000 / Mean equinox                                  
+RADECSYS= 'ICRS    '           / Astrometric system                            
+CTYPE1  = 'RA---TAN'           / WCS projection type for this axis             
+CTYPE2  = 'DEC--TAN'           / WCS projection type for this axis             
+CUNIT1  = 'deg     '           / Axis unit                                     
+CUNIT2  = 'deg     '           / Axis unit                                     
+CRVAL1  =      8.347817909E+01 / World coordinate on this axis                 
+CRVAL2  =      2.209283046E+01 / World coordinate on this axis                 
+CRPIX1  =     -2.854023131E+03 / Reference pixel on this axis                  
+CRPIX2  =      3.031018262E+03 / Reference pixel on this axis                  
+CD1_1   =      3.121789966E-05 / Linear projection matrix                      
+CD1_2   =     -1.368808917E-07 / Linear projection matrix                      
+CD2_1   =      1.114411989E-07 / Linear projection matrix                      
+CD2_2   =      3.133797290E-05 / Linear projection matrix                      
+FGROUPNO=                    1 / SCAMP field group label                       
+ASTIRMS1=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTIRMS2=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTRRMS1=      6.469600592E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTRRMS2=      6.611945091E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTINST =                    1 / SCAMP astrometric instrument label            
+FLXSCALE=      5.000000000E-03 / SCAMP relative flux scale                     
+MAGZEROP=               0.0000 / SCAMP zero-point                              
+PHOTIRMS=               0.0000 / mag dispersion RMS (internal, high S/N)       
+PHOTINST=                    1 / SCAMP photometric instrument label            
+PHOTLINK=                    F / True if linked to a photometric field         
+END     
+HISTORY   Astrometric solution by SCAMP version 1.7.0 (2010-04-20)
+COMMENT   (c) Emmanuel BERTIN <bertin@iap.fr>
+COMMENT   
+EQUINOX =            2000.0000 / Mean equinox                                  
+RADECSYS= 'ICRS    '           / Astrometric system                            
+CTYPE1  = 'RA---TAN'           / WCS projection type for this axis             
+CTYPE2  = 'DEC--TAN'           / WCS projection type for this axis             
+CUNIT1  = 'deg     '           / Axis unit                                     
+CUNIT2  = 'deg     '           / Axis unit                                     
+CRVAL1  =      8.347817909E+01 / World coordinate on this axis                 
+CRVAL2  =      2.209283046E+01 / World coordinate on this axis                 
+CRPIX1  =     -2.824526631E+03 / Reference pixel on this axis                  
+CRPIX2  =     -1.328822079E+03 / Reference pixel on this axis                  
+CD1_1   =      3.122610844E-05 / Linear projection matrix                      
+CD1_2   =      1.361672858E-07 / Linear projection matrix                      
+CD2_1   =     -1.116914745E-07 / Linear projection matrix                      
+CD2_2   =      3.133854176E-05 / Linear projection matrix                      
+FGROUPNO=                    1 / SCAMP field group label                       
+ASTIRMS1=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTIRMS2=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTRRMS1=      6.469600592E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTRRMS2=      6.611945091E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTINST =                    1 / SCAMP astrometric instrument label            
+FLXSCALE=      5.000000000E-03 / SCAMP relative flux scale                     
+MAGZEROP=               0.0000 / SCAMP zero-point                              
+PHOTIRMS=               0.0000 / mag dispersion RMS (internal, high S/N)       
+PHOTINST=                    1 / SCAMP photometric instrument label            
+PHOTLINK=                    F / True if linked to a photometric field         
+END     
+HISTORY   Astrometric solution by SCAMP version 1.7.0 (2010-04-20)
+COMMENT   (c) Emmanuel BERTIN <bertin@iap.fr>
+COMMENT   
+EQUINOX =            2000.0000 / Mean equinox                                  
+RADECSYS= 'ICRS    '           / Astrometric system                            
+CTYPE1  = 'RA---TAN'           / WCS projection type for this axis             
+CTYPE2  = 'DEC--TAN'           / WCS projection type for this axis             
+CUNIT1  = 'deg     '           / Axis unit                                     
+CUNIT2  = 'deg     '           / Axis unit                                     
+CRVAL1  =      8.347817909E+01 / World coordinate on this axis                 
+CRVAL2  =      2.209283046E+01 / World coordinate on this axis                 
+CRPIX1  =     -7.079225052E+03 / Reference pixel on this axis                  
+CRPIX2  =      7.341070951E+03 / Reference pixel on this axis                  
+CD1_1   =      3.119182870E-05 / Linear projection matrix                      
+CD1_2   =     -1.024076485E-07 / Linear projection matrix                      
+CD2_1   =      1.714134129E-07 / Linear projection matrix                      
+CD2_2   =      3.121997768E-05 / Linear projection matrix                      
+FGROUPNO=                    1 / SCAMP field group label                       
+ASTIRMS1=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTIRMS2=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTRRMS1=      6.469600592E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTRRMS2=      6.611945091E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTINST =                    1 / SCAMP astrometric instrument label            
+FLXSCALE=      5.000000000E-03 / SCAMP relative flux scale                     
+MAGZEROP=               0.0000 / SCAMP zero-point                              
+PHOTIRMS=               0.0000 / mag dispersion RMS (internal, high S/N)       
+PHOTINST=                    1 / SCAMP photometric instrument label            
+PHOTLINK=                    F / True if linked to a photometric field         
+END     
+HISTORY   Astrometric solution by SCAMP version 1.7.0 (2010-04-20)
+COMMENT   (c) Emmanuel BERTIN <bertin@iap.fr>
+COMMENT   
+EQUINOX =            2000.0000 / Mean equinox                                  
+RADECSYS= 'ICRS    '           / Astrometric system                            
+CTYPE1  = 'RA---TAN'           / WCS projection type for this axis             
+CTYPE2  = 'DEC--TAN'           / WCS projection type for this axis             
+CUNIT1  = 'deg     '           / Axis unit                                     
+CUNIT2  = 'deg     '           / Axis unit                                     
+CRVAL1  =      8.347817909E+01 / World coordinate on this axis                 
+CRVAL2  =      2.209283046E+01 / World coordinate on this axis                 
+CRPIX1  =     -7.067011331E+03 / Reference pixel on this axis                  
+CRPIX2  =      3.025059820E+03 / Reference pixel on this axis                  
+CD1_1   =      3.123451856E-05 / Linear projection matrix                      
+CD1_2   =     -1.413234061E-07 / Linear projection matrix                      
+CD2_1   =      1.612515132E-07 / Linear projection matrix                      
+CD2_2   =      3.133982381E-05 / Linear projection matrix                      
+FGROUPNO=                    1 / SCAMP field group label                       
+ASTIRMS1=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTIRMS2=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTRRMS1=      6.469600592E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTRRMS2=      6.611945091E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTINST =                    1 / SCAMP astrometric instrument label            
+FLXSCALE=      5.000000000E-03 / SCAMP relative flux scale                     
+MAGZEROP=               0.0000 / SCAMP zero-point                              
+PHOTIRMS=               0.0000 / mag dispersion RMS (internal, high S/N)       
+PHOTINST=                    1 / SCAMP photometric instrument label            
+PHOTLINK=                    F / True if linked to a photometric field         
+END     
+HISTORY   Astrometric solution by SCAMP version 1.7.0 (2010-04-20)
+COMMENT   (c) Emmanuel BERTIN <bertin@iap.fr>
+COMMENT   
+EQUINOX =            2000.0000 / Mean equinox                                  
+RADECSYS= 'ICRS    '           / Astrometric system                            
+CTYPE1  = 'RA---TAN'           / WCS projection type for this axis             
+CTYPE2  = 'DEC--TAN'           / WCS projection type for this axis             
+CUNIT1  = 'deg     '           / Axis unit                                     
+CUNIT2  = 'deg     '           / Axis unit                                     
+CRVAL1  =      8.347817909E+01 / World coordinate on this axis                 
+CRVAL2  =      2.209283046E+01 / World coordinate on this axis                 
+CRPIX1  =     -7.062420162E+03 / Reference pixel on this axis                  
+CRPIX2  =     -1.310285751E+03 / Reference pixel on this axis                  
+CD1_1   =      3.122690582E-05 / Linear projection matrix                      
+CD1_2   =     -6.147364227E-08 / Linear projection matrix                      
+CD2_1   =      3.795520722E-08 / Linear projection matrix                      
+CD2_2   =      3.133826668E-05 / Linear projection matrix                      
+FGROUPNO=                    1 / SCAMP field group label                       
+ASTIRMS1=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTIRMS2=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTRRMS1=      6.469600592E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTRRMS2=      6.611945091E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTINST =                    1 / SCAMP astrometric instrument label            
+FLXSCALE=      5.000000000E-03 / SCAMP relative flux scale                     
+MAGZEROP=               0.0000 / SCAMP zero-point                              
+PHOTIRMS=               0.0000 / mag dispersion RMS (internal, high S/N)       
+PHOTINST=                    1 / SCAMP photometric instrument label            
+PHOTLINK=                    F / True if linked to a photometric field         
+END     
+HISTORY   Astrometric solution by SCAMP version 1.7.0 (2010-04-20)
+COMMENT   (c) Emmanuel BERTIN <bertin@iap.fr>
+COMMENT   
+EQUINOX =            2000.0000 / Mean equinox                                  
+RADECSYS= 'ICRS    '           / Astrometric system                            
+CTYPE1  = 'RA---TAN'           / WCS projection type for this axis             
+CTYPE2  = 'DEC--TAN'           / WCS projection type for this axis             
+CUNIT1  = 'deg     '           / Axis unit                                     
+CUNIT2  = 'deg     '           / Axis unit                                     
+CRVAL1  =      8.347817909E+01 / World coordinate on this axis                 
+CRVAL2  =      2.209283046E+01 / World coordinate on this axis                 
+CRPIX1  =     -1.137640914E+04 / Reference pixel on this axis                  
+CRPIX2  =     -5.650059615E+03 / Reference pixel on this axis                  
+CD1_1   =      3.105603385E-05 / Linear projection matrix                      
+CD1_2   =     -1.806023181E-07 / Linear projection matrix                      
+CD2_1   =     -5.235997365E-09 / Linear projection matrix                      
+CD2_2   =      3.115706594E-05 / Linear projection matrix                      
+FGROUPNO=                    1 / SCAMP field group label                       
+ASTIRMS1=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTIRMS2=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTRRMS1=      6.469600592E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTRRMS2=      6.611945091E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTINST =                    1 / SCAMP astrometric instrument label            
+FLXSCALE=      5.000000000E-03 / SCAMP relative flux scale                     
+MAGZEROP=               0.0000 / SCAMP zero-point                              
+PHOTIRMS=               0.0000 / mag dispersion RMS (internal, high S/N)       
+PHOTINST=                    1 / SCAMP photometric instrument label            
+PHOTLINK=                    F / True if linked to a photometric field         
+END     
+HISTORY   Astrometric solution by SCAMP version 1.7.0 (2010-04-20)
+COMMENT   (c) Emmanuel BERTIN <bertin@iap.fr>
+COMMENT   
+EQUINOX =            2000.0000 / Mean equinox                                  
+RADECSYS= 'ICRS    '           / Astrometric system                            
+CTYPE1  = 'RA---TAN'           / WCS projection type for this axis             
+CTYPE2  = 'DEC--TAN'           / WCS projection type for this axis             
+CUNIT1  = 'deg     '           / Axis unit                                     
+CUNIT2  = 'deg     '           / Axis unit                                     
+CRVAL1  =      8.347817909E+01 / World coordinate on this axis                 
+CRVAL2  =      2.209283046E+01 / World coordinate on this axis                 
+CRPIX1  =     -1.584163953E+04 / Reference pixel on this axis                  
+CRPIX2  =      1.175141166E+04 / Reference pixel on this axis                  
+CD1_1   =      3.072199386E-05 / Linear projection matrix                      
+CD1_2   =      3.332720010E-07 / Linear projection matrix                      
+CD2_1   =      1.907792257E-07 / Linear projection matrix                      
+CD2_2   =      3.083444471E-05 / Linear projection matrix                      
+FGROUPNO=                    1 / SCAMP field group label                       
+ASTIRMS1=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTIRMS2=      0.000000000E+00 / Astrom. dispersion RMS (intern., high S/N)    
+ASTRRMS1=      6.469600592E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTRRMS2=      6.611945091E-05 / Astrom. dispersion RMS (ref., high S/N)       
+ASTINST =                    1 / SCAMP astrometric instrument label            
+FLXSCALE=      5.000000000E-03 / SCAMP relative flux scale                     
+MAGZEROP=               0.0000 / SCAMP zero-point                              
+PHOTIRMS=               0.0000 / mag dispersion RMS (internal, high S/N)       
+PHOTINST=                    1 / SCAMP photometric instrument label            
+PHOTLINK=                    F / True if linked to a photometric field         
+END     
