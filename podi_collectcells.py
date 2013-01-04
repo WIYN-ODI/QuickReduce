@@ -471,18 +471,20 @@ def collectcells(input, outputfile,
 
     #
     # Now do some post-processing:
-    # 1) Move a couple of headers out of each individual extension and put it in the 
+    # 1) Add or overwrite some headers with values from an external scamp header file
+    #    to improve the wcs accuracy.
+    # 2) Move a couple of headers out of each individual extension and put it in the 
     #    primary extension instead (defined in headers_to_inherit, see podi_definitions)
-    # 2) Delete a bunch of headers that are no longer necessary (defined in 
+    # 3) Delete a bunch of headers that are no longer necessary (defined in 
     #    headers_to_delete_from_otas, see podi_definitions)
     #
-    #print "scamp_header=",scamp_header
 
     # Save the old CRPIX1, CRPIX2. 
     # The scamp header doesn't necessarily have the same reference 
     # point, so we have to change the reference coordinates accordingly
     crpix1, crpix2 = ota_list[7].header['CRPIX1'], ota_list[7].header['CRPIX2']
 
+    # Now update the headers in all OTA extensions.
     for extension in range(1, len(ota_list)):
         ota = ota_list[extension]
         if (cmdline_arg_isset("-scamp") and not scamp_header == None):
