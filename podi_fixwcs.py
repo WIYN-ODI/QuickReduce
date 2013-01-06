@@ -17,6 +17,7 @@ import scipy.stats
 
 
 arcsec = 1./3600.
+number_bright_stars = 100
 
 def shift_align_wcs(ota_x, ota_y, ref_x, ref_y):
 
@@ -130,43 +131,42 @@ def shift_align_wcs(ota_x, ota_y, ref_x, ref_y):
     print "Random matches: %d +/- %d (1sigma) (3-sigma: %d)" % (median, sigma, median+3*sigma)
 
     return selected_matches[most_matches_idx,1], selected_matches[most_matches_idx,2], selected_matches[most_matches_idx,0]
-    #print "best position", match_results[argmax
-
-            #sys.exit(0)
-
-    #for o in range(ota_count):
-    #    for r in range(ref_count):
-    #        print "RESULT",o,r,number_of_matches[o,r]
-
-            
-    
 
 
 if __name__ == "__main__":
 
+    tmp, dummy = os.path.split(sys.argv[0])
+    dot_config_dir = tmp + "/.config/"
+    print dot_config_dir
+    
     fitsfile = sys.argv[1]
     hdulist = pyfits.open(fitsfile)
     ra, dec = hdulist[1].header['CRVAL1'], hdulist[1].header['CRVAL2']
 
     output_filename = sys.argv[2]
 
+    #
     # Obtain catalog listing from USNO-B1
-    #usno = query_usno(10.74225833333333, 41.37409777777778, 45, 1000, "usno.cat")
+    #
     usno_cat = fitsfile[:-5]+".usno.cat"
-    usno = query_usno(ra, dec, 45, 10000, usno_cat, download=True)
-    #usno = numpy.loadtxt("test.debug_ref")
+    usno = query_usno(ra, dec, 45, 100000, usno_cat, download=(not cmdline_arg_isset("-skip_ref")))
     stdout_write("Read %s stars from USNO-B1\n" % (usno.shape[0]))
     
-
-    # Run Sextractor on the datafile
+    #
+    # Run Sextractor on the input frame
+    #
     sex_catalogfile = fitsfile[:-5]+".source.cat"
-    sex_config_file = "sex.conf"
-    sex_cmd = "sex -c %s -CATALOG_NAME %s %s" % (sex_config_file, sex_catalogfile, fitsfile)
-    print sex_cmd
-    os.system(sex_cmd)
+    sex_config_file = dot_config_dir+"fixwcs.conf"
+    sex_param_file = dot_config_dir+"fixwcs.param"
+    sex_logfile = fitsfile[:-5]+".sextractor.log"
+    sex_cmd = "sex -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s >& %s" % (sex_config_file, sex_param_file, sex_catalogfile, fitsfile, sex_logfile)
+    #print sex_cmd
+    stdout_write("Running SExtractor to search for stars, be patient (logfile: %s) ..." % (sex_logfile))
+    if (not cmdline_arg_isset("-skip_sex")):
+        os.system(sex_cmd)
+    stdout_write(" done!\n")
 
     # Read the Sextractor output catalog
-    #sex_catalogfile = "test.debug_ota"
     sex_cat = numpy.loadtxt(sex_catalogfile)
     stdout_write("Reading %d stars from Sextractor catalog\n" % sex_cat.shape[0])
 
@@ -174,40 +174,42 @@ if __name__ == "__main__":
     sex_cat = sex_cat[sex_cat[:,10] == 0]
     stdout_write("%d stars left after eliminating flags\n" % sex_cat.shape[0])
 
-    #print "Read",sex_cat.shape[0],"detections from Sextractor\n"
 
-
+    #
     # Now go through each of the extensions
+    #
+    frame_shift = numpy.zeros(shape=(len(hdulist)-1, 2))
     for ext in range(1, len(hdulist)):
-    #for ext in range(7, 8): 
+
+        #
+        # Select a sub-catalog with stars in this OTA
+        #
         ota_cat = sex_cat[sex_cat[:,1] == ext]
+        print ota_cat.shape[0],"stars on OTA",ext
         
         # Compute the median central position of this OTA
         #inherit_headers(hdulist[ext].header, hdulist[0].header)
         wcs = astWCS.WCS(hdulist[ext].header, mode="pyfits")
         ra, dec = wcs.getCentreWCSCoords()
-        print ra,dec
+        #print "center of this ota:", ra,dec
 
+        #
+        # Now select stars that are within a given distance of this OTA
         # Assume a (half-)width of 6 arcmin, that's quite a bit larger than the 4armin of one OTA
+        #
         width_ra = 0.1/math.cos(numpy.radians(dec))
         width_dec = 0.1
-        print width_ra, width_dec
-
-        print "RA=",usno[0:15,0]
-        print "DEC=",usno[0:15,1]
-
+        #print width_ra, width_dec
+        #print "RA=",usno[0:15,0]
+        #print "DEC=",usno[0:15,1]
         print "RA-Range:",ra-width_ra,ra+width_ra
         print "DEC-Range:",dec-width_dec,dec+width_dec
         nearby_ra  = (usno[:,0] > ra-width_ra) & (usno[:,0] < ra+width_ra) 
         nearby_dec = (usno[:,1] > dec-width_dec) & (usno[:,1] < dec+width_dec)
-        
         print numpy.sum(nearby_ra), numpy.sum(nearby_dec)
-
         nearby = nearby_ra & nearby_dec
         nearby_usno = usno[nearby]
         print "Full USNO:",usno.shape[0],", nearby:",nearby_usno.shape[0]
-
-        print ota_cat.shape[0],"stars on OTA",ext
 
         #for i in range(ota_cat.shape[0]):
         #    print "@@@@Sex",ota_cat[i,4], ota_cat[i,5],ota_cat[i,6], ota_cat[i,7]
@@ -219,6 +221,8 @@ if __name__ == "__main__":
         ref_x, ref_y = nearby_usno[:,0], nearby_usno[:,1]
 
         dx, dy, n = shift_align_wcs(ota_x, ota_y, ref_x, ref_y)
+        frame_shift[ext,:] = [dx, dy]
+
         print "#######################"
         print "##"
         print "## OTA %d" % (ext)
@@ -227,8 +231,23 @@ if __name__ == "__main__":
         print "##"
         print "#######################"
 
+    #
+    # Now that the individual OTAs have returned their shift positions, 
+    # compute the mean shift for the full frame
+    #
+    full_shift = numpy.median(frame_shift, axis=1)
+    print full_shift.shape
+
+    sys.exit(0)
+
     #for ext in range(1, len(hdulist)):
-        hdulist[ext].header['CRVAL1'] += dx
-        hdulist[ext].header['CRVAL2'] += dy
+    hdulist[ext].header['CRVAL1'] += dx
+    hdulist[ext].header['CRVAL2'] += dy
+
+    #
+    # Now that we have a pretty good guess on what the offsets are, 
+    # extend the search on the full catalog and determine a better 
+    # and more accurate solution!
+    #
 
     hdulist.writeto(output_filename, clobber=True)
