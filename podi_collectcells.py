@@ -111,7 +111,8 @@ Calibration data:
 
 def collect_reduce_ota(filename,
                        bias_dir, dark_dir, flatfield_dir, bpm_dir,
-                       offset_pointing=[0,0], offset_dither=[0,0], target_coords=None):
+                       offset_pointing=[0,0], offset_dither=[0,0], target_coords=None,
+                       pixelvalue_indef=numpy.NaN):
 
     # Create an fits extension to hold the output
     hdu = pyfits.ImageHDU()
@@ -150,7 +151,7 @@ def collect_reduce_ota(filename,
         # Valid pixels will subsequently be overwritten with real numbers
         #
 	merged = numpy.ones(shape=(size_x, size_y), dtype=numpy.float32)
-        merged[:,:] = numpy.NaN
+        merged[:,:] = pixelvalue_indef
         
         for cell in range(1,65):
             stdout_write("\r%s:   OTA %02d, cell %s ..." % (obsid, ota, hdulist[cell].header['EXTNAME']))
@@ -280,8 +281,8 @@ def collect_reduce_ota(filename,
                 hdu.header.add_history("CC-BPM: %s" % (os.path.abspath(region_file)))
 
         # Insert the DETSEC header so IRAF understands where to put the extensions
-	start_x = ota_c_x * 4100
-	start_y = ota_c_y * 4100        
+	start_x = ota_c_x * 4096
+	start_y = ota_c_y * 4096        
 	end_x = start_x + det_x2 - det_x1
 	end_y = start_y + det_y2 - det_y1
 	detsec_str = "[%d:%d,%d:%d]" % (start_x, end_x, start_y, end_y)
@@ -409,10 +410,6 @@ def collectcells(input, outputfile,
     if (outputfile == None):
         outputfile = "%s/%s.fits" % (directory, basename)
 
-    # Check if the user requested us to prepare the frame for SExtractor
-    prep_for_sextractor = cmdline_arg_isset("-prep4sex")
-
-
     #
     # Read all offsets from command line
     # For convenience, there are two sets of offset parameters, that internally simply 
@@ -449,6 +446,15 @@ def collectcells(input, outputfile,
     primhdu = pyfits.PrimaryHDU()
     ota_list.append(primhdu)
     
+    # Set the fallback value for undefined pixels (mostly the gaps between the OTA cells)
+    # This works perfectly fine in ds9, but not SExtractor
+    pixelvalue_indef = numpy.NaN
+    if (cmdline_arg_isset("-prep4sex")):
+        # Check if the user requested us to prepare the frame for SExtractor
+        # SExtractor doesn't like NaNs, so replace all of them with something
+        # more negative than -1e30 (that's -1 times SEx's BIG variable)
+        pixelvalue_indef = -1e31
+    
     for ota_id in range(len(available_ota_coords)):
         ota_c_x, ota_c_y = available_ota_coords[ota_id]        
         ota = ota_c_x * 10 + ota_c_y
@@ -459,12 +465,8 @@ def collectcells(input, outputfile,
                                  bias_dir, dark_dir, flatfield_dir, bpm_dir,
                                  offset_pointing=offset_pointing,
                                  offset_dither=offset_dither,
-                                 target_coords=target_coords)
-
-        # SExtractor doesn't like NaNs, so replace all of them with something
-        # more negative than -1e30 (that's -1 times SEx's BIG variable)
-        if (prep_for_sextractor):
-            hdu.data[numpy.isnan(hdu.data)] = -1e31 
+                                 target_coords=target_coords,
+                                 pixelvalue_indef=pixelvalue_indef)
 
         # Insert into the list to be used later
         ota_list.append(hdu)
