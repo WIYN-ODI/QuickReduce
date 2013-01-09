@@ -397,18 +397,33 @@ def collectcells(input, outputfile,
                  bias_dir=None, dark_dir=None, flatfield_dir=None, bpm_dir=None,
                  batchmode=False):
 
-    # As a safety precaution, if the first parameter is the directory containing 
-    # the files, extract just the ID string to be used for this script
-    if (input[-1] == "/"):
-	input = input[:-1]
+    if (os.path.isfile(input)):
+        # Assume this is one of the fits files in the right directory
+        # In that case, extract the FILENAME header and convert it into 
+        # the filebase we need to construct the filenames of all OTA fits files.
 
-    directory,basename = os.path.split(input)
-    if (directory == ""):
-        directory = "."
+        hdulist = pyfits.open(input)
+        filebase = hdulist[0].header['FILENAME'][:18]
+        hdulist.close()
+        del hdulist
+
+        # Split the input filename to extract the directory part
+        directory,dummy = os.path.split(input)
+
+    elif (os.path.isdir(input)):
+        # As a safety precaution, if the first parameter is the directory containing 
+        # the files, extract just the ID string to be used for this script
+        if (input[-1] == "/"):
+            input = input[:-1]
+
+        basedir, filebase = os.path.split(input)
+        directory = input
+        
+
     #print "Merging cells for frame %s" % (basename)
 
     if (outputfile == None):
-        outputfile = "%s/%s.fits" % (directory, basename)
+        outputfile = "%s/%s.fits" % (directory, filebase)
 
     #
     # Read all offsets from command line
@@ -459,7 +474,7 @@ def collectcells(input, outputfile,
         ota_c_x, ota_c_y = available_ota_coords[ota_id]        
         ota = ota_c_x * 10 + ota_c_y
 
-        filename = "%s/%s/%s.%02d.fits" % (directory, basename, basename, ota)
+        filename = "%s/%s.%02d.fits" % (directory, filebase, ota)
                 
         hdu = collect_reduce_ota(filename,
                                  bias_dir, dark_dir, flatfield_dir, bpm_dir,
