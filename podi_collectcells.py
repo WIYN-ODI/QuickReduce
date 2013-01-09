@@ -425,6 +425,35 @@ def collectcells(input, outputfile,
     if (outputfile == None):
         outputfile = "%s/%s.fits" % (directory, filebase)
 
+    if (outputfile.find("%") >= 0):
+        # The output filename contains special tags that should 
+        # be replaced by values from the file header
+
+        filename = "%s/%s.%02d.fits" % (directory, filebase, 33)
+        hdulist = pyfits.open(filename)
+        header = hdulist[0].header
+        
+        while (outputfile.find("%") >= 0):
+            start = outputfile.find("%") 
+            if (outputfile[start:start+7] == "%FILTER"):
+                outputfile = outputfile[:start] + header['FILTER'] + outputfile[start+7:]
+            elif (outputfile[start:start+7] == "%OBJECT"):
+                # The object name might contain spaces, replace them with underscores
+                objectname = header['OBJECT'].replace(' ', '_')
+                outputfile = outputfile[:start] + objectname  + outputfile[start+7:]
+            elif (outputfile[start:start+6] == "%OBSID"):
+                outputfile = outputfile[:start] + header['OBSID'] + outputfile[start+6:]
+            else:
+                stdout_write("found unknown tag in %s\n" % outputfile)
+                break
+
+        hdulist.close()
+        del hdulist
+        del header
+
+        stdout_write("Replaced some keywords, new output filename:\n ---> %s\n" % (outputfile))
+
+
     #
     # Read all offsets from command line
     # For convenience, there are two sets of offset parameters, that internally simply 
@@ -474,6 +503,11 @@ def collectcells(input, outputfile,
         ota_c_x, ota_c_y = available_ota_coords[ota_id]        
         ota = ota_c_x * 10 + ota_c_y
 
+        if (cmdline_arg_isset('-singleota')):
+            single_ota = int(get_cmdline_arg("-singleota"))
+            if (ota != single_ota):
+                continue
+
         filename = "%s/%s.%02d.fits" % (directory, filebase, ota)
                 
         hdu = collect_reduce_ota(filename,
@@ -499,7 +533,8 @@ def collectcells(input, outputfile,
     # Save the old CRPIX1, CRPIX2. 
     # The scamp header doesn't necessarily have the same reference 
     # point, so we have to change the reference coordinates accordingly
-    crpix1, crpix2 = ota_list[7].header['CRPIX1'], ota_list[7].header['CRPIX2']
+    if (cmdline_arg_isset("-scamp") and not cmdline_arg_isset("-singleota")):
+        crpix1, crpix2 = ota_list[7].header['CRPIX1'], ota_list[7].header['CRPIX2']
 
     # Now update the headers in all OTA extensions.
     for extension in range(1, len(ota_list)):
@@ -539,21 +574,22 @@ def collectcells(input, outputfile,
                 continue
             del ota.header[header]
 
-    # Now get the new crpix1/2 from scamp
-    s_crpix1, s_crpix2 = ota_list[7].header['CRPIX1'], ota_list[7].header['CRPIX2']
-    # compute shift, first in pixel coordinates
-    dx = s_crpix1 - crpix1
-    dy = s_crpix2 - crpix2
-    # and then convert it into sky-coordinates
-    d_ra  = dx * ota_list[7].header['CD1_1'] + dy * ota_list[7].header['CD1_2']
-    d_dec = dx * ota_list[7].header['CD2_1'] + dy * ota_list[7].header['CD2_2']
-    # and finally apply the offset to the crval values of each frame
-    for ota in ota_list:
-        if ("CRVAL1" in ota.header):
-            print "appliying offset in d_ra",
-            ota.header['CRVAL1'] += d_ra
-        if ("CRVAL2" in ota.header):
-            ota.header['CRVAL2'] += d_dec
+    if (cmdline_arg_isset("-scamp") and not cmdline_arg_isset("-singleota")):
+        # Now get the new crpix1/2 from scamp
+        s_crpix1, s_crpix2 = ota_list[7].header['CRPIX1'], ota_list[7].header['CRPIX2']
+        # compute shift, first in pixel coordinates
+        dx = s_crpix1 - crpix1
+        dy = s_crpix2 - crpix2
+        # and then convert it into sky-coordinates
+        d_ra  = dx * ota_list[7].header['CD1_1'] + dy * ota_list[7].header['CD1_2']
+        d_dec = dx * ota_list[7].header['CD2_1'] + dy * ota_list[7].header['CD2_2']
+        # and finally apply the offset to the crval values of each frame
+        for ota in ota_list:
+            if ("CRVAL1" in ota.header):
+                #print "appliying offset in d_ra",
+                ota.header['CRVAL1'] += d_ra
+            if ("CRVAL2" in ota.header):
+                ota.header['CRVAL2'] += d_dec
 
     hdulist = pyfits.HDUList(ota_list)
     if (not batchmode):
