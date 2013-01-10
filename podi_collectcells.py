@@ -351,8 +351,11 @@ def read_scamp_header(filename, dump_header=False):
     headfile = open(filename, "r")
     lines = headfile.readlines()
 
-    head = []
-    head_list = []
+    values = {}
+    values_list = []
+    comments = {}
+    comments_list = []
+
     for line in lines:
         #print line
 
@@ -361,37 +364,96 @@ def read_scamp_header(filename, dump_header=False):
                     ) ):
             # Don't know what to do with those, so skip'em
             continue
-        elif (key in ("CRVAL1", "CRVAL2",
-                      ) ):
-            # Skip these headers, otherwise we're in trouble
-            continue
         elif (key in ("FGROUPNO", "FLXSCALE", "MAGZEROP", 
                       "ASTINST",
                       "PHOTIRMS", "PHOTINST", "PHOTLINK",
                       ) ):
             # These are some scamp-specific headers, let's not copy them
             continue
-        elif (key in ("CRPIX1", "CRPIX2", "CD1_1", "CD1_2", "CD2_1", "CD2_2",) ):
+        elif (key in ("CRVAL1", "CRVAL2",
+                      "CRPIX1", "CRPIX2", 
+                      "CD1_1", "CD1_2", "CD2_1", "CD2_2",
+                      "PV1_0", "PV1_1", "PV1_2", "PV1_4", "PV1_5", "PV1_6",
+                      "PV2_0", "PV2_1", "PV2_2", "PV2_4", "PV2_5", "PV2_6",
+                      "EQUINOX",
+                      ) ):
             value = float(value)
-        elif (key in ("RADCSYS", "CTYPE1", "CTYPE2", "CUNIT1", "CUNIT2") ):
+        elif (key in ("RADECSYS", "CTYPE1", "CTYPE2", "CUNIT1", "CUNIT2") ):
+            print key,value,value[1:-1].strip()
             value = value[1:-1].strip()
+            
         elif (key == "END"):
             # This concludes one extension, add it to list and start new 
             # list for the next OTA
-            head_list.append(head)
-            head = []
+
+            values["PV1_3"] = 0.0
+            comments["PV1_3"] = ""
+            values["PV2_3"] = 0.0
+            comments["PV2_3"] = ""
+            values_list.append(values)
+            comments_list.append(comments)
+            values = {}
+            comments = {}
             continue
 
-        head.append((key,value,comment))
+        values[key] = value
+        comments[key] = comment
 
     #print head_list
-    if (dump_header):
-        for ota in head_list:
-            for key,value,comment in ota:
-                print key,"=",value,"(",comment,")"
-            print "\n\n\n"
+    #if (dump_header):
+    #    for ota in head_list:
+    #        for key,value,comment in ota:
+    #            print key,"=",value,"(",comment,")"
+    #        print "\n\n\n"
 
-    return head_list
+    return values_list, comments_list
+
+def apply_scamp_solution(scampfile, ota_list):
+    
+    scamp_value, scamp_comment = read_scamp_header(scampfile)
+
+    # First of all, figure out the best offset we need to apply 
+    # to the CRVAL headers from the scamp solution
+
+    # Important: The solution from scamp has to have 13 blocks for 13 OTAs.
+    if (len(scamp_value) != len(available_otas)):
+        stdout_write("Illegal scamp solution!\n")
+        return -1
+
+    # Ok, now we know we have a valid solution
+    ref_crval1, ref_crval2 = scamp_value[6]["CRVAL1"], scamp_value[6]["CRVAL2"]
+    print "\nREF=",ref_crval1,ref_crval2
+
+    # Also compute where the telescope if pointing at, i.e. what CRVAL should be
+    target_crval1, target_crval2 = ota_list[6].header['CRVAL1'], ota_list[6].header['CRVAL2']
+    print "TARGET=",target_crval1,target_crval2
+
+    # With this data at hand, work out the shift we need to apply to the scamp solution
+    for ext in range(1,len(ota_list)):
+        ota = ext - 1
+        print "EXT/OTA=",ext,ota
+
+        #print "BEFORE",ota,":",scamp_value[ota]['CRVAL1'],scamp_value[ota]['CRVAL2']
+        scamp_value[ota]['CRVAL1'] += target_crval1 - ref_crval1
+        scamp_value[ota]['CRVAL2'] += target_crval2 - ref_crval2
+        #print "AFTER ",ota,":",scamp_value[ota]['CRVAL1'],scamp_value[ota]['CRVAL2'],"\n"
+
+        print "CRPIX=",scamp_value[ota]['CRPIX1']
+
+        # As a last step, simple copy all headers to the ota_list
+        for key in scamp_value[ota]:
+            
+            # If the header already exists, simple change the value
+            if (key in ota_list[ext].header):
+                ota_list[ext].header[key] = scamp_value[ota][key]
+                
+            # If the header doesn't exist yet, create it and use the comment from SCAMP
+            else:
+                ota_list[ext].header.update(key, scamp_value[ota][key], scamp_comment[ota][key])
+
+    # That's it, all done!
+    return 0
+
 
 def collectcells(input, outputfile,
                  bias_dir=None, dark_dir=None, flatfield_dir=None, bpm_dir=None,
@@ -476,13 +538,6 @@ def collectcells(input, outputfile,
         target_coords = (ra, dec)
 
 
-    # If the user specified to overwrite the WCS with a SCAMP solution,
-    # Read the solution and store it for later use
-    scamp_solution = cmdline_arg_set_or_default("-scamp", None)
-    scamp_header = None
-    if (not scamp_solution == None):
-        scamp_header = read_scamp_header(scamp_solution)
-
     # Start new list of HDUs
     ota_list = []
 
@@ -530,20 +585,16 @@ def collectcells(input, outputfile,
     #    headers_to_delete_from_otas, see podi_definitions)
     #
 
-    # Save the old CRPIX1, CRPIX2. 
-    # The scamp header doesn't necessarily have the same reference 
-    # point, so we have to change the reference coordinates accordingly
-    if (cmdline_arg_isset("-scamp") and not cmdline_arg_isset("-singleota")):
-        crpix1, crpix2 = ota_list[7].header['CRPIX1'], ota_list[7].header['CRPIX2']
+    # If the user specified to overwrite the WCS with a SCAMP solution,
+    # Read the solution and store it for later use
+    scamp_solution = cmdline_arg_set_or_default("-scamp", None)
+    scamp_header = None
+    if (not scamp_solution == None and not cmdline_arg_isset("-singleota")):
+        apply_scamp_solution(scamp_solution, ota_list)
 
     # Now update the headers in all OTA extensions.
     for extension in range(1, len(ota_list)):
         ota = ota_list[extension]
-        if (cmdline_arg_isset("-scamp") and not scamp_header == None):
-            # Now add/change all the headers that are given in the SCAMP header
-            ota_head = scamp_header[extension-1]
-            for key,value,comment in ota_head:
-                ota.header.update(key, value, comment)
 
         if (cmdline_arg_isset("-prep4sex")):
             continue
@@ -574,27 +625,9 @@ def collectcells(input, outputfile,
                 continue
             del ota.header[header]
 
-    if (cmdline_arg_isset("-scamp") and not cmdline_arg_isset("-singleota")):
-        # Now get the new crpix1/2 from scamp
-        s_crpix1, s_crpix2 = ota_list[7].header['CRPIX1'], ota_list[7].header['CRPIX2']
-        # compute shift, first in pixel coordinates
-        dx = s_crpix1 - crpix1
-        dy = s_crpix2 - crpix2
-        # and then convert it into sky-coordinates
-        d_ra  = dx * ota_list[7].header['CD1_1'] + dy * ota_list[7].header['CD1_2']
-        d_dec = dx * ota_list[7].header['CD2_1'] + dy * ota_list[7].header['CD2_2']
-        # and finally apply the offset to the crval values of each frame
-        for ota in ota_list:
-            if ("CRVAL1" in ota.header):
-                #print "appliying offset in d_ra",
-                ota.header['CRVAL1'] += d_ra
-            if ("CRVAL2" in ota.header):
-                ota.header['CRVAL2'] += d_dec
-
     hdulist = pyfits.HDUList(ota_list)
     if (not batchmode):
         stdout_write(" writing ...")
-    
         clobberfile(outputfile)
         hdulist.writeto(outputfile, clobber=True)
     else:
