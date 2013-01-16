@@ -364,12 +364,14 @@ def read_scamp_header(filename, dump_header=False):
                     ) ):
             # Don't know what to do with those, so skip'em
             continue
+
         elif (key in ("FGROUPNO", "FLXSCALE", "MAGZEROP", 
                       "ASTINST",
                       "PHOTIRMS", "PHOTINST", "PHOTLINK",
                       ) ):
             # These are some scamp-specific headers, let's not copy them
             continue
+
         elif (key in ("CRVAL1", "CRVAL2",
                       "CRPIX1", "CRPIX2", 
                       "CD1_1", "CD1_2", "CD2_1", "CD2_2",
@@ -378,18 +380,14 @@ def read_scamp_header(filename, dump_header=False):
                       "EQUINOX",
                       ) ):
             value = float(value)
+
         elif (key in ("RADECSYS", "CTYPE1", "CTYPE2", "CUNIT1", "CUNIT2") ):
-            print key,value,value[1:-1].strip()
+            # Strip the unnecessary quotes and spaces from the end
             value = value[1:-1].strip()
-            
+
         elif (key == "END"):
             # This concludes one extension, add it to list and start new 
             # list for the next OTA
-
-            values["PV1_3"] = 0.0
-            comments["PV1_3"] = ""
-            values["PV2_3"] = 0.0
-            comments["PV2_3"] = ""
             values_list.append(values)
             comments_list.append(comments)
             values = {}
@@ -409,7 +407,11 @@ def read_scamp_header(filename, dump_header=False):
     return values_list, comments_list
 
 def apply_scamp_solution(scampfile, ota_list):
-    
+
+    if (not os.path.isfile(scampfile)):
+        stdout_write("Can not find scamp header file %s,skipping ...\n" % scampfile)
+        return
+
     scamp_value, scamp_comment = read_scamp_header(scampfile)
 
     # First of all, figure out the best offset we need to apply 
@@ -422,23 +424,29 @@ def apply_scamp_solution(scampfile, ota_list):
 
     # Ok, now we know we have a valid solution
     ref_crval1, ref_crval2 = scamp_value[6]["CRVAL1"], scamp_value[6]["CRVAL2"]
-    print "\nREF=",ref_crval1,ref_crval2
+    #print "\nREF=",ref_crval1,ref_crval2
 
     # Also compute where the telescope if pointing at, i.e. what CRVAL should be
     target_crval1, target_crval2 = ota_list[6].header['CRVAL1'], ota_list[6].header['CRVAL2']
-    print "TARGET=",target_crval1,target_crval2
+
+    # Adjust the solution for the known shift in CRPIX position
+    # In pODI: True pointing of telescope is ~ at pixel 4200,4200 of OTA 3,3
+    # From scamp: Typically somewhere around 2000,2000 in OTA 3,3
+    # NB: 0.11 / 3600. is the pixel scale in degrees/pixel, ignoring rotation and distortion
+    dx_crpix = 4200 - scamp_value[6]["CRPIX1"]
+    dy_crpix = 4200 - scamp_value[6]["CRPIX2"]
+    declination = target_crval2
+    d_ra  = dx_crpix * 0.11 / 3600. / math.cos(math.radians(declination))
+    d_dec = dy_crpix * 0.11 / 3600.
+    target_crval1 -= d_ra
+    target_crval2 -= d_dec
 
     # With this data at hand, work out the shift we need to apply to the scamp solution
     for ext in range(1,len(ota_list)):
         ota = ext - 1
-        print "EXT/OTA=",ext,ota
 
-        #print "BEFORE",ota,":",scamp_value[ota]['CRVAL1'],scamp_value[ota]['CRVAL2']
         scamp_value[ota]['CRVAL1'] += target_crval1 - ref_crval1
         scamp_value[ota]['CRVAL2'] += target_crval2 - ref_crval2
-        #print "AFTER ",ota,":",scamp_value[ota]['CRVAL1'],scamp_value[ota]['CRVAL2'],"\n"
-
-        print "CRPIX=",scamp_value[ota]['CRPIX1']
 
         # As a last step, simple copy all headers to the ota_list
         for key in scamp_value[ota]:
