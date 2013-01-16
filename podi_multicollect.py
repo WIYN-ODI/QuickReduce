@@ -30,15 +30,12 @@ if __name__ == "__main__":
     start = 1
     output_directory = None
     keeppath = False
-    if (sys.argv[1] == "-output"):
-        output_directory = sys.argv[2]
-        start = 3
+    
+    output_directory = cmdline_arg_set_or_default("-output", None)
+    if (output_directory != None):
         if (not os.path.isdir(output_directory)):
             os.mkdir(output_directory)
-    elif (sys.argv[1] == "-keeppath"):
-        keeppath = True
-        start = 2
-        
+    
     # Handle all reduction flags from command line
     bias_dir, dark_dir, flatfield_dir, bpm_dir, start = read_reduction_directories(start=start, warn=False)
 
@@ -50,13 +47,23 @@ if __name__ == "__main__":
         directory,basename = os.path.split(folder)
         if (directory == ""):
             directory = "."
-            
+
+        # Figure out into what directory we should put the output file
         if (output_directory != None):
-            outputfile = "%s/%s.fits" % (output_directory, basename)
-        elif (keeppath):
-            outputfile = "%s/%s.fits" % (directory, basename)
+            outputfile_dir = output_directory
+        elif (cmdline_arg_isset("-keeppath")):
+            outputfile_dir = directory
         else:
-            outputfile = "%s.fits" % (basename)
+            outputfile_dir = "."
+
+        # And also figure out what the filename is supposed to be
+        if (cmdline_arg_isset("-formatout")):
+            outputfile_name = get_cmdline_arg("-formatout")
+        else:
+            outputfile_name = "%s.fits" % (basename)
+
+        # Then assemble the actual filename
+        outputfile = "%s/%s" % (outputfile_dir, outputfile_name)
 
         stdout_write("Collecting cells from %s ==> %s\n" % (folder,outputfile))
 
