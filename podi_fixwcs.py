@@ -132,6 +132,74 @@ def shift_align_wcs(ota_x, ota_y, ref_x, ref_y):
 
     return selected_matches[most_matches_idx,1], selected_matches[most_matches_idx,2], selected_matches[most_matches_idx,0]
 
+
+def refine_wcs_shift(ref_x, ref_y, ota_x, ota_y, best_guess, alignment_checkfile=None):
+
+    matches = numpy.zeros(shape=(ota_x.shape[0],2))
+    matched = numpy.zeros(shape=(ota_x.shape[0],4))
+        #for i in range(ref_x.shape[0]):
+        #    print "REF",ref_x[i], ref_y[i]
+        #for i in range(ota_cat.shape[0]):
+        #    print "SEX",ota_cat[i,6], ota_cat[i,7]
+
+    start = 0
+    while(start < ota_x.shape[0]):
+        aligned_x = ota_x[start:start+blocksize] + best_guess[0]
+        aligned_y = ota_y[start:start+blocksize] + best_guess[1]
+
+        dx1 = aligned_x.reshape((aligned_x.shape[0], 1)).repeat(ref_x.shape[0], axis=1)
+        dx2 = ref_x.reshape((1, ref_x.shape[0])).repeat(aligned_x.shape[0], axis=0)
+        dx = dx1 - dx2
+
+        dy1 = aligned_y.reshape((aligned_y.shape[0], 1)).repeat(ref_y.shape[0], axis=1)
+        dy2 = ref_y.reshape((1, ref_y.shape[0])).repeat(aligned_y.shape[0], axis=0)
+        dy = dy1 - dy2
+
+        d2 = dx*dx + dy*dy
+
+        closest = numpy.argmin(d2, axis=1)
+
+        for i in range(closest.shape[0]):
+            matches[start+i,0] = dx[i, closest[i]]
+            matches[start+i,1] = dy[i, closest[i]]
+            #print matches[start+i,:]
+
+            matched[start+i,:] = [aligned_x[i], aligned_y[i], ref_x[closest[i]], ref_y[closest[i]]]
+
+        start += blocksize
+
+    # Now with all the matches for this OTA, left's determine the best solution
+    # Again, use the 3-sigma clipping as above
+
+    dmin, dmax = [-1, -1], [1,1]
+    clipping = matches.copy()
+    for rep in range(2):
+        valid_range = (clipping[:,0] < dmax[0]) & (clipping[:,0] > dmin[0]) & (clipping[:,1] > dmin[1]) & (clipping[:,1] < dmax[1])
+        print "valid_range.shape=",valid_range.shape
+        print "count=",numpy.sum(valid_range)
+
+        median = numpy.median(clipping[valid_range], axis=0)
+        sigma_p = scipy.stats.scoreatpercentile(clipping[valid_range], 84)
+        sigma_m = scipy.stats.scoreatpercentile(clipping[valid_range], 16)
+        sigma = 0.5*(sigma_p - sigma_m)
+        dmin = median - 3*sigma
+        dmax = median + 3*sigma
+        print "MEDIAN/SIGMA=",median, sigma, dmin, dmax
+
+    # Now add all the offsets to the header
+
+    if (alignment_checkfile != None):
+        for i in range(matched.shape[0]):
+            print >>alignment_check, \
+                matched[i,0], matched[i,1], matched[i,2], matched[i,3],\
+                ext,\
+                matched[i,0]-median[0],matched[i,1]-median[1],matches[i,0], matches[i,1]
+        print >>alignment_check, "\n\n\n\n\n"
+
+    return median
+
+
+
 N = 200
 N_brightest_ota = 70
 N_brightest_ref = 150
@@ -184,11 +252,11 @@ if __name__ == "__main__":
 
 
     #
-    # Now go through each of the extensions
+    # Now go through each of the extension
+    # Improve: Change execution to parallel !!!
     #
     frame_shift = numpy.zeros(shape=(len(hdulist)-1, 2))
     for ext in range(1, len(hdulist)):
-    #if (True):
         #
         # Select a sub-catalog with stars in this OTA
         #
@@ -260,20 +328,7 @@ if __name__ == "__main__":
         print "## #matches = %d" % (n)
         print "##"
         print "#######################"
-    if (False):
-        frame_shift = numpy.array([[ 0.03897906,  0.02345678],
-                                   [-0.01505087, -0.0251651 ],
-                                   [-0.01588882, -0.02599974],
-                                   [-0.01555258, -0.02603289],
-                                   [-0.01534596, -0.0258875 ],
-                                   [-0.01553609, -0.02567286],
-                                   [-0.01580243, -0.02595663],
-                                   [-0.01549773, -0.02573009],
-                                   [-0.01592178, -0.02614462],
-                                   [-0.01583374, -0.02598099],
-                                   [-0.01493942, -0.02580488],
-                                   [-0.01515909, -0.02715832],
-                                   [-0.01606308, -0.02672199],])
+
     #
     # Now that the individual OTAs have returned their shift positions, 
     # compute the mean shift for the full frame
@@ -299,7 +354,9 @@ if __name__ == "__main__":
     clipping = frame_shift.copy()
     print full_shift,full_shift_std,dmin,dmax
     for rep in range(2):
-        valid_range = (clipping[:,0] < dmax[0]) & (clipping[:,0] > dmin[0]) & (clipping[:,1] > dmin[1]) & (clipping[:,1] < dmax[1])
+        valid_range \
+            = (clipping[:,0] < dmax[0]) & (clipping[:,0] > dmin[0]) \
+            & (clipping[:,1] > dmin[1]) & (clipping[:,1] < dmax[1])
                
         median = numpy.median(clipping[valid_range], axis=0)
         sigma_p = scipy.stats.scoreatpercentile(clipping[valid_range], 84)
@@ -323,13 +380,8 @@ if __name__ == "__main__":
     # but for now keep them separate and check if that's the case
     #
 
-    #
-    # Watch out, this might use a lot of memory in a first pass
-    # Better: split up into a number of bins, using a number of stars from one 
-    # catalog with al stars from the other, sort out valid matches, and at the
-    # very end use the smaller matched array to compute the final shift. This
-    # should then only use as match memory as the smaller of the two catalogs.
-    #
+    # Compute matches in smaller blocks to not blow up memory
+    # Improve: Change execution to parallel !!!
     blocksize = 100
 
     ref_x = usno[:,0]
@@ -341,86 +393,50 @@ if __name__ == "__main__":
     if (alignment_checkfile != None):
         alignment_check = open(alignment_checkfile, "w")
 
-    for ext in range(1, len(hdulist)):
-        start = 0
+    if (cmdline_arg_isset("-singleota_shift")):
+        for ext in range(1, len(hdulist)):
 
-        hdulist[ext].header.add_history("GLOBAL SHIFT: dRA,dDEC=")
-        hdulist[ext].header.add_history("dRA=%.6f dDEC=%.6f" % (best_guess[0], best_guess[1]))
+            # Extract just the source catalog for this OTA
+            ota_cat = sex_cat[sex_cat[:,1]==ext]
 
-        ota_cat = sex_cat[sex_cat[:,1]==ext]
-        #ota_cat = ota_cat[0:250,:]
-        matches = numpy.zeros(shape=(ota_cat.shape[0],2))
-        matched = numpy.zeros(shape=(ota_cat.shape[0],4))
-        #for i in range(ref_x.shape[0]):
-        #    print "REF",ref_x[i], ref_y[i]
-        #for i in range(ota_cat.shape[0]):
-        #    print "SEX",ota_cat[i,6], ota_cat[i,7]
+            # Compute the average shift
+            median = refine_wcs_shift(ref_x, ref_y, ota_cat[:,6], ota_cat[:,7], best_guess, alignment_check)
 
-        while(start < ota_cat.shape[0]):
-            aligned_x = ota_cat[start:start+blocksize,6] + best_guess[0]
-            aligned_y = ota_cat[start:start+blocksize,7] + best_guess[1]
-            #print aligned_x[0:20]
+            # Add the previous (best-guess) shift and the new refinement
+            full_shift = best_guess + median
 
-            dx1 = aligned_x.reshape((aligned_x.shape[0], 1)).repeat(ref_x.shape[0], axis=1)
-            dx2 = ref_x.reshape((1, ref_x.shape[0])).repeat(aligned_x.shape[0], axis=0)
-            dx = dx1 - dx2
+            # And apply this offset to the CRVAL headers
+            hdulist[ext].header['CRVAL1'] += full_shift[0]
+            hdulist[ext].header['CRVAL2'] += full_shift[1]
 
-            dy1 = aligned_y.reshape((aligned_y.shape[0], 1)).repeat(ref_y.shape[0], axis=1)
-            dy2 = ref_y.reshape((1, ref_y.shape[0])).repeat(aligned_y.shape[0], axis=0)
-            dy = dy1 - dy2
+            # Add some HISTORY comments to keep track of what's happening
+            hdulist[ext].header.add_history("GLOBAL SHIFT: dRA,dDEC=")
+            hdulist[ext].header.add_history("dRA=%.6f dDEC=%.6f" % (best_guess[0], best_guess[1]))
+            hdulist[ext].header.add_history("LOCAL SHIFT: dRA,dDEC=")
+            hdulist[ext].header.add_history("dRA=%.6f dDEC=%.6f" % (median[0], median[1]))
+    else:
 
-            d2 = dx*dx + dy*dy
+        # Compute the refinement for the full source catalog across all OTAs
+        median = refine_wcs_shift(ref_x, ref_y, sex_cat[:,6], sex_cat[:,7], best_guess, alignment_check)
 
-            closest = numpy.argmin(d2, axis=1)
-            #print closest[0:20]
-
-            for i in range(closest.shape[0]):
-                matches[start+i,0] = dx[i, closest[i]]
-                matches[start+i,1] = dy[i, closest[i]]
-                #print matches[start+i,:]
-
-                matched[start+i,:] = [aligned_x[i], aligned_y[i], ref_x[closest[i]], ref_y[closest[i]]]
-
-            start += blocksize
-
-        # Now with all the matches for this OTA, left's determine the best solution
-        # Again, use the 3-sigma clipping as above
-
-        dmin, dmax = [-1, -1], [1,1]
-        clipping = matches.copy()
-        for rep in range(2):
-            valid_range = (clipping[:,0] < dmax[0]) & (clipping[:,0] > dmin[0]) & (clipping[:,1] > dmin[1]) & (clipping[:,1] < dmax[1])
-               
-            median = numpy.median(clipping[valid_range], axis=0)
-            sigma_p = scipy.stats.scoreatpercentile(clipping[valid_range], 84)
-            sigma_m = scipy.stats.scoreatpercentile(clipping[valid_range], 16)
-            sigma = 0.5*(sigma_p - sigma_m)
-            dmin = median - 3*sigma
-            dmax = median + 3*sigma
-            print median, sigma, dmin, dmax
-
-        # Now add all the offsets to the header
+        # Add the previous (best-guess) shift and the new refinement
         full_shift = best_guess + median
-        hdulist[ext].header['CRVAL1'] += full_shift[0]
-        hdulist[ext].header['CRVAL2'] += full_shift[1]
 
-        if (alignment_checkfile != None):
-            for i in range(matched.shape[0]):
-                print >>alignment_check, \
-                    matched[i,0], matched[i,1], matched[i,2], matched[i,3],ext,ra,dec,matched[i,0]-median[0],matched[i,1]-median[1],matches[i,0], matches[i,1]
-#                    aligned_x[i], aligned_y[i], \
-#                    ref_x[closest[i]], ref_y[closest[i]], ext
-            print >>alignment_check, "\n\n\n\n\n"
+        # Apply refinement to all OTAs
+        for ext in range(1, len(hdulist)):
+            hdulist[ext].header['CRVAL1'] += full_shift[0]
+            hdulist[ext].header['CRVAL2'] += full_shift[1]
 
-        hdulist[ext].header.add_history("LOCAL SHIFT: dRA,dDEC=")
-        hdulist[ext].header.add_history("dRA=%.6f dDEC=%.6f" % (median[0], median[1]))
+            # Also add some history 
+            hdulist[ext].header.add_history("LOCAL SHIFT: dRA,dDEC=")
+            hdulist[ext].header.add_history("dRA=%.6f dDEC=%.6f" % (median[0], median[1]))
 
+            hdulist[ext].header.add_history("GLOBAL SHIFT: dRA,dDEC=")
+            hdulist[ext].header.add_history("dRA=%.6f dDEC=%.6f" % (best_guess[0], best_guess[1]))
 
+    # All work done, close the check-file
     if (alignment_checkfile != None):
         alignment_check.close()
-
-    #for i in range(matches.shape[0]):
-    #    print "XXXX",i,matches[i,0]*3600., matches[i,1]*3600.
 
     if (not cmdline_arg_isset('-computeonly')):
         stdout_write("Writing output file...\n")
