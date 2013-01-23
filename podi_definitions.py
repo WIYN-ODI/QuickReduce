@@ -15,6 +15,21 @@ import numpy
 import ctypes
 import math
 import numpy
+import pyfits
+
+############
+#                  | | |
+#  Experimental    | | |
+#                  V V V
+############
+
+pyfits.USE_MEMMAP = False
+
+############
+#                  A A A
+#  Experimental    | | |
+#                  | | |
+############
 
 available_otas = [00, 16, 22, 23, 24, 32, 33, 34, 42, 43, 44, 55, 61]
 available_ota_coords = [(0,0), (1,6), 
@@ -52,7 +67,8 @@ which_otas_to_use = {"odi_g": all_otas,
 	             "CTIO_OIII": central_2x2,
                      "BATC_420": central_2x2,
 	             "BATC_390": central_2x2,
-	             "OPEN": all_otas
+	             "OPEN": all_otas,
+                     "mosaic_u": central_2x2,
 		    }	
 
 
