@@ -236,12 +236,12 @@ def collect_reduce_ota(filename,
        	    dark_filename = "%s/dark_%s.fits" % (dark_dir, detectorglow)
 	    if (os.path.isfile(dark_filename)):
                 dark = pyfits.open(dark_filename)
+                darktime = dark[0].header['EXPTIME']
 	   	# Search for the flatfield data for the current OTA
             	for dark_ext in dark[1:]:
                     fppos_dark = dark_ext.header['FPPOS']
 
             	    if (fppos_dark == fppos):
-                        darktime = dark_ext.header['EXPTIME']
                     	# This is the one
                     	merged -= (dark_ext.data * exposure_time / darktime)
                 	break
