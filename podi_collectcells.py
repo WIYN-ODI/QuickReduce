@@ -120,7 +120,7 @@ def collect_reduce_ota(filename,
     if (not os.path.isfile(filename)):
         stdout_write("Couldn't find file %s ..." % (filename))
     else:
-        hdulist = pyfits.open(filename)
+        hdulist = pyfits.open(filename, memmap=False)
 
         detsize = break_region_string(hdulist[0].header['DETSIZE'])
         det_x1, det_x2, det_y1, det_y2 = detsize
@@ -471,14 +471,13 @@ def collectcells(input, outputfile,
         # Assume this is one of the fits files in the right directory
         # In that case, extract the FILENAME header and convert it into 
         # the filebase we need to construct the filenames of all OTA fits files.
-
         hdulist = pyfits.open(input)
         filebase = hdulist[0].header['FILENAME'][:18]
         hdulist.close()
         del hdulist
 
         # Split the input filename to extract the directory part
-        directory,dummy = os.path.split(input)
+        directory, dummy = os.path.split(input)
 
     elif (os.path.isdir(input)):
         # As a safety precaution, if the first parameter is the directory containing 
@@ -488,7 +487,10 @@ def collectcells(input, outputfile,
 
         basedir, filebase = os.path.split(input)
         directory = input
-        
+
+    else:
+        stdout_write("Unable to open file %s, aborting!\n", input)
+        return
 
     #print "Merging cells for frame %s" % (basename)
 
@@ -648,19 +650,19 @@ def collectcells(input, outputfile,
 if __name__ == "__main__":
 
     # Read the input directory that contains the individual OTA files
-    input = sys.argv[1]
+    input = get_clean_cmdline()[1]
 
     # Assign a fallback output filename if none is given 
-    if (len(sys.argv)>2):
-        outputfile = sys.argv[2]
+    if (len(get_clean_cmdline())>2):
+        outputfile = get_clean_cmdline()[2]
     else:
         print "No output filename has been given, setting to default mergedcells.fits"
         outputfile = "mergedcells.fits"
     print "Writing results into",outputfile
 
     # Handle all reduction flags from command line
-    bias_dir, dark_dir, flatfield_dir, bpm_dir, start = read_reduction_directories(start=3)
-
+    bias_dir, dark_dir, flatfield_dir, bpm_dir, start = read_reduction_directories()
+    
     # Collect all cells, perform reduction and write result file
     collectcells(input, outputfile,
                  bias_dir, dark_dir, flatfield_dir, bpm_dir)
