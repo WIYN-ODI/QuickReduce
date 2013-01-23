@@ -15,7 +15,7 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
     else:
         hdulist = pyfits.open(filename)
         
-    filter = hdulist[1].header['FILTER']
+    filter = hdulist[0].header['FILTER']
     print "This is filter",filter
     print "Using binning %d,%d" % (binning_x, binning_y)
 
