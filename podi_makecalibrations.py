@@ -27,10 +27,10 @@ from podi_makeflatfield import *
 if __name__ == "__main__":
 
     # Read the input file that has the list of files
-    filelist_filename = sys.argv[1]
+    filelist_filename = get_clean_cmdline()[1]
 
     # Assign a fallback output filename if none is given 
-    output_directory = sys.argv[2]
+    output_directory = get_clean_cmdline()[2]
 
     tmp_directory = cmdline_arg_set_or_default("-tmpdir", output_directory + "/tmp")
 
@@ -45,7 +45,6 @@ if __name__ == "__main__":
     # We also need a "tmp" subdirectory  directory in the output directory
     if (not os.path.exists(tmp_directory)):
         os.makedirs(tmp_directory)
-
 
     #
     # Read the list of files
@@ -96,24 +95,25 @@ if __name__ == "__main__":
     #
     stdout_write("####################\n#\n# Creating bias-frame\n#\n####################\n")
     bias_frame = "%s/bias.fits" % (output_directory)
-    bias_to_stack = []
-    for cur_bias in bias_list:
-        # First run collectcells
-        dummy, basename = os.path.split(cur_bias)
-        bias_outfile = "%s/bias.%s.fits" % (tmp_directory, basename)
-        if (not os.path.isfile(bias_outfile) and not cmdline_arg_isset("-redo")):
-            collectcells(cur_bias, bias_outfile,
-                         bias_dir=None, dark_dir=None, flatfield_dir=None, bpm_dir=None, 
-                         batchmode=False)
-        bias_to_stack.append(bias_outfile)
-    #print bias_list
+    if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "bias"): 
+        bias_to_stack = []
+        for cur_bias in bias_list:
+            # First run collectcells
+            dummy, basename = os.path.split(cur_bias)
+            bias_outfile = "%s/bias.%s.fits" % (tmp_directory, basename)
+            if (not os.path.isfile(bias_outfile) and not cmdline_arg_isset("-redo")):
+                collectcells(cur_bias, bias_outfile,
+                             bias_dir=None, dark_dir=None, flatfield_dir=None, bpm_dir=None, 
+                             batchmode=False)
+            bias_to_stack.append(bias_outfile)
+        #print bias_list
 
-    if (not os.path.isfile(bias_frame) and not cmdline_arg_isset("-redo")):
-        stdout_write("Stacking %d frames into %s ..." % (len(bias_to_stack), bias_frame))
-        imcombine(bias_to_stack, bias_frame)
-    if (not cmdline_arg_isset("-keeptemps")):
-        for file in bias_to_stack:
-            clobberfile(file)
+        if (not os.path.isfile(bias_frame) and not cmdline_arg_isset("-redo")):
+            stdout_write("Stacking %d frames into %s ..." % (len(bias_to_stack), bias_frame))
+            imcombine(bias_to_stack, bias_frame, "median")
+        if (not cmdline_arg_isset("-keeptemps")):
+            for file in bias_to_stack:
+                clobberfile(file)
 
 
     #
@@ -122,24 +122,25 @@ if __name__ == "__main__":
     stdout_write("####################\n#\n# Creating dark-frame\n#\n####################\n")
     # For now set all darks to detector-glow "yes"
     dark_frame = "%s/dark_yes.fits" % (output_directory)
-    darks_to_stack = []
-    for cur_dark in dark_list:
-        # First run collectcells
-        dummy, basename = os.path.split(cur_dark)
-        dark_outfile = "%s/dark.%s.fits" % (tmp_directory, basename)
-        if (not os.path.isfile(dark_outfile) and not cmdline_arg_isset("-redo")):
-            collectcells(cur_dark, dark_outfile,
-                         bias_dir=output_directory, dark_dir=None, flatfield_dir=None, bpm_dir=None, 
-                         batchmode=False)
-        darks_to_stack.append(dark_outfile)
-    #print darks_to_stack
+    if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "dark"): 
+        darks_to_stack = []
+        for cur_dark in dark_list:
+            # First run collectcells
+            dummy, basename = os.path.split(cur_dark)
+            dark_outfile = "%s/dark.%s.fits" % (tmp_directory, basename)
+            if (not os.path.isfile(dark_outfile) and not cmdline_arg_isset("-redo")):
+                collectcells(cur_dark, dark_outfile,
+                             bias_dir=output_directory, dark_dir=None, flatfield_dir=None, bpm_dir=None, 
+                             batchmode=False)
+            darks_to_stack.append(dark_outfile)
+        #print darks_to_stack
 
-    if (not os.path.isfile(dark_frame) and not cmdline_arg_isset("-redo")):
-        stdout_write("Stacking %d frames into %s ..." % (len(darks_to_stack), dark_frame))
-        imcombine(darks_to_stack, dark_frame)
-    if (not cmdline_arg_isset("-keeptemps")):
-        for file in darks_to_stack:
-            clobberfile(file)
+        if (not os.path.isfile(dark_frame) and not cmdline_arg_isset("-redo")):
+            stdout_write("Stacking %d frames into %s ..." % (len(darks_to_stack), dark_frame))
+            imcombine(darks_to_stack, dark_frame, "median")
+        if (not cmdline_arg_isset("-keeptemps")):
+            for file in darks_to_stack:
+                clobberfile(file)
 
 
 
@@ -147,27 +148,28 @@ if __name__ == "__main__":
     #
     # And finally, reduce the flats using the biases and darks.
     #
-    for cur_filter_id in range(len(filters)):
-        filter = filters[cur_filter_id]
-        flat_frame = "%s/flat_%s.fits" % (output_directory, filter)
-        stdout_write("####################\n#\n# Reducing flat-field %s\n#\n####################\n" % filter)
-        flats_to_stack = []
-        for cur_flat in flat_list[cur_filter_id]:
-            # First run collectcells
-            dummy, basename = os.path.split(cur_flat)
-            flat_outfile = "%s/nflat.%s.%s.fits" % (tmp_directory, filter, basename)
-            if (not os.path.isfile(flat_outfile) and not cmdline_arg_isset("-redo")):
-                hdu_list = collectcells(cur_flat, flat_outfile,
-                             bias_dir=output_directory, dark_dir=output_directory, flatfield_dir=None, bpm_dir=None, 
-                             batchmode=True)
-                normalize_flatfield(None, flat_outfile, binning_x=8, binning_y=8, repeats=3, batchmode_hdu=hdu_list)
-            flats_to_stack.append(flat_outfile)
-        #print flats_to_stack
+    if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "flat"): 
+        for cur_filter_id in range(len(filters)):
+            filter = filters[cur_filter_id]
+            flat_frame = "%s/flat_%s.fits" % (output_directory, filter)
+            stdout_write("####################\n#\n# Reducing flat-field %s\n#\n####################\n" % filter)
+            flats_to_stack = []
+            for cur_flat in flat_list[cur_filter_id]:
+                # First run collectcells
+                dummy, basename = os.path.split(cur_flat)
+                flat_outfile = "%s/nflat.%s.%s.fits" % (tmp_directory, filter, basename)
+                if (not os.path.isfile(flat_outfile) and not cmdline_arg_isset("-redo")):
+                    hdu_list = collectcells(cur_flat, flat_outfile,
+                                 bias_dir=output_directory, dark_dir=output_directory, flatfield_dir=None, bpm_dir=None, 
+                                 batchmode=True)
+                    normalize_flatfield(None, flat_outfile, binning_x=8, binning_y=8, repeats=3, batchmode_hdu=hdu_list)
+                flats_to_stack.append(flat_outfile)
+            #print flats_to_stack
 
-        if (not os.path.isfile(flat_frame) and not cmdline_arg_isset("-redo")):
-            stdout_write("Stacking %d frames into %s ..." % (len(flats_to_stack), flat_frame))
-            imcombine(flats_to_stack, flat_frame)
-        if (not cmdline_arg_isset("-keeptemps")):
-            for file in flats_to_stack:
-                clobberfile(file)
+            if (not os.path.isfile(flat_frame) and not cmdline_arg_isset("-redo")):
+                stdout_write("Stacking %d frames into %s ..." % (len(flats_to_stack), flat_frame))
+                imcombine(flats_to_stack, flat_frame, "median")
+            if (not cmdline_arg_isset("-keeptemps")):
+                for file in flats_to_stack:
+                    clobberfile(file)
 
