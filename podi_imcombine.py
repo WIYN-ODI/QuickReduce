@@ -86,14 +86,19 @@ def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_fil
 
             result_buffer[line,:] = _median
 
+        elif (operation = "medclip"):
+            intermediate = numpy.sort(buffer[line,:,:], axis=1)
+            result_buffer[line,:] = numpy.median(intermediate[:,1:-2], axis=1)
+        
         else:
-            result_buffer[line,:] = numpy.mean(buffer[line,:,:], axis=1)
+            result_buffer[line,:] = numpy.mean(buffer[line,:,:], axis=1)             
+            
 
         queue.task_done()
 
 
 
-def imcombine(filelist, outputfile):
+def imcombine(filelist, outputfile, operation):
     queue = multiprocessing.JoinableQueue()
 
     # Read the input parameters
@@ -142,8 +147,6 @@ def imcombine(filelist, outputfile):
                     break
             hdulist.close()
             del hdulist
-
-        operation = cmdline_arg_set_or_default("-op", "mean")
 
         #
         # Set up the parallel processing environment
@@ -207,4 +210,6 @@ if __name__ == "__main__":
 
     filelist = get_clean_cmdline()[2:]
 
-    imcombine(filelist, outputfile)
+    operation = cmdline_arg_set_or_default("-op", "mean")
+
+    imcombine(filelist, outputfile, operation)
