@@ -52,6 +52,7 @@ which_otas_to_use = {"odi_g": all_otas,
 	             "CTIO_OIII": central_2x2,
                      "BATC_420": central_2x2,
 	             "BATC_390": central_2x2,
+	             "OPEN": all_otas
 		    }	
 
 
