@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/local/bin/python
 
 #
 # (c) Ralf Kotulla for WIYN/pODI
@@ -170,7 +170,7 @@ def collect_reduce_ota(filename,
 
             # If not, overscan subtract and insert into large frame
             if (not broken):
-                overscan_region = extract_region(hdulist[cell].data, hdulist[cell].header['BIASSEC'])
+                overscan_region = extract_region(hdulist[cell].data, '[500:530,1:494]')
                 overscan_level = numpy.median(overscan_region)
 
                 hdulist[cell].data -= overscan_level
