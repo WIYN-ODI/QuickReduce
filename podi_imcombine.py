@@ -26,25 +26,70 @@ try:
 except:
     pass
 
+#number_cpus = 1
 
 from podi_definitions import *
 
    
 
-def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_filelist):
+def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_filelist, operation):
     #queue, shmem_buffer, shmem_results, size_x, size_y, len_filelist = worker_args
 
     buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len_filelist))
     result_buffer = shmem_as_ndarray(shmem_results).reshape((size_x, size_y))
-    
+
     while (True):
         cmd_quit, line = queue.get()
         if (cmd_quit):
             queue.task_done()
             return
+
+        if (operation == "median"):
+            result_buffer[line,:] = numpy.median(buffer[line,:,:], axis=1)
+
+        elif (operation == "medsigclip"):
+            # Do not use (yet), is slow as hell 
+            # (maskedarrays are pure python, not C as all the rest)
+
+            #print buffer[line,:,:].shape
+            _sigma_plus  = numpy.ones(shape=(buffer.shape[1],buffer.shape[2])) * 1e9
+            _sigma_minus = numpy.ones(shape=(buffer.shape[1],buffer.shape[2])) * 1e9
+            _median = numpy.median(buffer[line,:,:], axis=1)
+
+            nrep = 3
+            valid_pixels = numpy.ma.MaskedArray(buffer[line,:,:])
+
+            for rep in range(nrep):
+
+                _median_2d = _median.reshape(_median.shape[0],1).repeat(buffer.shape[2], axis=1)
+                _min = _median_2d - 3 * _sigma_minus
+                _max = _median_2d + 3 * _sigma_plus
+
+                #valid_pixels = numpy.ma.masked_inside(buffer[line,:,:], _min, _max)
+                valid = (buffer[line,:,:] > _min) & (buffer[line,:,:] < _max)
+
+                valid_pixels = numpy.ma.array(buffer[line,:,:], mask=valid)
+                #valid_pixels = numpy.ma.MaskedArray(buffer[line,:,:], valid)
+
+                #print _min.shape, valid.shape, valid_pixels.shape
+
+                #if (numpy.sum(valid, axis=1).any() <= 0):
+                #    break
+
+                #_median = numpy.median(buffer[line,:,:][valid], axis=1)
+                _median = numpy.median(valid_pixels, axis=1)
+                if (rep < nrep-1):
+                    #_sigma_plus = scipy.stats.scoreatpercentile(buffer[line,:,:][valid], 84) - _median
+                    #_sigma_minus = _median - scipy.stats.scoreatpercentile(buffer[line,:,:][valid], 16) 
+                    _sigma_plus = scipy.stats.scoreatpercentile(valid_pixels, 84) - _median
+                    _sigma_minus = _median - scipy.stats.scoreatpercentile(valid_pixels, 16) 
+
+            result_buffer[line,:] = _median
+
         else:
             result_buffer[line,:] = numpy.mean(buffer[line,:,:], axis=1)
-            queue.task_done()
+
+        queue.task_done()
 
 
 
@@ -55,7 +100,7 @@ def imcombine(filelist, outputfile):
     # Note that file headers are copied from the first file
     reference_filename = filelist[0]
     ref_hdulist = pyfits.open(reference_filename)
-    filter = ref_hdulist[1].header['FILTER']
+    filter = ref_hdulist[0].header['FILTER']
 
     # Create the primary extension of the output file
     primhdu = pyfits.PrimaryHDU()
@@ -70,8 +115,8 @@ def imcombine(filelist, outputfile):
 
         stdout_write("\rWorking on OTA %s (#% 2d/% 2d) ..." % (ref_fppos, cur_ext, len(ref_hdulist)-1))
 
-        # Allocate enough shared memory to load a single OTA from all files. The ahred part is
-        # important to make communication between the main and the salve processes possible.
+        # Allocate enough shared memory to load a single OTA from all files. The shared part is
+        # important to make communication between the main and the slave processes possible.
         size_x, size_y = ref_hdulist[cur_ext].data.shape[0], ref_hdulist[cur_ext].data.shape[1]
         shmem_buffer = multiprocessing.RawArray(ctypes.c_float, size_x*size_y*len(filelist))
         shmem_results = multiprocessing.RawArray(ctypes.c_float, size_x*size_y)
@@ -98,6 +143,8 @@ def imcombine(filelist, outputfile):
             hdulist.close()
             del hdulist
 
+        operation = cmdline_arg_set_or_default("-op", "mean")
+
         #
         # Set up the parallel processing environment
         #
@@ -105,7 +152,7 @@ def imcombine(filelist, outputfile):
         processes = []
         for i in range(number_cpus):
             worker_args = (queue, shmem_buffer, shmem_results,
-                           size_x, size_y, len(filelist))
+                           size_x, size_y, len(filelist), operation)
             p = multiprocessing.Process(target=parallel_compute, args=worker_args)
             p.start()
             processes.append(p)
@@ -158,6 +205,6 @@ if __name__ == "__main__":
 
     outputfile = sys.argv[1]
 
-    filelist = sys.argv[2:]
+    filelist = get_clean_cmdline()[2:]
 
     imcombine(filelist, outputfile)
