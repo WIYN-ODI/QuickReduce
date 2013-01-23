@@ -39,8 +39,20 @@ if __name__ == "__main__":
     # Handle all reduction flags from command line
     bias_dir, dark_dir, flatfield_dir, bpm_dir, start = read_reduction_directories(start=start, warn=False)
 
+    if (cmdline_arg_isset("-fromfile")):
+        filename = get_cmdline_arg("-fromfile")
+        file = open(filename, "r")
+        lines = file.readlines()
+        filelist = []
+        for line in lines:
+            filelist.append(line.strip())
+            #print filelist
+        #sys.exit(0)
+    else:
+        filelist = get_clean_cmdline()[1:]
+        
     # Now loop over all files and run collectcells
-    for folder in get_clean_cmdline()[1:]:
+    for folder in filelist:
         if (folder[-1] == "/"):
             folder = folder[:-1]
 
