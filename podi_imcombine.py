@@ -115,6 +115,13 @@ def imcombine(filelist, outputfile, operation):
 
     # Create the primary extension of the output file
     primhdu = pyfits.PrimaryHDU()
+
+    # Copy all headers from the reference HDU
+    cards = ref_hdulist[0].header.ascardlist()
+    for c in cards:
+        primhdu.header.update(c.key, c.value, c.comment)
+
+    # Add PrimaryHDU to list of OTAs that go into the output file
     out_hdulist = [primhdu]
 
     #
