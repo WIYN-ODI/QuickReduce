@@ -139,6 +139,10 @@ def collect_reduce_ota(filename,
             stdout_write("Something is wrong with this OTA, it's not among those listed as available")
             sys.exit(-1)
 
+        # Save the fppos as name for this extension
+        extname = "ota%02d.sci" % ota
+        hdu.header.update("EXTNAME", extname, "Name for this extension")
+        
         # Now copy the headers from the original file into the new one
         cards = hdulist[0].header.ascardlist()
         for c in cards:
