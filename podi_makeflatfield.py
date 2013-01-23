@@ -79,7 +79,7 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
     stdout_write(" normalizing ...")
     for extension in range(1, len(hdulist)):
         hdulist[extension].data /= ff_median_level
-        hdulist[extension].data[hdulist[extension].data < 0.2] = numpy.NaN
+        hdulist[extension].data[hdulist[extension].data < 0.1] = numpy.NaN
 
     stdout_write(" writing results ...")
     if (os.path.isfile(outputfile)):
