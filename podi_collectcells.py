@@ -143,6 +143,7 @@ def collect_reduce_ota(filename,
             sys.exit(-1)
 
         # Save the fppos as name for this extension
+        ota_name = "OTA%02d" % ota
         extname = "OTA%02d.SCI" % ota
         hdu.update_ext_name(extname)
         
@@ -166,7 +167,7 @@ def collect_reduce_ota(filename,
             # Check if this is one of the broken cells
             wm_cellx, wm_celly = hdulist[cell].header['WN_CELLX'], hdulist[cell].header['WN_CELLY']
             broken = False
-            list_of_broken_cells = broken_ota_cells[ota_id]
+            list_of_broken_cells = broken_ota_cells[ota_name]
             for broken_cell in list_of_broken_cells:
                 x,y = broken_cell
                 #print x,y
