@@ -109,7 +109,7 @@ Calibration data:
     i = 0
     return bias_dir, dark_dir, flatfield_dir, bpm_dir, i
 
-def collect_reduce_ota(filename,
+def collect_reduce_ota(filename, hdu,
                        bias_dir, dark_dir, flatfield_dir, bpm_dir,
                        offset_pointing=[0,0], offset_dither=[0,0], target_coords=None,
                        pixelvalue_indef=numpy.NaN,
@@ -117,9 +117,6 @@ def collect_reduce_ota(filename,
 
     wcs_solution = "/Users/odiobserver/bin/podi/wcs_distort2.fits"
     
-    # Create an fits extension to hold the output
-    hdu = pyfits.ImageHDU()
-
     if (not os.path.isfile(filename)):
         stdout_write("Couldn't find file %s ..." % (filename))
     else:
@@ -602,13 +599,17 @@ def collectcells(input, outputfile,
 
         filename = "%s/%s.%02d.fits" % (directory, filebase, ota)
                 
-        hdu = collect_reduce_ota(filename,
-                                 bias_dir, dark_dir, flatfield_dir, bpm_dir,
-                                 offset_pointing=offset_pointing,
-                                 offset_dither=offset_dither,
-                                 target_coords=target_coords,
-                                 pixelvalue_indef=pixelvalue_indef)
-
+        # Create an fits extension to hold the output
+        hdu = pyfits.ImageHDU()
+        
+        collect_reduce_ota(filename, hdu,
+                           bias_dir, dark_dir, flatfield_dir, bpm_dir,
+                           offset_pointing=offset_pointing,
+                           offset_dither=offset_dither,
+                           target_coords=target_coords,
+                           pixelvalue_indef=pixelvalue_indef
+            )
+        
         # Insert into the list to be used later
         ota_list.append(hdu)
 
