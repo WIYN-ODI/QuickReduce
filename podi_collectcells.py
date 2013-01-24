@@ -112,8 +112,11 @@ Calibration data:
 def collect_reduce_ota(filename,
                        bias_dir, dark_dir, flatfield_dir, bpm_dir,
                        offset_pointing=[0,0], offset_dither=[0,0], target_coords=None,
-                       pixelvalue_indef=numpy.NaN):
+                       pixelvalue_indef=numpy.NaN,
+                       wcs_solution=None):
 
+    wcs_solution = "/Users/odiobserver/bin/podi/wcs_distort2.fits"
+    
     # Create an fits extension to hold the output
     hdu = pyfits.ImageHDU()
 
@@ -140,8 +143,8 @@ def collect_reduce_ota(filename,
             sys.exit(-1)
 
         # Save the fppos as name for this extension
-        extname = "ota%02d.sci" % ota
-        hdu.header.update("EXTNAME", extname, "Name for this extension")
+        extname = "OTA%02d.SCI" % ota
+        hdu.update_ext_name(extname)
         
         # Now copy the headers from the original file into the new one
         cards = hdulist[0].header.ascardlist()
@@ -292,7 +295,7 @@ def collect_reduce_ota(filename,
 	detsec_str = "[%d:%d,%d:%d]" % (start_x, end_x, start_y, end_y)
 	hdu.header.update("DETSEC", detsec_str, "position of OTA in focal plane")
                 
-        if (cmdline_arg_isset("-simplewcs") or cmdline_arg_isset("-scamp")):
+        if (cmdline_arg_isset("-simplewcs") or cmdline_arg_isset("-scamp") or wcs_solution != None):
             #
             # Fudge with the WCS headers, largely undoing what's in the fits file right now,
             # and replacing it with a simpler version that hopefully works better
@@ -340,7 +343,26 @@ def collect_reduce_ota(filename,
         # should be included in RA/DEC already !!!
         # =========================================================
         #
-        
+
+        # Now add the canned WCS solution
+        if (wcs_solution != None):
+            print "Adding header from WCS minifits (%s)" % (extname)
+            wcs = pyfits.open(wcs_solution)
+            wcs_header = wcs[extname].header
+
+            print hdu.header['CRVAL1'], hdu.header['CRVAL2']
+
+            cards = wcs_header.ascardlist()
+            for card in cards:
+                if (card.key == 'CRVAL1'):
+                    hdu.header["CRVAL1"] += wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
+                elif (card.key == "CRVAL2"):
+                    hdu.header['CRVAL2'] += wcs_header['CRVAL2']
+                else:
+                    hdu.header.update(card.key, card.value, card.comment)
+
+            print hdu.header['CRVAL1'], hdu.header['CRVAL2']
+            
         # Insert the new image data. This also makes sure that the headers
         # NAXIS, NAXIS1, NAXIS2 are set correctly
         hdu.data = merged
@@ -601,10 +623,10 @@ def collectcells(input, outputfile,
 
     # If the user specified to overwrite the WCS with a SCAMP solution,
     # Read the solution and store it for later use
-    scamp_solution = cmdline_arg_set_or_default("-scamp", None)
-    scamp_header = None
-    if (not scamp_solution == None and not cmdline_arg_isset("-singleota")):
-        apply_scamp_solution(scamp_solution, ota_list)
+    #scamp_solution = cmdline_arg_set_or_default("-scamp", None)
+    #scamp_header = None
+    #if (not scamp_solution == None and not cmdline_arg_isset("-singleota")):
+    #    apply_scamp_solution(scamp_solution, ota_list)
 
     # Now update the headers in all OTA extensions.
     for extension in range(1, len(ota_list)):
