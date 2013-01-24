@@ -9,8 +9,8 @@ from podi_definitions import *
 import pyfits
 #import date
 import datetime
-import pywcs  
-from astLib import astWCS
+#import pywcs  
+#from astLib import astWCS
 import pdb
 import scipy
 import scipy.stats
@@ -18,6 +18,7 @@ import scipy.stats
 
 arcsec = 1./3600.
 number_bright_stars = 100
+max_offset = 0.1
 
 def shift_align_wcs(ota_x, ota_y, ref_x, ref_y):
 
@@ -55,7 +56,7 @@ def shift_align_wcs(ota_x, ota_y, ref_x, ref_y):
             # Take some random shift
             shift_dx = ref_x[r] - ota_x[o]
             shift_dy = ref_y[r] - ota_y[o]
-            if (math.fabs(shift_dx) > 0.05 or math.fabs(shift_dy) > 0.05):
+            if (math.fabs(shift_dx) > max_offset or math.fabs(shift_dy) > max_offset):
                 continue
 
             # Apply shift to OTA coordinates
@@ -204,17 +205,14 @@ N = 200
 N_brightest_ota = 70
 N_brightest_ref = 150
 
-if __name__ == "__main__":
+def fixwcs(fitsfile, output_filename):
 
     tmp, dummy = os.path.split(sys.argv[0])
     dot_config_dir = tmp + "/.config/"
     print dot_config_dir
     
-    fitsfile = sys.argv[1]
     hdulist = pyfits.open(fitsfile)
     ra, dec = hdulist[1].header['CRVAL1'], hdulist[1].header['CRVAL2']
-
-    output_filename = sys.argv[2]
 
     #
     # Obtain catalog listing from USNO-B1
@@ -234,7 +232,7 @@ if __name__ == "__main__":
     sex_param_file = dot_config_dir+"fixwcs.param"
     sex_logfile = fitsfile[:-5]+".sextractor.log"
     sex_cmd = "sex -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s >& %s" % (sex_config_file, sex_param_file, sex_catalogfile, fitsfile, sex_logfile)
-    #print sex_cmd
+    print sex_cmd
     stdout_write("Running SExtractor to search for stars, be patient (logfile: %s) ..." % (sex_logfile))
     if ((not cmdline_arg_isset("-skip_sex")) or (not os.path.isfile(sex_catalogfile))):
         os.system(sex_cmd)
@@ -275,8 +273,11 @@ if __name__ == "__main__":
 
         # Compute the median central position of this OTA
         #inherit_headers(hdulist[ext].header, hdulist[0].header)
-        wcs = astWCS.WCS(hdulist[ext].header, mode="pyfits")
-        ra, dec = wcs.getCentreWCSCoords()
+        centerx, centery = hdulist[ext].header['NAXIS1']/2, hdulist[ext].header['NAXIS2']/2
+        ra  = (centerx-hdulist[ext].header['CRPIX1'])*hdulist[ext].header['CD1_1'] + (centery-hdulist[ext].header['CRPIX2'])*hdulist[ext].header['CD1_2'] + hdulist[ext].header['CRVAL1']
+        dec = (centerx-hdulist[ext].header['CRPIX1'])*hdulist[ext].header['CD2_1'] + (centery-hdulist[ext].header['CRPIX2'])*hdulist[ext].header['CD2_2'] + hdulist[ext].header['CRVAL2']
+        #wcs = astWCS.WCS(hdulist[ext].header, mode="pyfits")
+        #ra, dec = wcs.getCentreWCSCoords()
         #print "center of this ota:", ra,dec
 
         #
@@ -443,3 +444,17 @@ if __name__ == "__main__":
         hdulist.writeto(output_filename, clobber=True)
     else:
         stdout_write("Skipping the output file, you requested -computeonly\n")
+
+
+
+
+if __name__ == "__main__":
+
+    if (cmdline_arg_isset("-multi")):
+        for infile in get_clean_cmdline()[1:]:
+            outfile = infile[0:-5]+".wcs.fits"
+            fixwcs(infile, outfile)
+    else:
+        fitsfile = get_clean_cmdline()[1]
+        output_filename = get_clean_cmdline()[2]
+        fixwcs(fitsfile, output_filename)
