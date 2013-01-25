@@ -20,6 +20,16 @@ arcsec = 1./3600.
 number_bright_stars = 100
 max_offset = 0.1
 
+
+N = 200
+N_brightest_ota = 70
+N_brightest_ref = 150
+
+# Compute matches in smaller blocks to not blow up memory
+# Improve: Change execution to parallel !!!
+blocksize = 100
+
+
 def shift_align_wcs(ota_x, ota_y, ref_x, ref_y):
 
     ota_count = ota_x.shape[0]
@@ -105,6 +115,10 @@ def shift_align_wcs(ota_x, ota_y, ref_x, ref_y):
     selected_matches = match_results[good_datapoints]
     print "Selected matches=",selected_matches.shape
 
+    if (selected_matches.shape[0] <= 1):
+        # No matches found, return no shift and signal that the solution is invalid (Nmatch<0) 
+        return 0, 0, -1
+        
     median = numpy.median(selected_matches[:,0])
     std = numpy.std(selected_matches[:,0])
     sigma = scipy.stats.scoreatpercentile(selected_matches[:,0], 84) - median
@@ -200,11 +214,6 @@ def refine_wcs_shift(ref_x, ref_y, ota_x, ota_y, best_guess, alignment_checkfile
     return median
 
 
-
-N = 200
-N_brightest_ota = 70
-N_brightest_ref = 150
-
 def fixwcs(fitsfile, output_filename):
 
     tmp, dummy = os.path.split(sys.argv[0])
@@ -223,6 +232,13 @@ def fixwcs(fitsfile, output_filename):
         stdout_write("Using local copy of USNO reference catalog for WCS calibration\n")
     usno = query_usno(ra, dec, 45, 100000, usno_cat, download=download_cat)
     stdout_write("Read %s stars from USNO-B1\n" % (usno.shape[0]))
+
+    usno_dumpfile = fitsfile[:-5]+".usno.coord"
+    print "USNO dump-file:", usno_dumpfile
+    usno_dump = open(usno_dumpfile, "w")
+    for i in range(usno.shape[0]):
+        print >>usno_dump, usno[i, 0], usno[i, 1]
+    usno_dump.close()
     
     #
     # Run Sextractor on the input frame
@@ -248,6 +264,11 @@ def fixwcs(fitsfile, output_filename):
     sex_cat = sex_cat[sex_cat[:,10] == 0]
     stdout_write("%d stars left after eliminating flags\n" % sex_cat.shape[0])
 
+    sex_dumpfile = fitsfile[:-5]+".sex.coord"
+    sex_dump = open(sex_dumpfile, "w")
+    for i in range(sex_cat.shape[0]):
+        print >>sex_dump, sex_cat[i, 6], sex_cat[i, 7]
+    sex_dump.close()
 
     #
     # Now go through each of the extension
@@ -264,10 +285,10 @@ def fixwcs(fitsfile, output_filename):
         # Select the N brightest stars to make alignment faster 
         # in the case of many stars, i.e. close to the milky way plane 
         # or in the case of resolved external galaxies
-        N_brightest_ota = numpy.min([ota_cat.shape[0], N_brightest_ota])
+        use_N_brightest_ota = numpy.min([ota_cat.shape[0], N_brightest_ota])
         ota_magsort = numpy.argsort(ota_cat[:,2])
-        ota_use = numpy.zeros(shape=(N_brightest_ota, ota_cat.shape[1]))
-        for i in range(N_brightest_ota):
+        ota_use = numpy.zeros(shape=(use_N_brightest_ota, ota_cat.shape[1]))
+        for i in range(use_N_brightest_ota):
             ota_use[i,:] = ota_cat[ota_magsort[i], :]
 
 
@@ -276,6 +297,7 @@ def fixwcs(fitsfile, output_filename):
         centerx, centery = hdulist[ext].header['NAXIS1']/2, hdulist[ext].header['NAXIS2']/2
         ra  = (centerx-hdulist[ext].header['CRPIX1'])*hdulist[ext].header['CD1_1'] + (centery-hdulist[ext].header['CRPIX2'])*hdulist[ext].header['CD1_2'] + hdulist[ext].header['CRVAL1']
         dec = (centerx-hdulist[ext].header['CRPIX1'])*hdulist[ext].header['CD2_1'] + (centery-hdulist[ext].header['CRPIX2'])*hdulist[ext].header['CD2_2'] + hdulist[ext].header['CRVAL2']
+        print "center:", ra, dec
         #wcs = astWCS.WCS(hdulist[ext].header, mode="pyfits")
         #ra, dec = wcs.getCentreWCSCoords()
         #print "center of this ota:", ra,dec
@@ -298,28 +320,32 @@ def fixwcs(fitsfile, output_filename):
         nearby_usno = usno[nearby]
         print "Full USNO:",usno.shape[0],", nearby:",nearby_usno.shape[0]
 
-        #
-        # In the catalog of nearby reference stars, select the N brightest stars
-        #
-        N_brightest_ref = numpy.min([nearby_usno.shape[0], N_brightest_ref])
-        ref_magsort = numpy.argsort(nearby_usno[:, 4])
-        ref_use = numpy.zeros(shape=(N_brightest_ref, nearby_usno.shape[1]))
-        for i in range(N_brightest_ref):
-            ref_use[i,:] = nearby_usno[ref_magsort[i], :]
+        if (nearby_usno.shape[0] <= 5):
+            dx, dy, n = 0, 0, 0
+        else:    
+            #
+            # In the catalog of nearby reference stars, select the N brightest stars
+            #
+            use_N_brightest_ref = numpy.min([nearby_usno.shape[0], N_brightest_ref])
+            ref_magsort = numpy.argsort(nearby_usno[:, 4])
+            ref_use = numpy.zeros(shape=(use_N_brightest_ref, nearby_usno.shape[1]))
+            for i in range(use_N_brightest_ref):
+                ref_use[i,:] = nearby_usno[ref_magsort[i], :]
 
-        #for i in range(ota_cat.shape[0]):
-        #    print "@@@@Sex",ota_cat[i,4], ota_cat[i,5],ota_cat[i,6], ota_cat[i,7]
+            #for i in range(ota_cat.shape[0]):
+            #    print "@@@@Sex",ota_cat[i,4], ota_cat[i,5],ota_cat[i,6], ota_cat[i,7]
 
-        #for i in range(usno.shape[0]):
-        #    print "@@@@Usno",usno[i,0], usno[i,1]
+            #for i in range(usno.shape[0]):
+            #    print "@@@@Usno",usno[i,0], usno[i,1]
 
-        #ota_x, ota_y = ota_cat[:,6], ota_cat[:,7]
-        #ref_x, ref_y = nearby_usno[:,0], nearby_usno[:,1]
+            #ota_x, ota_y = ota_cat[:,6], ota_cat[:,7]
+            #ref_x, ref_y = nearby_usno[:,0], nearby_usno[:,1]
 
-        ota_x, ota_y = ota_use[:,6], ota_use[:,7]
-        ref_x, ref_y = ref_use[:,0], ref_use[:,1]
+            ota_x, ota_y = ota_use[:,6], ota_use[:,7]
+            ref_x, ref_y = ref_use[:,0], ref_use[:,1]
 
-        dx, dy, n = shift_align_wcs(ota_x, ota_y, ref_x, ref_y)
+            dx, dy, n = shift_align_wcs(ota_x, ota_y, ref_x, ref_y)
+
         frame_shift[ext-1,:] = [dx, dy]
 
         print "#######################"
@@ -381,10 +407,6 @@ def fixwcs(fitsfile, output_filename):
     # but for now keep them separate and check if that's the case
     #
 
-    # Compute matches in smaller blocks to not blow up memory
-    # Improve: Change execution to parallel !!!
-    blocksize = 100
-
     ref_x = usno[:,0]
     ref_y = usno[:,1]
     print ref_x.shape, ref_y.shape
@@ -427,6 +449,9 @@ def fixwcs(fitsfile, output_filename):
         for ext in range(1, len(hdulist)):
             hdulist[ext].header['CRVAL1'] += full_shift[0]
             hdulist[ext].header['CRVAL2'] += full_shift[1]
+
+            if (hdulist[ext].header['CRVAL1'] < 0): hdulist[ext].header['CRVAL1'] += 360 
+            if (hdulist[ext].header['CRVAL1'] >360): hdulist[ext].header['CRVAL1'] -= 360 
 
             # Also add some history 
             hdulist[ext].header.add_history("LOCAL SHIFT: dRA,dDEC=")
