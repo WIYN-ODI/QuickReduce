@@ -16,8 +16,8 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
         hdulist = pyfits.open(filename)
         
     filter = hdulist[0].header['FILTER']
-    print "This is filter",filter
-    print "Using binning %d,%d" % (binning_x, binning_y)
+    # print "This is filter",filter
+    # print "Using binning %d,%d" % (binning_x, binning_y)
 
     list_of_otas_to_normalize = which_otas_to_use[filter]
 
