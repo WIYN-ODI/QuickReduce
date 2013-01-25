@@ -19,6 +19,27 @@ import numpy
 import scipy
 import ephem
 
+
+import Queue
+import threading
+import multiprocessing
+import ctypes
+
+fix_cpu_count = False
+number_cpus = 2
+max_cpu_count = 4
+
+try:
+    number_cpus = multiprocessing.cpu_count()
+    print "Yippie, found %d CPUs to use in parallel!" % (number_cpus)
+    if (number_cpus > max_cpu_count and max_cpu_count > 1):
+        number_cpus = max_cpu_count
+        print "... but using only %d of them!" % (number_cpus)
+except:
+    pass
+
+#number_cpus = 1
+
 gain_correct_frames = False
 from podi_definitions import *
 
@@ -109,17 +130,18 @@ Calibration data:
     i = 0
     return bias_dir, dark_dir, flatfield_dir, bpm_dir, i
 
-def collect_reduce_ota(filename, hdu,
+def collect_reduce_ota(filename,
                        bias_dir, dark_dir, flatfield_dir, bpm_dir,
                        offset_pointing=[0,0], offset_dither=[0,0], target_coords=None,
                        pixelvalue_indef=numpy.NaN,
                        wcs_solution=None):
 
-    wcs_solution = "/Users/odiobserver/bin/podi/wcs_distort2.fits"
-    
     if (not os.path.isfile(filename)):
         stdout_write("Couldn't find file %s ..." % (filename))
     else:
+        # Create an fits extension to hold the output
+        hdu = pyfits.ImageHDU()
+
         hdulist = pyfits.open(filename, memmap=False)
 
         detsize = break_region_string(hdulist[0].header['DETSIZE'])
@@ -133,11 +155,7 @@ def collect_reduce_ota(filename, hdu,
 
         obsid = hdulist[0].header["OBSID"]
         ota = int(hdulist[0].header['FPPOS'][2:])
-        try:
-            ota_id = all_otas.index(ota)
-        except:
-            stdout_write("Something is wrong with this OTA, it's not among those listed as available")
-            sys.exit(-1)
+        ota_c_x, ota_c_y = int(math.floor(ota/10)), int(math.fmod(ota,10))
 
         # Save the fppos as name for this extension
         ota_name = "OTA%02d" % ota
@@ -149,13 +167,11 @@ def collect_reduce_ota(filename, hdu,
         for c in cards:
             hdu.header.update(c.key, c.value, c.comment)
 
-        ota_c_x, ota_c_y = available_ota_coords[ota_id]
-
         #
         # Allocate memory for the merged frame, and set all pixels by default to NaN.
         # Valid pixels will subsequently be overwritten with real numbers
         #
-	merged = numpy.ones(shape=(size_x, size_y), dtype=numpy.float32)
+        merged = numpy.ones(shape=(size_x, size_y), dtype=numpy.float32)
         merged[:,:] = pixelvalue_indef
         
         for cell in range(1,65):
@@ -180,14 +196,14 @@ def collect_reduce_ota(filename, hdu,
 
                 hdulist[cell].data -= overscan_level
 
-		if (gain_correct_frames):
-		    # Correct for the gain variations in each cell
-		    try:
-		    	gain = float(hdulist[cell].header['GAIN'])
-                    	hdulist[cell].data *= gain
-		    except:
-		    	print "Couldn't find the GAIN header!"
-		    	pass
+                if (gain_correct_frames):
+                # Correct for the gain variations in each cell
+                    try:
+                        gain = float(hdulist[cell].header['GAIN'])
+                        hdulist[cell].data *= gain
+                    except:
+                        print "Couldn't find the GAIN header!"
+                        pass
 
                 insert_into_array(hdulist[cell].data, 
                                   hdulist[cell].header['DATASEC'],
@@ -210,66 +226,65 @@ def collect_reduce_ota(filename, hdu,
         filter_name = hdulist[0].header['FILTER']
         exposure_time = hdulist[0].header['EXPTIME']
 
-	# If we are to do some bias subtraction:
-	if (not bias_dir == None):
-       	    bias_filename = "%s/bias.fits" % (bias_dir)
-	    if (os.path.isfile(bias_filename)):
+        # If we are to do some bias subtraction:
+        if (not bias_dir == None):
+            bias_filename = "%s/bias.fits" % (bias_dir)
+            if (os.path.isfile(bias_filename)):
                 bias = pyfits.open(bias_filename)
-	   	# Search for the flatfield data for the current OTA
-            	for bias_ext in bias[1:]:
+                # Search for the flatfield data for the current OTA
+                for bias_ext in bias[1:]:
                     fppos_bias = bias_ext.header['FPPOS']
 
-            	    if (fppos_bias == fppos):
-                    	# This is the one
-                    	merged -= bias_ext.data
-                	break
+                    if (fppos_bias == fppos):
+                        # This is the one
+                        merged -= bias_ext.data
+                    break
 
                 bias.close()
                 hdu.header.add_history("CC-BIAS: %s" % (os.path.abspath(bias_filename)))
                 del bias
  
 
-	# To do some dark subtraction:
+        # To do some dark subtraction:
         #
         # Missing here: Add treatment for frames with detectors switched on or off
         #
-	if (not dark_dir == None):
+        if (not dark_dir == None):
 
             # For now assume all detectors are switched on
             detectorglow = "yes"
 
-       	    dark_filename = "%s/dark_%s.fits" % (dark_dir, detectorglow)
-	    if (os.path.isfile(dark_filename)):
+            dark_filename = "%s/dark_%s.fits" % (dark_dir, detectorglow)
+            if (os.path.isfile(dark_filename)):
                 dark = pyfits.open(dark_filename)
                 darktime = dark[0].header['EXPTIME']
-	   	# Search for the flatfield data for the current OTA
-            	for dark_ext in dark[1:]:
+                # Search for the flatfield data for the current OTA
+                for dark_ext in dark[1:]:
                     fppos_dark = dark_ext.header['FPPOS']
 
-            	    if (fppos_dark == fppos):
-                    	# This is the one
-                    	merged -= (dark_ext.data * exposure_time / darktime)
-                	break
+                    if (fppos_dark == fppos):
+                        # This is the one
+                        merged -= (dark_ext.data * exposure_time / darktime)
+                    break
 
                 dark.close()
                 hdu.header.add_history("CC-DARK: %s" % (os.path.abspath(dark_filename)))
                 del dark
  
 
-	# If the third parameter points to a directory with flat-fields
-	if (not flatfield_dir == None):
-
-       	    flatfield_filename = "%s/flat_%s.fits" % (flatfield_dir, filter_name)
-	    if (os.path.isfile(flatfield_filename)):
+        # If the third parameter points to a directory with flat-fields
+        if (not flatfield_dir == None):
+            flatfield_filename = "%s/flat_%s.fits" % (flatfield_dir, filter_name)
+            if (os.path.isfile(flatfield_filename)):
                 flatfield = pyfits.open(flatfield_filename)
-	   	# Search for the flatfield data for the current OTA
-            	for ff_ext in flatfield[1:]:
+                # Search for the flatfield data for the current OTA
+                for ff_ext in flatfield[1:]:
                     fppos_flatfield = ff_ext.header['FPPOS']
 
-            	    if (fppos_flatfield == fppos):
-                    	# This is the one
-                    	merged /= ff_ext.data
-                	break
+                    if (fppos_flatfield == fppos):
+                        # This is the one
+                        merged /= ff_ext.data
+                        break
 
                 flatfield.close()
                 hdu.header.add_history("CC-FLAT: %s" % (os.path.abspath(flatfield_filename)))
@@ -286,14 +301,14 @@ def collect_reduce_ota(filename, hdu,
                 hdu.header.add_history("CC-BPM: %s" % (os.path.abspath(region_file)))
 
         # Insert the DETSEC header so IRAF understands where to put the extensions
-	start_x = ota_c_x * 4096
-	start_y = ota_c_y * 4096        
-	end_x = start_x + det_x2 - det_x1
-	end_y = start_y + det_y2 - det_y1
-	detsec_str = "[%d:%d,%d:%d]" % (start_x, end_x, start_y, end_y)
-	hdu.header.update("DETSEC", detsec_str, "position of OTA in focal plane")
+        start_x = ota_c_x * 4096
+        start_y = ota_c_y * 4096        
+        end_x = start_x + det_x2 - det_x1
+        end_y = start_y + det_y2 - det_y1
+        detsec_str = "[%d:%d,%d:%d]" % (start_x, end_x, start_y, end_y)
+        hdu.header.update("DETSEC", detsec_str, "position of OTA in focal plane")
                 
-        if (cmdline_arg_isset("-simplewcs") or cmdline_arg_isset("-scamp") or wcs_solution != None):
+        if (cmdline_arg_isset("-simplewcs") or wcs_solution != None):
             #
             # Fudge with the WCS headers, largely undoing what's in the fits file right now,
             # and replacing it with a simpler version that hopefully works better
@@ -331,8 +346,8 @@ def collect_reduce_ota(filename, hdu,
         # Now add the pointing and dither offsets
         #print offset_total[0] / 3600. / numpy.cos(numpy.radians(hdu.header['CRVAL2']))
         #print hdu.header['CRVAL2'], numpy.cos(numpy.radians(hdu.header['CRVAL2']))
-        hdu.header['CRVAL1'] += offset_total[0] / 3600. / numpy.cos(numpy.radians(hdu.header['CRVAL2']))
-        hdu.header['CRVAL2'] += offset_total[1] / 3600.
+        #hdu.header['CRVAL1'] += offset_total[0] / 3600. / numpy.cos(numpy.radians(hdu.header['CRVAL2']))
+        #hdu.header['CRVAL2'] += offset_total[1] / 3600.
         #
         # To do:
         # =========================================================
@@ -344,151 +359,76 @@ def collect_reduce_ota(filename, hdu,
 
         # Now add the canned WCS solution
         if (wcs_solution != None):
-            print "Adding header from WCS minifits (%s)" % (extname)
+            #print "Adding header from WCS minifits (%s)" % (extname)
             wcs = pyfits.open(wcs_solution)
             wcs_header = wcs[extname].header
-
-            print hdu.header['CRVAL1'], hdu.header['CRVAL2']
 
             cards = wcs_header.ascardlist()
             for card in cards:
                 if (card.key == 'CRVAL1'):
-                    hdu.header["CRVAL1"] += wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
+                    hdu.header["CRVAL1"] -= wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
                 elif (card.key == "CRVAL2"):
-                    hdu.header['CRVAL2'] += wcs_header['CRVAL2']
+                    hdu.header['CRVAL2'] -= wcs_header['CRVAL2']
                 else:
                     hdu.header.update(card.key, card.value, card.comment)
 
-            print hdu.header['CRVAL1'], hdu.header['CRVAL2']
-            
+            # Make sure to write RAs that are positive
+            if (hdu.header["CRVAL1"] < 0):
+                hdu.header['CRVAL1'] += 360.
+                
         # Insert the new image data. This also makes sure that the headers
         # NAXIS, NAXIS1, NAXIS2 are set correctly
         hdu.data = merged
     return hdu
     
 
-def read_scamp_header(filename, dump_header=False):
 
-    if (not os.path.isfile(filename)):
-        return None
+#########
+#
+# This routine is a wrapper around the actual collect_reduce_ota routine,
+# mainly dealing with the parallelization and inter-process communication
+#
+#########
+def parallel_collect_reduce_ota(queue, return_queue,
+                                bias_dir, dark_dir, flatfield_dir, bpm_dir,
+                                offset_pointing=[0,0], offset_dither=[0,0], target_coords=None,
+                                pixelvalue_indef=numpy.NaN,
+                                wcs_solution=None):
 
-    headfile = open(filename, "r")
-    lines = headfile.readlines()
+    while (True):
+        cmd_quit, filename, ota_id = queue.get()
+        if (cmd_quit):
+            queue.task_done()
+            return
 
-    values = {}
-    values_list = []
-    comments = {}
-    comments_list = []
+        # Do the work
+        hdu = collect_reduce_ota(filename, 
+                           bias_dir, dark_dir, flatfield_dir, bpm_dir,
+                           offset_pointing=offset_pointing,
+                           offset_dither=offset_dither,
+                           target_coords=target_coords,
+                           pixelvalue_indef=pixelvalue_indef,
+                           wcs_solution=wcs_solution
+            )
 
-    for line in lines:
-        #print line
-
-        key, value, comment = line[0:8].strip(), line[9:30].strip(), line[32:].strip()
-        if (key in ("HISTORY", "COMMENT",
-                    ) ):
-            # Don't know what to do with those, so skip'em
-            continue
-
-        elif (key in ("FGROUPNO", "FLXSCALE", "MAGZEROP", 
-                      "ASTINST",
-                      "PHOTIRMS", "PHOTINST", "PHOTLINK",
-                      ) ):
-            # These are some scamp-specific headers, let's not copy them
-            continue
-
-        elif (key in ("CRVAL1", "CRVAL2",
-                      "CRPIX1", "CRPIX2", 
-                      "CD1_1", "CD1_2", "CD2_1", "CD2_2",
-                      "PV1_0", "PV1_1", "PV1_2", "PV1_4", "PV1_5", "PV1_6",
-                      "PV2_0", "PV2_1", "PV2_2", "PV2_4", "PV2_5", "PV2_6",
-                      "EQUINOX",
-                      ) ):
-            value = float(value)
-
-        elif (key in ("RADECSYS", "CTYPE1", "CTYPE2", "CUNIT1", "CUNIT2") ):
-            # Strip the unnecessary quotes and spaces from the end
-            value = value[1:-1].strip()
-
-        elif (key == "END"):
-            # This concludes one extension, add it to list and start new 
-            # list for the next OTA
-            values_list.append(values)
-            comments_list.append(comments)
-            values = {}
-            comments = {}
-            continue
-
-        values[key] = value
-        comments[key] = comment
-
-    #print head_list
-    #if (dump_header):
-    #    for ota in head_list:
-    #        for key,value,comment in ota:
-    #            print key,"=",value,"(",comment,")"
-    #        print "\n\n\n"
-
-    return values_list, comments_list
-
-def apply_scamp_solution(scampfile, ota_list):
-
-    if (not os.path.isfile(scampfile)):
-        stdout_write("Can not find scamp header file %s,skipping ...\n" % scampfile)
-        return
-
-    scamp_value, scamp_comment = read_scamp_header(scampfile)
-
-    # First of all, figure out the best offset we need to apply 
-    # to the CRVAL headers from the scamp solution
-
-    # Important: The solution from scamp has to have 13 blocks for 13 OTAs.
-    if (len(scamp_value) != len(available_otas)):
-        stdout_write("Illegal scamp solution!\n")
-        return -1
-
-    # Ok, now we know we have a valid solution
-    ref_crval1, ref_crval2 = scamp_value[6]["CRVAL1"], scamp_value[6]["CRVAL2"]
-    #print "\nREF=",ref_crval1,ref_crval2
-
-    # Also compute where the telescope if pointing at, i.e. what CRVAL should be
-    target_crval1, target_crval2 = ota_list[6].header['CRVAL1'], ota_list[6].header['CRVAL2']
-
-    # Adjust the solution for the known shift in CRPIX position
-    # In pODI: True pointing of telescope is ~ at pixel 4200,4200 of OTA 3,3
-    # From scamp: Typically somewhere around 2000,2000 in OTA 3,3
-    # NB: 0.11 / 3600. is the pixel scale in degrees/pixel, ignoring rotation and distortion
-    dx_crpix = 4200 - scamp_value[6]["CRPIX1"]
-    dy_crpix = 4200 - scamp_value[6]["CRPIX2"]
-    declination = target_crval2
-    d_ra  = dx_crpix * 0.11 / 3600. / math.cos(math.radians(declination))
-    d_dec = dy_crpix * 0.11 / 3600.
-    target_crval1 -= d_ra
-    target_crval2 -= d_dec
-
-    # With this data at hand, work out the shift we need to apply to the scamp solution
-    for ext in range(1,len(ota_list)):
-        ota = ext - 1
-
-        scamp_value[ota]['CRVAL1'] += target_crval1 - ref_crval1
-        scamp_value[ota]['CRVAL2'] += target_crval2 - ref_crval2
-
-        # As a last step, simple copy all headers to the ota_list
-        for key in scamp_value[ota]:
-            
-            # If the header already exists, simple change the value
-            if (key in ota_list[ext].header):
-                ota_list[ext].header[key] = scamp_value[ota][key]
-                
-            # If the header doesn't exist yet, create it and use the comment from SCAMP
-            else:
-                ota_list[ext].header.update(key, scamp_value[ota][key], scamp_comment[ota][key])
-
-    # That's it, all done!
-    return 0
+        # Add the results to the return_queue so the master process can assemble the result file
+        # print "Adding results for OTA",ota_id,"to return queue"
+        return_queue.put( (hdu, ota_id) )
+        queue.task_done()
+        
+    return
 
 
+#########
+#
+# collectcells:
+# Handles all filename operations, ensuring all required files exist, and hands the work on
+# each OTA off to the suite of worker processes. Finally assembles all results and writes the output-file.
+#
+#########
 def collectcells(input, outputfile,
                  bias_dir=None, dark_dir=None, flatfield_dir=None, bpm_dir=None,
+                 wcs_solution=None,
                  batchmode=False):
 
     if (os.path.isfile(input)):
@@ -539,6 +479,8 @@ def collectcells(input, outputfile,
                 outputfile = outputfile[:start] + objectname  + outputfile[start+7:]
             elif (outputfile[start:start+6] == "%OBSID"):
                 outputfile = outputfile[:start] + header['OBSID'] + outputfile[start+6:]
+            elif (outputfile[start:start+8] == "%EXPTIME"):
+                outputfile = "%s%.1f%s" % (outputfile[:start], header['EXPTIME'], outputfile[start+8:])
             else:
                 stdout_write("found unknown tag in %s\n" % outputfile)
                 break
@@ -573,11 +515,11 @@ def collectcells(input, outputfile,
 
 
     # Start new list of HDUs
-    ota_list = []
+    ota_list = [None] * (len(available_ota_coords)+1)
 
     # And add the primary HDU to make the fits file a valid one
     primhdu = pyfits.PrimaryHDU()
-    ota_list.append(primhdu)
+    ota_list[0] = primhdu
     
     # Set the fallback value for undefined pixels (mostly the gaps between the OTA cells)
     # This works perfectly fine in ds9, but not SExtractor
@@ -588,6 +530,16 @@ def collectcells(input, outputfile,
         # more negative than -1e30 (that's -1 times SEx's BIG variable)
         pixelvalue_indef = -1e31
     
+
+    #
+    # Set up the parallel processing environment
+    #
+    #result_buffer = numpy.zeros(shape=(buffer.shape[0], buffer.shape[1]), dtype=numpy.float32)
+    queue = multiprocessing.JoinableQueue()
+    return_queue = multiprocessing.Queue()
+    
+    processes = []
+    #for i in range(number_cpus):
     for ota_id in range(len(available_ota_coords)):
         ota_c_x, ota_c_y = available_ota_coords[ota_id]        
         ota = ota_c_x * 10 + ota_c_y
@@ -599,36 +551,46 @@ def collectcells(input, outputfile,
 
         filename = "%s/%s.%02d.fits" % (directory, filebase, ota)
                 
-        # Create an fits extension to hold the output
-        hdu = pyfits.ImageHDU()
-        
-        collect_reduce_ota(filename, hdu,
-                           bias_dir, dark_dir, flatfield_dir, bpm_dir,
-                           offset_pointing=offset_pointing,
-                           offset_dither=offset_dither,
-                           target_coords=target_coords,
-                           pixelvalue_indef=pixelvalue_indef
+        worker_args = (queue, return_queue,
+                       bias_dir, dark_dir, flatfield_dir, bpm_dir,
+                       offset_pointing,
+                       offset_dither,
+                       target_coords,
+                       pixelvalue_indef,
+                       wcs_solution,
             )
-        
-        # Insert into the list to be used later
-        ota_list.append(hdu)
+
+        queue.put( (False, filename, ota_id+1) )
+
+    # Create all processes to handle the actual reduction and combination
+    for i in range(number_cpus):
+        p = multiprocessing.Process(target=parallel_collect_reduce_ota, args=worker_args)
+        p.start()
+        processes.append(p)
+
+    # Tell all workers to shut down when no more data is left to work on
+    for i in range(len(processes)):
+        #stdout_write("Sending quit command!\n")
+        queue.put((True,None,None))
+
+    #
+    # By now all workers have computed their HDUs or are busy doing so,
+    # let's extract their results from the return queue and assemble the ota list
+    #
+    for i in range(len(available_ota_coords)):
+        hdu, ota_id = return_queue.get()
+        ota_list[ota_id] = hdu
+        #print "Receiving OTA results for extension", ota_id
 
     #
     # Now do some post-processing:
-    # 1) Add or overwrite some headers with values from an external scamp header file
+    # 1) Add or overwrite some headers with values from an external wcs minifits file
     #    to improve the wcs accuracy.
     # 2) Move a couple of headers out of each individual extension and put it in the 
     #    primary extension instead (defined in headers_to_inherit, see podi_definitions)
     # 3) Delete a bunch of headers that are no longer necessary (defined in 
     #    headers_to_delete_from_otas, see podi_definitions)
     #
-
-    # If the user specified to overwrite the WCS with a SCAMP solution,
-    # Read the solution and store it for later use
-    #scamp_solution = cmdline_arg_set_or_default("-scamp", None)
-    #scamp_header = None
-    #if (not scamp_solution == None and not cmdline_arg_isset("-singleota")):
-    #    apply_scamp_solution(scamp_solution, ota_list)
 
     # Now update the headers in all OTA extensions.
     for extension in range(1, len(ota_list)):
@@ -688,10 +650,16 @@ if __name__ == "__main__":
         outputfile = "mergedcells.fits"
     print "Writing results into",outputfile
 
+    # For now assume that the WCS template file is located in the same directory as the executable
+    root_dir, py_exe = os.path.split(os.path.abspath(sys.argv[0]))
+    wcs_solution = root_dir + "/wcs_distort2.fits"
+    wcs_solution = cmdline_arg_set_or_default("-wcs", wcs_solution)
+    
     # Handle all reduction flags from command line
     bias_dir, dark_dir, flatfield_dir, bpm_dir, start = read_reduction_directories()
     
     # Collect all cells, perform reduction and write result file
     collectcells(input, outputfile,
-                 bias_dir, dark_dir, flatfield_dir, bpm_dir)
+                 bias_dir, dark_dir, flatfield_dir, bpm_dir,
+                wcs_solution=wcs_solution)
     
