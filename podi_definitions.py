@@ -23,7 +23,7 @@ import pyfits
 #                  V V V
 ############
 
-pyfits.USE_MEMMAP = False
+#pyfits.USE_MEMMAP = False
 
 ############
 #                  A A A
@@ -31,7 +31,6 @@ pyfits.USE_MEMMAP = False
 #                  | | |
 ############
 
-available_otas = [00, 16, 22, 23, 24, 32, 33, 34, 42, 43, 44, 55, 61]
 available_ota_coords = [
     (3,3),
     (3,4),
@@ -66,19 +65,46 @@ broken_ota_cells = {
 }
 
 all_otas = [00, 16, 22, 23, 24, 32, 33, 34, 42, 43, 44, 55, 61]
+central_3x3 = [22, 23,24, 32, 33, 34, 42, 43, 44]
 central_2x2 = [22,23,32,33]
 
 which_otas_to_use = {"odi_g": all_otas,
-		     "odi_r": all_otas,
+                     "odi_r": all_otas,
                      "odi_i": all_otas,
                      "odi_z": all_otas,
                      "CTIO_Ha": central_2x2,
-	             "sdss_u": central_2x2,
-	             "CTIO_OIII": central_2x2,
+                     "sdss_u": central_2x2,
+                     "CTIO_OIII": central_2x2,
                      "BATC_420": central_2x2,
-	             "BATC_390": central_2x2,
-	             "OPEN": all_otas,
+                     "BATC_390": central_2x2,
+                     "OPEN": all_otas,
                      "mosaic_u": central_2x2,
+                     }	
+
+otas_for_photometry = {"odi_g": all_otas,
+                       "odi_r": all_otas,
+                       "odi_i": all_otas,
+                       "odi_z": all_otas,
+                       "CTIO_Ha": central_3x3,
+                       "sdss_u": central_3x3,
+                       "CTIO_OIII": central_3x3,
+                       "BATC_420": central_3x3,
+                       "BATC_390": central_3x3,
+                       "OPEN": all_otas,
+                       "mosaic_u": central_3x3,
+                       }	
+
+sdss_equivalents = {"odi_g": 'g',
+                    "odi_r": 'r',
+                    "odi_i": 'i',
+                    "odi_z": 'z',
+                    "CTIO_Ha": None,
+                    "sdss_u": 'u',
+                    "CTIO_OIII": None,
+                    "BATC_420": None,
+                    "BATC_390": None,
+                    "OPEN": None,
+                    "mosaic_u": 'u',
 		    }	
 
 
@@ -286,3 +312,26 @@ def inherit_headers(header, primary_header):
         header.update(card.key, card.value, card.comment)
 
         
+
+def rebin_image(data, binfac):
+
+    if (binfac < 1):
+        stdout_write("Rebinning at the moment only supports binning to larger pixels with binfac>1\n")
+        return None
+    
+    out_size_x, out_size_y = math.ceil(data.shape[0]/binfac), math.ceil(data.shape[1]/binfac)
+    print out_size_x, out_size_y
+
+    if (out_size_x*binfac != data.shape[0] or out_size_y*binfac != data.shape[1]):
+        # The input array size is not a multiple of the new binning
+        # Create a slightly larger array to hold the data to be rebinned
+        container = numpy.zeros(shape=(out_size_x*binfac, out_size_y*binfac))
+
+        # And insert the original data
+        container[0:data.shape[0], 0:data.shape[1]] = data[:,:]
+    else:
+        container = data 
+        
+    rebinned = numpy.reshape(container, (out_size_x, binfac, out_size_y, binfac)).mean(axis=-1).mean(axis=1)
+
+    return rebinned
