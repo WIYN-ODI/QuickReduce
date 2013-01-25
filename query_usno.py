@@ -51,6 +51,8 @@ unpacker = struct.Struct(unpack_fmt).unpack_from
 
 def query_usno(ra, dec, radius, maxcount, catfile, download=True):
 
+    if (ra < 0): ra += 360.0
+        
     # Assemble the command string
     findusno = "findusnob1 %.8f %.8f -r %d -e b -m %d -sm > %s" % (ra, dec, radius, maxcount, catfile)
     print findusno
