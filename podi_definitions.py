@@ -318,9 +318,10 @@ def rebin_image(data, binfac):
     if (binfac < 1):
         stdout_write("Rebinning at the moment only supports binning to larger pixels with binfac>1\n")
         return None
-    
-    out_size_x, out_size_y = math.ceil(data.shape[0]/binfac), math.ceil(data.shape[1]/binfac)
-    print out_size_x, out_size_y
+    elif (binfac == 1):
+        return data
+
+    out_size_x, out_size_y = int(math.ceil(data.shape[0]*1.0/binfac)), int(math.ceil(data.shape[1]*1.0/binfac))
 
     if (out_size_x*binfac != data.shape[0] or out_size_y*binfac != data.shape[1]):
         # The input array size is not a multiple of the new binning
