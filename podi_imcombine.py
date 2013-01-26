@@ -104,9 +104,22 @@ def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_fil
 
 
 
-def imcombine(filelist, outputfile, operation):
+def imcombine(input_filelist, outputfile, operation):
     queue = multiprocessing.JoinableQueue()
 
+    # First loop over all filenames and make sure all files exist
+    filelist = []
+    for file in input_filelist:
+        if (os.path.isfile(file)):
+            filelist.append(file)
+
+    if (len(filelist) <= 0):
+        stdout_write("No existing files found in input list, hence nothing to do!\n")
+        return
+    elif (len(filelist) == 1):
+        stdout_write("Only 1 file to combine, save the hassle and copy the file!\n")
+        return
+    
     # Read the input parameters
     # Note that file headers are copied from the first file
     reference_filename = filelist[0]
@@ -131,7 +144,7 @@ def imcombine(filelist, outputfile, operation):
         # Check what OTA we are dealing with
         ref_fppos = ref_hdulist[cur_ext].header['FPPOS']
 
-        stdout_write("\rWorking on OTA %s (#% 2d/% 2d) ..." % (ref_fppos, cur_ext, len(ref_hdulist)-1))
+        stdout_write("\rCombining frames for OTA %s (#% 2d/% 2d) ..." % (ref_fppos, cur_ext, len(ref_hdulist)-1))
 
         # Allocate enough shared memory to load a single OTA from all files. The shared part is
         # important to make communication between the main and the slave processes possible.
