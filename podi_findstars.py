@@ -35,36 +35,22 @@ def calculate_moments(data):
     for i in range(4):
         corner_level[i] = numpy.mean(corner[i])
         corner_variance[0] = numpy.mean(numpy.power((corner[i] - corner_level[0]), 2))
-        #corner_level[i] = numpy.sum(corner[i]) / (corner_size * corner_size)
-        #corner_variance[0] = numpy.sum(numpy.power((corner[i] - corner_level[0]), 2)) / (corner_size * corner_size)
         
-    #corner_level[0] = numpy.mean(data[-corner_size:, -corner_size:])
-    #corner_level[1] = numpy.mean(data[-corner_size:,  :corner_size])
-    #corner_level[2] = numpy.mean(data[:corner_size ,  :corner_size])
-    #corner_level[3] = numpy.mean(data[:corner_size , -corner_size:])
     bg_level = numpy.max([0, numpy.median(corner_level)])
-
-    #corner_variance = numpy.zeros(shape=(4))
-    #corner_variance[0] = numpy.mean(numpy.pow((data[-corner_size:, -corner_size:] - corner_level[0]), 2))
-    #corner_variance[1] = numpy.mean(numpy.pow((data[-corner_size:,  :corner_size] - corner_level[1]), 2))
-    #corner_variance[2] = numpy.mean(numpy.pow((data[:corner_size ,  :corner_size] - corner_level[2]), 2))
-    #corner_variance[3] = numpy.mean(numpy.pow((data[:corner_size , -corner_size:] - corner_level[3]), 2))
     bg_variance = numpy.mean(corner_variance)
-    #bg_variance = numpy.sum(corner_variance) / 4
-    
-    signal = data - bg_level
-    #print data.shape, signal.shape
 
+    # Subtract the background
+    signal = data - bg_level
+
+    # Some stats about pixels above the detection threshold
     minimumFlux = 3 * bg_variance
-    
     total = signal.sum()
     significant_pixel = signal > minimumFlux
     total_above_min = signal[significant_pixel].sum()
     area = numpy.sum(significant_pixel)
-    
+
+    # Compute the moments of the distribution, i.e. the x/y fwhms
     X, Y = numpy.indices(data.shape)
-    #print X
-    #print Y
     center_x = (X*signal).sum()/total
     center_y = (Y*signal).sum()/total
 
@@ -90,9 +76,9 @@ def calculate_moments(data):
     peak = data.max()
     amplitude = peak - bg_level
 
+    # Important: signal/noise
     s_n = amplitude / bg_variance
     
-    #print bg_level
     return amplitude, center_x, center_y, fwhm_x, fwhm_y, roundness, peak, bg_level, bg_variance, s_n, area
     
 
