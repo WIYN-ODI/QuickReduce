@@ -97,12 +97,12 @@ if __name__ == "__main__":
     bias_frame = "%s/bias.fits" % (output_directory)
     if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "bias"): 
         bias_to_stack = []
-        if (not os.path.isfile(bias_frame) and not cmdline_arg_isset("-redo")):
+        if (not os.path.isfile(bias_frame) or cmdline_arg_isset("-redo")):
             for cur_bias in bias_list:
                 # First run collectcells
                 dummy, basename = os.path.split(cur_bias)
                 bias_outfile = "%s/bias.%s.fits" % (tmp_directory, basename)
-                if (not os.path.isfile(bias_outfile) and not cmdline_arg_isset("-redo")):
+                if (not os.path.isfile(bias_outfile) or cmdline_arg_isset("-redo")):
                     collectcells(cur_bias, bias_outfile,
                                  bias_dir=None, dark_dir=None, flatfield_dir=None, bpm_dir=None, 
                                  batchmode=False)
@@ -126,12 +126,12 @@ if __name__ == "__main__":
     dark_frame = "%s/dark_yes.fits" % (output_directory)
     if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "dark"): 
         darks_to_stack = []
-        if (not os.path.isfile(dark_frame) and not cmdline_arg_isset("-redo")):
+        if (not os.path.isfile(dark_frame) or cmdline_arg_isset("-redo")):
             for cur_dark in dark_list:
                 # First run collectcells
                 dummy, basename = os.path.split(cur_dark)
                 dark_outfile = "%s/dark.%s.fits" % (tmp_directory, basename)
-                if (not os.path.isfile(dark_outfile) and not cmdline_arg_isset("-redo")):
+                if (not os.path.isfile(dark_outfile) or cmdline_arg_isset("-redo")):
                     collectcells(cur_dark, dark_outfile,
                                  bias_dir=output_directory, dark_dir=None, flatfield_dir=None, bpm_dir=None, 
                                  batchmode=False)
@@ -156,14 +156,14 @@ if __name__ == "__main__":
         for cur_filter_id in range(len(filters)):
             filter = filters[cur_filter_id]
             flat_frame = "%s/flat_%s.fits" % (output_directory, filter)
-            if (not os.path.isfile(flat_frame) and not cmdline_arg_isset("-redo")):
+            flats_to_stack = []
+            if (not os.path.isfile(flat_frame) or cmdline_arg_isset("-redo")):
                 stdout_write("####################\n#\n# Reducing flat-field %s\n#\n####################\n" % filter)
-                flats_to_stack = []
                 for cur_flat in flat_list[cur_filter_id]:
                     # First run collectcells
                     dummy, basename = os.path.split(cur_flat)
                     flat_outfile = "%s/nflat.%s.%s.fits" % (tmp_directory, filter, basename)
-                    if (not os.path.isfile(flat_outfile) and not cmdline_arg_isset("-redo")):
+                    if (not os.path.isfile(flat_outfile) or cmdline_arg_isset("-redo")):
                         hdu_list = collectcells(cur_flat, flat_outfile,
                                      bias_dir=output_directory, dark_dir=output_directory, flatfield_dir=None, bpm_dir=None, 
                                      batchmode=True)
