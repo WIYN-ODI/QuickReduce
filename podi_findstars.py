@@ -10,7 +10,6 @@ from podi_definitions import *
 
 FWHM = 2 *math.sqrt(2*math.log(2))
 
-
 def calculate_moments(data):
 
     # Corners are as follows:
@@ -36,6 +35,8 @@ def calculate_moments(data):
     for i in range(4):
         corner_level[i] = numpy.mean(corner[i])
         corner_variance[0] = numpy.mean(numpy.power((corner[i] - corner_level[0]), 2))
+        #corner_level[i] = numpy.sum(corner[i]) / (corner_size * corner_size)
+        #corner_variance[0] = numpy.sum(numpy.power((corner[i] - corner_level[0]), 2)) / (corner_size * corner_size)
         
     #corner_level[0] = numpy.mean(data[-corner_size:, -corner_size:])
     #corner_level[1] = numpy.mean(data[-corner_size:,  :corner_size])
@@ -49,6 +50,7 @@ def calculate_moments(data):
     #corner_variance[2] = numpy.mean(numpy.pow((data[:corner_size ,  :corner_size] - corner_level[2]), 2))
     #corner_variance[3] = numpy.mean(numpy.pow((data[:corner_size , -corner_size:] - corner_level[3]), 2))
     bg_variance = numpy.mean(corner_variance)
+    #bg_variance = numpy.sum(corner_variance) / 4
     
     signal = data - bg_level
     #print data.shape, signal.shape
@@ -103,63 +105,89 @@ def find_stars(data,
                binning=4,
                boxsize=24,
                dumpfile="find_stars.dump",
-               verbose=True
+               verbose=True,
+               S_N_threshold=2
                ):
 
+    # Prepare the data: Set all NaNs to something illegal
     data[numpy.isnan(data)] = -1e10
 
-    data_select = rebin_image(data, binning)
+    # Create the binned array we will use to search for maxima
+    binned = rebin_image(data, binning)
     bboxsize = boxsize / binning
 
     # Determine some global background level
-    global_bg = numpy.median(data_select[data_select > 0])
-    global_bg_rms = math.sqrt(global_bg) #numpy.std(data_select[data_select > 0])
-    print "#\n#\n# Found Background %d +/- %d\n#\n#\n" % (global_bg, global_bg_rms)
+    global_bg = numpy.median(binned[binned > 0])
+    global_bg_rms = math.sqrt(global_bg) 
+    print "# Found Background %d +/- %d" % (global_bg, global_bg_rms)
 
-    indices_x, indices_y = numpy.indices(data_select.shape)
-    indices_x_1d = indices_x.flatten()
-    indices_y_1d = indices_y.flatten()
+    # Prepare some indices so we can reconstruct the pixel position of each peak
+    indices_x, indices_y = numpy.indices(binned.shape)
+    indices_x_1d = indices_x.ravel()
+    indices_y_1d = indices_y.ravel()
 
-    #print indices_x.shape, indices_x[0:5]
+    # Create the output file that will hold the star catalog
     outcat_file = dumpfile #"split_%02d.cat" % (ext)
     outcat = open(outcat_file, "w")
 
-    sorted_select = numpy.argsort(data_select)
+    #
+    # Begin the actual work
+    #
+
+    # Sort the binned image by brightness
+    binned_1d = binned.ravel()
+    sorted_1d = numpy.argsort(binned_1d)
+
     
     nstars_found = 0
     npeaks_found = 0
-    peak_found = 1e9
-    #nstars_found < 75 and 
-    while(peak_found > global_bg+1*global_bg_rms):
+    peak_value = 1e9
+    
+    current_peak = 0   # Holds where we are in the sorted list
 
-        data_1d = data_select.ravel()
-        #print data_1d.shape
-        idx = numpy.argmax(data_1d)
-        #print data_1d[idx]
-        #print numpy.max(data_1d)
+    # Continue searching for peaks as long there's a chance of finding a significant one
+    while(peak_value > global_bg+S_N_threshold*global_bg_rms):
+        current_peak += 1
+        
+        # Which pixel in the 1-d array are we talking about
+        idx = sorted_1d[-1*current_peak]
+        # Ignore this pixel if it's already marked as invalid
+        if (binned_1d[idx] < -1e9):
+            #current_peak += 1
+            continue
 
+        if (verbose): print current_peak, idx, binned_1d[idx]
+
+        # Now determine the x,y positions of this pixel
         x,y = indices_x_1d[idx], indices_y_1d[idx]
-        peak_found = data_select[x,y]
-
-        #print x, y, " --> ",data[x,y]
+        peak_value = binned[x,y]
+        #print peak_value
 
         full_x, full_y = x*binning, y*binning
-        if (verbose): print "maxima = ",data_1d.max(), data_select[x,y], "   @ ",x, y, "  (",full_x, full_y,")"
+        if (verbose): print "maxima = ",binned_1d.max(), binned[x,y], "   @ ",x, y, "  (",full_x, full_y,")"
 
-        bx1, bx2 = max([0, x-bboxsize]), min([data_select.shape[0], x+bboxsize])
-        by1, by2 = max([0, y-bboxsize]), min([data_select.shape[1], y+bboxsize])
+        bx1 = 0 if x-bboxsize < 0 else x-bboxsize
+        bx2 = binned.shape[0] if x+bboxsize > binned.shape[0] else x+bboxsize
+        by1 = 0 if y-bboxsize < 0 else y-bboxsize
+        by2 = binned.shape[1] if y+bboxsize > binned.shape[1] else y+bboxsize
+        #bx1, bx2 = max([0, x-bboxsize]), min([binned.shape[0], x+bboxsize])
+        #by1, by2 = max([0, y-bboxsize]), min([binned.shape[1], y+bboxsize])
         if (verbose): print "binned box   = %4d - %4d, %4d - %4d" % (bx1, bx2, by1, by2)
 
-        fx1, fx2 = max([0, full_x-boxsize]), min([data.shape[0], full_x+boxsize])
-        fy1, fy2 = max([0, full_y-boxsize]), min([data.shape[1], full_y+boxsize])
+        fx1 = 0 if full_x-boxsize < 0 else full_x-boxsize
+        fx2 = data.shape[0] if full_x+boxsize > data.shape[0] else full_x+boxsize
+        fy1 = 0 if full_y-boxsize < 0 else full_y-boxsize
+        fy2 = data.shape[1] if full_y+boxsize > data.shape[1] else full_y+boxsize
+        #fx1, fx2 = max([0, full_x-boxsize]), min([data.shape[0], full_x+boxsize])
+        #fy1, fy2 = max([0, full_y-boxsize]), min([data.shape[1], full_y+boxsize])
         if (verbose): print "full-res box = %4d - %4d, %4d - %4d" % (fx1, fx2, fy1, fy2)
 
-        data_select[bx1:bx2, by1:by2] = -1e10
+        binned[bx1:bx2, by1:by2] = -1e10
 
-        #print lx1, lx2, ly1, ly2
         blocking_radius = boxsize
         center_x, center_y = full_x, full_y
         npeaks_found += 1
+
         if (True): #data[x,y] < 60000):
 
             minibox = data[fx1:fx2, fy1:fy2]
@@ -167,8 +195,7 @@ def find_stars(data,
                 amplitude, mb_center_x, mb_center_y, fwhm_x, fwhm_y, roundness, peak, bg_level, bg_variance, s_n, area = calculate_moments(minibox)
                 if (verbose): print "Found star %d at pos %02d, %02d   ===>  " % (nstars_found, full_x, full_y), #center_x, center_y),
 
-
-                if (s_n < 2):
+                if (s_n < S_N_threshold):
                     if (verbose): print "too faint, s/n=",s_n,"\n"
                 elif (math.fabs(roundness) > 0.3):
                     if (verbose): print "not round enough, %.3f vs %.3f" % (fwhm_x, fwhm_y),"\n"
@@ -192,6 +219,7 @@ def find_stars(data,
                     # Now mask the area around this brightest pixel as invalid
                     #print numpy.array(data[x-4:x+5, y-4:y+5], dtype=numpy.int)
                     #print numpy.array(minibox, dtype=numpy.int)
+                del minibox
             else:
                 if (verbose): print "Too close to a flagged region\n"
                 pass
@@ -201,44 +229,40 @@ def find_stars(data,
 
         blocking_radius = numpy.max([blocking_radius, boxsize])
 
-        # Now mask the area around this brightest pixel as invalid
-        #print numpy.array(data[x-4:x+5, y-4:y+5], dtype=numpy.int)
-        #print numpy.array(minibox, dtype=numpy.int)
         b_cenx, b_ceny = center_x / binning, center_y / binning
         b_blockrad = blocking_radius / binning
-        _bx1, _bx2 = max([0, b_cenx-b_blockrad]), min([data_select.shape[0], b_cenx+b_blockrad])
-        _by1, _by2 = max([0, b_ceny-b_blockrad]), min([data_select.shape[1], b_ceny+b_blockrad])
-        #by1, by2 = max([0, y-bboxsize]), min([data_select.shape[1], y+bboxsize])
+        _bx1 = 0 if b_cenx-b_blockrad < 0 else b_cenx-b_blockrad
+        _bx2 = binned.shape[0] if b_cenx+b_blockrad > binned.shape[0] else b_cenx+b_blockrad
+        _by1 = 0 if b_ceny-b_blockrad < 0 else b_ceny-b_blockrad
+        _by2 = binned.shape[1] if b_ceny+b_blockrad > binned.shape[1] else y+bboxsize
 
-        if (verbose):
-            print "BLOCKING OUT= %4d,%4d %4d,%4d" % (bx1, bx2, by1, by2)
-            print "              %4d,%4d %4d,%4d" % (_bx1, _bx2, _by1, _by2)
+        #if (verbose):
+        #    print "BLOCKING OUT= %4d,%4d %4d,%4d" % (bx1, bx2, by1, by2)
+        #    print "              %4d,%4d %4d,%4d" % (_bx1, _bx2, _by1, _by2)
 
-
-        #data_select[bx1:bx2, by1:by2] = -1e10
-        data_select[_bx1:_bx2, _by1:_by2] = -1e10
-
+        binned[_bx1:_bx2, _by1:_by2] = -1e10
 
 
-        #x, y = numpy.indices(data.shape)
-        #print idx
-        #print data.max(), data[x,y]
-
-        #print
-
-        #data_sortedindex = numpy.argsort(data)
-        #print data_sortedindex[0:10,0:10]
-
-    outfile = dumpfile+".fits"
-    clobberfile(outfile)
-    prim = pyfits.PrimaryHDU(data=data, header=None)
-    out_hdulist = pyfits.HDUList([prim])
-    out_hdulist.writeto(outfile, clobber=True)
+    #outfile = dumpfile+".fits"
+    #clobberfile(outfile)
+    #prim = pyfits.PrimaryHDU(data=data, header=None)
+    #out_hdulist = pyfits.HDUList([prim])
+    #out_hdulist.writeto(outfile, clobber=True)
         
     stdout_write("done!\n")
 
 
 def findstar_allota(inputfile):
+    hdulist = pyfits.open(inputfile)
+    for ext in range(1, len(hdulist)):
+        dumpfile = "fs_dump.%s" % (hdulist[ext].header['EXTNAME'])
+        data = hdulist[ext].data
+        find_stars(data, binning=4, boxsize=24, dumpfile=dumpfile, verbose=False)
+    
+if __name__ == "__main__":
+
+    inputfile = sys.argv[1]
+
     hdulist = pyfits.open(inputfile)
 
     for ext in range(1, len(hdulist)):
@@ -246,14 +270,9 @@ def findstar_allota(inputfile):
         
         data = hdulist[ext].data
         find_stars(data, binning=4, boxsize=24, dumpfile=dumpfile, verbose=False)
-    
-if __name__ == "__main__":
 
-    inputfile = sys.argv[1]
-    #findstar_allota(inputfile)
-
-    import cProfile
-    cProfile.run('findstar_allota(inputfile)')
-    
-    
-        
+    #import cProfile, pstats
+    #cProfile.run('findstar_allota(inputfile)', "profiler")
+    #p = pstats.Stats("profiler")
+    #p.strip_dirs().sort_stats('time').print_stats()
+    #p.sort_stats('time').print_stats()
