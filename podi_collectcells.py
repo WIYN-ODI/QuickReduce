@@ -231,14 +231,14 @@ def collect_reduce_ota(filename,
             bias_filename = "%s/bias.fits" % (bias_dir)
             if (os.path.isfile(bias_filename)):
                 bias = pyfits.open(bias_filename)
-                # Search for the flatfield data for the current OTA
+
+                # Search for the bias data for the current OTA
                 for bias_ext in bias[1:]:
                     fppos_bias = bias_ext.header['FPPOS']
-
                     if (fppos_bias == fppos):
                         # This is the one
                         merged -= bias_ext.data
-                    break
+                        break
 
                 bias.close()
                 hdu.header.add_history("CC-BIAS: %s" % (os.path.abspath(bias_filename)))
@@ -258,14 +258,14 @@ def collect_reduce_ota(filename,
             if (os.path.isfile(dark_filename)):
                 dark = pyfits.open(dark_filename)
                 darktime = dark[0].header['EXPTIME']
+
                 # Search for the flatfield data for the current OTA
                 for dark_ext in dark[1:]:
                     fppos_dark = dark_ext.header['FPPOS']
-
                     if (fppos_dark == fppos):
                         # This is the one
                         merged -= (dark_ext.data * exposure_time / darktime)
-                    break
+                        break
 
                 dark.close()
                 hdu.header.add_history("CC-DARK: %s" % (os.path.abspath(dark_filename)))
@@ -277,10 +277,10 @@ def collect_reduce_ota(filename,
             flatfield_filename = "%s/flat_%s.fits" % (flatfield_dir, filter_name)
             if (os.path.isfile(flatfield_filename)):
                 flatfield = pyfits.open(flatfield_filename)
+
                 # Search for the flatfield data for the current OTA
                 for ff_ext in flatfield[1:]:
                     fppos_flatfield = ff_ext.header['FPPOS']
-
                     if (fppos_flatfield == fppos):
                         # This is the one
                         merged /= ff_ext.data
