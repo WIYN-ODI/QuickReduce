@@ -5,8 +5,11 @@ import os
 import pyfits
 import numpy
 import scipy
+import pywcs
+from astLib import astWCS
 
 from podi_definitions import *
+from podi_wcs import *
 
 FWHM = 2 *math.sqrt(2*math.log(2))
 
@@ -87,14 +90,22 @@ def calculate_moments(data):
 
 
 
-def find_stars(data,
+def find_stars(hdu,
                binning=4,
                boxsize=24,
                dumpfile="find_stars.dump",
                verbose=True,
-               S_N_threshold=2
+               detect_threshold=2,
+               detect_minarea=5,
+               saturation_limit=60000,
+               roundness_limit=[-1,1]
                ):
 
+
+    # Extract data and WCS solution from HDU
+    data = hdu.data.transpose()
+    wcs = astWCS.WCS(hdu.header, mode="pyfits")
+    
     # Prepare the data: Set all NaNs to something illegal
     data[numpy.isnan(data)] = -1e10
 
@@ -131,8 +142,12 @@ def find_stars(data,
     
     current_peak = 0   # Holds where we are in the sorted list
 
+    source_list = []
+
+    min_peak_level = global_bg+detect_threshold*global_bg_rms
+        
     # Continue searching for peaks as long there's a chance of finding a significant one
-    while(peak_value > global_bg+S_N_threshold*global_bg_rms):
+    while(peak_value > min_peak_level):
         current_peak += 1
         
         # Which pixel in the 1-d array are we talking about
@@ -174,18 +189,18 @@ def find_stars(data,
         center_x, center_y = full_x, full_y
         npeaks_found += 1
 
-        if (True): #data[x,y] < 60000):
+        if (data[x,y] < saturation_limit):
 
             minibox = data[fx1:fx2, fy1:fy2]
             if (numpy.min(minibox) > -1e9):
                 amplitude, mb_center_x, mb_center_y, fwhm_x, fwhm_y, roundness, peak, bg_level, bg_variance, s_n, area = calculate_moments(minibox)
                 if (verbose): print "Found star %d at pos %02d, %02d   ===>  " % (nstars_found, full_x, full_y), #center_x, center_y),
 
-                if (s_n < S_N_threshold):
+                if (s_n < detect_threshold):
                     if (verbose): print "too faint, s/n=",s_n,"\n"
-                elif (math.fabs(roundness) > 0.3):
+                elif (roundness < roundness_limit[0] or roundness > roundness_limit[1]):
                     if (verbose): print "not round enough, %.3f vs %.3f" % (fwhm_x, fwhm_y),"\n"
-                elif (area < 10):
+                elif (area < detect_threshold):
                     if (verbose): print "Insufficent significant area (%d < 10)" % (area)
                 else:
                     center_x, center_y = mb_center_x + fx1, mb_center_y + fy1
@@ -201,10 +216,13 @@ def find_stars(data,
                         print >>outcat, center_y+1, center_x+1, fwhm_x, fwhm_y, s_n
                     stdout_write("\rFound %d stars (%d peaks)..." % (nstars_found, npeaks_found))
                     blocking_radius = numpy.min([5 * math.sqrt(fwhm_x * fwhm_y), 3*boxsize])
-                    #)amplitude, center_x, center_y, fwhm_x, fwhm_y, roundness, peak, bg_variance, s_n
-                    # Now mask the area around this brightest pixel as invalid
-                    #print numpy.array(data[x-4:x+5, y-4:y+5], dtype=numpy.int)
-                    #print numpy.array(minibox, dtype=numpy.int)
+
+                    # Add 1 pixel, as fits starts counting at 1, whereas numpy starts at 0
+                    center_x += 1
+                    center_y += 1
+                    ra, dec = wcs.pix2wcs(center_x, center_y)
+                    source_info = [ ra, dec, center_x, center_y, fwhm_x, fwhm_y, amplitude, peak, bg_level, bg_variance, s_n, area]
+                    source_list.append(source_info)
                 del minibox
             else:
                 if (verbose): print "Too close to a flagged region\n"
@@ -234,8 +252,11 @@ def find_stars(data,
     #prim = pyfits.PrimaryHDU(data=data, header=None)
     #out_hdulist = pyfits.HDUList([prim])
     #out_hdulist.writeto(outfile, clobber=True)
-        
+
+    source_cat = numpy.array(source_list)
+    
     stdout_write("done!\n")
+    return source_cat
 
 
 def findstar_allota(inputfile):
@@ -252,11 +273,26 @@ if __name__ == "__main__":
     hdulist = pyfits.open(inputfile)
 
     for ext in range(1, len(hdulist)):
-        dumpfile = "fs_dump.%s" % (hdulist[ext].header['EXTNAME'])
+        dumpfilename = "fs_dump.%s" % (hdulist[ext].header['EXTNAME'])
+        dumpfile = open(dumpfilename, "w")
         
-        data = hdulist[ext].data
-        find_stars(data, binning=4, boxsize=24, dumpfile=dumpfile, verbose=False)
+        source_cat = find_stars(hdulist[ext], binning=4, boxsize=24, dumpfile=dumpfilename, verbose=False,
+                                detect_threshold=1.5, detect_minarea=6, roundness_limit=[-0.2,+0.2])
 
+        #ra, dec = pix2sky(source_cat[:,0], source_cat[:,1], hdulist[ext].header)
+
+        #print source_cat[:,0:2]
+        
+        #wcs = pywcs.WCS(header=hdulist[ext].header)
+        #ra_dec = wcs.all_pix2sky(source_cat[:,0:2], 0)
+        #xxx.fits")
+        #print ra_dec
+
+        for i in range(source_cat.shape[0]):
+            print >>dumpfile, source_cat[i,0], source_cat[i,1], source_cat[i,2], source_cat[i,3]
+
+        dumpfile.close()
+        
     #import cProfile, pstats
     #cProfile.run('findstar_allota(inputfile)', "profiler")
     #p = pstats.Stats("profiler")
