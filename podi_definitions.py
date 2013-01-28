@@ -302,6 +302,15 @@ headers_to_delete_from_otas = [
     ]
 
 
+pupilghost_centers = {
+    "odi_r": {"OTA33.SCI": (4080, 4180),
+              "OTA34.SCI": (4115, -190),
+              "OTA44.SCI": (-90, -230),
+              "OTA43.SCI": (-120, 4150),
+              }
+    }
+
+
 def inherit_headers(header, primary_header):
     for header in headers_to_inherit:
         if (not header in primary_header):
