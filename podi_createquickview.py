@@ -48,8 +48,8 @@ if __name__ == "__main__":
         output_directory = sys.argv[2]
 
     hdulist = pyfits.open(filename)
-    filter = hdulist[1].header['FILTER']
-    obsid  = hdulist[1].header['OBSID'] 
+    filter = hdulist[0].header['FILTER']
+    obsid  = hdulist[0].header['OBSID'] 
 
     print "This is filter",filter
 
@@ -64,15 +64,15 @@ if __name__ == "__main__":
     for extension in range(1, len(hdulist)):
         fppos = int(hdulist[extension].header['FPPOS'][2:4])
 
- 	try:
-	    index = list_of_otas_to_normalize.index(fppos)
-	except:
-	    # We didn't find this OTA in the list, so skip it
+        try:
+            index = list_of_otas_to_normalize.index(fppos)
+        except:
+            # We didn't find this OTA in the list, so skip it
             hdulist[extension].header.update("FF_NORM", 0, "Used in normalization")
             extension += 1
-	    continue
+            continue
 
-	stdout_write("\rReading OTA %02d" % (fppos))
+        stdout_write("\rReading OTA %02d" % (fppos))
 
         # Rebin the frame 8x8 to make it more manageable
         binned = numpy.reshape(hdulist[extension].data, (512,8,512,8)).mean(axis=-1).mean(axis=1)
