@@ -90,7 +90,7 @@ AND ((flags_r & 0x8100000c00a4) = 0)
 AND (((flags_r & 0x400000000000) = 0) or (psfmagerr_r <= 0.2))
 -- not DEBLEND_NOPEAK or small PSF error
 -- (substitute psfmagerr in other band as appropriate)
-AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
+AND (((flags_r & 0x100000000000) = 0) or (flags_%(filter)s & 0x1000) = 0)
 -- not INTERP_CENTER or not COSMIC_RAY
 """ % {"filter": sdss_filter,
        "min_ra": min_ra, "max_ra": max_ra,
@@ -177,7 +177,7 @@ def photcalib(fitsfile, output_filename, calib_directory):
     std_stars = load_catalog_from_stripe82cat(ra, dec, calib_directory, sdss_filter)
     print std_stars.shape
     if (std_stars.shape[0] <= 0):
-        stdout_write("Couln't find any stars in the Stripe82 Standard star catalog :(\n")
+        stdout_write("Couldn't find any stars in the Stripe82 Standard star catalog :(\n")
         stdout_write("trying to get one directly from SDSS, please wait!\n\n")
 
         std_stars = load_catalog_from_sdss(ra, dec, sdss_filter)
