@@ -30,7 +30,110 @@ N_brightest_ref = 150
 blocksize = 100
 
 
+def load_catalog_from_stripe82cat(ra, dec, calib_directory, sdss_filter):
 
+    # Load the standard star catalog
+    sdss_cat_filename = "%s/stripe82__%s.cat.npy" % (calib_directory, sdss_filter)
+    stdout_write("Loading standard stars (%s)..." % (sdss_cat_filename))
+    sdss_cat = numpy.load(sdss_cat_filename)
+    stdout_write(" %d stars loaded!\n" % (sdss_cat.shape[0]))
+
+    # Now take take of pointings close to RA of 0 hours
+    if (ra < 5):
+        stdout_write("Close to RA=0h, wrapping coordinates ...\n")
+        sdss_cat[:,0][sdss_cat[:,0] > 180] -= 360.
+        sex_cat[:,6][sex_cat[:,6] > 180] -= 360.
+
+    # Break down the full catalog to stars nearby
+    nearby = (sdss_cat[:,0] > ra-1) & (sdss_cat[:,0] < ra+1) & (sdss_cat[:,1] > dec-1) & (sdss_cat[:,1] < dec+1) 
+    std_stars = sdss_cat[nearby]
+    stdout_write("Found %d nearby (RA=%.1f, DEC=%.1f, +/- 1deg) standard stars!\n" % (std_stars.shape[0], ra, dec))
+
+    """
+    Output format is:
+    Ra, Dec, mag_median, mag_mean, mag_std, mag_var
+    """
+    
+    return std_stars
+
+
+def load_catalog_from_sdss(ra, dec, sdss_filter, verbose=False):
+
+    #import sqlcl
+
+    #ra = 0
+    
+    min_ra = ra - 0.05/math.cos(math.radians(dec))
+    max_ra = ra + 0.05/math.cos(math.radians(dec))
+    if (min_ra < 0):
+        ra_query = "ra > %(min_ra)f or ra < %(max_ra)f" % {"min_ra": min_ra+360, "max_ra": max_ra,} 
+    else:
+        ra_query = "ra BETWEEN %(min_ra)f and %(max_ra)f" % {"min_ra": min_ra, "max_ra": max_ra,} 
+        
+    min_dec = dec - 0.5
+    max_dec = dec + 0.5
+
+    #
+    # This query is taken from the SDSS website and selects stars with clean photometry
+    # --> http://skyserver.sdss3.org/dr8/en/help/docs/realquery.asp#cleanStars
+    #
+    sql_query = """\
+SELECT ra,dec,%(filter)s,err_%(filter)s
+FROM Star 
+WHERE 
+%(ra_query)s AND dec BETWEEN %(min_dec)f and %(max_dec)f
+AND ((flags_r & 0x10000000) != 0)
+-- detected in BINNED1
+AND ((flags_r & 0x8100000c00a4) = 0)
+-- not EDGE, NOPROFILE, PEAKCENTER, NOTCHECKED, PSF_FLUX_INTERP,
+-- SATURATED, or BAD_COUNTS_ERROR
+AND (((flags_r & 0x400000000000) = 0) or (psfmagerr_r <= 0.2))
+-- not DEBLEND_NOPEAK or small PSF error
+-- (substitute psfmagerr in other band as appropriate)
+AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
+-- not INTERP_CENTER or not COSMIC_RAY
+""" % {"filter": sdss_filter,
+       "min_ra": min_ra, "max_ra": max_ra,
+       "min_dec": min_dec, "max_dec": max_dec,
+       "ra_query": ra_query,
+       }
+
+    # Taken from Tomas Budavari's sqlcl script
+    # see http://skyserver.sdss3.org/dr8/en/help/download/sqlcl/default.asp 
+    import urllib
+    fsql = filtercomment(sql_query)
+    params = urllib.urlencode({'cmd': fsql, 'format': 'csv'})
+    url = 'http://skyserver.sdss3.org/dr8/en/tools/search/x_sql.asp'
+    sdss = urllib.urlopen(url+'?%s' % params)
+    # Budavari end
+
+    answer = sdss.readlines()
+    if (answer[0].strip() == "No objects have been found"):
+        return numpy.zeros(shape=(0,6))
+        
+    if (verbose):
+        print "Returned from SDSS:"
+        print "####################################################"
+        print ''.join(answer)
+        print "####################################################"
+
+    # If we are here, then the query returned at least some results.
+    # Dump the first line just repeating what the output was
+    del answer[0]
+
+    
+    print "Found %d results" % (len(answer))
+    results = numpy.zeros(shape=(len(answer),6))
+    # Results are comma-separated, so split them up and save as numpy array
+    for i in range(len(answer)):
+        items = answer[i].split(",")
+        ra, dec = float(items[0]), float(items[1])
+        mag, mag_err =  float(items[2]), float(items[3])
+            results[i, :] = [ra, dec, mag, mag, mag_err, mag_err]
+    
+    return results
+    
+    
 def photcalib(fitsfile, output_filename, calib_directory):
 
     tmp, dummy = os.path.split(sys.argv[0])
@@ -71,22 +174,19 @@ def photcalib(fitsfile, output_filename, calib_directory):
     filter = hdulist[0].header['FILTER']
     sdss_filter = sdss_equivalents[filter]
 
-    # Load the standard star catalog
-    sdss_cat_filename = "%s/stripe82__%s.cat.npy" % (calib_directory, sdss_filter)
-    stdout_write("Loading standard stars (%s)..." % (sdss_cat_filename))
-    sdss_cat = numpy.load(sdss_cat_filename)
-    stdout_write(" %d stars loaded!\n" % (sdss_cat.shape[0]))
+    std_stars = load_catalog_from_stripe82cat(ra, dec, calib_directory, sdss_filter)
+    print std_stars.shape
+    if (std_stars.shape[0] <= 0):
+        stdout_write("Couln't find any stars in the Stripe82 Standard star catalog :(\n")
+        stdout_write("trying to get one directly from SDSS, please wait!\n\n")
 
-    # Now take take of pointings close to RA of 0 hours
-    if (ra < 5):
-        stdout_write("Close to RA=0h, wrapping coordinates ...\n")
-        sdss_cat[:,0][sdss_cat[:,0] > 180] -= 360.
-        sex_cat[:,6][sex_cat[:,6] > 180] -= 360.
+        std_stars = load_catalog_from_sdss(ra, dec, sdss_filter)
 
-    # Break down the full catalog to stars nearby
-    nearby = (sdss_cat[:,0] > ra-1) & (sdss_cat[:,0] < ra+1) & (sdss_cat[:,1] > dec-1) & (sdss_cat[:,1] < dec+1) 
-    std_stars = sdss_cat[nearby]
-    stdout_write("Found %d nearby (RA=%.1f, DEC=%.1f, +/- 1deg) standard stars!\n" % (std_stars.shape[0], ra, dec))
+        if (std_stars.shape[0] <= 0):
+            stdout_write("still no stars not found - looks like this region isn't covered by SDSS - sorry!\n\n")
+            sys.exit(0)
+            return
+        
     dump = open("dump.cat", "w")
     for i in range(std_stars.shape[0]):
         print >>dump, std_stars[i,0], std_stars[i,1]
