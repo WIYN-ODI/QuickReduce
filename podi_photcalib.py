@@ -63,8 +63,8 @@ def load_catalog_from_sdss(ra, dec, sdss_filter, verbose=False):
 
     #ra = 0
     
-    min_ra = ra - 0.05/math.cos(math.radians(dec))
-    max_ra = ra + 0.05/math.cos(math.radians(dec))
+    min_ra = ra - 0.5/math.cos(math.radians(dec))
+    max_ra = ra + 0.5/math.cos(math.radians(dec))
     if (min_ra < 0):
         ra_query = "ra > %(min_ra)f or ra < %(max_ra)f" % {"min_ra": min_ra+360, "max_ra": max_ra,} 
     else:
