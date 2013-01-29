@@ -104,6 +104,7 @@ def optimize_center(data, center_x, center_y):
 
     slice = 10 #pixels, approx 1''
     max_radius = math.sqrt(data.shape[0]*data.shape[0] + data.shape[1]*data.shape[1])
+    max_radius = cmdline_arg_set_or_default('-maxrad', max_radius)
     n_slices = int(math.ceil(max_radius/slice))
 
     values = numpy.zeros(shape=(n_slices,4))
@@ -131,6 +132,16 @@ def optimize_center(data, center_x, center_y):
         
     return center_x, center_y, radius_1d, data_1d, values
 
+
+
+
+
+#################################
+#
+# Important note:
+# Many x/y values are swapped, because fits data is arranged in y/x coordinates, not x/y
+#
+#################################
 if __name__ == "__main__":
 
     # Read in the input parameters
@@ -138,26 +149,43 @@ if __name__ == "__main__":
 
     extension = sys.argv[2]
 
-    center_x = float(sys.argv[3])
-    center_y = float(sys.argv[4])
-
     data_output_file = sys.argv[5]
     
     hdulist = pyfits.open(fitsfile)
+    
+    if (sys.argv[3] == "from" and sys.argv[4] == "file"):
+        filter = hdulist[0].header['FILTER']
+        if (filter in pupilghost_centers):
+            if (extension in pupilghost_centers[filter]):
+                center_y, center_x = pupilghost_centers[filter][extension]
+            else:
+                print"Couldn't find center for this extension"
+                sys.exit(0)
+        else:
+            print "Could find this filter in list"
+            sys.exit(0)
+    else:
+        center_y = float(sys.argv[3])
+        center_x = float(sys.argv[4])
+
+    print "Using center position %d, %d" % (center_y, center_x)
 
     # Loop over all extensions
     # For now only use the first one, hard enough
 
-    for ota_id in range(1, len(hdulist)):
+    for ota_id in range(0, len(hdulist)):
 
         ota = hdulist[ota_id]
-        
-        extname = ota.header["EXTNAME"]
 
+        extname = "---"
+        if ('EXTNAME' in ota.header):
+            extname = ota.header["EXTNAME"]
+        
         if (extname == extension):
             # Now create the radial profile
-
-            smaller_box = 000
+            print("found extension %s\n" % (extname))
+            
+            ota.data = ota_data[
 
             prebinned = rebin_image(ota.data[smaller_box:, smaller_box:], 4)
             x, y = numpy.indices(prebinned.shape)
