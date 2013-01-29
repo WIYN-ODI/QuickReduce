@@ -164,8 +164,10 @@ if __name__ == "__main__":
                     dummy, basename = os.path.split(cur_flat)
                     flat_outfile = "%s/nflat.%s.%s.fits" % (tmp_directory, filter, basename)
                     if (not os.path.isfile(flat_outfile) or cmdline_arg_isset("-redo")):
+                        wcs_solution = os.path.split(os.path.abspath(sys.argv[0]))[0]+"/wcs_distort2.fits"
                         hdu_list = collectcells(cur_flat, flat_outfile,
                                      bias_dir=output_directory, dark_dir=output_directory, flatfield_dir=None, bpm_dir=None, 
+                                     wcs_solution=wcs_solution,
                                      batchmode=True)
                         normalize_flatfield(None, flat_outfile, binning_x=8, binning_y=8, repeats=3, batchmode_hdu=hdu_list)
                     flats_to_stack.append(flat_outfile)
