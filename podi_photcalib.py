@@ -82,12 +82,12 @@ SELECT ra,dec,%(filter)s,err_%(filter)s
 FROM Star 
 WHERE 
 %(ra_query)s AND dec BETWEEN %(min_dec)f and %(max_dec)f
-AND ((flags_r & 0x10000000) != 0)
+AND ((flags_%(filter)s & 0x10000000) != 0)
 -- detected in BINNED1
-AND ((flags_r & 0x8100000c00a4) = 0)
+AND ((flags_%(filter)s & 0x8100000c00a4) = 0)
 -- not EDGE, NOPROFILE, PEAKCENTER, NOTCHECKED, PSF_FLUX_INTERP,
 -- SATURATED, or BAD_COUNTS_ERROR
-AND (((flags_r & 0x400000000000) = 0) or (psfmagerr_%(filter)s <= 0.2))
+AND (((flags_%(filter)s & 0x400000000000) = 0) or (psfmagerr_%(filter)s <= 0.2))
 -- not DEBLEND_NOPEAK or small PSF error
 -- (substitute psfmagerr in other band as appropriate)
 AND (((flags_%(filter)s & 0x100000000000) = 0) or (flags_%(filter)s & 0x1000) = 0)
