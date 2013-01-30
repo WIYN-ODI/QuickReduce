@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+
 #
 # (c) Ralf Kotulla for WIYN/pODI
 #
@@ -51,6 +52,12 @@ if __name__ == "__main__":
     else:
         filelist = get_clean_cmdline()[1:]
         
+    # For now assume that the WCS template file is located in the same directory as the executable
+    root_dir, py_exe = os.path.split(os.path.abspath(sys.argv[0]))
+    wcs_solution = root_dir + "/wcs_distort2.fits"
+    wcs_solution = cmdline_arg_set_or_default("-wcs", wcs_solution)
+    stdout_write("Using canned WCS solution from %s...\n" % (wcs_solution))
+    
     # Now loop over all files and run collectcells
     for folder in filelist:
         if (folder[-1] == "/"):
@@ -81,7 +88,8 @@ if __name__ == "__main__":
 
         # Collect all cells, perform reduction and write result file
         collectcells(folder, outputfile,
-                     bias_dir, dark_dir, flatfield_dir, bpm_dir)
+                     bias_dir, dark_dir, flatfield_dir, bpm_dir,
+                     wcs_solution=wcs_solution)
 
         stdout_write("\n")
         
