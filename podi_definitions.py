@@ -81,6 +81,19 @@ which_otas_to_use = {"odi_g": all_otas,
                      "mosaic_u": central_2x2,
                      }	
 
+otas_to_normalize_ff = {"odi_g": all_otas,
+                        "odi_r": all_otas,
+                        "odi_i": all_otas,
+                        "odi_z": all_otas,
+                        "CTIO_Ha": central_2x2,
+                        "sdss_u": central_2x2,
+                        "CTIO_OIII": central_2x2,
+                        "BATC_420": central_2x2,
+                        "BATC_390": central_2x2,
+                        "OPEN": all_otas,
+                        "mosaic_u": central_2x2,
+                        }	
+
 otas_for_photometry = {"odi_g": all_otas,
                        "odi_r": all_otas,
                        "odi_i": all_otas,
@@ -304,6 +317,11 @@ headers_to_delete_from_otas = [
 
 pupilghost_centers = {
     "odi_r": {"OTA33.SCI": (4080, 4180),
+              "OTA34.SCI": (4115, -190),
+              "OTA44.SCI": (-90, -230),
+              "OTA43.SCI": (-120, 4150),
+              },
+    "odi_i": {"OTA33.SCI": (4080, 4180),
               "OTA34.SCI": (4115, -190),
               "OTA44.SCI": (-90, -230),
               "OTA43.SCI": (-120, 4150),
