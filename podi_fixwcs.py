@@ -16,6 +16,9 @@ import scipy
 import scipy.stats
 
 
+import podi_search_ipprefcat
+import podi_findstars
+
 arcsec = 1./3600.
 number_bright_stars = 100
 max_offset = 0.1
@@ -28,6 +31,12 @@ N_brightest_ref = 150
 # Compute matches in smaller blocks to not blow up memory
 # Improve: Change execution to parallel !!!
 blocksize = 100
+
+
+use_usno = False
+use_sextractor = False
+IPP_DIR = "/Volumes/odifile/Catalogs/IPPRefCat/catdir.synth.grizy/"
+
 
 
 def shift_align_wcs(ota_x, ota_y, ref_x, ref_y):
@@ -240,68 +249,94 @@ def fixwcs(fitsfile, output_filename):
     hdulist = pyfits.open(fitsfile)
     ra, dec = hdulist[1].header['CRVAL1'], hdulist[1].header['CRVAL2']
 
-    #
-    # Obtain catalog listing from USNO-B1
-    #
-    usno_cat = fitsfile[:-5]+".usno.cat"
-    download_cat = (not cmdline_arg_isset("-skip_ref")) or (not os.path.isfile(usno_cat))
-    if (not download_cat):
-        stdout_write("Using local copy of USNO reference catalog for WCS calibration\n")
-    usno = query_usno(ra, dec, 45, 100000, usno_cat, download=download_cat)
-    stdout_write("Read %s stars from USNO-B1\n" % (usno.shape[0]))
+    if (use_usno):
+        #
+        # Obtain catalog listing from USNO-B1
+        #
+        usno_cat = fitsfile[:-5]+".usno.cat"
+        download_cat = (not cmdline_arg_isset("-skip_ref")) or (not os.path.isfile(usno_cat))
+        if (not download_cat):
+            stdout_write("Using local copy of USNO reference catalog for WCS calibration\n")
+        usno = query_usno(ra, dec, 45, 100000, usno_cat, download=download_cat)
+        stdout_write("Read %s stars from USNO-B1\n" % (usno.shape[0]))
 
-    usno_dumpfile = fitsfile[:-5]+".usno.coord"
-    print "USNO dump-file:", usno_dumpfile
-    usno_dump = open(usno_dumpfile, "w")
-    for i in range(usno.shape[0]):
-        print >>usno_dump, usno[i, 0], usno[i, 1]
-    usno_dump.close()
+        usno_dumpfile = fitsfile[:-5]+".usno.coord"
+        print "USNO dump-file:", usno_dumpfile
+        usno_dump = open(usno_dumpfile, "w")
+        for i in range(usno.shape[0]):
+            print >>usno_dump, usno[i, 0], usno[i, 1]
+        usno_dump.close()
 
-    ref_ra = usno[:,0]
-    ref_dec = usno[:,1]
-    ref_mag = usno[:,4]
-    
-    
-    #
-    # Run Sextractor on the input frame
-    #
-    sex_catalogfile = fitsfile[:-5]+".source.cat"
-    sex_config_file = dot_config_dir+"fixwcs.conf"
-    sex_param_file = dot_config_dir+"fixwcs.param"
-    sex_logfile = fitsfile[:-5]+".sextractor.log"
-    sex_cmd = "sex -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s >& %s" % (sex_config_file, sex_param_file, sex_catalogfile, fitsfile, sex_logfile)
-    print sex_cmd
-    stdout_write("Running SExtractor to search for stars, be patient (logfile: %s) ..." % (sex_logfile))
-    if ((not cmdline_arg_isset("-skip_sex")) or (not os.path.isfile(sex_catalogfile))):
-        os.system(sex_cmd)
+        ref_ra = usno[:,0]
+        ref_dec = usno[:,1]
+        ref_mag = usno[:,4]
     else:
-        stdout_write("Re-using previous source catalog\n")
-    stdout_write(" done!\n")
+        ipp_cat = podi_search_ipprefcat.get_reference_catalog(ra, dec, 0.7, IPP_DIR)
+        ref_ra = ipp_cat[:,0]
+        ref_dec = ipp_cat[:,1]
+        ref_mag = ipp_cat[:,3]
 
-    # Read the Sextractor output catalog
-    sex_cat = numpy.loadtxt(sex_catalogfile)
-    stdout_write("Reading %d stars from Sextractor catalog\n" % sex_cat.shape[0])
 
-    # Eliminate all stars with flags
-    sex_cat = sex_cat[sex_cat[:,10] == 0]
-    stdout_write("%d stars left after eliminating flags\n" % sex_cat.shape[0])
+    if (use_sextractor):
+        #
+        # Run Sextractor on the input frame
+        #
+        sex_catalogfile = fitsfile[:-5]+".source.cat"
+        sex_config_file = dot_config_dir+"fixwcs.conf"
+        sex_param_file = dot_config_dir+"fixwcs.param"
+        sex_logfile = fitsfile[:-5]+".sextractor.log"
+        sex_cmd = "sex -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s >& %s" % (sex_config_file, sex_param_file, sex_catalogfile, fitsfile, sex_logfile)
+        print sex_cmd
+        stdout_write("Running SExtractor to search for stars, be patient (logfile: %s) ..." % (sex_logfile))
+        if ((not cmdline_arg_isset("-skip_sex")) or (not os.path.isfile(sex_catalogfile))):
+            os.system(sex_cmd)
+        else:
+            stdout_write("Re-using previous source catalog\n")
+        stdout_write(" done!\n")
 
-    sex_dumpfile = fitsfile[:-5]+".sex.coord"
-    sex_dump = open(sex_dumpfile, "w")
-    for i in range(sex_cat.shape[0]):
-        print >>sex_dump, sex_cat[i, 6], sex_cat[i, 7]
-    sex_dump.close()
+        # Read the Sextractor output catalog
+        sex_cat = numpy.loadtxt(sex_catalogfile)
+        stdout_write("Reading %d stars from Sextractor catalog\n" % sex_cat.shape[0])
 
-    odi_ra = sex_cat[:,6]
-    odi_dec = sex_cat[:,7]
-    odi_mag = sex_cat[:,2]
-    odi_ota = sex_cat[:,1]
-    
+        # Eliminate all stars with flags
+        sex_cat = sex_cat[sex_cat[:,10] == 0]
+        stdout_write("%d stars left after eliminating flags\n" % sex_cat.shape[0])
+
+        sex_dumpfile = fitsfile[:-5]+".sex.coord"
+        sex_dump = open(sex_dumpfile, "w")
+        for i in range(sex_cat.shape[0]):
+            print >>sex_dump, sex_cat[i, 6], sex_cat[i, 7]
+        sex_dump.close()
+
+        odi_ra = sex_cat[:,6]
+        odi_dec = sex_cat[:,7]
+        odi_mag = sex_cat[:,2]
+        odi_ota = sex_cat[:,1]
+    else:
+        full_source_cat = None
+        for ext in range(1, len(hdulist)):
+            source_cat = podi_findstars.find_stars(hdulist[ext], binning=4, boxsize=24, dumpfile=None, verbose=False,
+                                    detect_threshold=1.5, detect_minarea=6, roundness_limit=[-0.2,+0.2])
+            source_cat[:,7] = ext
+            if (full_source_cat == None):
+                full_source_cat = source_cat
+            else:
+                full_source_cat = numpy.append(full_source_cat, source_cat, axis=0)
+            #print source_cat.shape, full_source_cat.shape
+            
+        # Now all OTAs have been searched        
+
+        odi_ra = full_source_cat[:,0]
+        odi_dec = full_source_cat[:,1]
+        odi_mag = -2.5 * numpy.log10(full_source_cat[:,6]) + 30
+        odi_ota = full_source_cat[:,7]
+
+
     #
     # Now go through each of the extension
     # Improve: Change execution to parallel !!!
     #
-    frame_shift = numpy.zeros(shape=(len(hdulist)-1, 2))
+    frame_shift = numpy.ones(shape=(len(hdulist)-1, 2)) * -999
     for ext in range(1, len(hdulist)):
         #
         # Select a sub-catalog with stars in this OTA
@@ -361,7 +396,7 @@ def fixwcs(fitsfile, output_filename):
         if (ota_ref_ra.shape[0] > N_brightest_ref):
             ota_ref_ra, ota_ref_dec, ota_ref_mag = pick_brightest(ota_ref_ra, ota_ref_dec, ota_ref_mag, N_brightest_ref)
         if (ota_ref_ra.shape[0] < 5 or ota_odi_ra.shape[0] < 5):
-            stdout_write("Insufficient number of stars (ODI: %d, REF: %d) for alignment!\n" % (ota_odi_ra.shape[0], ota_ref_ra.shape[0])) 
+            stdout_write("Insufficient number of stars (ODI: %d, REF: %d) for alignment!\n" % (ota_odi_ra.shape[0], ota_ref_ra.shape[0]))
             continue
 
         #
@@ -430,9 +465,9 @@ def fixwcs(fitsfile, output_filename):
     # but for now keep them separate and check if that's the case
     #
 
-    ref_x = usno[:,0]
-    ref_y = usno[:,1]
-    print ref_x.shape, ref_y.shape
+    #ref_x = usno[:,0]
+    #ref_y = usno[:,1]
+    #print ref_x.shape, ref_y.shape
 
     alignment_checkfile = cmdline_arg_set_or_default("-checkalign", None)
     alignment_check = None
@@ -443,10 +478,11 @@ def fixwcs(fitsfile, output_filename):
         for ext in range(1, len(hdulist)):
 
             # Extract just the source catalog for this OTA
-            ota_cat = sex_cat[sex_cat[:,1]==ext]
+            ota_ra = odi_ra[odi_ota ==ext]
+            ota_dec = odi_dec[odi_ota ==ext]
 
             # Compute the average shift
-            median = refine_wcs_shift(ref_x, ref_y, ota_cat[:,6], ota_cat[:,7], best_guess, alignment_check)
+            median = refine_wcs_shift(ref_ra, ref_dec, ota_ra, ota_dec, best_guess, alignment_check)
 
             # Add the previous (best-guess) shift and the new refinement
             full_shift = best_guess + median
@@ -463,7 +499,7 @@ def fixwcs(fitsfile, output_filename):
     else:
 
         # Compute the refinement for the full source catalog across all OTAs
-        median = refine_wcs_shift(ref_x, ref_y, sex_cat[:,6], sex_cat[:,7], best_guess, alignment_check)
+        median = refine_wcs_shift(ref_ra, ref_dec, odi_ra, odi_dec, best_guess, alignment_check)
 
         # Add the previous (best-guess) shift and the new refinement
         full_shift = best_guess + median
@@ -483,6 +519,9 @@ def fixwcs(fitsfile, output_filename):
             hdulist[ext].header.add_history("GLOBAL SHIFT: dRA,dDEC=")
             hdulist[ext].header.add_history("dRA=%.6f dDEC=%.6f" % (best_guess[0], best_guess[1]))
 
+            hdulist[ext].header.update('WCSOF_RA', best_guess[0], "WCS Zeropoint offset RA")
+            hdulist[ext].header.update('WCSOFDEC', best_guess[0], "WCS Zeropoint offset DEC")
+            
     # All work done, close the check-file
     if (alignment_checkfile != None):
         alignment_check.close()
