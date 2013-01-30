@@ -16,10 +16,9 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
         hdulist = pyfits.open(filename)
         
     filter = hdulist[0].header['FILTER']
-    # print "This is filter",filter
-    # print "Using binning %d,%d" % (binning_x, binning_y)
+    # print "This is filter",filter    # print "Using binning %d,%d" % (binning_x, binning_y)
 
-    list_of_otas_to_normalize = which_otas_to_use[filter]
+    list_of_otas_to_normalize = otas_to_normalize_ff[filter]
 
     flatfield_data = numpy.zeros(shape=(13*4096*4096/(binning_x*binning_y)), dtype=numpy.float32)
     flatfield_data[:] = numpy.NaN
@@ -27,23 +26,23 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
     datapos = 0
     for extension in range(1, len(hdulist)): #hdulist[1:]:
         fppos = int(hdulist[extension].header['FPPOS'][2:4])
- 	#print fppos
 
- 	try:
-	    index = list_of_otas_to_normalize.index(fppos)
-	except:
-	    # We didn't find this OTA in the list, so skip it
-            hdulist[extension].header.update("FF_NORM", 0, "Used in normalization")
+        #print list_of_otas_to_normalize
+        try:
+            index = list_of_otas_to_normalize.index(fppos)
+        except:
+            # We didn't find this OTA in the list, so skip it
+            hdulist[extension].header.update("FF_NORM", False, "Used in normalization")
             extension += 1
-	    continue
+            continue
 
-        hdulist[extension].header.update("FF_NORM", 1, "Used in normalization")
+        hdulist[extension].header.update("FF_NORM", True, "Used in normalization")
         
         # We now know that we should include this OTA in the
-	# calculation of the flat-field normalization
-	stdout_write("\rAdding OTA %02d to flat-field ..." % fppos)
-	#flatfield_data = numpy.concatenate((flatfield_data, extension.data.flatten()))
-	#flatfield_data[extension,:,:] = extension.data
+        # calculation of the flat-field normalization
+        stdout_write("\rAdding OTA %02d to flat-field ..." % fppos)
+        #flatfield_data = numpy.concatenate((flatfield_data, extension.data.flatten()))
+        #flatfield_data[extension,:,:] = extension.data
 
         if (binning_x>1 or binning_y>1):
             sx, sy = hdulist[extension].data.shape[0], hdulist[extension].data.shape[1]
@@ -51,23 +50,30 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
             one_d = numpy.reshape(hdulist[extension].data, (by,binning_y,bx,binning_x)).mean(axis=-1).mean(axis=1).flatten()
         else:
             one_d = hdulist[extension].data.flatten()
+            
         flatfield_data[datapos:datapos+one_d.shape[0]] = one_d
 
         datapos += one_d.shape[0]
+        #print datapos
         del one_d
+
+    # Remove all remaining NaN values and atruncate the array to the values actually used
+    finite = numpy.isfinite(flatfield_data[:datapos])
+    flatfield_data = flatfield_data[:datapos][finite]
 
     # Now we are through all flatfields, compute the median value
     stdout_write(" computing median ...")
     sigma_min, sigma_max = -1e5, 1e6
     for i in range(repeats):
-        valid = (flatfield_data[:datapos] > sigma_min) & (flatfield_data[:datapos] < sigma_max)
 
-        ff_median_level = numpy.median(flatfield_data[:datapos][valid])
-        ff_std = numpy.std(flatfield_data[:datapos][valid])
+        valid = (flatfield_data > sigma_min) & (flatfield_data < sigma_max)
+
+        ff_median_level = numpy.median(flatfield_data[valid])
+        ff_std = numpy.std(flatfield_data[valid])
 
         sigma_min = ff_median_level - 2 * ff_std
         sigma_max = ff_median_level + 3 * ff_std
-        #print i, ff_median_level, ff_std, sigma_min, sigma_max
+        #print i, numpy.sum(valid), datapos, ff_median_level, ff_std, sigma_min, sigma_max
         
     if (ff_median_level <= 0):
         print "Something went wrong or this is no flatfield frame"
@@ -80,7 +86,8 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
     for extension in range(1, len(hdulist)):
         hdulist[extension].data /= ff_median_level
         hdulist[extension].data[hdulist[extension].data < 0.1] = numpy.NaN
-
+        hdulist[extension].header.add_history("FF-level: %.1f" % (ff_median_level))
+        
     stdout_write(" writing results ...")
     if (os.path.isfile(outputfile)):
 	os.remove(outputfile)
