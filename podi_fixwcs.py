@@ -214,6 +214,23 @@ def refine_wcs_shift(ref_x, ref_y, ota_x, ota_y, best_guess, alignment_checkfile
     return median
 
 
+
+def pick_brightest(ra, dec, mag, N):
+
+    magsort = numpy.argsort(mag)
+
+    _ra = numpy.zeros(shape=ra.shape)
+    _dec = numpy.zeros(shape=dec.shape)
+    _dec = numpy.zeros(shape=mag.shape)
+
+    for i in range(N):
+        _ra[i] = ra[magsort[i]]
+        _dec[i] = dec[magsort[i]]
+        _mag[i] = mag[magsort[i]]
+
+    return _ra, _dec, _mag
+
+
 def fixwcs(fitsfile, output_filename):
 
     tmp, dummy = os.path.split(sys.argv[0])
@@ -239,6 +256,11 @@ def fixwcs(fitsfile, output_filename):
     for i in range(usno.shape[0]):
         print >>usno_dump, usno[i, 0], usno[i, 1]
     usno_dump.close()
+
+    ref_ra = usno[:,0]
+    ref_dec = usno[:,1]
+    ref_mag = usno[:,4]
+    
     
     #
     # Run Sextractor on the input frame
@@ -270,6 +292,11 @@ def fixwcs(fitsfile, output_filename):
         print >>sex_dump, sex_cat[i, 6], sex_cat[i, 7]
     sex_dump.close()
 
+    odi_ra = sex_cat[:,6]
+    odi_dec = sex_cat[:,7]
+    odi_mag = sex_cat[:,2]
+    odi_ota = sex_cat[:,1]
+    
     #
     # Now go through each of the extension
     # Improve: Change execution to parallel !!!
@@ -279,28 +306,34 @@ def fixwcs(fitsfile, output_filename):
         #
         # Select a sub-catalog with stars in this OTA
         #
-        ota_cat = sex_cat[sex_cat[:,1] == ext]
-        print ota_cat.shape[0],"stars on OTA",ext
 
+        this_ota = odi_ota == ext
+        ota_odi_ra = odi_ra[this_ota]
+        ota_odi_dec = odi_dec[this_ota]
+        ota_odi_mag = odi_mag[this_ota]
+        
+        
         # Select the N brightest stars to make alignment faster 
         # in the case of many stars, i.e. close to the milky way plane 
         # or in the case of resolved external galaxies
-        use_N_brightest_ota = numpy.min([ota_cat.shape[0], N_brightest_ota])
-        ota_magsort = numpy.argsort(ota_cat[:,2])
-        ota_use = numpy.zeros(shape=(use_N_brightest_ota, ota_cat.shape[1]))
-        for i in range(use_N_brightest_ota):
-            ota_use[i,:] = ota_cat[ota_magsort[i], :]
-
-
+        if (ota_odi_ra.shape[0] > N_brightest_ota):
+            ota_odi_ra, ota_odi_dec, ota_odi_mag = pick_brightest(ota_odi_ra, ota_odi_dec, ota_odi_mag, N_brightest_ota)
+        elif (ota_odi_ra.shape[0] < 5):
+            stdout_write("Insufficient number of ODI stars (%d) for alignment!\n" % (ota_odi_ra.shape[0]))
+            continue
+        
+        #
         # Compute the median central position of this OTA
-        #inherit_headers(hdulist[ext].header, hdulist[0].header)
+        #
         centerx, centery = hdulist[ext].header['NAXIS1']/2, hdulist[ext].header['NAXIS2']/2
-        ra  = (centerx-hdulist[ext].header['CRPIX1'])*hdulist[ext].header['CD1_1'] + (centery-hdulist[ext].header['CRPIX2'])*hdulist[ext].header['CD1_2'] + hdulist[ext].header['CRVAL1']
-        dec = (centerx-hdulist[ext].header['CRPIX1'])*hdulist[ext].header['CD2_1'] + (centery-hdulist[ext].header['CRPIX2'])*hdulist[ext].header['CD2_2'] + hdulist[ext].header['CRVAL2']
+        ota_center_ra  = (centerx-hdulist[ext].header['CRPIX1'])*hdulist[ext].header['CD1_1'] \
+            + (centery-hdulist[ext].header['CRPIX2'])*hdulist[ext].header['CD1_2'] \
+            + hdulist[ext].header['CRVAL1']
+        ota_center_dec = (centerx-hdulist[ext].header['CRPIX1'])*hdulist[ext].header['CD2_1'] \
+            + (centery-hdulist[ext].header['CRPIX2'])*hdulist[ext].header['CD2_2'] \
+            + hdulist[ext].header['CRVAL2']
         print "center:", ra, dec
-        #wcs = astWCS.WCS(hdulist[ext].header, mode="pyfits")
-        #ra, dec = wcs.getCentreWCSCoords()
-        #print "center of this ota:", ra,dec
+
 
         #
         # Now select stars that are within a given distance of this OTA
@@ -308,43 +341,33 @@ def fixwcs(fitsfile, output_filename):
         #
         width_ra = 0.1/math.cos(numpy.radians(dec))
         width_dec = 0.1
-        #print width_ra, width_dec
-        #print "RA=",usno[0:15,0]
-        #print "DEC=",usno[0:15,1]
         print "RA-Range:",ra-width_ra,ra+width_ra
         print "DEC-Range:",dec-width_dec,dec+width_dec
-        nearby_ra  = (usno[:,0] > ra-width_ra) & (usno[:,0] < ra+width_ra) 
-        nearby_dec = (usno[:,1] > dec-width_dec) & (usno[:,1] < dec+width_dec)
-        print numpy.sum(nearby_ra), numpy.sum(nearby_dec)
-        nearby = nearby_ra & nearby_dec
-        nearby_usno = usno[nearby]
-        print "Full USNO:",usno.shape[0],", nearby:",nearby_usno.shape[0]
 
-        if (nearby_usno.shape[0] <= 5):
-            dx, dy, n = 0, 0, 0
-        else:    
-            #
-            # In the catalog of nearby reference stars, select the N brightest stars
-            #
-            use_N_brightest_ref = numpy.min([nearby_usno.shape[0], N_brightest_ref])
-            ref_magsort = numpy.argsort(nearby_usno[:, 4])
-            ref_use = numpy.zeros(shape=(use_N_brightest_ref, nearby_usno.shape[1]))
-            for i in range(use_N_brightest_ref):
-                ref_use[i,:] = nearby_usno[ref_magsort[i], :]
+        min_ra = ota_center_ra - width_ra
+        max_ra = ota_center_ra + width_ra
+        min_dec = ota_center_dec - width_dec
+        max_dec = ota_center_dec + width_dec
+        # Add here: Treatment in the case of ra <~ 0
 
-            #for i in range(ota_cat.shape[0]):
-            #    print "@@@@Sex",ota_cat[i,4], ota_cat[i,5],ota_cat[i,6], ota_cat[i,7]
+        ref_this_ota = (ref_ra > min_ra) & (ref_ra < mxa_ra) & (ref_dec > min_dec) & (ref_dec < max_dec)
+        ota_ref_ra = ref_ra[ref_this_ota]
+        ota_ref_dec = ref_dec[ref_this_ota]
+        ota_ref_mag = ref_mag[ref_this_ota]
 
-            #for i in range(usno.shape[0]):
-            #    print "@@@@Usno",usno[i,0], usno[i,1]
+        #
+        # Make sure we have not too few and not too many reference stars to work with
+        #
+        if (ota_ref_ra.shape[0] > N_brightest_ref):
+            ota_ref_ra, ota_ref_dec, ota_ref_mag = pick_brightest(ota_ref_ra, ota_ref_dec, ota_ref_mag, N_brightest_ref)
+        if (ota_ref_ra.shape[0] < 5 or ota_odi_ra.shape[0] < 5):
+            stdout_write("Insufficient number of stars (ODI: %d, REF: %d) for alignment!\n" % (ota_odi_ra.shape[0], ota_ref_ra.shape[0])) 
+            continue
 
-            #ota_x, ota_y = ota_cat[:,6], ota_cat[:,7]
-            #ref_x, ref_y = nearby_usno[:,0], nearby_usno[:,1]
-
-            ota_x, ota_y = ota_use[:,6], ota_use[:,7]
-            ref_x, ref_y = ref_use[:,0], ref_use[:,1]
-
-            dx, dy, n = shift_align_wcs(ota_x, ota_y, ref_x, ref_y)
+        #
+        # Now find the number of matches between the ODI and REF catalogs
+        #
+        dx, dy, n = shift_align_wcs(ota_odi_ra, ota_odi_dec, ota_ref_ra, ota_ref_dec)
 
         frame_shift[ext-1,:] = [dx, dy]
 
