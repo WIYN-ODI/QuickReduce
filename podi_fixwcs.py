@@ -240,7 +240,7 @@ def pick_brightest(ra, dec, mag, N):
     return _ra, _dec, _mag
 
 
-def fixwcs(fitsfile, output_filename):
+def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref"):
 
     tmp, dummy = os.path.split(sys.argv[0])
     dot_config_dir = tmp + "/.config/"
@@ -249,7 +249,7 @@ def fixwcs(fitsfile, output_filename):
     hdulist = pyfits.open(fitsfile)
     ra, dec = hdulist[1].header['CRVAL1'], hdulist[1].header['CRVAL2']
 
-    if (use_usno):
+    if (refcatalog == "usno"):
         #
         # Obtain catalog listing from USNO-B1
         #
@@ -277,7 +277,7 @@ def fixwcs(fitsfile, output_filename):
         ref_mag = ipp_cat[:,3]
 
 
-    if (use_sextractor):
+    if (starfinder == "sextractor")
         #
         # Run Sextractor on the input frame
         #
@@ -537,11 +537,14 @@ def fixwcs(fitsfile, output_filename):
 
 if __name__ == "__main__":
 
+    starfinder = cmdline_arg_set_or_default("-starfind", "findstars")
+    refcatalog = cmdline_arg_set_or_default("-refcatalog", "ippref")
+    
     if (cmdline_arg_isset("-multi")):
         for infile in get_clean_cmdline()[1:]:
             outfile = infile[0:-5]+".wcs.fits"
-            fixwcs(infile, outfile)
+            fixwcs(infile, outfile, starfinder, refcatalog)
     else:
         fitsfile = get_clean_cmdline()[1]
         output_filename = get_clean_cmdline()[2]
-        fixwcs(fitsfile, output_filename)
+        fixwcs(fitsfile, output_filename, starfinder, refcatalog)
