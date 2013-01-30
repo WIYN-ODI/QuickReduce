@@ -42,7 +42,6 @@ def load_catalog_from_stripe82cat(ra, dec, calib_directory, sdss_filter):
     if (ra < 5):
         stdout_write("Close to RA=0h, wrapping coordinates ...\n")
         sdss_cat[:,0][sdss_cat[:,0] > 180] -= 360.
-        sex_cat[:,6][sex_cat[:,6] > 180] -= 360.
 
     # Break down the full catalog to stars nearby
     nearby = (sdss_cat[:,0] > ra-1) & (sdss_cat[:,0] < ra+1) & (sdss_cat[:,1] > dec-1) & (sdss_cat[:,1] < dec+1) 
@@ -70,27 +69,27 @@ def load_catalog_from_sdss(ra, dec, sdss_filter, verbose=False):
     else:
         ra_query = "ra BETWEEN %(min_ra)f and %(max_ra)f" % {"min_ra": min_ra, "max_ra": max_ra,} 
         
-    min_dec = dec - 0.5
-    max_dec = dec + 0.5
+    min_dec = dec - 0.6
+    max_dec = dec + 0.6
 
     #
     # This query is taken from the SDSS website and selects stars with clean photometry
     # --> http://skyserver.sdss3.org/dr8/en/help/docs/realquery.asp#cleanStars
     #
     sql_query = """\
-SELECT ra,dec,%(filter)s,err_%(filter)s
+SELECT ra,dec, u, err_u, g, err_g, r, err_r, i, err_i, z, err_z
 FROM Star 
 WHERE 
 %(ra_query)s AND dec BETWEEN %(min_dec)f and %(max_dec)f
-AND ((flags_%(filter)s & 0x10000000) != 0)
+AND ((flags_r & 0x10000000) != 0)
 -- detected in BINNED1
-AND ((flags_%(filter)s & 0x8100000c00a4) = 0)
+AND ((flags_r & 0x8100000c00a4) = 0)
 -- not EDGE, NOPROFILE, PEAKCENTER, NOTCHECKED, PSF_FLUX_INTERP,
 -- SATURATED, or BAD_COUNTS_ERROR
-AND (((flags_%(filter)s & 0x400000000000) = 0) or (psfmagerr_%(filter)s <= 0.2))
+AND (((flags_r & 0x400000000000) = 0) or (psfmagerr_r <= 0.2))
 -- not DEBLEND_NOPEAK or small PSF error
 -- (substitute psfmagerr in other band as appropriate)
-AND (((flags_%(filter)s & 0x100000000000) = 0) or (flags_%(filter)s & 0x1000) = 0)
+AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
 -- not INTERP_CENTER or not COSMIC_RAY
 """ % {"filter": sdss_filter,
        "min_ra": min_ra, "max_ra": max_ra,
@@ -98,18 +97,31 @@ AND (((flags_%(filter)s & 0x100000000000) = 0) or (flags_%(filter)s & 0x1000) = 
        "ra_query": ra_query,
        }
 
+    print sql_query
+    
     # Taken from Tomas Budavari's sqlcl script
     # see http://skyserver.sdss3.org/dr8/en/help/download/sqlcl/default.asp 
     import urllib
-    fsql = filtercomment(sql_query)
+    # Filter out comments starting with "--"
+    fsql = ""
+    for line in sql_query.split('\n'):
+        fsql += line.split('--')[0] + ' ' + os.linesep;
     params = urllib.urlencode({'cmd': fsql, 'format': 'csv'})
     url = 'http://skyserver.sdss3.org/dr8/en/tools/search/x_sql.asp'
     sdss = urllib.urlopen(url+'?%s' % params)
     # Budavari end
 
-    answer = sdss.readlines()
+
+    answer = []
+    for line in sdss:
+        answer.append(line)
+        if (((len(answer)-1)%10) == 0):
+            stdout_write("\rFound %d stars so far ..." % (len(answer)-1))
+    #answer = sdss.readlines()
     if (answer[0].strip() == "No objects have been found"):
-        return numpy.zeros(shape=(0,6))
+        return numpy.zeros(shape=(0,0))
+    else:
+        stdout_write("\rFound a total of %d stars in SDSS catalog\n" % (len(answer)-1))
         
     if (verbose):
         print "Returned from SDSS:"
@@ -123,18 +135,20 @@ AND (((flags_%(filter)s & 0x100000000000) = 0) or (flags_%(filter)s & 0x1000) = 
 
     
     print "Found %d results" % (len(answer))
-    results = numpy.zeros(shape=(len(answer),6))
+    results = numpy.zeros(shape=(len(answer),12))
     # Results are comma-separated, so split them up and save as numpy array
     for i in range(len(answer)):
         items = answer[i].split(",")
-        ra, dec = float(items[0]), float(items[1])
-        mag, mag_err =  float(items[2]), float(items[3])
-            results[i, :] = [ra, dec, mag, mag, mag_err, mag_err]
+        for col in range(len(items)):
+            results[i, col] = float(items[col])
+        #ra, dec = float(items[0]), float(items[1])
+        #mag, mag_err =  float(items[2]), float(items[3])
+        #results[i, :] = [ra, dec, mag, mag, mag_err, mag_err]
     
     return results
     
     
-def photcalib(fitsfile, output_filename, calib_directory):
+def photcalib(fitsfile, output_filename, calib_directory, overwrite_cat=None):
 
     tmp, dummy = os.path.split(sys.argv[0])
     dot_config_dir = tmp + "/.config/"
@@ -174,18 +188,25 @@ def photcalib(fitsfile, output_filename, calib_directory):
     filter = hdulist[0].header['FILTER']
     sdss_filter = sdss_equivalents[filter]
 
-    std_stars = load_catalog_from_stripe82cat(ra, dec, calib_directory, sdss_filter)
-    print std_stars.shape
-    if (std_stars.shape[0] <= 0):
-        stdout_write("Couldn't find any stars in the Stripe82 Standard star catalog :(\n")
-        stdout_write("trying to get one directly from SDSS, please wait!\n\n")
-
-        std_stars = load_catalog_from_sdss(ra, dec, sdss_filter)
-
+    std_stars = numpy.array([])
+    if (overwrite_cat != None):
+        # Read this catalog instead of any of the default ones:
+        std_stars = numpy.loadtxt(overwrite_cat, delimiter=";")
+    else:
+        if (calib_directory != None):
+            std_stars = load_catalog_from_stripe82cat(ra, dec, calib_directory, sdss_filter)
+            print std_stars.shape
         if (std_stars.shape[0] <= 0):
-            stdout_write("still no stars not found - looks like this region isn't covered by SDSS - sorry!\n\n")
-            sys.exit(0)
-            return
+            if (calib_directory != None):
+                stdout_write("Couldn't find any stars in the Stripe82 Standard star catalog :(\n")
+
+            stdout_write("Trying to get one directly from SDSS, please wait!\n\n")
+            std_stars = load_catalog_from_sdss(ra, dec, sdss_filter)
+
+            if (std_stars.shape[0] <= 0):
+                stdout_write("No stars not found - looks like this region isn't covered by SDSS - sorry!\n\n")
+                sys.exit(0)
+                return
         
     dump = open("dump.cat", "w")
     for i in range(std_stars.shape[0]):
@@ -195,7 +216,7 @@ def photcalib(fitsfile, output_filename, calib_directory):
         print >>dump, sex_cat[i,6], sex_cat[i,7]
     
     dump.close()
-    
+
     #
     # Now go through each of the extension
     # Improve: Change execution to parallel !!!
