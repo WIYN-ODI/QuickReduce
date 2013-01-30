@@ -97,7 +97,7 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
        "ra_query": ra_query,
        }
 
-    print sql_query
+    # print sql_query
     
     # Taken from Tomas Budavari's sqlcl script
     # see http://skyserver.sdss3.org/dr8/en/help/download/sqlcl/default.asp 
@@ -223,61 +223,93 @@ def photcalib(fitsfile, output_filename, calib_directory, overwrite_cat=None):
     #
     stdout_write("\nStarting work, results in %s ...\n\n" % output_filename)
     results = open(output_filename, "w")
-    for ext in range(1, len(hdulist)):
 
-        #
-        # Make sure this is one of the OTAs covered by the specified filter
-        #
-        fppos = int(hdulist[ext].header['FPPOS'][2:4])
-        print "fppos=",fppos
-        print filter, "-->", which_otas_to_use[filter]
-        if (not fppos in otas_for_photometry[filter]):
-            stdout_write("Excluding OTA %02d from photometric calibration for filter %s\n" % (fppos, filter))
-            continue
-        
-        #
-        # Select a sub-catalog with stars in this OTA
-        #
-        ota_cat = sex_cat[sex_cat[:,1] == ext]
-        stdout_write("%d stars on OTA %02d (extension %d)\n" % (ota_cat.shape[0],fppos,ext))
+    # Now go through the reference catalog and search for matches.
+    # To speed things up and avoid looking for matches between distant stars, break down the area into
+    # a number of smaller blocks (scanning the full area in 5x5 blocks)
+    ref_ra_min, ref_ra_max = numpy.min(std_stars[:,0]), numpy.max(std_stars[:,0])
+    ref_dec_min, ref_dec_max = numpy.min(std_stars[:,1]), numpy.max(std_stars[:,1])
 
-        # Determine the approximate center position of this OTA
-        c_ra  = numpy.median(ota_cat[:,6])
-        c_dec = numpy.median(ota_cat[:,7])
+    ra_ranges = numpy.arange(ref_ra_min, ref_ra_max, 5)
+    dec_ranges = numpy.arange(ref_dec_min, ref_dec_max, 5)
 
-        # Compute the F.o.v. of this OTA
-        w_ra  = (9./60.) / math.cos(math.radians(c_dec))
-        w_dec = (9./60.)
-        #print w_ra, w_dec
-        
-        # Pre-select standard stars in the vicinity
-        nearby = (std_stars[:,0] > c_ra-w_ra) & (std_stars[:,0] < c_ra+w_ra) & (std_stars[:,1] > c_dec-w_dec) & (std_stars[:,1] < c_dec+w_dec)
-        ref_cat = std_stars[nearby]
+    dummy, ra_ranges = numpy.histogram([], bins=5, range=(ref_ra_min, ref_ra_max))
+    dummy, dec_ranges = numpy.histogram([], bins=5, range=(ref_dec_min, ref_dec_max))
 
-        stdout_write("OTA %d: %.4f %.4f -> %d stds nearby\n" % (ext, c_ra, c_dec, ref_cat.shape[0]))
+    # Reorganize the SExtractor oiutput file to have the RA/DEC values be in the first two columns
+    # New order is then Ra, Dec, mag, mag_err, x, y, ota
+    sex_reorg = numpy.zeros(shape=(sex_cat.shape[0], 7))
+    sex_reorg[:,0:2] = sex_cat[:,6:8]
+    sex_reorg[:,2:6] = sex_cat[:,2:6]
+    sex_reorg[:,6] = sex_cat[:,1]
 
+    for cur_ra in range(ra_ranges.shape[0]-1):
+        for cur_dec in range(dec_ranges.shape[0]-1):
+
+            # Select one of the ranges and hand the parameters off to the matching routine
+            matched_cat = match_catalogs(std_stars, sex_reorg, ra_ranges[cur_ra:cur_ra+2], dec_ranges[cur_dec:cur_dec+2])
+            
+            #for star in range(matched_cat.shape[0]): 
+            #    print >>results, ota_cat[star,6], ota_cat[star,7], \
+            #                        std_stars[si[0],0], std_stars[si[0],1], \
+            #                        ota_cat[star,2], ota_cat[star,3], \
+            #                        std_stars[si[0],2], std_stars[si[0],4], \
+            #                        ext, \
+            #                        ota_cat[star,4], ota_cat[star,5]
+            numpy.savetxt(results, matched_cat, delimiter=" ")
+                
+    results.close()
+
+
+def match_catalogs(ref_full, odi_full, ra_ranges, dec_ranges, matching_radius=2):
+
+
+    # First of all extract only the reference stars in the selected box
+    ref_select = (ref_full[:,0] >  ra_ranges[0]) & (ref_full[:,0] <  ra_ranges[1]) \
+               & (ref_full[:,1] > dec_ranges[0]) & (ref_full[:,1] < dec_ranges[1])
+
+    ref = ref_full[ref_select]
+
+
+    # Now do the same, just with ranges extended by the matching radius / cos(dec)
+    max_cos_dec = numpy.max(numpy.fabs(ref[:,1]))
+    d_ra  = matching_radius * arcsec * math.cos(math.radians(max_cos_dec))
+    d_dec = matching_radius * arcsec
+    
+    odi_select = (odi_full[:,0] >  ra_ranges[0]-d_ra ) & (odi_full[:,0] <  ra_ranges[1]+d_ra ) \
+               & (odi_full[:,1] > dec_ranges[0]-d_dec) & (odi_full[:,1] < dec_ranges[1]+d_dec)
+    odi = odi_full[odi_select]
+
+    # Create the output array, and set all ODI position to the "not found" standard value
+    output_array = numpy.zeros(shape=(ref.shape[0], ref.shape[1]+odi.shape[1]))
+    output_array[:, 2:4] = -99999.9
+
+    # Copy all values from the reference catalog
+    odi_data_start = 4 + ref.shape[1] - 2 
+    output_array[:, 0:2] = ref[:, 0:2]
+    output_array[:, 4:odi_data_start] = ref[:, 2:]
+
+    
+    if (odi.shape[0] > 0):
         #
         # Now for each star, find the closest match in the reference catalog
         #
         matching_radius = 2 * arcsec
         matching_radius_squared = matching_radius * matching_radius
-        for star in range(ota_cat.shape[0]):
+        for star in range(ref.shape[0]):
 
-            d_ra  = (std_stars[:,0] - ota_cat[star,6]) * math.cos(math.radians(ota_cat[star,7]))
-            d_dec = (std_stars[:,1] - ota_cat[star,7])
+            d_ra  = (ref[star,0] - odi[:,0]) * math.cos(math.radians(ref[star,1]))
+            d_dec = (ref[star,1] - odi[:,1])
             sq_d = d_ra * d_ra + d_dec * d_dec
 
             si = numpy.argsort(sq_d)
             if (sq_d[si[0]] < matching_radius_squared):
                 # The closest match is a valid one, with distance < matching_radius
-                print >>results, ota_cat[star,6], ota_cat[star,7], \
-                                    std_stars[si[0],0], std_stars[si[0],1], \
-                                    ota_cat[star,2], ota_cat[star,3], \
-                                    std_stars[si[0],2], std_stars[si[0],4], \
-                                    ext, \
-                                    ota_cat[star,4], ota_cat[star,5]
-                
-    results.close()
+                # Copy the ODI coordinates and catalog data into the output format
+                output_array[star, 2:4] = odi[si[0], 0:2]
+                output_array[star, odi_data_start:] = odi[si[0], 2:]
+
+    return output_array
 
     
 if __name__ == "__main__":
