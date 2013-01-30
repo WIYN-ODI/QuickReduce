@@ -221,7 +221,7 @@ def pick_brightest(ra, dec, mag, N):
 
     _ra = numpy.zeros(shape=ra.shape)
     _dec = numpy.zeros(shape=dec.shape)
-    _dec = numpy.zeros(shape=mag.shape)
+    _mag = numpy.zeros(shape=mag.shape)
 
     for i in range(N):
         _ra[i] = ra[magsort[i]]
@@ -350,7 +350,7 @@ def fixwcs(fitsfile, output_filename):
         max_dec = ota_center_dec + width_dec
         # Add here: Treatment in the case of ra <~ 0
 
-        ref_this_ota = (ref_ra > min_ra) & (ref_ra < mxa_ra) & (ref_dec > min_dec) & (ref_dec < max_dec)
+        ref_this_ota = (ref_ra > min_ra) & (ref_ra < max_ra) & (ref_dec > min_dec) & (ref_dec < max_dec)
         ota_ref_ra = ref_ra[ref_this_ota]
         ota_ref_dec = ref_dec[ref_this_ota]
         ota_ref_mag = ref_mag[ref_this_ota]
