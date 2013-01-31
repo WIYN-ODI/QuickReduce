@@ -38,7 +38,7 @@ try:
 except:
     pass
 
-number_cpus = 1
+number_cpus = 4
 
 gain_correct_frames = False
 from podi_definitions import *
@@ -393,7 +393,6 @@ def collect_reduce_ota(filename,
             odi_dec = source_cat[:,1]
             odi_mag = -2.5 * numpy.log10(source_cat[:,6]) + 30
 
-            
             # Read the reference catalog
             center_ra, center_dec = center_coords(hdu.header)
             search_size = (8+3) * (1./60.)
@@ -402,7 +401,12 @@ def collect_reduce_ota(filename,
             ref_dec = ipp_cat[:,1]
             ref_mag = ipp_cat[:,3]
 
-            dx, dy, n = podi_fixwcs.shift_align_wcs(odi_ra, odi_dec, ref_ra, ref_dec)
+            # Cut down the number of stars to < 100 to save computing time
+            ota_odi_ra, ota_odi_dec, ota_odi_mag = podi_fixwcs.pick_brightest(odi_ra, odi_dec, odi_mag, 50)
+            ota_ref_ra, ota_ref_dec, ota_ref_mag = podi_fixwcs.pick_brightest(ref_ra, ref_dec, ref_mag, 50)
+
+            print "sending %s and %d to shift_align_wcs" % (ota_odi_ra.shape[0], ota_ref_ra.shape[0])
+            dx, dy, n = podi_fixwcs.shift_align_wcs(ota_odi_ra, ota_odi_dec, ota_ref_ra, ota_ref_dec)
             print "WCSFIX dx/dy =", dx, dy
             fixwcs_data = (odi_ra, odi_dec, ref_ra, ref_dec, dx, dy)
         else:
@@ -685,7 +689,8 @@ def collectcells(input, outputfile,
         wcs_shift_refinement = podi_fixwcs.refine_wcs_shift(fixwcs_ref_ra, fixwcs_ref_dec, fixwcs_odi_ra, fixwcs_odi_dec, wcs_shift_guess, None)
         # Add the previous (best-guess) shift and the new refinement
         wcs_shift = wcs_shift_guess + wcs_shift_refinement
-
+        #print "FINAL WCS results:", wcs_shift_guess, wcs_shift_refinement, wcs_shift
+        
         for extension in range(1, len(ota_list)):
             podi_fixwcs.apply_wcs_shift(wcs_shift, ota_list[extension].header)
         
