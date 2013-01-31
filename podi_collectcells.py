@@ -120,6 +120,9 @@ def read_reduction_directories(start=1, warn=True, verbose=True):
     flatfield_dir = cmdline_arg_set_or_default("-flat", flatfield_dir)
 
     bpm_dir = cmdline_arg_set_or_default("-bpm", bpm_dir)
+    if (bpm_dir == "auto"):
+        full_path = os.path.abspath(sys.argv[0])
+        bpm_dir, dummy = os.path.split()
 
     # Output some summary on the reduction
     if (verbose):
