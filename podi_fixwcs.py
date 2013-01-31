@@ -159,6 +159,8 @@ def shift_align_wcs(ota_x, ota_y, ref_x, ref_y):
 
 def refine_wcs_shift(ref_x, ref_y, ota_x, ota_y, best_guess, alignment_checkfile=None):
 
+    #print "INPUT TO REFICE_WCS_SHIFT: =", ref_x.shape, ref_y.shape, ota_x.shape, ota_y.shape, best_guess.shape
+
     matches = numpy.zeros(shape=(ota_x.shape[0],2))
     matched = numpy.zeros(shape=(ota_x.shape[0],4))
         #for i in range(ref_x.shape[0]):
@@ -240,6 +242,38 @@ def pick_brightest(ra, dec, mag, N):
     return _ra, _dec, _mag
 
 
+
+
+
+def get_overall_best_guess(frame_shift):
+    
+    full_shift = numpy.median(frame_shift, axis=0)
+    full_shift_std  = numpy.std(frame_shift, axis=0)
+    #print full_shift.shape
+
+    #print frame_shift
+    #print full_shift,full_shift_std
+
+    dmin, dmax = [-1, -1], [1,1]
+    clipping = frame_shift.copy()
+    #print full_shift,full_shift_std,dmin,dmax
+    for rep in range(2):
+        valid_range \
+            = (clipping[:,0] < dmax[0]) & (clipping[:,0] > dmin[0]) \
+            & (clipping[:,1] > dmin[1]) & (clipping[:,1] < dmax[1])
+               
+        median = numpy.median(clipping[valid_range], axis=0)
+        sigma_p = scipy.stats.scoreatpercentile(clipping[valid_range], 84)
+        sigma_m = scipy.stats.scoreatpercentile(clipping[valid_range], 16)
+        sigma = 0.5*(sigma_p - sigma_m)
+        dmin = median - 3*sigma
+        dmax = median + 3*sigma
+        print median, sigma, dmin, dmax
+
+    best_guess = median
+    print "Best shift solution so far:",best_guess
+    return best_guess
+
 def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref"):
 
     tmp, dummy = os.path.split(sys.argv[0])
@@ -276,8 +310,7 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
         ref_dec = ipp_cat[:,1]
         ref_mag = ipp_cat[:,3]
 
-
-    if (starfinder == "sextractor")
+    if (starfinder == "sextractor"):
         #
         # Run Sextractor on the input frame
         #
@@ -360,6 +393,7 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
         #
         # Compute the median central position of this OTA
         #
+        #center_ra, center_dec
         centerx, centery = hdulist[ext].header['NAXIS1']/2, hdulist[ext].header['NAXIS2']/2
         ota_center_ra  = (centerx-hdulist[ext].header['CRPIX1'])*hdulist[ext].header['CD1_1'] \
             + (centery-hdulist[ext].header['CRPIX2'])*hdulist[ext].header['CD1_2'] \
@@ -417,13 +451,10 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
     #
     # Now that the individual OTAs have returned their shift positions, 
     # compute the mean shift for the full frame
+    # Also do some 2-step iterative sigma clipping to get rid of outliers
     #
-    full_shift = numpy.median(frame_shift, axis=0)
-    full_shift_std  = numpy.std(frame_shift, axis=0)
-    print full_shift.shape
+    best_guess = get_overall_best_guess(frame_shift)
 
-    print frame_shift
-    print full_shift,full_shift_std
 
     #
     # Now that we have a pretty good guess on what the offsets are, 
@@ -431,34 +462,6 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
     # and more accurate solution!
     #
 
-
-    #
-    # Now do some 2-step iterative sigma clipping to get rid of outliers
-    #
-    dmin, dmax = [-1, -1], [1,1]
-    clipping = frame_shift.copy()
-    print full_shift,full_shift_std,dmin,dmax
-    for rep in range(2):
-        valid_range \
-            = (clipping[:,0] < dmax[0]) & (clipping[:,0] > dmin[0]) \
-            & (clipping[:,1] > dmin[1]) & (clipping[:,1] < dmax[1])
-               
-        median = numpy.median(clipping[valid_range], axis=0)
-        sigma_p = scipy.stats.scoreatpercentile(clipping[valid_range], 84)
-        sigma_m = scipy.stats.scoreatpercentile(clipping[valid_range], 16)
-        sigma = 0.5*(sigma_p - sigma_m)
-        dmin = median - 3*sigma
-        dmax = median + 3*sigma
-        print median, sigma, dmin, dmax
-
-    best_guess = median
-    print "Best shift solution so far:",best_guess
-
-    #
-    # Now we have a pretty darn good estimate on the shift, and we also 
-    # excluded outliers. Use this knowledge to derive an even better estimate 
-    # by using the full input and reference catalogs
-    #
 
     #
     # In an ideal world, the remainder should yield the same results for all OTAs, 
@@ -506,21 +509,8 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
 
         # Apply refinement to all OTAs
         for ext in range(1, len(hdulist)):
-            hdulist[ext].header['CRVAL1'] += full_shift[0]
-            hdulist[ext].header['CRVAL2'] += full_shift[1]
-
-            if (hdulist[ext].header['CRVAL1'] < 0): hdulist[ext].header['CRVAL1'] += 360 
-            if (hdulist[ext].header['CRVAL1'] >360): hdulist[ext].header['CRVAL1'] -= 360 
-
-            # Also add some history 
-            hdulist[ext].header.add_history("LOCAL SHIFT: dRA,dDEC=")
-            hdulist[ext].header.add_history("dRA=%.6f dDEC=%.6f" % (median[0], median[1]))
-
-            hdulist[ext].header.add_history("GLOBAL SHIFT: dRA,dDEC=")
-            hdulist[ext].header.add_history("dRA=%.6f dDEC=%.6f" % (best_guess[0], best_guess[1]))
-
-            hdulist[ext].header.update('WCSOF_RA', best_guess[0], "WCS Zeropoint offset RA")
-            hdulist[ext].header.update('WCSOFDEC', best_guess[0], "WCS Zeropoint offset DEC")
+            apply_wcs_shift(full_shift, hdulist[ext].header)
+            
             
     # All work done, close the check-file
     if (alignment_checkfile != None):
@@ -533,6 +523,27 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
         stdout_write("Skipping the output file, you requested -computeonly\n")
 
 
+
+def apply_wcs_shift(shift, hdr):
+
+    hdr['CRVAL1'] += shift[0]
+    hdr['CRVAL2'] += shift[1]
+
+    # Make sure the RA range stays in valid ranges
+    if (hdr['CRVAL1'] < 0): hdr['CRVAL1'] += 360 
+    if (hdr['CRVAL1'] >360): hdr['CRVAL1'] -= 360 
+
+    # Also add some history 
+    #hdr.add_history("LOCAL SHIFT: dRA,dDEC=")
+    #hdr.add_history("dRA=%.6f dDEC=%.6f" % (median[0], median[1]))
+
+    #hdr.add_history("GLOBAL SHIFT: dRA,dDEC=")
+    #hdr.add_history("dRA=%.6f dDEC=%.6f" % (best_guess[0], best_guess[1]))
+
+    hdr.update('WCSOF_RA', shift[0], "WCS Zeropoint offset RA")
+    hdr.update('WCSOFDEC', shift[1], "WCS Zeropoint offset DEC")
+
+    return
 
 
 if __name__ == "__main__":
