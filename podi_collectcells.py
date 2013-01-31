@@ -27,7 +27,7 @@ import ctypes
 
 fix_cpu_count = False
 number_cpus = 2
-max_cpu_count = 4
+max_cpu_count = 1
 
 try:
     number_cpus = multiprocessing.cpu_count()
@@ -38,10 +38,14 @@ try:
 except:
     pass
 
-#number_cpus = 1
+number_cpus = 1
 
 gain_correct_frames = False
 from podi_definitions import *
+import podi_findstars
+import podi_search_ipprefcat
+import podi_fixwcs
+
 
 def break_region_string(str_region):
     reg = str_region[1:-1]
@@ -134,7 +138,8 @@ def collect_reduce_ota(filename,
                        bias_dir, dark_dir, flatfield_dir, bpm_dir,
                        offset_pointing=[0,0], offset_dither=[0,0], target_coords=None,
                        pixelvalue_indef=numpy.NaN,
-                       wcs_solution=None):
+                       wcs_solution=None,
+                       prepare_fixwcs=False):
 
     if (not os.path.isfile(filename)):
         stdout_write("Couldn't find file %s ..." % (filename))
@@ -379,7 +384,31 @@ def collect_reduce_ota(filename,
         # Insert the new image data. This also makes sure that the headers
         # NAXIS, NAXIS1, NAXIS2 are set correctly
         hdu.data = merged
-    return hdu
+
+        if (prepare_fixwcs):
+            # Create source catalog
+            source_cat = podi_findstars.find_stars(hdu, binning=4, boxsize=24, dumpfile=None, verbose=False,
+                                                   detect_threshold=1.5, detect_minarea=6, roundness_limit=[-0.2,+0.2])
+            odi_ra = source_cat[:,0]
+            odi_dec = source_cat[:,1]
+            odi_mag = -2.5 * numpy.log10(source_cat[:,6]) + 30
+
+            
+            # Read the reference catalog
+            center_ra, center_dec = center_coords(hdu.header)
+            search_size = (8+3) * (1./60.)
+            ipp_cat = podi_search_ipprefcat.get_reference_catalog(center_ra, center_dec, search_size, podi_search_ipprefcat.IPP_DIR)
+            ref_ra = ipp_cat[:,0]
+            ref_dec = ipp_cat[:,1]
+            ref_mag = ipp_cat[:,3]
+
+            dx, dy, n = podi_fixwcs.shift_align_wcs(odi_ra, odi_dec, ref_ra, ref_dec)
+            print "WCSFIX dx/dy =", dx, dy
+            fixwcs_data = (odi_ra, odi_dec, ref_ra, ref_dec, dx, dy)
+        else:
+            fixwcs_data = None
+            
+    return hdu, fixwcs_data
     
 
 
@@ -393,7 +422,7 @@ def parallel_collect_reduce_ota(queue, return_queue,
                                 bias_dir, dark_dir, flatfield_dir, bpm_dir,
                                 offset_pointing=[0,0], offset_dither=[0,0], target_coords=None,
                                 pixelvalue_indef=numpy.NaN,
-                                wcs_solution=None):
+                                wcs_solution=None, prepare_fixwcs=False):
 
     while (True):
         cmd_quit, filename, ota_id = queue.get()
@@ -402,18 +431,19 @@ def parallel_collect_reduce_ota(queue, return_queue,
             return
 
         # Do the work
-        hdu = collect_reduce_ota(filename, 
+        hdu, wcsfix_data = collect_reduce_ota(filename, 
                            bias_dir, dark_dir, flatfield_dir, bpm_dir,
                            offset_pointing=offset_pointing,
                            offset_dither=offset_dither,
                            target_coords=target_coords,
                            pixelvalue_indef=pixelvalue_indef,
-                           wcs_solution=wcs_solution
+                           wcs_solution=wcs_solution,
+                           prepare_fixwcs=prepare_fixwcs,
             )
 
         # Add the results to the return_queue so the master process can assemble the result file
         # print "Adding results for OTA",ota_id,"to return queue"
-        return_queue.put( (hdu, ota_id) )
+        return_queue.put( (hdu, ota_id, wcsfix_data) )
         queue.task_done()
         
     return
@@ -429,7 +459,8 @@ def parallel_collect_reduce_ota(queue, return_queue,
 def collectcells(input, outputfile,
                  bias_dir=None, dark_dir=None, flatfield_dir=None, bpm_dir=None,
                  wcs_solution=None,
-                 batchmode=False):
+                 batchmode=False,
+                 fixwcs=False):
 
     if (os.path.isfile(input)):
         # Assume this is one of the fits files in the right directory
@@ -489,7 +520,7 @@ def collectcells(input, outputfile,
         del hdulist
         del header
 
-        stdout_write("Replaced some keywords, new output filename:\n ---> %s\n" % (outputfile))
+        stdout_write("Replaced some keywords, new output filename: ---> %s\n" % (outputfile))
 
 
     #
@@ -558,6 +589,7 @@ def collectcells(input, outputfile,
                        target_coords,
                        pixelvalue_indef,
                        wcs_solution,
+                       fixwcs,
             )
 
         queue.put( (False, filename, ota_id+1) )
@@ -577,11 +609,31 @@ def collectcells(input, outputfile,
     # By now all workers have computed their HDUs or are busy doing so,
     # let's extract their results from the return queue and assemble the ota list
     #
+    fixwcs_odi_ra, fixwcs_odi_dec, fixwcs_ref_ra, fixwcs_ref_dec = numpy.array([]), numpy.array([]), numpy.array([]), numpy.array([])
+    fixwcs_bestguess = numpy.zeros(shape=(len(available_ota_coords),2))
     for i in range(len(available_ota_coords)):
-        hdu, ota_id = return_queue.get()
-        ota_list[ota_id] = hdu
         #print "Receiving OTA results for extension", ota_id
+        hdu, ota_id, wcsfix_data = return_queue.get()
+        ota_list[ota_id] = hdu
 
+        if (fixwcs):
+            odi_ra, odi_dec, ref_ra, ref_dec, dx, dy = wcsfix_data
+
+            fixwcs_odi_ra  = numpy.append(fixwcs_odi_ra,  odi_ra,  axis=0)
+            fixwcs_odi_dec = numpy.append(fixwcs_odi_dec, odi_dec, axis=0)
+            fixwcs_ref_ra  = numpy.append(fixwcs_ref_ra,  ref_ra,  axis=0)
+            fixwcs_ref_dec = numpy.append(fixwcs_ref_dec, ref_dec, axis=0)
+
+            fixwcs_bestguess[i,:] = [dx, dy]
+            #add_to_bestguess = numpy.array([dx, dy]).reshape((1,2))
+            #print fixwcs_bestguess.shape, add_to_bestguess.shape
+            #continue
+            #fixwcs_bestguess = numpy.append(fixwcs_bestguess, add_to_bestguess, axis=0)
+            
+    print fixwcs_bestguess.shape
+    print fixwcs_bestguess
+    #sys.exit(0)
+    
     #
     # Now do some post-processing:
     # 1) Add or overwrite some headers with values from an external wcs minifits file
@@ -625,6 +677,18 @@ def collectcells(input, outputfile,
                 continue
             del ota.header[header]
 
+    #
+    # Fix the WCS if requested
+    #
+    if (fixwcs):
+        wcs_shift_guess = podi_fixwcs.get_overall_best_guess(fixwcs_bestguess)
+        wcs_shift_refinement = podi_fixwcs.refine_wcs_shift(fixwcs_ref_ra, fixwcs_ref_dec, fixwcs_odi_ra, fixwcs_odi_dec, wcs_shift_guess, None)
+        # Add the previous (best-guess) shift and the new refinement
+        wcs_shift = wcs_shift_guess + wcs_shift_refinement
+
+        for extension in range(1, len(ota_list)):
+            podi_fixwcs.apply_wcs_shift(wcs_shift, ota_list[extension].header)
+        
     hdulist = pyfits.HDUList(ota_list)
     if (not batchmode):
         stdout_write(" writing ...")
@@ -654,6 +718,8 @@ if __name__ == "__main__":
     root_dir, py_exe = os.path.split(os.path.abspath(sys.argv[0]))
     wcs_solution = root_dir + "/wcs_distort2.fits"
     wcs_solution = cmdline_arg_set_or_default("-wcs", wcs_solution)
+
+    fixwcs = cmdline_arg_isset("-fixwcs")
     
     # Handle all reduction flags from command line
     bias_dir, dark_dir, flatfield_dir, bpm_dir, start = read_reduction_directories()
@@ -661,5 +727,6 @@ if __name__ == "__main__":
     # Collect all cells, perform reduction and write result file
     collectcells(input, outputfile,
                  bias_dir, dark_dir, flatfield_dir, bpm_dir,
-                wcs_solution=wcs_solution)
+                 wcs_solution=wcs_solution,
+                 fixwcs=fixwcs)
     
