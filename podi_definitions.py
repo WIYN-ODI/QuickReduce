@@ -363,3 +363,15 @@ def rebin_image(data, binfac):
     rebinned = numpy.reshape(container, (out_size_x, binfac, out_size_y, binfac)).mean(axis=-1).mean(axis=1)
 
     return rebinned
+
+
+
+def center_coords(hdr):
+        
+    centerx, centery = hdr['NAXIS1']/2, hdr['NAXIS2']/2
+    center_ra  = (centerx-hdr['CRPIX1'])*hdr['CD1_1'] + (centery-hdr['CRPIX2'])*hdr['CD1_2'] + hdr['CRVAL1']
+    center_dec = (centerx-hdr['CRPIX1'])*hdr['CD2_1'] + (centery-hdr['CRPIX2'])*hdr['CD2_2'] + hdr['CRVAL2']
+
+    return center_ra, center_dec
+
+    
