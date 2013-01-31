@@ -43,7 +43,7 @@ def shift_align_wcs(ota_x, ota_y, ref_x, ref_y):
 
     ota_count = ota_x.shape[0]
     ref_count = ref_x.shape[0]
-    print ota_count, ref_count
+    # print "Using %d and %d stars in shift_align_wcs" % (ota_count, ref_count)
 
     matching_radius = 3.6 * arcsec
     max_d2 = matching_radius * matching_radius
@@ -228,11 +228,16 @@ def refine_wcs_shift(ref_x, ref_y, ota_x, ota_y, best_guess, alignment_checkfile
 
 def pick_brightest(ra, dec, mag, N):
 
+    # print "PICK_BRIGHTEST:", ra.shape, N
+    
+    if (N >= ra.shape[0]):
+        return ra, dec, mag
+    
     magsort = numpy.argsort(mag)
 
-    _ra = numpy.zeros(shape=ra.shape)
-    _dec = numpy.zeros(shape=dec.shape)
-    _mag = numpy.zeros(shape=mag.shape)
+    _ra = numpy.zeros(shape=(N,))
+    _dec = numpy.zeros(shape=(N,))
+    _mag = numpy.zeros(shape=(N,))
 
     for i in range(N):
         _ra[i] = ra[magsort[i]]
