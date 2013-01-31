@@ -43,10 +43,13 @@ def load_catalog_from_stripe82cat(ra, dec, calib_directory, sdss_filter):
         stdout_write("Close to RA=0h, wrapping coordinates ...\n")
         sdss_cat[:,0][sdss_cat[:,0] > 180] -= 360.
 
+    d_dec = 0.6
+    d_ra  = d_dec / math.cos(math.radians(dec))
+    
     # Break down the full catalog to stars nearby
-    nearby = (sdss_cat[:,0] > ra-1) & (sdss_cat[:,0] < ra+1) & (sdss_cat[:,1] > dec-1) & (sdss_cat[:,1] < dec+1) 
+    nearby = (sdss_cat[:,0] > ra-d_ra) & (sdss_cat[:,0] < ra+d_ra) & (sdss_cat[:,1] > dec-d_dec) & (sdss_cat[:,1] < dec+d_dec) 
     std_stars = sdss_cat[nearby]
-    stdout_write("Found %d nearby (RA=%.1f, DEC=%.1f, +/- 1deg) standard stars!\n" % (std_stars.shape[0], ra, dec))
+    stdout_write("Found %d nearby (RA=%.1f, DEC=%.1f, +/- %.1fdeg) standard stars!\n" % (std_stars.shape[0], ra, dec, d_dec))
 
     """
     Output format is:
@@ -62,8 +65,8 @@ def load_catalog_from_sdss(ra, dec, sdss_filter, verbose=False):
 
     #ra = 0
     
-    min_ra = ra - 0.5/math.cos(math.radians(dec))
-    max_ra = ra + 0.5/math.cos(math.radians(dec))
+    min_ra = ra - 0.6/math.cos(math.radians(dec))
+    max_ra = ra + 0.6/math.cos(math.radians(dec))
     if (min_ra < 0):
         ra_query = "ra > %(min_ra)f or ra < %(max_ra)f" % {"min_ra": min_ra+360, "max_ra": max_ra,} 
     else:
@@ -249,13 +252,6 @@ def photcalib(fitsfile, output_filename, calib_directory, overwrite_cat=None):
             # Select one of the ranges and hand the parameters off to the matching routine
             matched_cat = match_catalogs(std_stars, sex_reorg, ra_ranges[cur_ra:cur_ra+2], dec_ranges[cur_dec:cur_dec+2])
             
-            #for star in range(matched_cat.shape[0]): 
-            #    print >>results, ota_cat[star,6], ota_cat[star,7], \
-            #                        std_stars[si[0],0], std_stars[si[0],1], \
-            #                        ota_cat[star,2], ota_cat[star,3], \
-            #                        std_stars[si[0],2], std_stars[si[0],4], \
-            #                        ext, \
-            #                        ota_cat[star,4], ota_cat[star,5]
             numpy.savetxt(results, matched_cat, delimiter=" ")
                 
     results.close()
@@ -280,6 +276,7 @@ def match_catalogs(ref_full, odi_full, ra_ranges, dec_ranges, matching_radius=2)
                & (odi_full[:,1] > dec_ranges[0]-d_dec) & (odi_full[:,1] < dec_ranges[1]+d_dec)
     odi = odi_full[odi_select]
 
+    print "Searching for reference stars: RA: %3.1f - %3.1f,  DEC: %+4.1f - %+4.1f" % (ra_ranges[0]-d_ra, ra_ranges[1]+d_ra,dec_ranges[0]-d_dec,dec_ranges[1]+d_dec),
     # Create the output array, and set all ODI position to the "not found" standard value
     output_array = numpy.zeros(shape=(ref.shape[0], ref.shape[1]+odi.shape[1]))
     output_array[:, 2:4] = -99999.9
@@ -289,7 +286,7 @@ def match_catalogs(ref_full, odi_full, ra_ranges, dec_ranges, matching_radius=2)
     output_array[:, 0:2] = ref[:, 0:2]
     output_array[:, 4:odi_data_start] = ref[:, 2:]
 
-    
+    matches_found = 0
     if (odi.shape[0] > 0):
         #
         # Now for each star, find the closest match in the reference catalog
@@ -308,7 +305,10 @@ def match_catalogs(ref_full, odi_full, ra_ranges, dec_ranges, matching_radius=2)
                 # Copy the ODI coordinates and catalog data into the output format
                 output_array[star, 2:4] = odi[si[0], 0:2]
                 output_array[star, odi_data_start:] = odi[si[0], 2:]
+                matches_found += 1
 
+    print "  -->    %5d matches (%5d vs %5d)" % (matches_found, ref.shape[0], odi.shape[0])
+    
     return output_array
 
     
