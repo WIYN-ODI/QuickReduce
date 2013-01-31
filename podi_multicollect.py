@@ -57,6 +57,8 @@ if __name__ == "__main__":
     wcs_solution = root_dir + "/wcs_distort2.fits"
     wcs_solution = cmdline_arg_set_or_default("-wcs", wcs_solution)
     stdout_write("Using canned WCS solution from %s...\n" % (wcs_solution))
+
+    fixwcs = cmdline_arg_isset("-fixwcs")
     
     # Now loop over all files and run collectcells
     for folder in filelist:
@@ -89,7 +91,8 @@ if __name__ == "__main__":
         # Collect all cells, perform reduction and write result file
         collectcells(folder, outputfile,
                      bias_dir, dark_dir, flatfield_dir, bpm_dir,
-                     wcs_solution=wcs_solution)
+                     wcs_solution=wcs_solution,
+                     fixwcs=fixwcs)
 
         stdout_write("\n")
         
