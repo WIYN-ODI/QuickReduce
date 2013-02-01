@@ -118,6 +118,8 @@ def imcombine(input_filelist, outputfile, operation):
         return
     elif (len(filelist) == 1):
         stdout_write("Only 1 file to combine, save the hassle and copy the file!\n")
+        hdulist = pyfits.open(filelist[0])
+        hdulist.writeto(outputfile)
         return
     
     # Read the input parameters
