@@ -103,7 +103,7 @@ def find_stars(hdu,
 
 
     # Extract data and WCS solution from HDU
-    data = hdu.data.transpose()
+    data = hdu.data.copy().transpose()
     wcs = astWCS.WCS(hdu.header, mode="pyfits")
     
     # Prepare the data: Set all NaNs to something illegal
@@ -124,8 +124,9 @@ def find_stars(hdu,
     indices_y_1d = indices_y.ravel()
 
     # Create the output file that will hold the star catalog
-    outcat_file = dumpfile #"split_%02d.cat" % (ext)
-    outcat = open(outcat_file, "w")
+    if (dumpfile != None):
+        outcat_file = dumpfile 
+        outcat = open(outcat_file, "w")
 
     #
     # Begin the actual work
@@ -213,7 +214,8 @@ def find_stars(hdu,
                         print " -->  S/N = %8.2f (noise=%6.1f)" % (s_n, bg_variance)
                         print " --> Peak = %6d (bg=%6d, total=%6d)" % (amplitude, bg_level, peak)
                         print
-                        print >>outcat, center_y+1, center_x+1, fwhm_x, fwhm_y, s_n
+                        if (dumpfile != None):
+                            print >>outcat, center_y+1, center_x+1, fwhm_x, fwhm_y, s_n
                     stdout_write("\rFound %d stars (%d peaks)..." % (nstars_found, npeaks_found))
                     blocking_radius = numpy.min([5 * math.sqrt(fwhm_x * fwhm_y), 3*boxsize])
 
@@ -288,8 +290,7 @@ if __name__ == "__main__":
         #xxx.fits")
         #print ra_dec
 
-        for i in range(source_cat.shape[0]):
-            print >>dumpfile, source_cat[i,0], source_cat[i,1], source_cat[i,2], source_cat[i,3]
+        numpy.savetxt(dumpfile, source_cat[:,0:4], separator=" ")
 
         dumpfile.close()
         
