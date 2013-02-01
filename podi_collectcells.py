@@ -448,8 +448,6 @@ def parallel_collect_reduce_ota(queue, return_queue,
                            prepare_fixwcs=prepare_fixwcs,
             )
 
-        print "in parallel_collect_reduce:", hdu.header
-
         # Add the results to the return_queue so the master process can assemble the result file
         # print "Adding results for OTA",ota_id,"to return queue"
         return_queue.put( (hdu, ota_id, wcsfix_data) )
@@ -657,8 +655,6 @@ def collectcells(input, outputfile,
     # Now update the headers in all OTA extensions.
     for extension in range(1, len(ota_list)):
         ota = ota_list[extension]
-        print ota
-        print ota.header
 
         if (cmdline_arg_isset("-prep4sex")):
             continue
