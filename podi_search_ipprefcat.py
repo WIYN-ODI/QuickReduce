@@ -9,6 +9,7 @@ import math
 from podi_definitions import *
 import pyfits
 
+IPP_DIR = "/Volumes/odifile/Catalogs/IPPRefCat/catdir.synth.grizy/"
 
 def get_reference_catalog(ra, dec, radius, basedir):
 
