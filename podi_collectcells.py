@@ -616,30 +616,30 @@ def collectcells(input, outputfile,
     # By now all workers have computed their HDUs or are busy doing so,
     # let's extract their results from the return queue and assemble the ota list
     #
-    fixwcs_odi_ra, fixwcs_odi_dec, fixwcs_ref_ra, fixwcs_ref_dec = numpy.array([]), numpy.array([]), numpy.array([]), numpy.array([])
-    fixwcs_bestguess = numpy.zeros(shape=(len(available_ota_coords),2))
-    for i in range(len(available_ota_coords)):
-        #print "Receiving OTA results for extension", ota_id
-        hdu, ota_id, wcsfix_data = return_queue.get()
-        ota_list[ota_id] = hdu
+    if (fixwcs):
+        fixwcs_odi_ra, fixwcs_odi_dec = numpy.array([]), numpy.array([])
+        fixwcs_ref_ra, fixwcs_ref_dec = numpy.array([]), numpy.array([])
+        fixwcs_bestguess = numpy.zeros(shape=(len(available_ota_coords),2))
+        for i in range(len(available_ota_coords)):
+            hdu, ota_id, wcsfix_data = return_queue.get()
+            ota_list[ota_id] = hdu
 
-        if (fixwcs):
-            odi_ra, odi_dec, ref_ra, ref_dec, dx, dy = wcsfix_data
+            if (fixwcs):
+                odi_ra, odi_dec, ref_ra, ref_dec, dx, dy = wcsfix_data
 
-            fixwcs_odi_ra  = numpy.append(fixwcs_odi_ra,  odi_ra,  axis=0)
-            fixwcs_odi_dec = numpy.append(fixwcs_odi_dec, odi_dec, axis=0)
-            fixwcs_ref_ra  = numpy.append(fixwcs_ref_ra,  ref_ra,  axis=0)
-            fixwcs_ref_dec = numpy.append(fixwcs_ref_dec, ref_dec, axis=0)
+                fixwcs_odi_ra  = numpy.append(fixwcs_odi_ra,  odi_ra,  axis=0)
+                fixwcs_odi_dec = numpy.append(fixwcs_odi_dec, odi_dec, axis=0)
+                fixwcs_ref_ra  = numpy.append(fixwcs_ref_ra,  ref_ra,  axis=0)
+                fixwcs_ref_dec = numpy.append(fixwcs_ref_dec, ref_dec, axis=0)
 
-            fixwcs_bestguess[i,:] = [dx, dy]
-            #add_to_bestguess = numpy.array([dx, dy]).reshape((1,2))
-            #print fixwcs_bestguess.shape, add_to_bestguess.shape
-            #continue
-            #fixwcs_bestguess = numpy.append(fixwcs_bestguess, add_to_bestguess, axis=0)
-            
-    print fixwcs_bestguess.shape
-    print fixwcs_bestguess
-    #sys.exit(0)
+                fixwcs_bestguess[i,:] = [dx, dy]
+                #add_to_bestguess = numpy.array([dx, dy]).reshape((1,2))
+                #print fixwcs_bestguess.shape, add_to_bestguess.shape
+                #continue
+                #fixwcs_bestguess = numpy.append(fixwcs_bestguess, add_to_bestguess, axis=0)
+
+        print fixwcs_bestguess.shape
+        print fixwcs_bestguess
     
     #
     # Now do some post-processing:
