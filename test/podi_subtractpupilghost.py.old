@@ -1,0 +1,174 @@
+#! /usr/bin/env python
+
+import sys
+import os
+import pyfits
+import numpy
+import ephem
+
+from podi_definitions import *
+
+
+def add_circle(buffer, center_x, center_y, radius, amplitude):
+
+    x, y = numpy.indices(buffer.shape)
+
+    dx = x - center_x
+    dy = y - center_y
+    d2 = dx*dx + dy*dy
+
+    print dx[0:10,0:10]
+    print dy[0:10,0:10]
+    print d2[0:10,0:10]
+
+    #print d2[995:1005, 995:1005]
+    
+    tmp_buffer = numpy.zeros(shape=buffer.shape)
+    tmp_buffer[d2 < radius*radius] = amplitude
+
+    buffer += tmp_buffer
+
+    return
+
+def add_annulus(buffer, center_x, center_y, radius_i, radius_o, amplitude):
+
+    x, y = numpy.indices(buffer.shape)
+
+    dx = x - center_x
+    dy = y - center_y
+    d2 = dx*dx + dy*dy
+
+    #print dx[0:10,0:10]
+    #print dy[0:10,0:10]
+    #print d2[0:10,0:10]
+
+    #print d2[995:1005, 995:1005]
+    
+    tmp_buffer = numpy.zeros(shape=buffer.shape)
+
+    selected_pixels = (d2 < radius_o*radius_o) & (d2 > radius_i*radius_i)
+    tmp_buffer[selected_pixels] = amplitude
+
+    buffer += tmp_buffer
+
+    return
+
+def create_from_template(command_file, buffer):
+    
+    # Load command file 
+    cmdfile = open(command_file, "r")
+    cmds = cmdfile.readlines()
+    print cmds
+    
+    for i in range(len(cmds)):
+        line = cmds[i]
+        if (line[0] == "#"):
+            continue
+        
+        items = line.strip().split()
+        print items
+
+        shape = items[0]
+        if (shape == "fillcircle"):
+            center_x = float(items[1])
+            center_y = float(items[2])
+            radius = float(items[3])
+            amplitude = float(items[4])
+            
+            add_circle(buffer, center_x, center_y, radius, amplitude)
+
+        if (shape == "annulus"):
+            center_x = float(items[1])
+            center_y = float(items[2])
+            radius_i = float(items[3])
+            radius_o = float(items[4])
+            amplitude = float(items[5])
+            
+            add_annulus(buffer, center_x, center_y, radius_i, radius_o, amplitude)
+
+            
+    return buffer
+
+    
+if __name__ == "__main__":
+
+    # Read in the input parameters
+    command_file = sys.argv[1]
+    fitsfile = sys.argv[2]
+    outputfile = sys.argv[3]
+
+    hdulist = pyfits.open(fitsfile)
+
+
+    # Loop over all extensions
+    # For now only use the first one, hard enough
+
+    for ota_id in range(1,2): #hdulist[1:2]:
+
+        ota = hdulist[ota_id]
+        
+        extname = ota.header["EXTNAME"]
+        pupil_cmd = "%s.%s" % (command_file, extname)
+
+        # Create the pixel array
+        buffer = numpy.zeros(shape=(ota.data.shape[1], ota.data.shape[0]))
+        create_from_template(pupil_cmd, buffer)
+
+        hdulist[ota_id].data -= buffer.transpose()
+
+    hdulist = hdulist[0:2]
+            
+    hdulist.writeto(outputfile, clobber=True)
+    sys.exit(0)    
+    
+    
+    
+
+    
+    op = sys.argv[2]
+    input_2 = sys.argv[3]
+    output = sys.argv[4]
+
+    stdout_write("\nOpening input files ...")
+    # Open both input fits files
+    hdu_1 = pyfits.open(input_1)
+    hdu_2 = pyfits.open(input_2)
+    stdout_write(" done!\n")
+
+    rebin_fac = int(cmdline_arg_set_or_default("-bin", 1))
+    
+    # Now go though each extension and perform the operation
+    for idx_img1 in range(1, len(hdu_1)):
+        img1 = hdu_1[idx_img1]
+        
+        fppos1 = img1.header['FPPOS']
+        stdout_write("\rComputing extension %s (%2d of %2d) ..." % (img1.header['EXTNAME'], idx_img1, len(hdu_1)-1))
+        for img2 in hdu_2[1:]:
+            fppos2 = img2.header['FPPOS']
+            if (fppos2 == fppos1):
+                # This is the one
+
+                if (op == "+"):
+                    img1.data += img2.data
+
+                elif (op == "-"):
+                    img1.data -= img2.data
+
+                elif (op == "/"):
+                    img1.data /= img2.data
+
+                elif (op == "x"):
+                    img1 *= img2.data
+
+                else:
+                    stdout_write("Unkwnon operation %s\n" % (op))
+
+        if (rebin_fac > 1):
+            img1.data = rebin_image(img1.data, rebin_fac)
+
+    # Now all the work is done, all final data is stored in img2, write results to new file                    
+    stdout_write(" writing output ...")
+    clobberfile(output)
+    hdu_1.writeto(output)
+    stdout_write(" done!\n\n")
+
