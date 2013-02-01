@@ -9,7 +9,6 @@ import pywcs
 from astLib import astWCS
 
 from podi_definitions import *
-from podi_wcs import *
 
 FWHM = 2 *math.sqrt(2*math.log(2))
 
