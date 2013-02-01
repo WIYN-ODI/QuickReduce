@@ -53,7 +53,7 @@ if __name__ == "__main__":
 
     print "This is filter",filter
 
-    list_of_otas_to_normalize = which_otas_to_use[filter]
+    list_of_otas_to_normalize = otas_for_photometry[filter]
 
     # Allocate some memory to hold the data we need to determine the
     # most suitable intensity levels
