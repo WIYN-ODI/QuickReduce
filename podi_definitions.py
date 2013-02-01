@@ -68,19 +68,11 @@ all_otas = [00, 16, 22, 23, 24, 32, 33, 34, 42, 43, 44, 55, 61]
 central_3x3 = [22, 23,24, 32, 33, 34, 42, 43, 44]
 central_2x2 = [22,23,32,33]
 
-which_otas_to_use = {"odi_g": all_otas,
-                     "odi_r": all_otas,
-                     "odi_i": all_otas,
-                     "odi_z": all_otas,
-                     "CTIO_Ha": central_2x2,
-                     "sdss_u": central_2x2,
-                     "CTIO_OIII": central_2x2,
-                     "BATC_420": central_2x2,
-                     "BATC_390": central_2x2,
-                     "OPEN": all_otas,
-                     "mosaic_u": central_2x2,
-                     }	
 
+#
+# Enter here the OTAs with full coverage in each of the filters. These OTAs
+# will then be used to compute the median illumination level to correct/normalize the flat-fields
+#
 otas_to_normalize_ff = {"odi_g": all_otas,
                         "odi_r": all_otas,
                         "odi_i": all_otas,
@@ -92,8 +84,14 @@ otas_to_normalize_ff = {"odi_g": all_otas,
                         "BATC_390": central_2x2,
                         "OPEN": all_otas,
                         "mosaic_u": central_2x2,
+                        "s2_SII": central_2x2,
+                        "823_v2": central_2x2,
+                        "918R_v1": central_2x2,
                         }	
 
+#
+# These are the OTAs that have at least partial coverage in each filter
+#
 otas_for_photometry = {"odi_g": all_otas,
                        "odi_r": all_otas,
                        "odi_i": all_otas,
@@ -105,8 +103,16 @@ otas_for_photometry = {"odi_g": all_otas,
                        "BATC_390": central_3x3,
                        "OPEN": all_otas,
                        "mosaic_u": central_3x3,
+                       "s2_SII": central_3x3,
+                       "823_v2": central_3x3,
+                       "918R_v1": central_3x3,
                        }	
 
+
+#
+# This list is used for photometric calibration.
+# Enter the SDSS equivalent name for each of the filters
+#
 sdss_equivalents = {"odi_g": 'g',
                     "odi_r": 'r',
                     "odi_i": 'i',
@@ -118,42 +124,10 @@ sdss_equivalents = {"odi_g": 'g',
                     "BATC_390": None,
                     "OPEN": None,
                     "mosaic_u": 'u',
+                    "s2_SII": None,
+                    "823_v2": None,
+                    "918R_v1": None,
 		    }	
-
-
-wcs_crpix = [
-    [15998.732759977, 16259.2209615726],
-    [11713.7448244875,-9666.05317797706],
-    [7529.80349612203, 7594.59529014987],
-    [7517.88183636894, 3292.98452104455],
-    [7517.29062523552,-1071.00431322654],
-    [3302.00697591781, 7601.9294084857],
-    [3302.07475557778, 3304.13610650997],
-    [3326.29667485244,-1025.91439187799],
-    [-906.788921207206, 7601.21642120477],
-    [-911.42733819123, 3287.32650436745],
-    [-904.749731594622,-1036.98133357445],
-    [-5126.38339349244,-5327.58120355227],
-    [-9387.2015571708,11867.5257246997],
-    ]
-
-wcs_crval_offsets = [0.1159, 0.0353]
-
-wcs_cd = [
-    [3.11657409613652E-5,3.11547792448314E-5,-2.8341508077068E-7,1.85191902996801E-7,],
-    [3.12274988148368E-5,3.13026667870869E-5,-2.3397847810861E-7,2.23337455714013E-7,],
-    [3.12159099146861E-5,3.12064133692082E-5,-2.4795144587238E-7,2.05710399073392E-7,],
-    [3.12235487857392E-5,3.12346861485566E-5,-1.6271170999015E-7,1.33916856056211E-7,],
-    [3.12307744898207E-5,3.12438378594313E-5,-3.3550179272907E-7,3.20324902820726E-7,],
-    [3.12268955300129E-5,3.12139091887158E-5,-2.0013600590432E-7,1.69192734779531E-7,],
-    [3.12360791050876E-5,3.12304731128023E-5,-2.3015181667618E-7,2.12438806604165E-7,],
-    [3.12542370783931E-5,3.12634677614379E-5,2.43745387514609E-8,-2.2422893331174E-8,],
-    [3.12594281452259E-5,3.12315392102056E-5,-2.5937961879067E-7,2.18590485449098E-7,],
-    [3.12766261722930E-5,3.12431000811973E-5,-2.4804003565620E-7,2.43063116977525E-7,],
-    [3.12693835126514E-5,3.12641663005046E-5,-1.4498831963112E-7,1.49288438314493E-7,],
-    [3.13195623648934E-5,3.13077260976288E-5,-1.5598538028281E-7,2.07331296146472E-7,],
-    [3.13167003238660E-5,3.12358655849537E-5,-3.7824030169877E-8,1.09604820547254E-8,],
-    ]
 
 
 def stdout_write(str):
@@ -269,9 +243,6 @@ def deg2sexa(deg, signed=False):
     return text, num
 
 
-
-
-#    'CTYPE1', 'CTYPE2', 'CRVAL1', 'CRVAL2', 'CUNIT1', 'CUNIT2',
 
 headers_to_inherit = [
     'RA', 'DEC', 'TARGRA', 'TARGDEC', 'TELRAOFF', 'TELDECOF', 
