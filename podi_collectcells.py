@@ -231,8 +231,16 @@ def collect_reduce_ota(filename,
         # Get some information for the OTA
         #
         fppos = hdulist[0].header['FPPOS']
-        filter_name = hdulist[0].header['FILTER']
-        exposure_time = hdulist[0].header['EXPTIME']
+
+        try:
+            filter_name = hdulist[0].header['FILTER']
+        except KeyError:
+            filter_name = 'UNKNOWN'
+            
+        try:
+            exposure_time = hdulist[0].header['EXPTIME']
+        except KeyError:
+            exposure_time = 0
 
         # If we are to do some bias subtraction:
         if (not bias_dir == None):
