@@ -499,7 +499,7 @@ def collectcells(input, outputfile,
         directory = input
 
     else:
-        stdout_write("Unable to open file %s, aborting!\n", input)
+        stdout_write("Unable to open file %s, aborting!\n" % input)
         return
 
     #print "Merging cells for frame %s" % (basename)
