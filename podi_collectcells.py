@@ -142,7 +142,8 @@ def collect_reduce_ota(filename,
                        offset_pointing=[0,0], offset_dither=[0,0], target_coords=None,
                        pixelvalue_indef=numpy.NaN,
                        wcs_solution=None,
-                       prepare_fixwcs=False):
+                       prepare_fixwcs=False,
+                       hardcoded_detsec=False):
 
     if (not os.path.isfile(filename)):
         stdout_write("Couldn't find file %s ..." % (filename))
@@ -213,10 +214,25 @@ def collect_reduce_ota(filename,
                         print "Couldn't find the GAIN header!"
                         pass
 
-                insert_into_array(hdulist[cell].data, 
-                                  hdulist[cell].header['DATASEC'],
-                                  merged,
-                                  hdulist[cell].header['DETSEC'])
+                if (hardcoded_detsec):
+                    cell_xy = hdulist[cell].header['EXTNAME'][2:4]
+                    x, y = int(cell_xy[0]), int(cell_xy[1])
+
+                    datasec = '[1:480,1:494]'
+                    _y = 7 - y
+                    y1 = 1 + (503*_y)
+                    y2 = y1 + 493
+                    x1 = 1 + 508 * x
+                    x2 = x1 + 479
+                    detsec = '[%d:%d,%d:%d]' % (x1, x2, y1, y2)
+
+                    insert_into_array(hdulist[cell].data, 
+                                      datasec, merged, detsec)
+                else:
+                    insert_into_array(hdulist[cell].data, 
+                                      hdulist[cell].header['DATASEC'],
+                                      merged,
+                                      hdulist[cell].header['DETSEC'])
 
             #
             # Special case for cell 0,7 (the one in the bottom left corner):
@@ -437,7 +453,8 @@ def parallel_collect_reduce_ota(queue, return_queue,
                                 bias_dir, dark_dir, flatfield_dir, bpm_dir,
                                 offset_pointing=[0,0], offset_dither=[0,0], target_coords=None,
                                 pixelvalue_indef=numpy.NaN,
-                                wcs_solution=None, prepare_fixwcs=False):
+                                wcs_solution=None, prepare_fixwcs=False,
+                                hardcoded_detsec=False):
 
     while (True):
         cmd_quit, filename, ota_id = queue.get()
@@ -454,6 +471,7 @@ def parallel_collect_reduce_ota(queue, return_queue,
                            pixelvalue_indef=pixelvalue_indef,
                            wcs_solution=wcs_solution,
                            prepare_fixwcs=prepare_fixwcs,
+                           hardcoded_detsec=hardcoded_detsec,
             )
 
         # Add the results to the return_queue so the master process can assemble the result file
@@ -475,7 +493,8 @@ def collectcells(input, outputfile,
                  bias_dir=None, dark_dir=None, flatfield_dir=None, bpm_dir=None,
                  wcs_solution=None,
                  batchmode=False,
-                 fixwcs=False):
+                 fixwcs=False,
+                 hardcoded_detsec=False):
 
     if (os.path.isfile(input)):
         # Assume this is one of the fits files in the right directory
@@ -605,6 +624,7 @@ def collectcells(input, outputfile,
                        pixelvalue_indef,
                        wcs_solution,
                        fixwcs,
+                       hardcoded_detsec,
             )
 
         queue.put( (False, filename, ota_id+1) )
@@ -738,6 +758,8 @@ if __name__ == "__main__":
 
     fixwcs = cmdline_arg_isset("-fixwcs")
     
+    hardcoded_detsec = cmdline_arg_isset("-hard_detsec")
+
     # Handle all reduction flags from command line
     bias_dir, dark_dir, flatfield_dir, bpm_dir, start = read_reduction_directories()
     
@@ -745,5 +767,6 @@ if __name__ == "__main__":
     collectcells(input, outputfile,
                  bias_dir, dark_dir, flatfield_dir, bpm_dir,
                  wcs_solution=wcs_solution,
-                 fixwcs=fixwcs)
+                 fixwcs=fixwcs,
+                 hardcoded_detsec=hardcoded_detsec)
     
