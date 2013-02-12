@@ -79,11 +79,11 @@ if __name__ == "__main__":
             else:
                 pos = filters.index(filter)
             #print "Adding frame to filter #",pos
-            flat_list[pos].append(directory)
+            flat_list[pos].append(ota00)
         elif (obstype == "DARK"):
-            dark_list.append(directory)
+            dark_list.append(ota00)
         elif (obstype == "BIAS"):
-            bias_list.append(directory)
+            bias_list.append(ota00)
         else:
             stdout_write("%s is not a calibration frame" % (directory))
         hdulist.close()
