@@ -46,59 +46,6 @@ import podi_findstars
 import podi_search_ipprefcat
 import podi_fixwcs
 
-
-def break_region_string(str_region):
-    reg = str_region[1:-1]
-    x,dummy,y = reg.partition(",")
-    x1,dummy,x2 = x.partition(":")
-    y1,dummy,y2 = y.partition(":")
-    return int(x1)-1, int(x2)-1, int(y1)-1, int(y2)-1
-
-def extract_region(data, str_region):
-    x1,x2,y1,y2 = break_region_string(str_region)
-    return data[y1:y2+1, x1:x2+1]
-
-
-def insert_into_array(data, from_region, target, target_region):
-
-    fx1, fx2, fy1, fy2 = break_region_string(from_region)
-    tx1, tx2, ty1, ty2 = break_region_string(target_region)
-
-    if (fx2-fx1 != tx2-tx1 or fy2-fy1 != ty2-ty1):
-        print "Dimensions do not match, doing nothing"
-    else:
-        target[ty1:ty2+1, tx1:tx2+1] = data[fy1:fy2+1, fx1:fx2+1]
-
-    return 0
-
-def mask_broken_regions(datablock, regionfile, verbose=False):
-
-    counter = 0
-    file = open(regionfile)
-    for line in file:
-        if (line[0:3] == "box"):
-            coords = line[4:-2]
-            coord_list = coords.split(",")
-                        
-            if (not datablock == None):
-                x, y = int(float(coord_list[0])), int(float(coord_list[1]))
-                dx, dy = int(0.5*float(coord_list[2])), int(0.5*float(coord_list[3]))
-                #mask[y-dy:y+dy,x-dx:x+dx] = 1
-
-                x1 = numpy.max([0, x-dx])
-                x2 = numpy.min([datablock.shape[1], x+dx])
-                y1 = numpy.max([0, y-dy])
-                y2 = numpy.min([datablock.shape[0], y+dy])
-                datablock[y1:y2, x1:x2] = numpy.NaN
-
-                # print x,x+dx,y,y+dy
-            counter += 1
-
-    file.close()
-    if (verbose):
-        print "Marked",counter,"bad pixel regions"
-    return datablock
-
 def read_reduction_directories(start=1, warn=True, verbose=True):
     #
     # Read other parameters, specifying the directories for the 
