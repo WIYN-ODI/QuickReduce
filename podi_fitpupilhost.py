@@ -318,19 +318,17 @@ def fit_pupilghost(data_fullres, center, radius_range, dr_full,
         min_angle = numpy.min(ring_angles[valid_pixels_in_ring])
         max_angle = numpy.max(ring_angles[valid_pixels_in_ring])
 
+        # Select valid pixels 
         valid_angles = ring_angles[valid_pixels_in_ring]
         valid_data   = ring_data[valid_pixels_in_ring]
+
+        # compute the mean angle difference between two points
         mean_da = (max_angle - min_angle) / valid_angles.shape[0]
 
-        #max_points = 50 #numpy.min([ring_angles.shape[0], 20])
-        #angle_knots = numpy.linspace(min_angle+0.01, max_angle-0.01, max_points)
-
-
+        # Select knots for the spline fitting
         number_knots = numpy.sum(valid_pixels_in_ring) / 100
         if (number_knots < 30): number_knots = 30
         angle_knots = numpy.linspace(min_angle, max_angle, number_knots) 
-
-        #print "\nmean angle between 2 points:", mean_da
 
         # Now eliminate knots in regions with no data
         for i in range(angle_knots.shape[0]):
@@ -338,8 +336,7 @@ def fit_pupilghost(data_fullres, center, radius_range, dr_full,
             min_diffangle = numpy.min(diff_angle)
             if (min_diffangle > 3 * mean_da or angle_knots[i] <= min_angle or angle_knots[i] >= max_angle):
                 angle_knots[i] = numpy.NaN
-
-        #print angle_knots.shape[0],"good points out of",number_knots
+        good_angle_knots = angle_knots[numpy.isfinite(angle_knots)]
 
         # sort all points in this ring, otherwise LSQUnivariateSplie chokes
         si = numpy.argsort(valid_angles)
@@ -348,57 +345,20 @@ def fit_pupilghost(data_fullres, center, radius_range, dr_full,
         for i in range(si.shape[0]):
             sorted_angles[i] = valid_angles[si[i]]
             sorted_data[i]   = valid_data[si[i]]
-
+        
         # Fit spline
-        good_angle_knots = angle_knots[numpy.isfinite(angle_knots)]
-        #print good_angle_knots.shape[0],"good points out of",angle_knots.shape[0]
-        #print "After sorting", sorted_angles.shape[0], sorted_data.shape[0]
-        
         az_profile = scipy.interpolate.LSQUnivariateSpline(sorted_angles, sorted_data, good_angle_knots, k=3)
-        
-
-        # Bin the ring in XXX degree boxes
-
-        if (False):
-            az_binwidth = math.radians(2)
-            binned_angles, binned_data, binned_scatter = bin_azimuthal_profile(ring_angles, ring_data, 
-                                                                               az_binwidth, min_angle, max_angle)
-
-
-            # test 1
-            angle_knots = numpy.linspace(binned_angles[1], binned_angles[-2], 20) 
-
-            #
-            # Fit a chebychev polynomial to the az data in the given ring
-            #
-            weight = 1./ (binned_scatter**2)
-            cheb_coeff = numpy.polynomial.chebyshev.chebfit(binned_angles, binned_data, deg=9, w=weight)
-
-            az_profile = scipy.interpolate.LSQUnivariateSpline(binned_angles, binned_data, angle_knots, w=weight, k=2)
-
-        fine_profile_x = numpy.linspace(min_angle, max_angle, 1000)
-        #fine_profile_y = numpy.polynomial.chebyshev.chebval(fine_profile_x, cheb_coeff)
-
         radial_splines[cur_radius] = az_profile
 
-        #fine_profile_x = numpy.linspace(min_angle, max_angle, 1000)
-        #fine_profile_x = numpy.linspace(binned_angles[0], binned_angles[-1], 1000)
-        #az_profile.set_smoothing_factor(0.2)
-        fine_profile_y2 = az_profile(fine_profile_x)
+        if (show_plots):
+            fine_profile_x = numpy.linspace(min_angle, max_angle, 1000)
+            fine_profile_y = az_profile(fine_profile_x)
+            plot.plot(ring_angles, ring_data, '+', color="#aaaaaa")
+            plot.plot(fine_profile_x, fine_profile_y)
+            plot.plot(angle_knots, angle_knots_y, 'x')
+            #plot.savefig("profile_az_%d-%d.png" % (ri,ro))
+            plot.close()
 
-        #angle_knots_y = az_profile(angle_knots)
-
-        plot.plot(ring_angles, ring_data, '+', color="#aaaaaa")
-        #plot.plot(fine_profile_x, fine_profile_y)
-        plot.plot(fine_profile_x, fine_profile_y2)
-        #plot.plot(angle_knots, angle_knots_y, 'x')
-        #plot.errorbar(x=binned_angles, y=binned_data, yerr=binned_scatter, xerr=0.5*az_binwidth, marker='o', ls='None')
-
-        plot.xlim([-3.2,-1.4])
-        plot.ylim([-0.02,0.02])
-        #plot.savefig("profile_az_%d-%d.png" % (ri,ro))
-
-        plot.close()
     print " - done!"
 
     #------------------------------------------------------------------------------
