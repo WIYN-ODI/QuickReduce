@@ -18,6 +18,7 @@ import scipy.stats
 
 import podi_search_ipprefcat
 import podi_findstars
+import matplotlib.pyplot as pl
 
 arcsec = 1./3600.
 number_bright_stars = 100
@@ -39,7 +40,7 @@ IPP_DIR = "/Volumes/odifile/Catalogs/IPPRefCat/catdir.synth.grizy/"
 
 
 
-def shift_align_wcs(ota_x, ota_y, ref_x, ref_y):
+def shift_align_wcs(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1):
 
     ota_count = ota_x.shape[0]
     ref_count = ref_x.shape[0]
@@ -48,7 +49,7 @@ def shift_align_wcs(ota_x, ota_y, ref_x, ref_y):
     matching_radius = 3.6 * arcsec
     max_d2 = matching_radius * matching_radius
 
-    print "Matching radius",matching_radius, max_d2
+    if (verbose): print "Matching radius",matching_radius, max_d2
     
     index_ota = numpy.arange(ota_count).reshape((ota_count,1)).repeat(ref_count, axis=1)
     index_ref = numpy.arange(ref_count).reshape((1,ref_count)).repeat(ota_count, axis=0)
@@ -122,7 +123,7 @@ def shift_align_wcs(ota_x, ota_y, ref_x, ref_y):
     good_datapoints = numpy.isfinite(match_results[:,:,0])
 
     selected_matches = match_results[good_datapoints]
-    print "Selected matches=",selected_matches.shape
+    if (verbose): print "Selected matches=",selected_matches.shape
 
     if (selected_matches.shape[0] <= 1):
         # No matches found, return no shift and signal that the solution is invalid (Nmatch<0) 
@@ -132,77 +133,112 @@ def shift_align_wcs(ota_x, ota_y, ref_x, ref_y):
     std = numpy.std(selected_matches[:,0])
     sigma = scipy.stats.scoreatpercentile(selected_matches[:,0], 84) - median
 
-    print "MATCH-RESULTS:"
-    print "Random matches:",median,"+/-",std,"   (",sigma,")"
+    if (verbose): print "MATCH-RESULTS:"
+    if (verbose): print "Random matches:",median,"+/-",std,"   (",sigma,")"
     most_matches_idx = numpy.argmax(selected_matches[:,0])
-    print "max position", most_matches_idx
+    if (verbose): print "max position", most_matches_idx
     most_matches = selected_matches[most_matches_idx,0]
-    print "maximum matches:", most_matches
+    if (verbose): print "maximum matches:", most_matches
 
     #max_index = numpy.unravel_index(max_position, (match_results.shape[0:2]))
     #print max_index
     #print match_results[max_index[0],max_index[1],:]
-    print selected_matches[most_matches_idx]
+    if (verbose): print selected_matches[most_matches_idx]
 
     #
     # Now to be sure, make sure the peak we found is significant
     #
     if (most_matches >= median + 3*sigma):
-        print "Found seemingly significant match:"
+        if (verbose): print "Found seemingly significant match:"
     else:
-        print "Found match, but not sure how reliable it is:"
-    print selected_matches[most_matches_idx]
-    print "Random matches: %d +/- %d (1sigma) (3-sigma: %d)" % (median, sigma, median+3*sigma)
+        if (verbose): print "Found match, but not sure how reliable it is:"
+    if (verbose): print selected_matches[most_matches_idx]
+    if (verbose): print "Random matches: %d +/- %d (1sigma) (3-sigma: %d)" % (median, sigma, median+3*sigma)
 
     return selected_matches[most_matches_idx,1], selected_matches[most_matches_idx,2], selected_matches[most_matches_idx,0]
 
 
-def refine_wcs_shift(ref_x, ref_y, ota_x, ota_y, best_guess, alignment_checkfile=None):
+def refine_wcs_shift(ref_x, ref_y, ota_x, ota_y, best_guess, alignment_checkfile=None, verbose=False, matching_radius=3):
 
     #print "INPUT TO REFICE_WCS_SHIFT: =", ref_x.shape, ref_y.shape, ota_x.shape, ota_y.shape, best_guess.shape
 
     matches = numpy.zeros(shape=(ota_x.shape[0],2))
-    matched = numpy.zeros(shape=(ota_x.shape[0],4))
+    matched = numpy.zeros(shape=(ota_x.shape[0],6))
         #for i in range(ref_x.shape[0]):
         #    print "REF",ref_x[i], ref_y[i]
         #for i in range(ota_cat.shape[0]):
         #    print "SEX",ota_cat[i,6], ota_cat[i,7]
 
+    #
+    # Go through the ODI catalog and search for the closest match from the reference catalog
+    # Do this is blocks as a compromise between speed and memory usage
+    #
+
+    full_aligned_x = ota_x + best_guess[0]
+    full_aligned_y = ota_y + best_guess[1]
+
+    #pl.plot(ref_x, ref_y, "ro", full_aligned_x, full_aligned_y, "b.")
+    #pl.title("refine_wcs_shift:   Reference/OTA after shift")
+    #pl.show(block=True)
+
     start = 0
     while(start < ota_x.shape[0]):
-        aligned_x = ota_x[start:start+blocksize] + best_guess[0]
-        aligned_y = ota_y[start:start+blocksize] + best_guess[1]
 
+        # select a sub-sample o stars to keep memory under control
+        aligned_x = full_aligned_x[start:start+blocksize]
+        aligned_y = full_aligned_y[start:start+blocksize]
+
+        #
+        # Compute distances between each star in the OTA subsample and the full reference catalog
+        #
+
+        # x (=RA) needs to be multiplied with cos(declination) 
+        # to prevent problems at large declinations
         dx1 = aligned_x.reshape((aligned_x.shape[0], 1)).repeat(ref_x.shape[0], axis=1)
         dx2 = ref_x.reshape((1, ref_x.shape[0])).repeat(aligned_x.shape[0], axis=0)
-        dx = dx1 - dx2
+        dx = (dx2 - dx1) * numpy.cos(numpy.radians(dx1))
 
+        # No special treatment for declinations (=y) necessary
         dy1 = aligned_y.reshape((aligned_y.shape[0], 1)).repeat(ref_y.shape[0], axis=1)
         dy2 = ref_y.reshape((1, ref_y.shape[0])).repeat(aligned_y.shape[0], axis=0)
-        dy = dy1 - dy2
+        dy = dy2 - dy1
 
+        # Compute distances between them
         d2 = dx*dx + dy*dy
 
+        # And sort them by distance
         closest = numpy.argmin(d2, axis=1)
 
+        # Compute the vector from each OTA star to the closest star in the reference catalog
         for i in range(closest.shape[0]):
             matches[start+i,0] = dx[i, closest[i]]
             matches[start+i,1] = dy[i, closest[i]]
             #print matches[start+i,:]
 
-            matched[start+i,:] = [aligned_x[i], aligned_y[i], ref_x[closest[i]], ref_y[closest[i]]]
-
+            # Save the coordinate pairs and which reference star is the closest match
+            matched[start+i,:] = [aligned_x[i], aligned_y[i], ref_x[closest[i]], ref_y[closest[i]], start+i, closest[i]]
+            
         start += blocksize
+        # Continue with next block
 
+    #
     # Now with all the matches for this OTA, left's determine the best solution
     # Again, use the 3-sigma clipping as above
+    #
+    # Start with limits excluding stars with separations > matching_radius arcsec
 
-    dmin, dmax = [-1, -1], [1,1]
+    #return 0, matched, matches
+
+    dmin, dmax = [-matching_radius*arcsec, -matching_radius*arcsec], [matching_radius*arcsec, matching_radius*arcsec]
     clipping = matches.copy()
     for rep in range(2):
         valid_range = (clipping[:,0] < dmax[0]) & (clipping[:,0] > dmin[0]) & (clipping[:,1] > dmin[1]) & (clipping[:,1] < dmax[1])
-        print "valid_range.shape=",valid_range.shape
-        print "count=",numpy.sum(valid_range)
+        if (verbose): print "valid_range.shape=",valid_range.shape
+        if (verbose): print "count=",numpy.sum(valid_range)
+
+        if (numpy.sum(valid_range) <= 0):
+            median = [0,0]
+            break
 
         median = numpy.median(clipping[valid_range], axis=0)
         sigma_p = scipy.stats.scoreatpercentile(clipping[valid_range], 84)
@@ -210,10 +246,11 @@ def refine_wcs_shift(ref_x, ref_y, ota_x, ota_y, best_guess, alignment_checkfile
         sigma = 0.5*(sigma_p - sigma_m)
         dmin = median - 3*sigma
         dmax = median + 3*sigma
-        print "MEDIAN/SIGMA=",median, sigma, dmin, dmax
+        if (verbose): print "MEDIAN/SIGMA=",median, sigma, dmin, dmax
 
-    # Now add all the offsets to the header
-
+    #
+    # Dump some info into a file for later analysis and potentially plotting
+    #
     if (alignment_checkfile != None):
         for i in range(matched.shape[0]):
             print >>alignment_check, \
@@ -222,7 +259,8 @@ def refine_wcs_shift(ref_x, ref_y, ota_x, ota_y, best_guess, alignment_checkfile
                 matched[i,0]-median[0],matched[i,1]-median[1],matches[i,0], matches[i,1]
         print >>alignment_check, "\n\n\n\n\n"
 
-    return median
+    print "Ref: %d, ODI: %d, Mathced: %d" % (ref_x.shape[0], ota_x.shape[0], matched.shape[0])
+    return median, matched, matches
 
 
 
@@ -478,9 +516,11 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
     #print ref_x.shape, ref_y.shape
 
     alignment_checkfile = cmdline_arg_set_or_default("-checkalign", None)
-    alignment_check = None
+    #alignment_check = None
+    print "ali-check=",alignment_checkfile
     if (alignment_checkfile != None):
         alignment_check = open(alignment_checkfile, "w")
+        print "Opened alignment check file"
 
     if (cmdline_arg_isset("-singleota_shift")):
         for ext in range(1, len(hdulist)):
