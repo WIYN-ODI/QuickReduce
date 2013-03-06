@@ -46,6 +46,8 @@ if __name__ == "__main__":
         lines = file.readlines()
         filelist = []
         for line in lines:
+            if (line[0] == "#"):
+                continue
             filelist.append(line.strip())
             #print filelist
         #sys.exit(0)
@@ -60,6 +62,8 @@ if __name__ == "__main__":
 
     fixwcs = cmdline_arg_isset("-fixwcs")
     
+    hardcoded_detsec = cmdline_arg_isset("-hard_detsec")
+
     # Now loop over all files and run collectcells
     for folder in filelist:
         if (folder[-1] == "/"):
@@ -79,12 +83,12 @@ if __name__ == "__main__":
 
         # And also figure out what the filename is supposed to be
         if (cmdline_arg_isset("-formatout")):
-            outputfile_name = get_cmdline_arg("-formatout")
+            outputfile = get_cmdline_arg("-formatout")
         else:
+            # Then assemble the actual filename
             outputfile_name = "%s.fits" % (basename)
+            outputfile = "%s/%s" % (outputfile_dir, outputfile_name)
 
-        # Then assemble the actual filename
-        outputfile = "%s/%s" % (outputfile_dir, outputfile_name)
 
         stdout_write("Collecting cells from %s ==> %s\n" % (folder,outputfile))
 
@@ -92,7 +96,8 @@ if __name__ == "__main__":
         collectcells(folder, outputfile,
                      bias_dir, dark_dir, flatfield_dir, bpm_dir,
                      wcs_solution=wcs_solution,
-                     fixwcs=fixwcs)
+                     fixwcs=fixwcs,
+                     hardcoded_detsec=hardcoded_detsec)
 
         stdout_write("\n")
         
