@@ -11,7 +11,46 @@ import pyfits
 
 IPP_DIR = "/Volumes/odifile/Catalogs/IPPRefCat/catdir.synth.grizy/"
 
+def twomass_from_cds(ra, dec, radius, verbose):
+
+    # Download the 2MASS PSC from Vizier
+    print "   Downloading 2MASS PSC catalog from Vizier ..."
+    twomass_cat = "/tmp/2mass.cat"
+    cds = "find2mass -c %f %f -r %f -e b -smJ > %s" % (ra, dec, radius, twomass_cat)
+    os.system(cds)
+
+    file = open(twomass_cat)
+    catalog = []
+    for line in file:
+        if (line[0] == "#"):
+            continue
+
+        items = line.split("|")
+
+        ra_dec = items[0].split()
+        ra, dec = float(ra_dec[0]), float(ra_dec[1])
+
+        jmag = items[2].split()
+        hmag = items[3].split()
+        kmag = items[4].split()
+
+        mags = [float(jmag[0]), float(hmag[0]), float(kmag[0])]
+        
+        flags = items[5].split()
+        for i in range(3):
+            if (not flags[0][i] in ('A', 'B', 'C', 'D')):
+                mags[i] = numpy.NaN
+
+        entry = [ra, dec, mags[0], mags[1], mags[2]]
+        catalog.append(entry)
+
+    return numpy.array(catalog)
+
+
 def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose=False):
+
+    if (cattype == "2mass_web"):
+        return twomass_from_cds(ra, dec, radius, verbose)
 
     # Load the SkyTable so we know in what files to look for the catalog"
     skytable_filename = "%s/SkyTable.fits" % (basedir)
@@ -154,7 +193,10 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
     if (verbose): print "# Read a total of %d stars from %d catalogs!" % (full_catalog.shape[0], len(files_to_read))
     return full_catalog
 
-    
+
+
+
+
 if __name__ == "__main__":
     
     ra = float(sys.argv[1])
