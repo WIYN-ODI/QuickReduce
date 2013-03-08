@@ -46,6 +46,8 @@ if __name__ == "__main__":
         lines = file.readlines()
         filelist = []
         for line in lines:
+            if (len(line) <=1):
+                continue
             if (line[0] == "#"):
                 continue
             filelist.append(line.strip())
