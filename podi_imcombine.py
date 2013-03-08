@@ -144,6 +144,8 @@ def imcombine(input_filelist, outputfile, operation):
     #
     for cur_ext in range(1, len(ref_hdulist)):
         # Check what OTA we are dealing with
+        if (not is_image_extension(ref_hdulist[cur_ext].header)):
+            continue
         ref_fppos = ref_hdulist[cur_ext].header['FPPOS']
 
         stdout_write("\rCombining frames for OTA %s (#% 2d/% 2d) ..." % (ref_fppos, cur_ext, len(ref_hdulist)-1))
@@ -169,6 +171,8 @@ def imcombine(input_filelist, outputfile, operation):
             filename = filelist[file_number]
             hdulist = pyfits.open(filename)
             for i in range(1, len(hdulist)):
+                if (not is_image_extension(hdulist[i].header)):
+                    continue
                 fppos = hdulist[i].header['FPPOS']
                 if (fppos == ref_fppos):
                     buffer[:,:,file_number] = hdulist[i].data[:,:]
