@@ -169,7 +169,7 @@ def collect_reduce_ota(filename,
                         print "Couldn't find the GAIN header!"
                         pass
 
-                if (hardcoded_detsec):
+                if (True): #hardcoded_detsec):
                     cell_xy = hdulist[cell].header['EXTNAME'][2:4]
                     x, y = int(cell_xy[0]), int(cell_xy[1])
 
@@ -514,6 +514,11 @@ def collectcells(input, outputfile,
         # be replaced by values from the file header
 
         filename = "%s/%s.%02d.fits" % (directory, filebase, 33)
+        if (not os.path.isfile(filename)):
+            filename = "%s/%s.%02d.fits.fz" % (directory, filebase, 33)
+            if (not os.path.isfile(filename)):
+                print "Error opening OTA 3,3 (%s)" % (filename)
+                return -1
         hdulist = pyfits.open(filename)
         header = hdulist[0].header
         
@@ -686,13 +691,13 @@ def collectcells(input, outputfile,
     # First step:
     # Delete all HDU entries that are set to None, indicating that there was something
     # seriously wrong with them
-    print "Post-processing start w/",len(ota_list),"extensions"
+    #print "Post-processing start w/",len(ota_list),"extensions"
     tmp_ota_list = []
     for ext in range(len(ota_list)):
         if (ota_list[ext] != None):
             tmp_ota_list.append(ota_list[ext])
     ota_list = tmp_ota_list
-    print "cleaned up, now",len(ota_list),"extensions left"
+    #print "cleaned up, now",len(ota_list),"extensions left"
 
     # Now update the headers in all OTA extensions.
     for extension in range(1, len(ota_list)):
