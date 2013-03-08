@@ -98,9 +98,9 @@ if __name__ == "__main__":
     #
     # First of all, let's combine all bias frames
     #
-    stdout_write("####################\n#\n# Creating bias-frame\n#\n####################\n")
     bias_frame = "%s/bias.fits" % (output_directory)
     if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "bias"): 
+        stdout_write("####################\n#\n# Creating bias-frame\n#\n####################\n")
         bias_to_stack = []
         if (not os.path.isfile(bias_frame) or cmdline_arg_isset("-redo")):
             for cur_bias in bias_list:
@@ -126,10 +126,10 @@ if __name__ == "__main__":
     #
     # Now that we have the master bias frame, go ahead and reduce the darks
     #
-    stdout_write("####################\n#\n# Creating dark-frame\n#\n####################\n")
     # For now set all darks to detector-glow "yes"
     dark_frame = "%s/dark_yes.fits" % (output_directory)
     if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "dark"): 
+        stdout_write("####################\n#\n# Creating dark-frame\n#\n####################\n")
         darks_to_stack = []
         if (not os.path.isfile(dark_frame) or cmdline_arg_isset("-redo")):
             for cur_dark in dark_list:
