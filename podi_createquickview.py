@@ -38,18 +38,12 @@ overexposed = [1.0, 0.0, 0.0]
 crossout_missing_otas = True
 from podi_definitions import *
 
-if __name__ == "__main__":
-
-    filename = sys.argv[1]
-    print filename
-
-    output_directory = "."
-    if (len(sys.argv) > 2):
-        output_directory = sys.argv[2]
+def create_quickview(filename, output_directory):
 
     hdulist = pyfits.open(filename)
     filter = hdulist[0].header['FILTER']
     obsid  = hdulist[0].header['OBSID'] 
+    object = hdulist[0].header['OBJECT'].replace(' ','_').replace(',','_')
 
     print "This is filter",filter
 
@@ -62,6 +56,9 @@ if __name__ == "__main__":
 
     datapos = 0
     for extension in range(1, len(hdulist)):
+        if (not is_image_extension(hdulist[extension].header)):
+            continue
+
         fppos = int(hdulist[extension].header['FPPOS'][2:4])
 
         try:
@@ -112,6 +109,9 @@ if __name__ == "__main__":
     full_focalplane = numpy.zeros(shape=(4096,4096))
 
     for extension in range(1, len(hdulist)):
+        if (not is_image_extension(hdulist[extension].header)):
+            continue
+
         fppos = int(hdulist[extension].header['FPPOS'][2:4])
         stdout_write("\rCreating jpegs (%02d) ..." % fppos)
         fp_x = fppos % 10
@@ -131,9 +131,10 @@ if __name__ == "__main__":
         ffp_y = fp_y * 512
         full_focalplane[ffp_x:ffp_x+512, ffp_y:ffp_y+512] = greyscale[:,:]
 
-        image = Image.fromarray(numpy.uint8(greyscale*255))
-        image_filename = "%s/%s.%02d.jpg" % (output_directory, obsid, fppos)
-        image.transpose(Image.FLIP_TOP_BOTTOM).save(image_filename, "JPEG")
+        #image = Image.fromarray(numpy.uint8(greyscale*255))
+        #image_filename = "%s/%s_%s.%02d.jpg" % (output_directory, obsid, object, fppos)
+        #image.transpose(Image.FLIP_TOP_BOTTOM).save(image_filename, "JPEG")
+        #del image
         
         #
         # Mark all overexposed pixels in a different color
@@ -150,11 +151,10 @@ if __name__ == "__main__":
         im_g = Image.fromarray(numpy.uint8(channel_g*255))
         im_b = Image.fromarray(numpy.uint8(channel_b*255))
         im_rgb = Image.merge('RGB', (im_r, im_g, im_b))
-        image_filename = "%s/%s.%02d.rgb.jpg" % (output_directory, obsid, fppos)
+        image_filename = "%s/%s_%s.%02d.rgb.jpg" % (output_directory, obsid, object, fppos)
         im_rgb.transpose(Image.FLIP_TOP_BOTTOM).save(image_filename, "JPEG")
 
         # Delete all temporary images to keep memory demands low
-        del image
         del im_r
         del im_g
         del im_b
@@ -190,8 +190,22 @@ if __name__ == "__main__":
                         draw.line((x*512+lw,y*512,(x+1)*512+lw,(y+1)*512), fill=128)
                         draw.line((x*512+lw,(y+1)*512,(x+1)*512+lw,y*512), fill=128)
 
-    image_filename = "%s/%s.jpg" % (output_directory, obsid)
+    image_filename = "%s/%s_%s.jpg" % (output_directory, obsid, object)
     image.transpose(Image.FLIP_TOP_BOTTOM).save(image_filename, "JPEG")
     del image
 
     stdout_write(" done!\n")
+
+
+
+if __name__ == "__main__":
+
+#    filename = sys.argv[1]
+#    print filename
+
+    output_directory = "."
+    output_directory = sys.argv[1]
+
+    for filename in sys.argv[2:]:
+        print "\nWorking on file %s..." % (filename)
+        create_quickview(filename, output_directory)
