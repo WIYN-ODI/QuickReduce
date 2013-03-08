@@ -59,6 +59,11 @@ if __name__ == "__main__":
     stdout_write("####################\n#\n# Sighting input data\n#\n####################\n")
     _list = open(filelist_filename, "r")
     for full_filename in _list.readlines():
+        if (len(full_filename)<=1):
+            continue
+        if (full_filename[0] == "#"):
+            continue
+
         ota00 = full_filename.strip()
         #print ota00
 
