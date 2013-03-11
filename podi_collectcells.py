@@ -26,6 +26,7 @@ import threading
 import multiprocessing
 import ctypes
 import matplotlib.pyplot
+import time
 
 gain_correct_frames = False
 from podi_definitions import *
@@ -594,6 +595,19 @@ def collectcells(input, outputfile,
     
     processes = []
     #for i in range(number_cpus):
+
+    worker_args = (queue, return_queue,
+                   bias_dir, dark_dir, flatfield_dir, bpm_dir,
+                   offset_pointing,
+                   offset_dither,
+                   target_coords,
+                   pixelvalue_indef,
+                   wcs_solution,
+                   fixwcs,
+                   hardcoded_detsec,
+                   )
+
+    number_extensions = 0
     for ota_id in range(len(available_ota_coords)):
         ota_c_x, ota_c_y = available_ota_coords[ota_id]        
         ota = ota_c_x * 10 + ota_c_y
@@ -611,18 +625,13 @@ def collectcells(input, outputfile,
                 # This file doesn't seem to exist, so don't ask the worker to do anything
                 continue
 
-        worker_args = (queue, return_queue,
-                       bias_dir, dark_dir, flatfield_dir, bpm_dir,
-                       offset_pointing,
-                       offset_dither,
-                       target_coords,
-                       pixelvalue_indef,
-                       wcs_solution,
-                       fixwcs,
-                       hardcoded_detsec,
-            )
-
+        #print "Commanding work for extension",ota
         queue.put( (False, filename, ota_id+1) )
+
+    # Tell all workers to shut down when no more data is left to work on
+    for i in range(len(processes)):
+        stdout_write("Sending quit command!\n")
+        queue.put((True,None,None))
 
     # Create all processes to handle the actual reduction and combination
     #print "Creating",number_cpus,"worker processes"
@@ -630,11 +639,7 @@ def collectcells(input, outputfile,
         p = multiprocessing.Process(target=parallel_collect_reduce_ota, args=worker_args)
         p.start()
         processes.append(p)
-
-    # Tell all workers to shut down when no more data is left to work on
-    for i in range(len(processes)):
-        #stdout_write("Sending quit command!\n")
-        queue.put((True,None,None))
+        time.sleep(0.1)
 
     #
     # By now all workers have computed their HDUs or are busy doing so,
@@ -673,6 +678,13 @@ def collectcells(input, outputfile,
             #print fixwcs_bestguess.shape, add_to_bestguess.shape
             #continue
             #fixwcs_bestguess = numpy.append(fixwcs_bestguess, add_to_bestguess, axis=0)
+
+    # Now all processes have returned their results, terminate them 
+    # and delete all instances to free up memory
+    for cur_process in processes:
+        cur_process.terminate()
+        del cur_process
+
 
     if (fixwcs):
         print fixwcs_bestguess.shape
