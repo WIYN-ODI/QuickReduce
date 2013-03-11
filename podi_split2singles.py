@@ -11,20 +11,23 @@ import numpy
 
 if __name__ == "__main__":
 
-    filename = sys.argv[1]
-    print filename
 
-    hdulist = pyfits.open(filename)
+    for filename in sys.argv[1:]:
 
-    for extension in range(1, len(hdulist)):
+        #filename = sys.argv[1]
+        print filename
 
-        extname = hdulist[extension].header['EXTNAME']
-        if (extname[0:3] != "OTA" or extname[-3:] != "SCI"):
-            continue
+        hdulist = pyfits.open(filename)
 
-        outfits = filename[:-4]+extname+".fits"
+        for extension in range(1, len(hdulist)):
+            
+            extname = hdulist[extension].header['EXTNAME']
+            if (extname[0:3] != "OTA" or extname[-3:] != "SCI"):
+                continue
 
-        primhdu = pyfits.PrimaryHDU(header=hdulist[extension].header,
-                                    data=hdulist[extension].data)
-        out_hdulist = pyfits.HDUList([primhdu])
-        out_hdulist.writeto(outfits, clobber=True)
+            outfits = filename[:-4]+extname+".fits"
+
+            primhdu = pyfits.PrimaryHDU(header=hdulist[extension].header,
+                                        data=hdulist[extension].data)
+            out_hdulist = pyfits.HDUList([primhdu])
+            out_hdulist.writeto(outfits, clobber=True)
