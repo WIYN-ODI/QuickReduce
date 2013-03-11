@@ -27,8 +27,9 @@ if __name__ == "__main__":
 
         # Check for the .33.fits file
         for filename in dirlist:
-            if (filename.find("33.fits")):
-                basename = filename[:18]
+            if (filename.find("33.fits") > 0):
+                pos = filename.find(".33.fits")
+                basename = filename[:pos]
                 #print dirname,"-->",basename
 
                 if (os.path.isdir(basename)):
