@@ -69,6 +69,9 @@ def shift_align_wcs(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1):
     #    print "PR",ref_x[r], ref_y[r]
 
     matched_pair = 0
+    
+    median_delta = numpy.median(ref_y)
+    cos_delta = math.cos(math.radians(median_delta))
 
     for o in range(ota_count):
         for r in range(ref_count):
@@ -76,7 +79,7 @@ def shift_align_wcs(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1):
             # Take some random shift
             shift_dx = ref_x[r] - ota_x[o]
             shift_dy = ref_y[r] - ota_y[o]
-            if (math.fabs(shift_dx) > max_offset or math.fabs(shift_dy) > max_offset):
+            if (math.fabs(shift_dx/cos_delta) > max_offset or math.fabs(shift_dy) > max_offset):
                 continue
 
             # Apply shift to OTA coordinates
