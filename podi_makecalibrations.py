@@ -26,6 +26,8 @@ from podi_makeflatfield import *
 
 if __name__ == "__main__":
 
+    verbose = cmdline_arg_isset("-verbose")
+
     # Read the input file that has the list of files
     filelist_filename = get_clean_cmdline()[1]
 
@@ -64,7 +66,7 @@ if __name__ == "__main__":
         if (full_filename[0] == "#"):
             continue
 
-        ota00 = full_filename.strip()
+        ota00 = full_filename.strip().split()[0]
         #print ota00
 
         directory, filename = os.path.split(ota00)
@@ -104,6 +106,7 @@ if __name__ == "__main__":
         bias_to_stack = []
         if (not os.path.isfile(bias_frame) or cmdline_arg_isset("-redo")):
             for cur_bias in bias_list:
+                if (verbose): print "Collecting cells for bias",cur_bias
                 # First run collectcells
                 dummy, basename = os.path.split(cur_bias)
                 bias_outfile = "%s/bias.%s.fits" % (tmp_directory, basename)
@@ -133,6 +136,7 @@ if __name__ == "__main__":
         darks_to_stack = []
         if (not os.path.isfile(dark_frame) or cmdline_arg_isset("-redo")):
             for cur_dark in dark_list:
+                if (verbose): print "Collecting cells for dark",cur_dark
                 # First run collectcells
                 dummy, basename = os.path.split(cur_dark)
                 dark_outfile = "%s/dark.%s.fits" % (tmp_directory, basename)
@@ -165,6 +169,7 @@ if __name__ == "__main__":
             if (not os.path.isfile(flat_frame) or cmdline_arg_isset("-redo")):
                 stdout_write("####################\n#\n# Reducing flat-field %s\n#\n####################\n" % filter)
                 for cur_flat in flat_list[cur_filter_id]:
+                    if (verbose): print "Collecting cells for flat",cur_flat
                     # First run collectcells
                     dummy, basename = os.path.split(cur_flat)
                     flat_outfile = "%s/nflat.%s.%s.fits" % (tmp_directory, filter, basename)
