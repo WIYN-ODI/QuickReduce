@@ -520,7 +520,12 @@ def collectcells(input, outputfile,
             if (not os.path.isfile(filename)):
                 print "Error opening OTA 3,3 (%s)" % (filename)
                 return -1
-        hdulist = pyfits.open(filename)
+        try:
+            hdulist = pyfits.open(filename)
+        except:
+            stdout_write("Problem opening a fits-file (%s), aborting!\n" % filename)
+            return None
+
         header = hdulist[0].header
         
         while (outputfile.find("%") >= 0):
