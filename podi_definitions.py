@@ -411,3 +411,11 @@ def is_image_extension(hdr):
 
     return False
 
+
+
+def get_svn_version():
+    import os
+    p = os.popen('svnversion -n')
+    svn_version = p.readline()
+    p.close()
+    return svn_version
