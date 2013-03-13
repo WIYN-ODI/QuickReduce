@@ -16,6 +16,7 @@ import ctypes
 import math
 import numpy
 import pyfits
+import subprocess
 
 ############
 #                  | | |
@@ -416,10 +417,12 @@ def is_image_extension(hdr):
 def get_svn_version():
 
     try:
-        a = 1/0.
-        p = os.popen('svnversion -n')
-        svn_version = p.readline()
-        p.close()
+        p = subprocess.Popen('svnversion -n', shell=True, stdout=subprocess.PIPE)
+        svn_version, err = p.communicate()
+        ret = p.wait()
+        if (ret != 0):
+            svn_version = "problem_with_svn"
     except:
-        svn_version="$Rev $"
+        svn_version="no_svnversion_found"
+
     return svn_version
