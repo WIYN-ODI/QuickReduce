@@ -94,12 +94,20 @@ if __name__ == "__main__":
 
         stdout_write("Collecting cells from %s ==> %s\n" % (folder,outputfile))
 
+        clobber_mode = not cmdline_arg_isset("-noclobber")
+
         # Collect all cells, perform reduction and write result file
-        collectcells(folder, outputfile,
-                     bias_dir, dark_dir, flatfield_dir, bpm_dir,
-                     wcs_solution=wcs_solution,
-                     fixwcs=fixwcs,
-                     hardcoded_detsec=hardcoded_detsec)
+        try:
+            collectcells(folder, outputfile,
+                         bias_dir, dark_dir, flatfield_dir, bpm_dir,
+                         wcs_solution=wcs_solution,
+                         fixwcs=fixwcs,
+                         hardcoded_detsec=hardcoded_detsec,
+                         clobber_mode=clobber_mode)
+        except:
+            stdout_write("\n\n##############################\n#\n# Something terrible happened!\n#\n")
+            print sys.exc_info()
+            stdout_write("##############################\n")
 
         stdout_write("\n")
         
