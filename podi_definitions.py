@@ -421,5 +421,5 @@ def get_svn_version():
         svn_version = p.readline()
         p.close()
     except:
-        svn_version="$REV$"
+        svn_version="$Rev $"
     return svn_version
