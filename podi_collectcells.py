@@ -478,7 +478,8 @@ def collectcells(input, outputfile,
                  wcs_solution=None,
                  batchmode=False,
                  fixwcs=False,
-                 hardcoded_detsec=False):
+                 hardcoded_detsec=False,
+                 clobber_mode=True):
 
     if (os.path.isfile(input)):
         # Assume this is one of the fits files in the right directory
@@ -551,6 +552,13 @@ def collectcells(input, outputfile,
 
         stdout_write("Replaced some keywords, new output filename: ---> %s\n" % (outputfile))
 
+    if (os.path.isfile(outputfile) and not clobber_mode):
+        print "#####################################################"
+        print "#"
+        print "# File %s already exists, skipping!" % (outputfile)
+        print "#"
+        print "#####################################################"
+        print "\n\n\n\n"
 
     #
     # Read all offsets from command line
@@ -940,6 +948,7 @@ if __name__ == "__main__":
     fixwcs = cmdline_arg_isset("-fixwcs")
     
     hardcoded_detsec = cmdline_arg_isset("-hard_detsec")
+    clobber_mode = not cmdline_arg_isset("-noclobber")
 
     # Handle all reduction flags from command line
     bias_dir, dark_dir, flatfield_dir, bpm_dir, start = read_reduction_directories()
@@ -949,5 +958,6 @@ if __name__ == "__main__":
                  bias_dir, dark_dir, flatfield_dir, bpm_dir,
                  wcs_solution=wcs_solution,
                  fixwcs=fixwcs,
-                 hardcoded_detsec=hardcoded_detsec)
+                 hardcoded_detsec=hardcoded_detsec,
+                 clobber_mode=clobber_mode)
     
