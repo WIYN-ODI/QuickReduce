@@ -414,8 +414,11 @@ def is_image_extension(hdr):
 
 
 def get_svn_version():
-    import os
-    p = os.popen('svnversion -n')
-    svn_version = p.readline()
-    p.close()
+
+    try:
+        p = os.popen('svnversion -n')
+        svn_version = p.readline()
+        p.close()
+    except:
+        svn_version="$REV$"
     return svn_version
