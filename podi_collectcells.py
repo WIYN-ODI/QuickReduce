@@ -954,10 +954,17 @@ if __name__ == "__main__":
     bias_dir, dark_dir, flatfield_dir, bpm_dir, start = read_reduction_directories()
     
     # Collect all cells, perform reduction and write result file
-    collectcells(input, outputfile,
-                 bias_dir, dark_dir, flatfield_dir, bpm_dir,
-                 wcs_solution=wcs_solution,
-                 fixwcs=fixwcs,
-                 hardcoded_detsec=hardcoded_detsec,
-                 clobber_mode=clobber_mode)
-    
+    try:
+        collectcells(input, outputfile,
+                     bias_dir, dark_dir, flatfield_dir, bpm_dir,
+                     wcs_solution=wcs_solution,
+                     fixwcs=fixwcs,
+                     hardcoded_detsec=hardcoded_detsec,
+                     clobber_mode=clobber_mode)
+    except:
+        stdout_write("\n\n##############################\n#\n# Something terrible happened!\n")
+        etype, error, stackpos = sys.exc_info()
+        stdout_write("# Exception report:")
+        stdout_write("#  ==> %s\n" % (error))
+        stdout_write("##############################\n")
+
