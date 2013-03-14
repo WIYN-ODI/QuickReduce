@@ -105,8 +105,10 @@ if __name__ == "__main__":
                          hardcoded_detsec=hardcoded_detsec,
                          clobber_mode=clobber_mode)
         except:
-            stdout_write("\n\n##############################\n#\n# Something terrible happened!\n#\n")
-            print sys.exc_info()
+            stdout_write("\n\n##############################\n#\n# Something terrible happened!\n")
+            etype, error, stackpos = sys.exc_info()
+            stdout_write("# Exception report:")
+            stdout_write("#  ==> %s\n" % (error))
             stdout_write("##############################\n")
 
         stdout_write("\n")
