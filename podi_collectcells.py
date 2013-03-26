@@ -391,6 +391,8 @@ def collect_reduce_ota(filename,
                     else:
                         print "source-cat:", source_cat.shape
                         source_cat[:,12] = ota
+                        #valid = source_cat[:,11] == 0
+                        #source_cat = source_cat[valid]
                 except:
                     source_cat == None
                 clobberfile(fitsfile)
@@ -785,6 +787,57 @@ def collectcells(input, outputfile,
         # Add the previous (best-guess) shift and the new refinement
         wcs_shift = wcs_shift_guess + wcs_shift_refinement
 
+        # Create some plots for WCS diagnosis
+        fig = matplotlib.pyplot.figure()
+        matches_zeroed = matches - wcs_shift_refinement
+
+        count, xedges, yedges = numpy.histogram2d(matches_zeroed[:,0]*3600., matches_zeroed[:,1]*3600.,
+                                                  bins=[60,60], range=[[-3,3], [-3,3]])
+        img = matplotlib.pyplot.imshow(count, interpolation='nearest', extent=(xedges[0],xedges[-1],yedges[0],yedges[-1]),origin='lower')
+        fig.colorbar(img)
+
+        matplotlib.pyplot.plot(matches_zeroed[:,0]*3600., matches_zeroed[:,1]*3600., "b,", linewidth=0)
+        matplotlib.pyplot.title("WCS Scatter\n%s" % outputfile)
+        matplotlib.pyplot.xlabel("error RA ['']")
+        matplotlib.pyplot.ylabel("error DEC ['']")
+        matplotlib.pyplot.xlim((-3,3))
+        matplotlib.pyplot.ylim((-3,3))
+        matplotlib.pyplot.grid(True)
+        matplotlib.pyplot.axes().set_aspect('equal')
+        png_wcsscatter = outputfile[:-5]+".wcs1.png"
+        fig.savefig(png_wcsscatter)
+        fig.savefig(png_wcsscatter[:-4]+".eps")
+        matplotlib.pyplot.close()
+
+        fig = matplotlib.pyplot.figure()
+        matched_zeroed = matched_cat
+        matched_zeroed[:,0:2] -= wcs_shift_refinement
+        #matplotlib.pyplot.plot(matched_zeroed[:,0], matched_zeroed[:,1], ",", color=(1,1,1))
+        matching_radius_arcsec = 3. / 3600.
+        valid = (numpy.fabs(matched_zeroed[:,0]-matched_zeroed[:,2]) < matching_radius_arcsec) & \
+            (numpy.fabs(matched_zeroed[:,1]-matched_zeroed[:,3]) < matching_radius_arcsec)
+        matched_zeroed = matched_zeroed[valid]
+        matplotlib.pyplot.quiver(matched_zeroed[:,0], matched_zeroed[:,1],
+                                 (matched_zeroed[:,0]-matched_zeroed[:,2]), 
+                                 (matched_zeroed[:,1]-matched_zeroed[:,3]),
+                                 linewidth=0
+                                 )
+        # Determine min and max values
+        ramin, ramax = numpy.min(matched_zeroed[:,0]), numpy.max(matched_zeroed[:,0])
+        decmin, decmax = numpy.min(matched_zeroed[:,1]), numpy.max(matched_zeroed[:,1])
+        matplotlib.pyplot.title("WCS misalignment\n%s" % outputfile)
+        matplotlib.pyplot.xlim((ramin-0.02, ramax+0.02))
+        matplotlib.pyplot.ylim((decmin-0.02, decmax+0.02))
+        matplotlib.pyplot.xlabel("RA [degrees]")
+        matplotlib.pyplot.xlabel("DEC [degrees]")
+        png_wcsdirection = outputfile[:-5]+".wcs2.png"
+        fig.savefig(png_wcsdirection)
+        fig.savefig(png_wcsdirection[:-4]+".eps")
+        #fig.show(block=True)
+        matplotlib.pyplot.close()
+        
+
+
         checkalign = outputfile+".cadat"
         x = open(checkalign, "w")
         dummy = numpy.ones(shape=(fixwcs_ref_ra.shape[0],2))
@@ -966,5 +1019,5 @@ if __name__ == "__main__":
         etype, error, stackpos = sys.exc_info()
         stdout_write("# Exception report:")
         stdout_write("#  ==> %s\n" % (error))
-        stdout_write("##############################\n")
+        stdout_write("#\n##############################\n")
 
