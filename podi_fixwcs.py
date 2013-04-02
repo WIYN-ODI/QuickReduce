@@ -40,7 +40,7 @@ IPP_DIR = "/Volumes/odifile/Catalogs/IPPRefCat/catdir.synth.grizy/"
 
 
 
-def shift_align_wcs(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1):
+def count_matches(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1):
 
     ota_count = ota_x.shape[0]
     ref_count = ref_x.shape[0]
@@ -127,6 +127,13 @@ def shift_align_wcs(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1):
 
     selected_matches = match_results[good_datapoints]
     if (verbose): print "Selected matches=",selected_matches.shape
+
+    return selected_matches
+
+
+def shift_align_wcs(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1):
+
+    selected_matches = count_matches(ota_x, ota_y, ref_x, ref_y, verbose, max_offset)
 
     if (selected_matches.shape[0] <= 1):
         # No matches found, return no shift and signal that the solution is invalid (Nmatch<0) 
