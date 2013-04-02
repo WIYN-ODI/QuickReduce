@@ -426,3 +426,12 @@ def get_svn_version():
         svn_version="no_svnversion_found"
 
     return svn_version
+
+def log_svn_version(hdr):
+    svn = get_svn_version()
+    hdr.update("QPIPESVN", svn, "QuickReduce Revision")
+    return
+
+
+
+
