@@ -340,7 +340,11 @@ def rebin_image(data, binfac):
 
 def center_coords(hdr):
         
-    centerx, centery = hdr['NAXIS1']/2, hdr['NAXIS2']/2
+    try:
+        centerx, centery = hdr['NAXIS1']/2, hdr['NAXIS2']/2
+    except:
+        centerx, centery = 2048., 2048.
+
     center_ra  = (centerx-hdr['CRPIX1'])*hdr['CD1_1'] + (centery-hdr['CRPIX2'])*hdr['CD1_2'] + hdr['CRVAL1']
     center_dec = (centerx-hdr['CRPIX1'])*hdr['CD2_1'] + (centery-hdr['CRPIX2'])*hdr['CD2_2'] + hdr['CRVAL2']
 
@@ -435,3 +439,26 @@ def log_svn_version(hdr):
 
 
 
+
+#################################3
+#
+# Some definitions for colors 
+#
+#################################3
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot
+import matplotlib.colors
+from matplotlib.colors import LinearSegmentedColormap
+
+colorfade_bluewhite = {'red':   ((0.0, 1.0, 1.0),
+                                 (1.0, 142./255., 1.)),
+
+                       'green': ((0.0, 1.0, 1.0),
+                                 (1.0, 163./255., 0.0)),
+
+                       'blue':  ((0.0, 1.0, 1.0),
+                                 (1.0, 218./255., 0.0))
+                       }
+cmap_bluewhite = matplotlib.colors.LinearSegmentedColormap('BlueWhite', colorfade_bluewhite)
+matplotlib.pyplot.register_cmap(cmap=cmap_bluewhite)
