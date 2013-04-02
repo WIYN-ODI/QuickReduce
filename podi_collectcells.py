@@ -25,8 +25,9 @@ import Queue
 import threading
 import multiprocessing
 import ctypes
-import matplotlib.pyplot
 import time
+
+from podi_plotting import *
 
 gain_correct_frames = False
 from podi_definitions import *
@@ -102,6 +103,7 @@ def collect_reduce_ota(filename,
     else:
         # Create an fits extension to hold the output
         hdu = pyfits.ImageHDU()
+        log_svn_version(hdu.header)
 
         try:
             hdulist = pyfits.open(filename, memmap=False)
@@ -560,7 +562,8 @@ def collectcells(input, outputfile,
         print "# File %s already exists, skipping!" % (outputfile)
         print "#"
         print "#####################################################"
-        print "\n\n\n\n"
+        print "\n"
+        return
 
     #
     # Read all offsets from command line
@@ -793,7 +796,11 @@ def collectcells(input, outputfile,
 
         count, xedges, yedges = numpy.histogram2d(matches_zeroed[:,0]*3600., matches_zeroed[:,1]*3600.,
                                                   bins=[60,60], range=[[-3,3], [-3,3]])
-        img = matplotlib.pyplot.imshow(count, interpolation='nearest', extent=(xedges[0],xedges[-1],yedges[0],yedges[-1]),origin='lower')
+        img = matplotlib.pyplot.imshow(count.T, 
+                                       extent=(xedges[0],xedges[-1],yedges[0],yedges[-1]), 
+                                       origin='lower', 
+                                       cmap=cmap_bluewhite)
+        # interpolation='nearest', 
         fig.colorbar(img)
 
         matplotlib.pyplot.plot(matches_zeroed[:,0]*3600., matches_zeroed[:,1]*3600., "b,", linewidth=0)
@@ -806,7 +813,7 @@ def collectcells(input, outputfile,
         matplotlib.pyplot.axes().set_aspect('equal')
         png_wcsscatter = outputfile[:-5]+".wcs1.png"
         fig.savefig(png_wcsscatter)
-        fig.savefig(png_wcsscatter[:-4]+".eps")
+        #fig.savefig(png_wcsscatter[:-4]+".eps")
         matplotlib.pyplot.close()
 
         fig = matplotlib.pyplot.figure()
@@ -832,7 +839,7 @@ def collectcells(input, outputfile,
         matplotlib.pyplot.xlabel("DEC [degrees]")
         png_wcsdirection = outputfile[:-5]+".wcs2.png"
         fig.savefig(png_wcsdirection)
-        fig.savefig(png_wcsdirection[:-4]+".eps")
+        #fig.savefig(png_wcsdirection[:-4]+".eps")
         #fig.show(block=True)
         matplotlib.pyplot.close()
         
