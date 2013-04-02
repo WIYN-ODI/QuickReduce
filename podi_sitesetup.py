@@ -15,6 +15,7 @@ if (cmdline_arg_isset("-ncpus")):
 #wcs_ref_dir = "/datax/2mass_fits/"
 #wcs_ref_type = "2mass_opt"
 
+scratch_dir = "/tmp/"
 
 if __name__ == "__main__":
     print "This file defines some site properties, mostly paths."
