@@ -18,10 +18,11 @@ import os
 import pyfits
 import numpy
 import scipy
+import traceback
 
 gain_correct_frames = False
-from podi_definitions import *
 from podi_collectcells import *
+from podi_definitions import *
 
 
 if __name__ == "__main__":
@@ -50,7 +51,8 @@ if __name__ == "__main__":
                 continue
             if (line[0] == "#"):
                 continue
-            filelist.append(line.strip())
+            fitsfilename = line.strip().split()[0]
+            filelist.append(fitsfilename)
             #print filelist
         #sys.exit(0)
     else:
@@ -109,6 +111,7 @@ if __name__ == "__main__":
             etype, error, stackpos = sys.exc_info()
             stdout_write("# Exception report:")
             stdout_write("#  ==> %s\n" % (error))
+            print traceback.format_exc()
             stdout_write("##############################\n")
 
         stdout_write("\n")
