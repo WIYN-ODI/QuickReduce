@@ -14,9 +14,9 @@ IPP_DIR = "/Volumes/odifile/Catalogs/IPPRefCat/catdir.synth.grizy/"
 def twomass_from_cds(ra, dec, radius, verbose):
 
     # Download the 2MASS PSC from Vizier
-    print "   Downloading 2MASS PSC catalog from Vizier ..."
+    print "   Downloading 2MASS PSC catalog from Vizier ... (%.4f/%.4f +/- %.1f)" % (ra, dec, radius)
     twomass_cat = "/tmp/2mass.cat"
-    cds = "find2mass -c %f %f -r %f -e b -smJ > %s" % (ra, dec, radius, twomass_cat)
+    cds = "find2mass -c %f %f -rd %f -e b -smJ > %s" % (ra, dec, radius, twomass_cat)
     os.system(cds)
 
     file = open(twomass_cat)
