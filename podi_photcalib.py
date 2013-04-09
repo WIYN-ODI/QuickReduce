@@ -170,7 +170,7 @@ def photcalib(fitsfile, output_filename, calib_directory, overwrite_cat=None):
     sex_cmd = "sex -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s >& %s" % (sex_config_file, sex_param_file, sex_catalogfile, fitsfile, sex_logfile)
     print sex_cmd
     stdout_write("Running SExtractor to search for stars, be patient (logfile: %s) ..." % (sex_logfile))
-    if ((not cmdline_arg_isset("-skip_sex")) or (not os.path.isfile(sex_catalogfile))):
+    if ((not cmdline_arg_isset("-skip_sex")) or (not os.path.isfile(sex_catalogfile)) or cmdline_arg_isset("-forcesex")):
         os.system(sex_cmd)
     else:
         stdout_write("Re-using previous source catalog\n")
@@ -252,7 +252,8 @@ def photcalib(fitsfile, output_filename, calib_directory, overwrite_cat=None):
             # Select one of the ranges and hand the parameters off to the matching routine
             matched_cat = match_catalogs(std_stars, sex_reorg, ra_ranges[cur_ra:cur_ra+2], dec_ranges[cur_dec:cur_dec+2])
             
-            numpy.savetxt(results, matched_cat, delimiter=" ")
+            if (matched_cat != None):
+                numpy.savetxt(results, matched_cat, delimiter=" ")
                 
     results.close()
 
@@ -266,6 +267,8 @@ def match_catalogs(ref_full, odi_full, ra_ranges, dec_ranges, matching_radius=2)
 
     ref = ref_full[ref_select]
 
+    if (ref.shape[0] <= 0):
+        return None
 
     # Now do the same, just with ranges extended by the matching radius / cos(dec)
     max_cos_dec = numpy.max(numpy.fabs(ref[:,1]))
