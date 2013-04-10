@@ -1,8 +1,8 @@
 NUMBER                 Running object number                                     
 EXT_NUMBER             FITS extension number                                     
 
-MAG_AUTO               Kron-like elliptical aperture magnitude                    [mag]
-MAGERR_AUTO            RMS error for AUTO magnitude                               [mag]
+MAG_APER(1)      #        Kron-like elliptical aperture magnitude                    [mag]
+MAGERR_APER(1)   #         RMS error for AUTO magnitude                               [mag]
 
 X_IMAGE_DBL            Object position along x (double precision)                 [pixel]
 Y_IMAGE_DBL            Object position along y (double precision)                 [pixel]
