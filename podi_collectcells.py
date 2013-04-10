@@ -19,7 +19,7 @@ import numpy
 import scipy
 import scipy.optimize
 import ephem
-
+import traceback
 
 import Queue
 import threading
@@ -381,8 +381,8 @@ def collect_reduce_ota(filename,
                                                    extension_id=ota)
             else:
                 hdulist = pyfits.HDUList([pyfits.PrimaryHDU(header=hdu.header, data=hdu.data)])
-                fitsfile = "/scratch/tmp_OTA%02d.fits" % (ota)
-                catfile = "/scratch/tmp_OTA%02d.cat" % (ota)
+                fitsfile = "%s/tmp_OTA%02d.fits" % (sitesetup.scratch_dir, ota)
+                catfile = "%s/tmp_OTA%02d.cat" % (sitesetup.scratch_dir, ota)
                 hdulist.writeto(fitsfile, clobber=True)
                 sexcmd = "sex -c /work/podi_devel/.config/wcsfix.sex -CATALOG_NAME %s %s" % (catfile, fitsfile)
                 os.system(sexcmd)
@@ -391,13 +391,13 @@ def collect_reduce_ota(filename,
                     if (source_cat.shape[0] == 0):
                         source_cat == None
                     else:
-                        print "source-cat:", source_cat.shape
                         source_cat[:,12] = ota
-                        #valid = source_cat[:,11] == 0
-                        #source_cat = source_cat[valid]
+                        valid = (source_cat[:,11] != 3)
+                        print "source-cat:", source_cat.shape, numpy.sum(valid)
+                        source_cat = source_cat[valid]
                 except:
                     source_cat == None
-                clobberfile(fitsfile)
+                #clobberfile(fitsfile)
 
             fixwcs_data = None
             if (source_cat != None):
@@ -665,6 +665,9 @@ def collectcells(input, outputfile,
     #
     fixwcs_odi_ra, fixwcs_odi_dec = numpy.array([]), numpy.array([])
     fixwcs_ref_ra, fixwcs_ref_dec = numpy.array([]), numpy.array([])
+    fixwcs_odi_x,  fixwcs_odi_y   = numpy.array([]), numpy.array([])
+    fixwcs_extension = numpy.array([])
+
     fixwcs_odi_sourcecat = None
     fixwcs_bestguess = numpy.ones(shape=(len(available_ota_coords),2)) * -1000
 
@@ -674,7 +677,7 @@ def collectcells(input, outputfile,
             continue
 
         ota_list[ota_id] = hdu
-
+        
         if (fixwcs):
             
             if (wcsfix_data != None):
@@ -684,6 +687,14 @@ def collectcells(input, outputfile,
                 fixwcs_odi_dec = numpy.append(fixwcs_odi_dec, odi_dec, axis=0)
                 fixwcs_ref_ra  = numpy.append(fixwcs_ref_ra,  ref_ra,  axis=0)
                 fixwcs_ref_dec = numpy.append(fixwcs_ref_dec, ref_dec, axis=0)
+
+                print "Adding data to long list"
+                fixwcs_odi_x = numpy.append(fixwcs_odi_x, source_cat[:,2], axis=0)
+                fixwcs_odi_y = numpy.append(fixwcs_odi_y, source_cat[:,3], axis=0)
+                _ota = numpy.ones(shape=(source_cat.shape[0],1)) * ota_id
+                fixwcs_extension = numpy.append(fixwcs_extension, _ota[:,0], axis=0)
+                #print "source_cat[:,2]=",source_cat[:,2]
+                #print "source_cat[:,3]=",source_cat[:,3]
 
                 if (fixwcs_odi_sourcecat == None):
                     fixwcs_odi_sourcecat = source_cat
@@ -703,6 +714,9 @@ def collectcells(input, outputfile,
         cur_process.terminate()
         del cur_process
 
+    print fixwcs_extension
+    print fixwcs_odi_x
+    print fixwcs_odi_y
 
     if (fixwcs):
         print fixwcs_bestguess.shape
@@ -779,9 +793,11 @@ def collectcells(input, outputfile,
         #
         # Now go back, match the ODI and reference catalogs and refine the solution
         #
+        print "\n\n\n\n\n",fixwcs_odi_x.shape, fixwcs_odi_ra.shape,"\n\n\n\n\n"
         wcs_shift_refinement, matched_cat, matches = \
             podi_fixwcs.refine_wcs_shift(ref_x=fixwcs_ref_ra, ref_y=fixwcs_ref_dec, 
                                          ota_x=fixwcs_odi_ra, ota_y=fixwcs_odi_dec, 
+                                         ota_px_x=fixwcs_odi_x, ota_px_y=fixwcs_odi_y,
                                          best_guess=wcs_shift_guess, 
                                          matching_radius=3, #arcsec
                                          alignment_checkfile=None,
@@ -871,6 +887,41 @@ def collectcells(input, outputfile,
             if (ota_list[extension] == None):
                 continue
             podi_fixwcs.apply_wcs_shift(wcs_shift, ota_list[extension].header)
+
+            
+        #
+        # Fix rotator misalignment 
+        #
+        p_optimized,old_new = podi_fixwcs.rotate_optimize(ota_list, fixwcs_extension, 
+                                    matched_cat[:,2], matched_cat[:,3],
+                                    fixwcs_odi_x, fixwcs_odi_y
+                                    ) #matched_cat
+        print "Best-fit: Offset x/y=",p_optimized[0]*3600," / ",p_optimized[1]*3600, "   rotation",p_optimized[2]*60,"arcmin"
+        for extension in range(1, len(ota_list)):
+            if (ota_list[extension] == None): 
+                continue                
+            podi_fixwcs.apply_fit_params(ota_list[extension].header, p_optimized)
+
+        if (True):
+            matplotlib.pyplot.close()
+            fig = matplotlib.pyplot.figure()
+            matplotlib.pyplot.plot((old_new[:,0] - old_new[:,4])*3600., (old_new[:,1] - old_new[:,5])*3600., "b,", linewidth=0)
+            matplotlib.pyplot.title("WCS Scatter\n%s" % outputfile)
+            matplotlib.pyplot.xlabel("error RA ['']")
+            matplotlib.pyplot.ylabel("error DEC ['']")
+            matplotlib.pyplot.xlim((-3,3))
+            matplotlib.pyplot.ylim((-3,3))
+            matplotlib.pyplot.grid(True)
+            matplotlib.pyplot.axes().set_aspect('equal')
+            png_wcsscatter = outputfile[:-5]+".wcs3.png"
+            fig.savefig(png_wcsscatter)
+            #fig.savefig(png_wcsscatter[:-4]+".eps")
+            matplotlib.pyplot.close()
+
+            wcsfit = open("wcsfit.dump", "w")
+            numpy.savetxt(wcsfit, old_new)
+            wcsfit.close()
+
 
         # Save the two catalogs to the output file
         ota_list.append( sexcat_to_tablehdu(fixwcs_ref_ra, fixwcs_ref_dec) )
@@ -1026,5 +1077,6 @@ if __name__ == "__main__":
         etype, error, stackpos = sys.exc_info()
         stdout_write("# Exception report:")
         stdout_write("#  ==> %s\n" % (error))
+        print traceback.format_exc()
         stdout_write("#\n##############################\n")
 
