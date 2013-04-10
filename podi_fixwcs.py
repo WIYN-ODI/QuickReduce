@@ -10,7 +10,7 @@ import pyfits
 #import date
 import datetime
 #import pywcs  
-#from astLib import astWCS
+from astLib import astWCS
 import pdb
 import scipy
 import scipy.stats
@@ -168,12 +168,22 @@ def shift_align_wcs(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1):
     return selected_matches[most_matches_idx,1], selected_matches[most_matches_idx,2], selected_matches[most_matches_idx,0]
 
 
-def refine_wcs_shift(ref_x, ref_y, ota_x, ota_y, best_guess, alignment_checkfile=None, verbose=False, matching_radius=3):
+def refine_wcs_shift(ref_x, ref_y, ota_x, ota_y, best_guess, 
+                     ota_px_x=None, ota_px_y=None, 
+                     alignment_checkfile=None, verbose=False, matching_radius=3):
 
     #print "INPUT TO REFICE_WCS_SHIFT: =", ref_x.shape, ref_y.shape, ota_x.shape, ota_y.shape, best_guess.shape
 
     matches = numpy.zeros(shape=(ota_x.shape[0],2))
-    matched = numpy.zeros(shape=(ota_x.shape[0],6))
+    # 2 columns: dx, dy
+    matched = numpy.zeros(shape=(ota_x.shape[0],8))
+    # 8 columns: ota_x, ota_y, ref_x, ref_y, id, matched_id, ota_pixel_x, ota_pixel_y
+
+    if (ota_px_x == None):
+        ota_px_x = numpy.ones(shape=(ota_x.shape[0])) * -999
+    if (ota_px_y == None):
+        ota_px_y = numpy.ones(shape=(ota_y.shape[0])) * -999
+
         #for i in range(ref_x.shape[0]):
         #    print "REF",ref_x[i], ref_y[i]
         #for i in range(ota_cat.shape[0]):
@@ -220,14 +230,18 @@ def refine_wcs_shift(ref_x, ref_y, ota_x, ota_y, best_guess, alignment_checkfile
         closest = numpy.argmin(d2, axis=1)
 
         # Compute the vector from each OTA star to the closest star in the reference catalog
+        x = open("dump2", "a")
         for i in range(closest.shape[0]):
             matches[start+i,0] = dx[i, closest[i]]
             matches[start+i,1] = dy[i, closest[i]]
             #print matches[start+i,:]
 
             # Save the coordinate pairs and which reference star is the closest match
-            matched[start+i,:] = [aligned_x[i], aligned_y[i], ref_x[closest[i]], ref_y[closest[i]], start+i, closest[i]]
-            
+#            matched[start+i,0:6] = [aligned_x[i], aligned_y[i], ref_x[closest[i]], ref_y[closest[i]], start+i, closest[i]]
+            matched[start+i,:] = [aligned_x[i], aligned_y[i], ref_x[closest[i]], ref_y[closest[i]], start+i, closest[i], ota_px_x[start+i], ota_px_y[start+i] ]
+            print >>x, aligned_x[i], aligned_y[i], ref_x[closest[i]], ref_y[closest[i]], start+i, closest[i], ota_px_x[start+i], ota_px_y[start+i]
+        x.close()
+
         start += blocksize
         # Continue with next block
 
@@ -600,6 +614,111 @@ def apply_wcs_shift(shift, hdr):
 
     return
 
+
+
+
+def apply_fit_params(wcsout, p):
+
+    theta = numpy.radians(p[0])
+    sin_theta = math.sin(theta)
+    cos_theta = math.cos(theta)
+    cd11, cd12, cd21, cd22 = wcsout['CD1_1'], wcsout['CD1_2'], wcsout['CD2_1'], wcsout['CD2_2']
+    wcsout['CD1_1'] = cd11 * cos_theta + cd12 * sin_theta
+    wcsout['CD1_2'] = cd12 * cos_theta - cd11 * sin_theta
+    wcsout['CD2_1'] = cd21 * cos_theta + cd22 * sin_theta
+    wcsout['CD2_2'] = cd22 * cos_theta - cd21 * sin_theta
+
+    wcsout['CRVAL1'] += p[1]
+    wcsout['CRVAL2'] += p[2]
+
+    return
+
+def rotate_optimize(ota_list, extensions, ref_ra, ref_dec, odi_x, odi_y):
+
+    wcs = [None] * len(ota_list)
+    for ext in range(len(ota_list)):
+        wcs[ext] = astWCS.WCS(ota_list[ext].header, mode="pyfits")
+
+    
+    def odi2wcs(odi_x, odi_y, extensions, wcs):
+        ra, dec = numpy.zeros(odi_x.shape[0]), numpy.zeros(odi_y.shape[0])
+        for src in range(odi_x.shape[0]):
+            ext = int(extensions[src])
+            ra[src], dec[src] = wcs[ext].pix2wcs(odi_x[src], odi_y[src])
+        return ra, dec
+
+
+    def d_radec(p, odi_x, odi_y, ref_ra, ref_dec, extensions, wcs):
+        # Update the WCS by applying the shift and rotation
+        wcs_thistime = [None] * len(wcs)
+        for i in range(1, len(wcs)):
+            if (wcs[i] != None):
+                wcs_thistime[i] = wcs[i].copy()
+                #apply_fit_params(wcs[i], p)
+                #try:
+                #    print i, wcs_thistime[i].header['CRPIX1']
+                #except:
+                #    print i, "no header"
+                #continue
+                apply_fit_params(wcs_thistime[i].header, p)
+                #apply_fit_params(wcs_thistime[i].header, wcs[i].header, p)
+                wcs_thistime[i].updateFromHeader()
+
+        print p
+
+        # Compute the updated RA/DEC from the pixel X/Ys
+        ra, dec = odi2wcs(odi_x, odi_y, extensions, wcs_thistime)
+        d_ra = ref_ra - ra
+        d_dec = ref_dec - dec
+        d_radec = d_ra**2 + d_dec**2
+
+        # Mask out drastic outliers
+        return numpy.sqrt(d_radec)
+
+
+    df = open("dump", "w")
+    ra, dec = odi2wcs(odi_x, odi_y, extensions, wcs)
+
+    pinit = [0, 0, 0]
+    out = scipy.optimize.leastsq(d_radec, pinit, 
+                                 args=(odi_x, odi_y, ref_ra, ref_dec, extensions, wcs), 
+                                 full_output=1)
+
+    p_bestfit = out[0]
+    
+    #xxx = d_radec(pinit, odi_x, odi_y, ref_ra, ref_dec, extensions, wcs)
+    #print xxx.shape, "\n",xxx
+
+    for src in range(odi_x.shape[0]):
+        print >>df, ref_ra[src], ref_dec[src], odi_x[src], odi_y[src], ra[src], dec[src]
+
+    df.close()
+
+
+    # Compute Ra/Dec with original WCS
+    ra_orig, dec_orig = odi2wcs(odi_x, odi_y, extensions, wcs)
+
+    # Compute Ra/Dec with new optimized WCS
+    wcs_thistime = [None] * len(wcs)
+    for i in range(1, len(wcs)):
+        wcs_thistime[i] = wcs[i].copy()
+        apply_fit_params(wcs_thistime[i].header, p_bestfit)
+        wcs_thistime[i].updateFromHeader()
+    ra_new, dec_new = odi2wcs(odi_x, odi_y, extensions, wcs_thistime)
+    
+    old_new = numpy.ones(shape=(odi_x.shape[0],8))
+    old_new[:,0] = ref_ra[:]
+    old_new[:,1] = ref_dec[:]
+    old_new[:,2] = ra_orig[:]
+    old_new[:,3] = dec_orig[:]
+    old_new[:,4] = ra_new[:]
+    old_new[:,5] = dec_new[:]
+    old_new[:,6] *= wcs[2].header['CRVAL1']
+    old_new[:,7] *= wcs[2].header['CRVAL2']
+
+    return p_bestfit, old_new
+
+    
 
 if __name__ == "__main__":
 
