@@ -137,7 +137,7 @@ def shift_align_wcs(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1):
 
     if (selected_matches.shape[0] <= 1):
         # No matches found, return no shift and signal that the solution is invalid (Nmatch<0) 
-        return 0, 0, -1
+        return 0, 0, -1, None
         
     median = numpy.median(selected_matches[:,0])
     std = numpy.std(selected_matches[:,0])
@@ -165,7 +165,9 @@ def shift_align_wcs(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1):
     if (verbose): print selected_matches[most_matches_idx]
     if (verbose): print "Random matches: %d +/- %d (1sigma) (3-sigma: %d)" % (median, sigma, median+3*sigma)
 
-    return selected_matches[most_matches_idx,1], selected_matches[most_matches_idx,2], selected_matches[most_matches_idx,0]
+    return selected_matches[most_matches_idx,1], selected_matches[most_matches_idx,2], \
+        selected_matches[most_matches_idx,0], \
+        selected_matches 
 
 
 def refine_wcs_shift(ref_x, ref_y, ota_x, ota_y, best_guess, 
@@ -283,7 +285,7 @@ def refine_wcs_shift(ref_x, ref_y, ota_x, ota_y, best_guess,
                 matched[i,0]-median[0],matched[i,1]-median[1],matches[i,0], matches[i,1]
         print >>alignment_check, "\n\n\n\n\n"
 
-    print "Ref: %d, ODI: %d, Mathced: %d" % (ref_x.shape[0], ota_x.shape[0], matched.shape[0])
+    if (verbose): print "Ref: %d, ODI: %d, Matched: %d" % (ref_x.shape[0], ota_x.shape[0], matched.shape[0])
     return median, matched, matches
 
 
@@ -437,6 +439,7 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
     # Improve: Change execution to parallel !!!
     #
     frame_shift = numpy.ones(shape=(len(hdulist)-1, 2)) * -999
+    global_number_matches = None
     for ext in range(1, len(hdulist)):
         #
         # Select a sub-catalog with stars in this OTA
@@ -503,10 +506,18 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
         #
         # Now find the number of matches between the ODI and REF catalogs
         #
-        dx, dy, n = shift_align_wcs(ota_odi_ra, ota_odi_dec, ota_ref_ra, ota_ref_dec)
+        dx, dy, n, number_matches = shift_align_wcs(ota_odi_ra, ota_odi_dec, ota_ref_ra, ota_ref_dec)
 
         frame_shift[ext-1,:] = [dx, dy]
-
+        
+        tmp = numpy.ones(shape=(number_matches.shape[0], number_matches.shape[1]+1))
+        tmp[:,:-1] = number_matches
+        tmp[:,-1] *= ota_id
+        if (global_number_matches == None):
+            global_number_matches = tmp
+        else:
+            global_number_matches = numpy.append(global_number_matches, tmp, axis=0)
+                
         print "#######################"
         print "##"
         print "## OTA %d" % (ext)
@@ -520,8 +531,9 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
     # compute the mean shift for the full frame
     # Also do some 2-step iterative sigma clipping to get rid of outliers
     #
-    best_guess = get_overall_best_guess(frame_shift)
-
+    #best_guess = get_overall_best_guess(frame_shift)
+    best_guess_x, contrast, drxy = podi_fixwcs.optimize_shift(global_number_matches)
+    best_guess = best_guess_x[0:2]
 
     #
     # Now that we have a pretty good guess on what the offsets are, 
@@ -719,6 +731,80 @@ def rotate_optimize(ota_list, extensions, ref_ra, ref_dec, odi_x, odi_y):
     return p_bestfit, old_new
 
     
+
+def optimize_shift(n_matches, verbose=False):
+
+    # Sort out all matches that only have one match
+    not_just_one = n_matches[:,0] > 1
+    
+    n_multiple = n_matches[not_just_one]
+
+    # print "\n\n\nReducing: ", n_matches.shape, n_multiple.shape,"\n\n\n\n\n"
+
+    # Create memory to hold the alignment data
+    # First two columns are dx, dy, third will be #matches
+    total_sum = numpy.zeros(shape=(n_multiple.shape[0],3))
+    total_sum[:,0:2] = n_multiple[:,1:3]
+
+    debuglog = open("debug.log", "w")
+    numpy.savetxt(debuglog, n_matches)
+    print >>debuglog, "\n\n\n\n\n"
+
+    numpy.savetxt(debuglog, n_multiple)
+    print >>debuglog, "\n\n\n\n\n"
+
+    # Go through the list of possible shifts and sum up all shifts in the neighborhood
+    d_neighbor = 5.0 / 3600.
+    for i in range(n_multiple.shape[0]):
+        nearby = (total_sum[:,0] > total_sum[i,0]-d_neighbor) & (total_sum[:,0] < total_sum[i,0]+d_neighbor) \
+            & (total_sum[:,1] > total_sum[i,1]-d_neighbor) & (total_sum[:,1] < total_sum[i,1]+d_neighbor)
+        total_sum[i,2] = numpy.sum(n_multiple[:,0][nearby])
+
+    numpy.savetxt(debuglog, total_sum)
+
+    # Sort the values to make it easy to find the maximum
+    #si = numpy.argsort(total_sum[:,2])
+    best = numpy.argmax(total_sum[:,2])
+
+    best_guess = total_sum[best,:]
+    if (verbose): print "max positions",best_guess
+
+    max_matches = best_guess[2]
+
+    # To find some level of uncertainty, determine the maximum shift positions with 
+    # a match-count above 10% of the maximum 
+    
+    within_fmax = total_sum[:,2] > 0.1*max_matches
+    dxmin, dxmax = numpy.min(total_sum[:,0][within_fmax]), numpy.max(total_sum[:,0][within_fmax])
+    dymin, dymax = numpy.min(total_sum[:,1][within_fmax]), numpy.max(total_sum[:,1][within_fmax])
+    dr = numpy.sqrt( (dxmax-dxmin)**2 + (dymax-dymin)**2 )
+
+    if (verbose): 
+        stdout_write("best offset: %.3f deg    %.3f deg\n" % (best_guess[0], best_guess[1]))
+        stdout_write("Range: %.3f...%.3f deg    %.3f...%.3f deg\n" % (dxmin, dxmax, dymin, dymax))
+        stdout_write("uncertainty: %.3f'' %.3f'' (%.3f)\n" % ( 0.5*3600.*(dxmax-dxmin), 0.5*3600*(dymax-dymin), 0.5*3600*dr ) )
+
+    # determine some contrast level: peak number of matches in this 
+    # peak relative to the maximum number of matches in the next-highest peak
+
+    outside_peak = (total_sum[:,0] < best_guess[0]-d_neighbor) | (total_sum[:,0] > best_guess[0]+d_neighbor) | \
+        (total_sum[:,1] < best_guess[1]-d_neighbor) | (total_sum[:,1] > best_guess[1]+d_neighbor)
+    secondary_solutions = total_sum[outside_peak]
+    second_peak_idx = numpy.argmax(secondary_solutions[:,2])
+    second_peak = secondary_solutions[second_peak_idx,:]
+
+    contrast = best_guess[2] / second_peak[2]
+    
+    if (verbose): 
+        print "secondary peak:", second_peak
+        print "contrast:", contrast
+
+
+    debuglog.close()
+
+    return best_guess, contrast, [dr, dxmin, dxmax, dymin, dymax]
+
+
 
 if __name__ == "__main__":
 
