@@ -397,7 +397,7 @@ def collect_reduce_ota(filename,
                         source_cat = source_cat[valid]
                 except:
                     source_cat == None
-                #clobberfile(fitsfile)
+                clobberfile(fitsfile)
 
             fixwcs_data = None
             if (source_cat != None):
@@ -889,20 +889,20 @@ def collectcells(input, outputfile,
             podi_fixwcs.apply_wcs_shift(wcs_shift, ota_list[extension].header)
 
             
-        #
-        # Fix rotator misalignment 
-        #
-        p_optimized,old_new = podi_fixwcs.rotate_optimize(ota_list, fixwcs_extension, 
-                                    matched_cat[:,2], matched_cat[:,3],
-                                    fixwcs_odi_x, fixwcs_odi_y
-                                    ) #matched_cat
-        print "Best-fit: Offset x/y=",p_optimized[0]*3600," / ",p_optimized[1]*3600, "   rotation",p_optimized[2]*60,"arcmin"
-        for extension in range(1, len(ota_list)):
-            if (ota_list[extension] == None): 
-                continue                
+        if (False):
+            #
+            # Fix rotator misalignment 
+            #
+            p_optimized,old_new = podi_fixwcs.rotate_optimize(ota_list, fixwcs_extension, 
+                                                              matched_cat[:,2], matched_cat[:,3],
+                                                              fixwcs_odi_x, fixwcs_odi_y
+                                                              ) #matched_cat
+            print "Best-fit: Offset x/y=",p_optimized[0]*3600," / ",p_optimized[1]*3600, "   rotation",p_optimized[2]*60,"arcmin"
+            for extension in range(1, len(ota_list)):
+                if (ota_list[extension] == None): 
+                    continue                
             podi_fixwcs.apply_fit_params(ota_list[extension].header, p_optimized)
 
-        if (True):
             matplotlib.pyplot.close()
             fig = matplotlib.pyplot.figure()
             matplotlib.pyplot.plot((old_new[:,0] - old_new[:,4])*3600., (old_new[:,1] - old_new[:,5])*3600., "b,", linewidth=0)
