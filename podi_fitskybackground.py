@@ -55,10 +55,10 @@ def polyval2d(x, y, m):
     return z
 
 
-min_found = 300
+min_found = 200
 max_tried = 1.5*min_found
 
-def fit_background(hdulist, plotname=None):
+def fit_background(hdulist, plotname=None, exclude_videocells=True, fit_order=3, makeplots="none"):
 
     # First of all, get the list of sources in all the frames
     #print hdulist.info()
@@ -69,6 +69,8 @@ def fit_background(hdulist, plotname=None):
     odi_x = odicat.data.field("X")
     odi_y = odicat.data.field("Y")
     odi_ota = odicat.data.field("OTA")
+    odi_ra = odicat.data.field("RA")
+    odi_dec = odicat.data.field("DEC")
 
     #odi_radec = odicat.data[:,0:2]
     #print odi_radec
@@ -91,16 +93,33 @@ def fit_background(hdulist, plotname=None):
     #min_ra, max_ra, min_dec, max_dec = numpy.NaN, numpy.NaN, numpy.NaN, numpy.NaN
     minmax_radec =  [1e9, -1e9, 1e9, -1e9] 
 
+    all_ra, all_dec = None, None
     for ota in otas_to_fit:
 
         ext_name = "OTA%02d.SCI" % (ota)
         stdout_write("\rRandom-sampling background of OTA %s ..." % (ext_name))
+
+        cellmode = hdulist[ext_name].header['CELLMODE']
+        if (cellmode.find("V") != -1):
+            # this OTA contains at least one video cell. This screws up the 
+            # background, so let's ignore this OTA alltogether
+            continue
+
         wcs = astWCS.WCS(hdulist[ext_name].header, mode="pyfits")
         
         # Select the X/Y coordinates of all sources in this ota
         ota_select = odi_ota == ota
         ota_x = odi_x[ota_select]
         ota_y = odi_y[ota_select]
+        ota_ra = odi_ra[ota_select]
+        ota_dec = odi_dec[ota_select]
+
+        if (all_ra == None):
+            all_ra = ota_ra
+            all_dec = ota_dec
+        else:
+            all_ra = numpy.append(all_ra, ota_ra)
+            all_dec = numpy.append(all_dec, ota_dec)
 
         max_xy = hdulist[ext_name].data.shape
 
@@ -133,7 +152,7 @@ def fit_background(hdulist, plotname=None):
             dy = box_center[tried,0] - ota_y
             dr = numpy.sqrt( dx**2 + dy**2 )
             dr_sorted = numpy.sort(dr)
-            if (dr_sorted[0] < 3*boxwidth):
+            if (dr_sorted[0] < 5*boxwidth):
                 # This means there's a star nearby
                 tried += 1
                 continue
@@ -187,7 +206,7 @@ def fit_background(hdulist, plotname=None):
     #print zz
     #print x.min(), y.max(), x.max(), y.min()
     #matplotlib.pyplot.imshow(zz, extent=(x.min(), x.max(), y.min(), y.max()), origin='lower')
-    if (plotname != None):
+    if (plotname != None and (makeplots=="global" or makeplots=="all")):
         vmin = zz.min()
         vmax = zz.max()
         matplotlib.pyplot.imshow(zz, 
@@ -196,6 +215,7 @@ def fit_background(hdulist, plotname=None):
                                  vmin=vmin, vmax=vmax)
         matplotlib.pyplot.colorbar()
         matplotlib.pyplot.scatter(x, y, c=z, linewidth=0, vmin=vmin, vmax=vmax)
+        #matplotlib.pyplot.scatter(all_ra, all_dec, s=2, marker=',')
         matplotlib.pyplot.title("Global sky-background fit")
         matplotlib.pyplot.xlabel("RA [degrees]")
         matplotlib.pyplot.ylabel("DEC [degrees]")
@@ -225,10 +245,15 @@ def fit_background(hdulist, plotname=None):
 
 
         # Sample the x/y grid with n steps
-        n = 20
+        n = 30
         # Use 20 points in each axis, sampling the OTA in a total of 20x20=400 points
-        ota_xx, ota_yy = numpy.meshgrid(numpy.linspace(1, max_xy[0], n), 
-                                numpy.linspace(1, max_xy[1], n))
+        #ota_xx, ota_yy = numpy.meshgrid(numpy.linspace(1, max_xy[0], n), 
+        #                                numpy.linspace(1, max_xy[1], n))
+
+        overlap = int(0.05 * max_xy[0])
+        ota_xx, ota_yy = numpy.meshgrid(numpy.linspace(-overlap, max_xy[0]+overlap, n), 
+                                numpy.linspace(-overlap, max_xy[1]+overlap, n))
+
         #print "otaxx/yy.shape=",ota_xx.shape, ota_yy.shape
         #print ota_xx
 
@@ -250,30 +275,6 @@ def fit_background(hdulist, plotname=None):
 
         #matplotlib.pyplot.close()
 
-        if (plotname != None):
-            #print "ra,dec, sky_radec", ra.shape, dec.shape, sky_radec.shape
-            matplotlib.pyplot.scatter(ra, dec, c=sky_radec, vmin=vmin, vmax=vmax)
-            #                          extent=(minmax_radec[0], minmax_radec[1], minmax_radec[2], minmax_radec[3]))
-            matplotlib.pyplot.colorbar()
-            matplotlib.pyplot.title("Local OTA sky-background fit")
-            matplotlib.pyplot.xlabel("RA [degrees]")
-            matplotlib.pyplot.ylabel("DEC [degrees]")
-            matplotlib.pyplot.show(block=True)
-            matplotlib.pyplot.savefig(plotname+".skyfit_"+ext_name+".png")
-            matplotlib.pyplot.close()
-
-
-            matplotlib.pyplot.scatter(ota_xx, ota_yy, c=sky_radec, vmin=vmin, vmax=vmax)
-            #                          extent=(minmax_radec[0], minmax_radec[1], minmax_radec[2], minmax_radec[3]))
-            matplotlib.pyplot.colorbar()
-            matplotlib.pyplot.title("Local OTA sky-background fit")
-            matplotlib.pyplot.xlabel("X [pixels]")
-            matplotlib.pyplot.ylabel("Y [pixels]")
-            matplotlib.pyplot.show(block=True)
-            matplotlib.pyplot.savefig(plotname+".skyfit_"+ext_name+"_1.png")
-            matplotlib.pyplot.close()
-        
-
         x = open("dummy", "w")
         numpy.savetxt(x, sky_radec)
         x.close()
@@ -291,6 +292,32 @@ def fit_background(hdulist, plotname=None):
         stdout_write(" performing interpolation ...")
         fullres_z = f(full_xx, full_yy)
         
+        if (plotname != None and (makeplots=="ota" or makeplots=="all")):
+            stdout_write(" plotting ...")
+            #print "ra,dec, sky_radec", ra.shape, dec.shape, sky_radec.shape
+            matplotlib.pyplot.scatter(ra, dec, c=sky_radec, vmin=vmin, vmax=vmax)
+            #                          extent=(minmax_radec[0], minmax_radec[1], minmax_radec[2], minmax_radec[3]))
+            matplotlib.pyplot.colorbar()
+            matplotlib.pyplot.title("Local OTA sky-background fit")
+            matplotlib.pyplot.xlabel("RA [degrees]")
+            matplotlib.pyplot.ylabel("DEC [degrees]")
+            matplotlib.pyplot.show(block=True)
+            matplotlib.pyplot.savefig(plotname+".skyfit_"+ext_name+".png")
+            matplotlib.pyplot.close()
+
+
+            matplotlib.pyplot.imshow(fullres_z, vmin=vmin, vmax=vmax, origin='lower')
+            matplotlib.pyplot.scatter(ota_xx, ota_yy, c=sky_radec, vmin=vmin, vmax=vmax)
+            #                          extent=(minmax_radec[0], minmax_radec[1], minmax_radec[2], minmax_radec[3]))
+            matplotlib.pyplot.colorbar()
+            matplotlib.pyplot.title("Local OTA sky-background fit")
+            matplotlib.pyplot.xlabel("X [pixels]")
+            matplotlib.pyplot.ylabel("Y [pixels]")
+            matplotlib.pyplot.show(block=True)
+            matplotlib.pyplot.savefig(plotname+".skyfit_"+ext_name+"_1.png")
+            matplotlib.pyplot.close()
+        
+
         hdulist[ext_name].data -= fullres_z
         stdout_write(" done!\n")
         hdulist_out.append(hdulist[ext_name])
@@ -304,6 +331,10 @@ def fit_background(hdulist, plotname=None):
 
 if __name__ == "__main__":
 
+    fit_order = cmdline_arg_set_or_default("-fitorder",3)
+    plotting = cmdline_arg_set_or_default("-plot", "all")
+    noclobber = cmdline_arg_isset("-noclobber")
+
     if (cmdline_arg_isset("-multi")):
 
         filelist = get_clean_cmdline()[1:]
@@ -314,24 +345,26 @@ if __name__ == "__main__":
             if (not os.path.isfile(filename)):
                 continue
 
-            stdout_write("#########################\n")
-            stdout_write("#\n# Sky-sub for frame %s\n#\n" % filename)
-            stdout_write("#########################\n")
-
             hdulist = pyfits.open(filename)
             plotname = filename[:-5]
-            hdu_out = fit_background(hdulist, plotname)
             outfile = filename[:-5]+".skysub.fits"
-            stdout_write("Writing output file %s ..." % (outfile))
-            hdu_out.writeto(outfile, clobber=True)
-            stdout_write(" done!\n")
+            if (noclobber and os.path.isfile(outfile)):
+                stdout_write("%s already exists, skipping ...\n" % (outfile))
+            else:
+                stdout_write("#########################\n")
+                stdout_write("#\n# Sky-sub for frame %s\n#\n" % filename)
+                stdout_write("#########################\n")
+                hdu_out = fit_background(hdulist, plotname, fit_order=fit_order, makeplots=plotting)
+                stdout_write("Writing output file %s ..." % (outfile))
+                hdu_out.writeto(outfile, clobber=True)
+                stdout_write(" done!\n")
     else:
         filename = sys.argv[1]
         outfile = sys.argv[2]
 
         hdulist = pyfits.open(filename)
         plotname = filename[:-5]
-        hdu_out = fit_background(hdulist, plotname)
+        hdu_out = fit_background(hdulist, plotname, fit_order=fit_order, makeplots=plotting)
         stdout_write("Writing output file %s ..." % (outfile))
         hdu_out.writeto(outfile, clobber=True)
         stdout_write(" done!\n")
