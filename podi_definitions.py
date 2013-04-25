@@ -88,6 +88,7 @@ otas_to_normalize_ff = {"odi_g": all_otas,
                         "s2_SII": central_2x2,
                         "823_v2": central_2x2,
                         "918R_v1": central_2x2,
+                        "Us_solid": central_2x2,
                         }	
 
 #
@@ -128,6 +129,7 @@ sdss_equivalents = {"odi_g": 'g',
                     "s2_SII": None,
                     "823_v2": None,
                     "918R_v1": None,
+                    "Us_solid": 'u',
 		    }	
 
 
