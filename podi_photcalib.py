@@ -322,6 +322,8 @@ if __name__ == "__main__":
         calibdir = get_cmdline_arg("-calib")
         for infile in get_clean_cmdline()[1:]:
             output_filename = infile[0:-5]+".photcalib.dat"
+            if (os.path.isfile(output_filename)):
+                continue
             photcalib(infile, output_filename, calibdir)
     else:
         fitsfile = get_clean_cmdline()[1]
