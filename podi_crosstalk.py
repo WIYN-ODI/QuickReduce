@@ -1,5 +1,10 @@
 
-x0 = 1.2e-4
+x0 =  5.6E-5 #1.2e-4
+
+xtalk_saturated_correction = 8
+xtalk_saturation_limit = 65535
+
+
 
 xtalk_coeffs = {
 

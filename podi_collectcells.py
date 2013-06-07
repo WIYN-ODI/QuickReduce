@@ -167,7 +167,12 @@ def collect_reduce_ota(filename,
                     # Now go through the list of all cells in this row and add them to 
                     # the corrected cell content output
                     #print "Adding ",xy_name,"to ",extname, column, row, "(scaling",podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column],")"
-                    xtalk_corr[column] += hdulist[xy_name].data * podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column]
+
+                    correction = hdulist[xy_name].data * podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column]
+                    if (column != xtalk_column):
+                        correction[hdulist[xy_name].data >= podi_crosstalk.xtalk_saturation_limit] = -1 * podi_crosstalk.xtalk_saturated_correction
+
+                    xtalk_corr[column] += correction #hdulist[xy_name].data * podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column]
                     #print xtalk_corr[column][100,100]
 
             for column in range(8):
