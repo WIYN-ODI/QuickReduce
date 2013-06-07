@@ -79,7 +79,7 @@ def count_matches(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1):
             # Take some random shift
             shift_dx = ref_x[r] - ota_x[o]
             shift_dy = ref_y[r] - ota_y[o]
-            if (math.fabs(shift_dx/cos_delta) > max_offset or math.fabs(shift_dy) > max_offset):
+            if (math.fabs(shift_dx*cos_delta) > max_offset or math.fabs(shift_dy) > max_offset):
                 continue
 
             # Apply shift to OTA coordinates
@@ -99,7 +99,7 @@ def count_matches(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1):
             dy = dy1 - dy2
             #print dy.shape
 
-            d2 = dx*dx + dy*dy
+            d2 = dx*dx*cos_delta**2 + dy*dy
             #print d.shape
 
             close_match = d2 < max_d2
@@ -732,7 +732,7 @@ def rotate_optimize(ota_list, extensions, ref_ra, ref_dec, odi_x, odi_y):
 
     
 
-def optimize_shift(n_matches, verbose=False):
+def optimize_shift(n_matches, verbose=False, declination=0, debuglogfile=None):
 
     # Sort out all matches that only have one match
     not_just_one = n_matches[:,0] > 1
@@ -746,21 +746,26 @@ def optimize_shift(n_matches, verbose=False):
     total_sum = numpy.zeros(shape=(n_multiple.shape[0],3))
     total_sum[:,0:2] = n_multiple[:,1:3]
 
-    debuglog = open("debug.log", "w")
-    numpy.savetxt(debuglog, n_matches)
-    print >>debuglog, "\n\n\n\n\n"
+    if (debuglogfile != None):
+        debuglog = open(debuglogfile, "w")
+        numpy.savetxt(debuglog, n_matches)
+        print >>debuglog, "\n\n\n\n\n"
 
-    numpy.savetxt(debuglog, n_multiple)
-    print >>debuglog, "\n\n\n\n\n"
+        numpy.savetxt(debuglog, n_multiple)
+        print >>debuglog, "\n\n\n\n\n"
 
     # Go through the list of possible shifts and sum up all shifts in the neighborhood
     d_neighbor = 5.0 / 3600.
+    d_ra = d_neighbor / math.cos(math.radians(declination))
+    d_dec = d_neighbor
     for i in range(n_multiple.shape[0]):
-        nearby = (total_sum[:,0] > total_sum[i,0]-d_neighbor) & (total_sum[:,0] < total_sum[i,0]+d_neighbor) \
-            & (total_sum[:,1] > total_sum[i,1]-d_neighbor) & (total_sum[:,1] < total_sum[i,1]+d_neighbor)
+        nearby = (total_sum[:,0] > total_sum[i,0]-d_ra) & (total_sum[:,0] < total_sum[i,0]+d_ra) \
+            & (total_sum[:,1] > total_sum[i,1]-d_dec) & (total_sum[:,1] < total_sum[i,1]+d_dec)
         total_sum[i,2] = numpy.sum(n_multiple[:,0][nearby])
 
-    numpy.savetxt(debuglog, total_sum)
+    if (debuglogfile != None):
+        numpy.savetxt(debuglog, total_sum)
+        print >>debuglog, "\n\n\n\n\n"
 
     # Sort the values to make it easy to find the maximum
     #si = numpy.argsort(total_sum[:,2])
@@ -774,7 +779,7 @@ def optimize_shift(n_matches, verbose=False):
     # To find some level of uncertainty, determine the maximum shift positions with 
     # a match-count above 10% of the maximum 
     
-    within_fmax = total_sum[:,2] > 0.1*max_matches
+    within_fmax = total_sum[:,2] > 0.5*max_matches #0.1*max_matches
     dxmin, dxmax = numpy.min(total_sum[:,0][within_fmax]), numpy.max(total_sum[:,0][within_fmax])
     dymin, dymax = numpy.min(total_sum[:,1][within_fmax]), numpy.max(total_sum[:,1][within_fmax])
     dr = numpy.sqrt( (dxmax-dxmin)**2 + (dymax-dymin)**2 )
@@ -787,20 +792,24 @@ def optimize_shift(n_matches, verbose=False):
     # determine some contrast level: peak number of matches in this 
     # peak relative to the maximum number of matches in the next-highest peak
 
-    outside_peak = (total_sum[:,0] < best_guess[0]-d_neighbor) | (total_sum[:,0] > best_guess[0]+d_neighbor) | \
-        (total_sum[:,1] < best_guess[1]-d_neighbor) | (total_sum[:,1] > best_guess[1]+d_neighbor)
+    outside_peak = (total_sum[:,0] < best_guess[0]-2*d_neighbor) | (total_sum[:,0] > best_guess[0]+2*d_neighbor) | \
+        (total_sum[:,1] < best_guess[1]-2*d_neighbor) | (total_sum[:,1] > best_guess[1]+2*d_neighbor)
     secondary_solutions = total_sum[outside_peak]
     second_peak_idx = numpy.argmax(secondary_solutions[:,2])
     second_peak = secondary_solutions[second_peak_idx,:]
 
-    contrast = best_guess[2] / second_peak[2]
-    
+    contrast = 1.0 * float(best_guess[2]) / float(second_peak[2])
+
+    if (debuglogfile != None):
+        numpy.savetxt(debuglog, secondary_solutions)
+  
     if (verbose): 
         print "secondary peak:", second_peak
         print "contrast:", contrast
 
 
-    debuglog.close()
+    if (debuglogfile != None):
+        debuglog.close()
 
     return best_guess, contrast, [dr, dxmin, dxmax, dymin, dymax]
 
