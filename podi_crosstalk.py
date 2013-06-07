@@ -1,5 +1,5 @@
 
-x0 = 1e-5
+x0 = 1.2e-4
 
 xtalk_coeffs = {
 
@@ -88,8 +88,8 @@ xtalk_coeffs = {
      ), # end OTA33
 }
 
+xtalk_coeffs['OTA34.SCI'] = xtalk_coeffs['OTA33.SCI']
 xtalk_coeffs['OTA32.SCI'] = xtalk_coeffs['OTA33.SCI']
-xtalk_coeffs['OTA31.SCI'] = xtalk_coeffs['OTA33.SCI']
 xtalk_coeffs['OTA44.SCI'] = xtalk_coeffs['OTA33.SCI']
 xtalk_coeffs['OTA43.SCI'] = xtalk_coeffs['OTA33.SCI']
 xtalk_coeffs['OTA42.SCI'] = xtalk_coeffs['OTA33.SCI']
@@ -107,6 +107,8 @@ xtalk_matrix = {}
 import numpy
 
 def invert_all_xtalk():
+    global xtalk_matrix
+
     for ota in xtalk_coeffs:
         print ota
         ota_matrices = []
@@ -120,3 +122,5 @@ def invert_all_xtalk():
         xtalk_matrix[ota] = ota_matrices
 
 
+
+invert_all_xtalk()
