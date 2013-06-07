@@ -68,6 +68,14 @@ if __name__ == "__main__":
     
     hardcoded_detsec = cmdline_arg_isset("-hard_detsec")
 
+    user_wcs_offset = None
+    if (cmdline_arg_isset("-wcsoffset")):
+        tmp = get_cmdline_arg("-wcsoffset")
+        items = tmp.split(',')
+        user_wcs_offset = [float(items[0]), float(items[1])]
+        stdout_write("Applying a user-defined WCS offset of %.3f, %.3f degrees\n" % (user_wcs_offset[0], user_wcs_offset[1]))
+    
+
     # Now loop over all files and run collectcells
     for folder in filelist:
         if (folder[-1] == "/"):
@@ -105,7 +113,8 @@ if __name__ == "__main__":
                          wcs_solution=wcs_solution,
                          fixwcs=fixwcs,
                          hardcoded_detsec=hardcoded_detsec,
-                         clobber_mode=clobber_mode)
+                         clobber_mode=clobber_mode,
+                         user_wcs_offset=user_wcs_offset)
         except:
             stdout_write("\n\n##############################\n#\n# Something terrible happened!\n")
             etype, error, stackpos = sys.exc_info()
