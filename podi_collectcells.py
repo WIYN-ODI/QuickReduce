@@ -35,6 +35,8 @@ import podi_findstars
 import podi_search_ipprefcat
 import podi_fixwcs
 import podi_sitesetup as sitesetup
+import podi_crosstalk
+
 from astLib import astWCS
 
 fix_cpu_count = False
@@ -134,6 +136,46 @@ def collect_reduce_ota(filename,
         cards = hdulist[0].header.ascardlist()
         for c in cards:
             hdu.header.update(c.key, c.value, c.comment)
+
+        # 
+        # Perform cross-talk correction, using coefficients found in the 
+        # podi_crosstalk package.
+        #
+        # Procedure: 
+        # Correct all frames for the crosstalk, then write them back into the 
+        # original OTA position so we can perform the overscan subtraction etc.
+        #
+
+        # Allocate some memory for the cells in one row
+        xtalk_corr = [None] * 8
+
+        #print podi_crosstalk.xtalk_matrix
+        #sys.exit(0)
+
+        # Now go through each of the 8 lines
+        for row in range(8):
+            for column in range(8):
+                
+                # Allocate some more memory to hold the output of the cross-talk 
+                # correction of this frame
+                xtalk_corr[column] = numpy.zeros(hdulist[1].data.shape)
+
+                for xtalk_column in range(8):
+                    # Construct the name of each cell that's causing the crosstalk
+                    xy_name = "xy%d%d" % (xtalk_column, row)
+
+                    # Now go through the list of all cells in this row and add them to 
+                    # the corrected cell content output
+                    #print "Adding ",xy_name,"to ",extname, column, row, "(scaling",podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column],")"
+                    xtalk_corr[column] += hdulist[xy_name].data * podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column]
+                    #print xtalk_corr[column][100,100]
+
+            for column in range(8):
+                # Now all cells in this row have been corrected, let's write them 
+                # back into the hdulist so can can continue with the overscan subtraction etc.
+                xy_name = "xy%d%d" % (column, row)
+                hdulist[xy_name].data = xtalk_corr[column]
+
 
         #
         # Allocate memory for the merged frame, and set all pixels by default to NaN.
