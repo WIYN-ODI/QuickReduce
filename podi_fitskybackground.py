@@ -9,6 +9,7 @@ import os
 import pyfits
 import numpy
 import scipy
+import scipy.stats
 import scipy.interpolate
 import math
 
@@ -182,145 +183,179 @@ def fit_background(hdulist, plotname=None, exclude_videocells=True, fit_order=3,
 
     #print "#points=",skypoints.shape
     
+    #print "#\n#\n#\nfitorder=",fit_order,"\n\#\n#\n"
 
-    #
-    # Fit a polynomial to the sky-background
-    # coordinates are still Ra/Dec for now
-    #
-    stdout_write("Creating global background map ...")
-    x, y, z = skypoints[:,0], skypoints[:,1], skypoints[:,4]
-    
-    # Fit a 3rd order, 2d polynomial
-    m = polyfit2d(x,y,z, order=3)
+    if (True): #fit_order <= 1):
 
-    # Evaluate it on a grid...
-    nx, ny = 50, 50
-    xx, yy = numpy.meshgrid(numpy.linspace(x.min(), x.max(), nx), 
-                         numpy.linspace(y.min(), y.max(), ny))
-    zz = polyval2d(xx, yy, m)
+        stdout_write("Doing some simple bg-subtraction...\n")
 
-    # Plot
-    #print x.max(), x.min()
-    #print y.min(), y.max()
-    #print xx.min(), xx.max()
-    #print zz
-    #print x.min(), y.max(), x.max(), y.min()
-    #matplotlib.pyplot.imshow(zz, extent=(x.min(), x.max(), y.min(), y.max()), origin='lower')
-    if (plotname != None and (makeplots=="global" or makeplots=="all")):
-        vmin = zz.min()
-        vmax = zz.max()
-        matplotlib.pyplot.imshow(zz, 
-                                 extent=(minmax_radec[0], minmax_radec[1], minmax_radec[2], minmax_radec[3]), 
-                                 origin='lower',
-                                 vmin=vmin, vmax=vmax)
-        matplotlib.pyplot.colorbar()
-        matplotlib.pyplot.scatter(x, y, c=z, linewidth=0, vmin=vmin, vmax=vmax)
-        #matplotlib.pyplot.scatter(all_ra, all_dec, s=2, marker=',')
-        matplotlib.pyplot.title("Global sky-background fit")
-        matplotlib.pyplot.xlabel("RA [degrees]")
-        matplotlib.pyplot.ylabel("DEC [degrees]")
-        matplotlib.pyplot.show()
-        matplotlib.pyplot.savefig(plotname+".globalskyfit.png")
-        matplotlib.pyplot.close()
-
-    stdout_write(" done!\n")
-
-    #dump = open("skyfit.dump.fit2", "w")
-    #for x in range(nx):
-    #    for y in range(ny):
-    #        print >>dump, xx[x,y], yy[x,y], zz[x,y]
-    #dump.close()
-
-    
-    # 
-    # Now that we have the sky as fct of Ra/Dec, convert it to x/y OTA by OTA
-    #
-    hdulist_out = [hdulist[0]]
-    for ota in otas_to_fit:
-
-        ext_name = "OTA%02d.SCI" % (ota)
-        stdout_write("\rOTA %s: " % (ext_name))
-        wcs = astWCS.WCS(hdulist[ext_name].header, mode="pyfits")
-        max_xy = hdulist[ext_name].data.shape
-
-
-        # Sample the x/y grid with n steps
-        n = 30
-        # Use 20 points in each axis, sampling the OTA in a total of 20x20=400 points
-        #ota_xx, ota_yy = numpy.meshgrid(numpy.linspace(1, max_xy[0], n), 
-        #                                numpy.linspace(1, max_xy[1], n))
-
-        overlap = int(0.05 * max_xy[0])
-        ota_xx, ota_yy = numpy.meshgrid(numpy.linspace(-overlap, max_xy[0]+overlap, n), 
-                                numpy.linspace(-overlap, max_xy[1]+overlap, n))
-
-        #print "otaxx/yy.shape=",ota_xx.shape, ota_yy.shape
-        #print ota_xx
-
-        # Convert x/y into ra/dec ...
-        ra, dec = numpy.zeros_like(ota_xx), numpy.zeros_like(ota_yy)
-        ij = itertools.product(range(n), range(n))
-        for (i,j) in ij:
-            ra[i,j], dec[i,j] = wcs.pix2wcs(ota_xx[i,j], ota_yy[i,j])
-
-        # ... and look up the points from the sky-grid
-        sky_radec = polyval2d(ra, dec, m)
-        #print ra[0,0], dec[0,0]
-
-        #vmin, vmax = sky_radec.min(), sky_radec.max()
-
-        #matplotlib.pyplot.close()
-        #matplotlib.pyplot.imshow(xx, yy, zz, extent=(xx.min(), xx.max(), yy.min(), yy.max()), origin='lower')
-        #matplotlib.show()
-
-        #matplotlib.pyplot.close()
-
-        x = open("dummy", "w")
-        numpy.savetxt(x, sky_radec)
-        x.close()
-
-        #print "ra/dec/xy shapes:",ra.shape, dec.shape, sky_radec.shape, xx.shape, yy.shape
-
-        # Now use the new 20x20 grid to interpolate the sky-background as a function of x/y
-        stdout_write("Creating interpolation ...")
-        f = scipy.interpolate.interp2d(ota_xx, ota_yy, sky_radec, kind='linear') #cubic')
-
-        # Create the full resolution grid
-        full_xx = numpy.linspace(1, max_xy[0], max_xy[0])
-        full_yy = numpy.linspace(1, max_xy[1], max_xy[1])
-
-        stdout_write(" performing interpolation ...")
-        fullres_z = f(full_xx, full_yy)
+        skylevels = skypoints[:,4]
+        valid = numpy.isfinite(skylevels)
         
-        if (plotname != None and (makeplots=="ota" or makeplots=="all")):
-            stdout_write(" plotting ...")
-            #print "ra,dec, sky_radec", ra.shape, dec.shape, sky_radec.shape
-            matplotlib.pyplot.scatter(ra, dec, c=sky_radec, vmin=vmin, vmax=vmax)
-            #                          extent=(minmax_radec[0], minmax_radec[1], minmax_radec[2], minmax_radec[3]))
+        # Do some iterative sigma-clipping to get rid of outliers
+        median = 0
+        for repeat in range(3):
+            median = numpy.median(skylevels[valid])
+            low_sigma = scipy.stats.scoreatpercentile(skylevels[valid], 16)
+            hi_sigma = scipy.stats.scoreatpercentile(skylevels[valid], 84)
+            sigma = 0.5 * (hi_sigma - low_sigma)
+            min_value = median - 3 * sigma
+            max_value = median + 3 * sigma
+            valid = (skylevels > min_value) & (skylevels < max_value)
+            if (numpy.sum(valid) < 0.1 * skypoints.shape[0]):
+                break
+
+        hdulist_out = [hdulist[0]]
+        for ota in otas_to_fit:
+            ext_name = "OTA%02d.SCI" % (ota)
+            stdout_write("\rOTA %s: " % (ext_name))
+            cellmode = hdulist[ext_name].header['CELLMODE']
+            if (cellmode.find("V") >= 0):
+                continue
+            hdulist[ext_name].data -= median
+            hdulist[ext_name].header.update("BGLVLCST", median, "constant background level")
+            hdulist_out.append(hdulist[ext_name])
+        stdout_write(" done!\n")
+
+    else:
+        #
+        # Fit a polynomial to the sky-background
+        # coordinates are still Ra/Dec for now
+        #
+        stdout_write("Creating global background map ...")
+        x, y, z = skypoints[:,0], skypoints[:,1], skypoints[:,4]
+
+        # Fit a 3rd order, 2d polynomial
+        m = polyfit2d(x,y,z, order=3)
+
+        # Evaluate it on a grid...
+        nx, ny = 50, 50
+        xx, yy = numpy.meshgrid(numpy.linspace(x.min(), x.max(), nx), 
+                             numpy.linspace(y.min(), y.max(), ny))
+        zz = polyval2d(xx, yy, m)
+
+        # Plot
+        #print x.max(), x.min()
+        #print y.min(), y.max()
+        #print xx.min(), xx.max()
+        #print zz
+        #print x.min(), y.max(), x.max(), y.min()
+        #matplotlib.pyplot.imshow(zz, extent=(x.min(), x.max(), y.min(), y.max()), origin='lower')
+        if (plotname != None and (makeplots=="global" or makeplots=="all")):
+            vmin = zz.min()
+            vmax = zz.max()
+            matplotlib.pyplot.imshow(zz, 
+                                     extent=(minmax_radec[0], minmax_radec[1], minmax_radec[2], minmax_radec[3]), 
+                                     origin='lower',
+                                     vmin=vmin, vmax=vmax)
             matplotlib.pyplot.colorbar()
-            matplotlib.pyplot.title("Local OTA sky-background fit")
+            matplotlib.pyplot.scatter(x, y, c=z, linewidth=0, vmin=vmin, vmax=vmax)
+            #matplotlib.pyplot.scatter(all_ra, all_dec, s=2, marker=',')
+            matplotlib.pyplot.title("Global sky-background fit")
             matplotlib.pyplot.xlabel("RA [degrees]")
             matplotlib.pyplot.ylabel("DEC [degrees]")
-            matplotlib.pyplot.show(block=True)
-            matplotlib.pyplot.savefig(plotname+".skyfit_"+ext_name+".png")
+            matplotlib.pyplot.show()
+            matplotlib.pyplot.savefig(plotname+".globalskyfit.png")
             matplotlib.pyplot.close()
 
-
-            matplotlib.pyplot.imshow(fullres_z, vmin=vmin, vmax=vmax, origin='lower')
-            matplotlib.pyplot.scatter(ota_xx, ota_yy, c=sky_radec, vmin=vmin, vmax=vmax)
-            #                          extent=(minmax_radec[0], minmax_radec[1], minmax_radec[2], minmax_radec[3]))
-            matplotlib.pyplot.colorbar()
-            matplotlib.pyplot.title("Local OTA sky-background fit")
-            matplotlib.pyplot.xlabel("X [pixels]")
-            matplotlib.pyplot.ylabel("Y [pixels]")
-            matplotlib.pyplot.show(block=True)
-            matplotlib.pyplot.savefig(plotname+".skyfit_"+ext_name+"_1.png")
-            matplotlib.pyplot.close()
-        
-
-        hdulist[ext_name].data -= fullres_z
         stdout_write(" done!\n")
-        hdulist_out.append(hdulist[ext_name])
+
+        #dump = open("skyfit.dump.fit2", "w")
+        #for x in range(nx):
+        #    for y in range(ny):
+        #        print >>dump, xx[x,y], yy[x,y], zz[x,y]
+        #dump.close()
+
+
+        # 
+        # Now that we have the sky as fct of Ra/Dec, convert it to x/y OTA by OTA
+        #
+        hdulist_out = [hdulist[0]]
+        for ota in otas_to_fit:
+
+            ext_name = "OTA%02d.SCI" % (ota)
+            stdout_write("\rOTA %s: " % (ext_name))
+            wcs = astWCS.WCS(hdulist[ext_name].header, mode="pyfits")
+            max_xy = hdulist[ext_name].data.shape
+
+
+            # Sample the x/y grid with n steps
+            n = 30
+            # Use 20 points in each axis, sampling the OTA in a total of 20x20=400 points
+            #ota_xx, ota_yy = numpy.meshgrid(numpy.linspace(1, max_xy[0], n), 
+            #                                numpy.linspace(1, max_xy[1], n))
+
+            overlap = int(0.05 * max_xy[0])
+            ota_xx, ota_yy = numpy.meshgrid(numpy.linspace(-overlap, max_xy[0]+overlap, n), 
+                                    numpy.linspace(-overlap, max_xy[1]+overlap, n))
+
+            #print "otaxx/yy.shape=",ota_xx.shape, ota_yy.shape
+            #print ota_xx
+
+            # Convert x/y into ra/dec ...
+            ra, dec = numpy.zeros_like(ota_xx), numpy.zeros_like(ota_yy)
+            ij = itertools.product(range(n), range(n))
+            for (i,j) in ij:
+                ra[i,j], dec[i,j] = wcs.pix2wcs(ota_xx[i,j], ota_yy[i,j])
+
+            # ... and look up the points from the sky-grid
+            sky_radec = polyval2d(ra, dec, m)
+            #print ra[0,0], dec[0,0]
+
+            #vmin, vmax = sky_radec.min(), sky_radec.max()
+
+            #matplotlib.pyplot.close()
+            #matplotlib.pyplot.imshow(xx, yy, zz, extent=(xx.min(), xx.max(), yy.min(), yy.max()), origin='lower')
+            #matplotlib.show()
+
+            #matplotlib.pyplot.close()
+
+            x = open("dummy", "w")
+            numpy.savetxt(x, sky_radec)
+            x.close()
+
+            #print "ra/dec/xy shapes:",ra.shape, dec.shape, sky_radec.shape, xx.shape, yy.shape
+
+            # Now use the new 20x20 grid to interpolate the sky-background as a function of x/y
+            stdout_write("Creating interpolation ...")
+            f = scipy.interpolate.interp2d(ota_xx, ota_yy, sky_radec, kind='linear') #cubic')
+
+            # Create the full resolution grid
+            full_xx = numpy.linspace(1, max_xy[0], max_xy[0])
+            full_yy = numpy.linspace(1, max_xy[1], max_xy[1])
+
+            stdout_write(" performing interpolation ...")
+            fullres_z = f(full_xx, full_yy)
+
+            if (plotname != None and (makeplots=="ota" or makeplots=="all")):
+                stdout_write(" plotting ...")
+                #print "ra,dec, sky_radec", ra.shape, dec.shape, sky_radec.shape
+                matplotlib.pyplot.scatter(ra, dec, c=sky_radec, vmin=vmin, vmax=vmax)
+                #                          extent=(minmax_radec[0], minmax_radec[1], minmax_radec[2], minmax_radec[3]))
+                matplotlib.pyplot.colorbar()
+                matplotlib.pyplot.title("Local OTA sky-background fit")
+                matplotlib.pyplot.xlabel("RA [degrees]")
+                matplotlib.pyplot.ylabel("DEC [degrees]")
+                matplotlib.pyplot.show(block=True)
+                matplotlib.pyplot.savefig(plotname+".skyfit_"+ext_name+".png")
+                matplotlib.pyplot.close()
+
+
+                matplotlib.pyplot.imshow(fullres_z, vmin=vmin, vmax=vmax, origin='lower')
+                matplotlib.pyplot.scatter(ota_xx, ota_yy, c=sky_radec, vmin=vmin, vmax=vmax)
+                #                          extent=(minmax_radec[0], minmax_radec[1], minmax_radec[2], minmax_radec[3]))
+                matplotlib.pyplot.colorbar()
+                matplotlib.pyplot.title("Local OTA sky-background fit")
+                matplotlib.pyplot.xlabel("X [pixels]")
+                matplotlib.pyplot.ylabel("Y [pixels]")
+                matplotlib.pyplot.show(block=True)
+                matplotlib.pyplot.savefig(plotname+".skyfit_"+ext_name+"_1.png")
+                matplotlib.pyplot.close()
+
+
+            hdulist[ext_name].data -= fullres_z
+            stdout_write(" done!\n")
+            hdulist_out.append(hdulist[ext_name])
 
 
     hdu = pyfits.HDUList(hdulist_out)
@@ -356,6 +391,7 @@ if __name__ == "__main__":
                 stdout_write("#########################\n")
                 hdu_out = fit_background(hdulist, plotname, fit_order=fit_order, makeplots=plotting)
                 stdout_write("Writing output file %s ..." % (outfile))
+                clobberfile(outfile)
                 hdu_out.writeto(outfile, clobber=True)
                 stdout_write(" done!\n")
     else:
