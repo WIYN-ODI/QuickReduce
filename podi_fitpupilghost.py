@@ -149,6 +149,10 @@ def fit_pupilghost(data_fullres, center, radius_range, dr_full,
     r_inner /= binfac
     r_outer /= binfac
 
+    # Allocate some memory to hold the template
+    template = numpy.zeros(shape=(9000,9000))
+    template_binned, template_radius, template_angle = get_radii_angles(template, (4500,4500), 4)
+
     # Bin data, convert into polar coordinates
     data, radius, angle = get_radii_angles(data_fullres, center, binfac)
     
@@ -293,6 +297,14 @@ def fit_pupilghost(data_fullres, center, radius_range, dr_full,
         pupil_sub_hdu = pyfits.PrimaryHDU(data = pupil_sub)
         pupil_sub_hdu.writeto("pupilsub.fits", clobber=True)
 
+
+    template_radius_1d = template_radius.ravel()
+    template_radial = radial_profile(template_radius.ravel()).reshape(template_radius.shape)
+    template_radial[(template_radius > r_outer) | (template_radius < r_inner)] = 0
+    pupil_sub_hdu = pyfits.PrimaryHDU(data = template_radial)
+    pupil_sub_hdu.writeto("template_radial.fits", clobber=True)
+
+    sys.exit(0)
 
     #------------------------------------------------------------------------------
     #
