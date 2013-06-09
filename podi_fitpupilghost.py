@@ -110,24 +110,18 @@ def get_median_level(data, radii, ri, ro):
     return median, pixelcount
 
 
-def fit_pupilghost(data_fullres, center, radius_range, dr_full, 
-                   write_intermediate=False, show_plots=False):
 
+
+def get_radii_angles(data_fullres, center, binfac):
 
     #
     # Rebin the image 4x to speed up calculations (the pupil ghost 
     # doesn't vary on small scales, so this is ok to do)
     #
-    binfac = 4
-    dr = dr_full/binfac
     data = rebin_image(data_fullres, binfac)
 
     center_x, center_y = center
     
-    r_inner, r_outer = radius_range
-    r_inner /= binfac
-    r_outer /= binfac
-
     #
     # Convert x/y coordinates to polar coordinates
     #
@@ -139,6 +133,25 @@ def fit_pupilghost(data_fullres, center, radius_range, dr_full,
     radius = numpy.sqrt(dx*dx + dy*dy)
     angle = numpy.arctan2(dx, dy)
 
+    return data, radius, angle
+
+
+def fit_pupilghost(data_fullres, center, radius_range, dr_full, 
+                   write_intermediate=False, show_plots=False):
+
+
+    # Choose binning of raw-data to speed up computation
+    binfac = 4
+
+    # Compute the radial bin size in binned pixels
+    dr = dr_full/binfac
+    r_inner, r_outer = radius_range
+    r_inner /= binfac
+    r_outer /= binfac
+
+    # Bin data, convert into polar coordinates
+    data, radius, angle = get_radii_angles(data_fullres, center, binfac)
+    
     # write some intermediate data products
     if (write_intermediate):
         raw_hdu = pyfits.PrimaryHDU(data=data)
@@ -214,6 +227,9 @@ def fit_pupilghost(data_fullres, center, radius_range, dr_full,
         bgsub_hdu = pyfits.PrimaryHDU(data=bg_sub)
         bgsub_hdu.writeto("bgsub.fits", clobber=True)
     
+
+
+
 
     #------------------------------------------------------------------------------
     #
