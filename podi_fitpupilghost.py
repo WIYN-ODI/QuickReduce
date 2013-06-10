@@ -136,7 +136,27 @@ def get_radii_angles(data_fullres, center, binfac):
     return data, radius, angle
 
 
-def fit_pupilghost(hdus, centers, radius_range, dr_full, 
+def merge_OTAs(hdus, centers):
+
+    combined = numpy.zeros(shape=(9000,9000))
+    combined[:,:] = numpy.NaN
+
+    for i in range(len(hdus)):
+
+        stdout_write("Adding OTA %s ...\n" % (hdus[i].header['EXTNAME']))
+
+        # Use center position to add the new frame into the combined frame
+        # bx, by are the pixel position of the bottom left corner of the frame to be inserted
+        bx = combined.shape[0] / 2 - centers[i][0]
+        by = combined.shape[1] / 2 - centers[i][1]
+        print bx, by
+        tx, ty = bx + hdus[i].data.shape[0], by + hdus[i].data.shape[1]
+
+        combined[bx:tx, by:ty] = hdus[i].data[:,:]
+
+    return combined
+
+def fit_pupilghost(hdus, centers, rotator_angles, radius_range, dr_full, 
                    write_intermediate=True, show_plots=False):
 
 
@@ -153,38 +173,10 @@ def fit_pupilghost(hdus, centers, radius_range, dr_full,
     template = numpy.zeros(shape=(9000,9000))
     template_binned, template_radius, template_angle = get_radii_angles(template, (4500,4500), 4)
 
-    combined = numpy.zeros(shape=(9000,9000))
-    combined[:,:] = numpy.NaN
+    combined = merge_OTAs(hdus, centers)
+    data, radius, angle = get_radii_angles(combined, (combined.shape[0]/2, combined.shape[1]/2), binfac)
+    angle -= rotator_angles[0]
 
-    data, radius, angle = None, None, None
-    for i in range(len(hdus)):
-
-        stdout_write("Adding OTA %s ...\n" % (hdus[i].header['EXTNAME']))
-
-        # Use center position to add the new frame into the combined frame
-        # bx, by are the pixel position of the bottom left corner of the frame to be inserted
-        bx = template.shape[0] / 2 - centers[i][0]
-        by = template.shape[1] / 2 - centers[i][1]
-        print bx, by
-        tx, ty = bx + hdus[i].data.shape[0], by + hdus[i].data.shape[1]
-
-        combined[bx:tx, by:ty] = hdus[i].data[:,:]
-        continue
-
-        # Bin data, convert into polar coordinates
-        _data, _radius, _angle = get_radii_angles(hdus[i].data, centers[i], binfac)
-
-        if (data == None):
-            data = _data
-            radius = _radius
-            angle = _angle
-        else:
-            data = numpy.append(data, _data, axis=0)
-            radius = numpy.append(radius, _radius, axis=0)
-            angle = numpy.append(angle, _angle, axis=0)
-
-        #data_fullres, center, binfac)
-    
     # write some intermediate data products
     if (write_intermediate):
         raw_hdu = pyfits.PrimaryHDU(data=data)
@@ -704,6 +696,8 @@ if __name__ == "__main__":
     for i in range(1, len(hdu_ref)):
 
         extname = hdu_ref[i].header['EXTNAME']
+        rotator_angles = [hdu_ref[0].header['ROTOFF']]
+
         if (extname in pupilghost_centers):
             center_x, center_y = pupilghost_centers[extname]
 
@@ -717,7 +711,7 @@ if __name__ == "__main__":
             hdus.append(hdu_ref[i])
             centers.append((center_y, center_x))
 
-    correction = fit_pupilghost(hdus, centers, (r_inner, r_outer), dr)
+    correction = fit_pupilghost(hdus, centers, rotator_angles, (r_inner, r_outer), dr)
 
             #hdu_ref[i].data = correction
             #hdulist_out.append(hdu_ref[i])
