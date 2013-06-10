@@ -126,7 +126,7 @@ def get_radii_angles(data_fullres, center, binfac):
     #
     # Convert x/y coordinates to polar coordinates
     #
-    print "Computing radii"
+    stdout_write("   Computing radii ...\n")
     x, y = numpy.indices(data.shape)
     dx = x - center_x/binfac
     dy = y - center_y/binfac
@@ -142,7 +142,7 @@ def merge_OTAs(hdus, centers):
     combined = numpy.zeros(shape=(9000,9000))
     combined[:,:] = numpy.NaN
 
-    stdout_write("Adding OTA")
+    stdout_write("   Adding OTA")
     for i in range(len(hdus)):
 
         #stdout_write("Adding OTA %s ...\n" % (hdus[i].header['EXTNAME']))
@@ -218,7 +218,7 @@ def subtract_background(data, radius, angle, radius_range, binfac):
     # Compute the background level as a linear interpolation of the levels 
     # inside and outside of the pupil ghost
     #
-    print "Computing background-level ..."
+    print "   Computing background-level ..."
     # Define the background ring levels
     radii = numpy.arange(0, max_radius, dr)
     background_levels = numpy.zeros(shape=(n_radii))
@@ -257,7 +257,7 @@ def subtract_background(data, radius, angle, radius_range, binfac):
 
     pfinal = out[0]
     covar = out[1]
-    print "Best-fit: %.2f + %f * x" % (pfinal[0], pfinal[1])
+    stdout_write(" best-fit: %.2e + %.3e * x\n" % (pfinal[0], pfinal[1]))
     #print pfinal
     #print covar
 
@@ -314,7 +314,7 @@ def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
 
     pupil_sub = fit_radial_profile(all_data, all_radius, all_angle, all_bgsub, radius_range)
 
-    fit_nonradial_profiles(data, radius, angle, bgsub, pupil_sub, radius_range)
+    fit_azimuthal_profiles(data, radius, angle, bgsub, pupil_sub, radius_range)
 
     return
 
@@ -407,8 +407,107 @@ def fit_radial_profile(data, radius, angle, bgsub, radius_range):
 
 
 
-def fit_nonradial_profiles(data, radius, angle, bgsub, pupil_sub, radius_range):
+def fit_azimuthal_profiles(data, radius, angle, bgsub, pupil_sub, radius_range):
+    show_plots = False
 
+    #------------------------------------------------------------------------------
+    #
+    # Now we have only the non-radial components of the pupil ghost left
+    #
+    #------------------------------------------------------------------------------
+
+    stdout_write("\nComputing azimuthal profiles ...\n")
+
+    r_inner, r_outer, dr_full = radius_range
+    dr = dr_full/binfac
+    r_inner /= binfac
+    r_outer /= binfac
+
+    n_radii = int(math.ceil(r_outer / dr))
+  
+    min_r = 0
+    max_r = 1e6
+
+    radial_splines = [None] * n_radii
+    for cur_radius in range(n_radii):
+
+        ri = cur_radius * dr
+        ro = ri + dr
+
+        # Make sure we ignore points outside the pupil ghost area
+        if (ri < r_outer and ro > r_inner):
+            ri = numpy.max([ri, r_inner])
+            ro = numpy.min([ro, r_outer])
+            min_r = numpy.min([min_r, cur_radius])
+            max_r = numpy.max([max_r, cur_radius])
+        else:
+            continue
+
+        # Keep user informed and happy
+        sys.stdout.write("\rFitting azimuthal profile in ring %d - %d" % (int(ri), int(ro)))
+        sys.stdout.flush()
+
+        # Get all pixels in this ring
+        pixels_in_ring = (radius >= ri) & (radius < ro)
+        ring_angles = angle[pixels_in_ring]
+        ring_data   = pupil_sub[pixels_in_ring]
+
+        # Eliminate all NaN pixels
+        valid_pixels_in_ring = numpy.isfinite(ring_data)
+
+        #
+        # Get min and max angles
+        #
+        min_angle = 0
+        max_angle = 2 * numpy.pi
+        # min_angle = numpy.min(ring_angles[valid_pixels_in_ring])
+        # max_angle = numpy.max(ring_angles[valid_pixels_in_ring])
+
+        # Select valid pixels 
+        valid_angles = ring_angles[valid_pixels_in_ring]
+        valid_data   = ring_data[valid_pixels_in_ring]
+
+        # compute the mean angle difference between two points
+        mean_da = (max_angle - min_angle) / valid_angles.shape[0]
+
+        # Select knots for the spline fitting
+        number_knots = numpy.sum(valid_pixels_in_ring) / 100
+        if (number_knots < 30): number_knots = 30
+        angle_knots = numpy.linspace(min_angle, max_angle, number_knots) 
+
+        # Now eliminate knots in regions with no data
+        for i in range(angle_knots.shape[0]):
+            diff_angle = numpy.fabs(angle_knots[i] - valid_angles)
+            min_diffangle = numpy.min(diff_angle)
+            if (min_diffangle > 3 * mean_da or angle_knots[i] <= min_angle or angle_knots[i] >= max_angle):
+                angle_knots[i] = numpy.NaN
+        good_angle_knots = angle_knots[numpy.isfinite(angle_knots)]
+
+        # sort all points in this ring, otherwise LSQUnivariateSplie chokes
+        si = numpy.argsort(valid_angles)
+        sorted_angles = numpy.zeros(valid_angles.shape)
+        sorted_data   = numpy.zeros(valid_data.shape)
+        for i in range(si.shape[0]):
+            sorted_angles[i] = valid_angles[si[i]]
+            sorted_data[i]   = valid_data[si[i]]
+        
+        # Fit spline
+        try:
+            az_profile = scipy.interpolate.LSQUnivariateSpline(sorted_angles, sorted_data, good_angle_knots, k=3)
+            radial_splines[cur_radius] = az_profile
+        except:
+            stdout_write("#\n# Serious problem found in ring %d - %d\n#\n" % (int(ri), int(ro)))
+
+        if (show_plots):
+            fine_profile_x = numpy.linspace(min_angle, max_angle, 1000)
+            fine_profile_y = az_profile(fine_profile_x)
+            plot.plot(ring_angles, ring_data, '+', color="#aaaaaa")
+            plot.plot(fine_profile_x, fine_profile_y)
+            plot.plot(angle_knots, angle_knots_y, 'x')
+            #plot.savefig("profile_az_%d-%d.png" % (ri,ro))
+            plot.close()
+
+    print " - done!"
 
     return
 
@@ -457,7 +556,7 @@ def fit_pupilghost(hdus, centers, rotator_angles, radius_range, dr_full,
     # Compute the background level as a linear interpolation of the levels 
     # inside and outside of the pupil ghost
     #
-    print "Computing background-level ..."
+    stdout_write("   Computing background-level ...")
     # Define the background ring levels
     radii = numpy.arange(0, max_radius, dr)
     background_levels = numpy.zeros(shape=(n_radii))
@@ -496,7 +595,7 @@ def fit_pupilghost(hdus, centers, rotator_angles, radius_range, dr_full,
 
     pfinal = out[0]
     covar = out[1]
-    print "Best-fit: %.2f + %f * x" % (pfinal[0], pfinal[1])
+    stdout_write(" best-fit: %.2f + %f * x\n" % (pfinal[0], pfinal[1]))
     #print pfinal
     #print covar
 
