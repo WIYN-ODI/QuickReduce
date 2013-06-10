@@ -13,6 +13,7 @@ import scipy.optimize
 
 from podi_definitions import *
 
+write_intermediate = True
 
 def add_circle(buffer, center_x, center_y, radius, amplitude):
 
@@ -155,6 +156,155 @@ def merge_OTAs(hdus, centers):
         combined[bx:tx, by:ty] = hdus[i].data[:,:]
 
     return combined
+
+
+def load_frame(filename, pupilghost_centers, binfac, bpmdir):
+
+    hdu_ref = pyfits.open(filename)
+
+    hdus = []
+    centers = []
+
+    rotator_angles = [hdu_ref[0].header['ROTOFF']]
+    stdout_write("Loading frame %s ...\n" % (filename))
+
+    for i in range(1, len(hdu_ref)):
+
+        extname = hdu_ref[i].header['EXTNAME']
+
+        if (extname in pupilghost_centers):
+            center_x, center_y = pupilghost_centers[extname]
+
+            stdout_write("Using center position %d, %d for OTA %s\n" % (center_y, center_x, extname))
+
+            data = hdu_ref[i].data
+            if (bpmdir != None):
+                bpmfile = "%s/bpm_xy%s.reg" % (bpmdir, extname[3:5])
+                mask_broken_regions(data, bpmfile, True)
+
+            hdus.append(hdu_ref[i])
+            centers.append((center_y, center_x))
+
+    combined = merge_OTAs(hdus, centers)
+    data, radius, angle = get_radii_angles(combined, (combined.shape[0]/2, combined.shape[1]/2), binfac)
+    angle -= rotator_angles[0]
+
+    hdu_ref.close()
+
+    return data, radius, angle
+
+
+def subtract_background(data, radius, angle, radius_range, binfac):
+
+    # Compute the radial bin size in binned pixels
+    r_inner, r_outer, dr_full = radius_range
+    dr = dr_full/binfac
+    r_inner /= binfac
+    r_outer /= binfac
+
+    #
+    # Compute the number of radial bins
+    #
+    # Here: Add some correction if the center position is outside the covered area
+    max_radius = 1.3 * r_outer #math.sqrt(data.shape[0] * data.shape[1])
+    # Splitting up image into a number of rings
+    n_radii = int(math.ceil(max_radius / dr))
+
+    #
+    # Compute the background level as a linear interpolation of the levels 
+    # inside and outside of the pupil ghost
+    #
+    print "Computing background-level ..."
+    # Define the background ring levels
+    radii = numpy.arange(0, max_radius, dr)
+    background_levels = numpy.zeros(shape=(n_radii))
+    background_level_errors = numpy.ones(shape=(n_radii)) * 1e9
+    background_levels[:] = numpy.NaN
+    for i in range(n_radii):
+
+        ri = i * dr
+        ro = ri + dr
+
+        if (ri < r_inner):
+            ro = numpy.min([ro, r_inner])
+        elif (ro > r_outer):
+            ri = numpy.max([ri, r_outer])
+        else:
+            # Skip the rings within the pupil ghost range for now
+            continue
+        
+        #print i, ri, ro
+        median, count = get_median_level(data, radius, ri, ro)
+        background_levels[i] = median
+        background_level_errors[i] = 1. / math.sqrt(count) if count > 0 else 1e9
+
+    # Now fit a straight line to the continuum, assuming it varies 
+    # only linearly (if at all) with radius
+    # define our (line) fitting function
+    
+    fitfunc = lambda p, x: p[0] + p[1] * x
+    errfunc = lambda p, x, y, err: (y - fitfunc(p, x)) / err
+
+    bg_for_fit = background_levels
+    bg_for_fit[numpy.isnan(background_levels)] = 0
+    pinit = [0.0, 0.0] # Assume no slope and constant level of 0
+    out = scipy.optimize.leastsq(errfunc, pinit,
+                           args=(radii, background_levels, background_level_errors), full_output=1)
+
+    pfinal = out[0]
+    covar = out[1]
+    print "Best-fit: %.2f + %f * x" % (pfinal[0], pfinal[1])
+    #print pfinal
+    #print covar
+
+    #
+    # Now we have the fit for the background, compute the 2d background 
+    # image and subtract it out
+    #
+    x = numpy.linspace(0, max_radius, 100)
+    y_fit = radii * pfinal[1] + pfinal[0]
+    background = pfinal[0] + pfinal[1] * radius
+    
+    bg_sub = data - background
+
+    if (write_intermediate):
+        bgsub_hdu = pyfits.PrimaryHDU(data=bg_sub)
+        bgsub_hdu.writeto("bgsub.fits", clobber=True)
+    
+    return bg_sub
+
+
+
+
+def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
+
+    all_data, all_radius, all_angle, all_bgsub = None, None, None, None
+
+    for filename in filenames:
+        # Load and prepare all files
+        data, radius, angle = load_frame(filename, pupilghost_centers, binfac, bpmdir)
+        bg_sub = subtract_background(data, radius, angle, radius_range, binfac)
+
+        # Create a master collection containing all files
+        if (all_data == None):
+            # If this is the first file, create the master list
+            all_data = data
+            all_radius = radius
+            all_angle = angle
+            all_bgsub = bg_sub
+        else:
+            # if we already have some entries, add the new ones to the collection
+            all_data = numpy.append(all_data, data, axis=0)
+            all_radius = numpy.append(all_radius, radius, axis=0)
+            all_angle = numpy.append(all_angle, angle, axis=0)
+            all_bgsub = numpy.append(all_bgsub, bgsub, axis=0)
+
+    #
+    # Now we have a collection of a bunch of files, possibly each with separate rotator angles
+    #
+
+    return
+
 
 def fit_pupilghost(hdus, centers, rotator_angles, radius_range, dr_full, 
                    write_intermediate=True, show_plots=False):
@@ -592,8 +742,7 @@ if __name__ == "__main__":
     r_outer = float(cmdline_arg_set_or_default("-ri", 4000))
     dr = float(cmdline_arg_set_or_default("-dr", 20))
     binfac = int(cmdline_arg_set_or_default("-prebin", 4))
-
-    hdu_ref = pyfits.open(template)
+    bpmdir = cmdline_arg_set_or_default("-bpm", None)
 
     # .1
     pupilghost_centers = {"OTA33.SCI": (4080, 4180),
@@ -686,7 +835,18 @@ if __name__ == "__main__":
                           "OTA43.SCI": (  10, 4130),
                           }
 
-    bpmdir = cmdline_arg_set_or_default("-bpm", None)
+
+    filenames = get_clean_cmdline()[1:-1]
+    output = get_clean_cmdline()[-1]
+
+    do_work(filenames, pupilghost_centers, binfac, (r_inner, r_outer, dr), bpmdir)
+
+    sys.exit(0)
+
+
+
+
+    hdu_ref = pyfits.open(template)
 
     hdulist_out = [hdu_ref[0]]
 
