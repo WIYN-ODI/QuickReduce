@@ -167,7 +167,7 @@ def load_frame(filename, pupilghost_centers, binfac, bpmdir):
     hdus = []
     centers = []
 
-    rotator_angles = [hdu_ref[0].header['ROTOFF']]
+    rotator_angle = math.radians(hdu_ref[0].header['ROTOFF'])
     stdout_write("\nLoading frame %s ...\n" % (filename))
 
     for i in range(1, len(hdu_ref)):
@@ -189,9 +189,9 @@ def load_frame(filename, pupilghost_centers, binfac, bpmdir):
 
     combined = merge_OTAs(hdus, centers)
     data, radius, angle = get_radii_angles(combined, (combined.shape[0]/2, combined.shape[1]/2), binfac)
-    angle -= rotator_angles[0]
+    angle -= rotator_angle
 
-    angle[angle < 0] += 360.
+    angle[angle < 0] += 2*numpy.pi
 
     hdu_ref.close()
 
@@ -218,7 +218,7 @@ def subtract_background(data, radius, angle, radius_range, binfac):
     # Compute the background level as a linear interpolation of the levels 
     # inside and outside of the pupil ghost
     #
-    print "   Computing background-level ..."
+    stdout_write("   Computing background-level ...")
     # Define the background ring levels
     radii = numpy.arange(0, max_radius, dr)
     background_levels = numpy.zeros(shape=(n_radii))
@@ -312,16 +312,76 @@ def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
     hdu = pyfits.PrimaryHDU(data = all_bgsub)
     hdu.writeto("all_bgsub.fits", clobber=True)
 
-    pupil_sub = fit_radial_profile(all_data, all_radius, all_angle, all_bgsub, radius_range)
+    pupil_sub, radial_profile, radial_2d = fit_radial_profile(all_data, all_radius, all_angle, all_bgsub, radius_range)
 
-    fit_azimuthal_profiles(data, radius, angle, bgsub, pupil_sub, radius_range)
+    # create_mapped_coordinates(all_data, all_radius, all_angle, all_bgsub, pupil_sub, radius_range, binfac)
+
+    azimuthal_fits = fit_azimuthal_profiles(data, radius, angle, bgsub, pupil_sub, radius_range)
+
+    
+    # 
+    # Now all the fitting is done, let's compute the output
+    #
+
+    # First get a fresh buffer of coordinates
+    outbuffer = numpy.zeros(shape=(9000,9000))
+    out_data, out_radius, out_angle = get_radii_angles(outbuffer, (outbuffer.shape[0]/2, outbuffer.shape[1]/2), binfac)
+
+    azimuthal_2d = compute_pupilghost(out_data, out_radius, out_angle, radius_range, 
+                                      azimuthal_fits)
+    
+    pyfits.PrimaryHDU(data=azimuthal_2d).writeto("fit_nonradial.fits", clobber=True)
+
+    # Compute the 2-d radial profile. The extreme values beyond the fitting radius 
+    # might be garbage, so set all pixels outside the pupil ghost radial range to 0
+    radial_2d = radial_profile(out_radius.ravel()).reshape(out_radius.shape)
+    radial_2d[(radius > r_outer) | (radius < r_inner)] = 0
+
+    pyfits.PrimaryHDU(data=radial_2d).writeto("fit_radial.fits", clobber=True)
+    try:
+        full_2d = azimuthal_2d + radial_2d
+        full_2d[full_2d<0] = 0
+
+        print "Writing data"
+        pyfits.PrimaryHDU(data=full_2d).writeto("fit_rad+nonrad.fits", clobber=True)
+    except:
+        pass
+
+    #leftover = bg_sub - fullprofile
+    #    pyfits.PrimaryHDU(data=leftover).writeto("fit_leftover.fits", clobber=True)
+
+
+    return
+
+    #------------------------------------------------------------------------------
+    #
+    # Until now the template is still binned, blow it up to the full resolution
+    #
+    #------------------------------------------------------------------------------
+
+
+    print "Interpolating to full resolution"
+    xb, yb = numpy.indices(data.shape)
+    
+    # Prepare the 2-d interpolation spline
+    interpol = scipy.interpolate.RectBivariateSpline(xb[:,0], yb[0,:], fullprofile)
+
+    # And use above spline to compute the full-resolution version
+    xo, yo = numpy.indices(data_fullres.shape)
+    xo = xo * 1.0 / data_fullres.shape[0] * data.shape[0]
+    yo = yo * 1.0 / data_fullres.shape[1] * data.shape[1]
+    correction = interpol(xo[:,0], yo[0,:]).reshape(data_fullres.shape)
+
+    return correction
+
+
 
     return
 
 
 
 def fit_radial_profile(data, radius, angle, bgsub, radius_range):
-    show_plots = True
+    show_plots = False
 
     #------------------------------------------------------------------------------
     #
@@ -394,7 +454,7 @@ def fit_radial_profile(data, radius, angle, bgsub, radius_range):
     pupil_sub_hdu = pyfits.PrimaryHDU(data = pupil_sub)
     pupil_sub_hdu.writeto("all_pupilsub.fits", clobber=True)
 
-    return pupil_sub
+    return pupil_sub, radial_profile, pupil_radial_2d
 
 #    template_radius_1d = template_radius.ravel()
 #    template_radial = radial_profile(template_radius.ravel()).reshape(template_radius.shape)
@@ -405,6 +465,53 @@ def fit_radial_profile(data, radius, angle, bgsub, radius_range):
 
     return
 
+
+
+import scipy.ndimage
+
+def create_mapped_coordinates(all_data, all_radius, all_angle, all_bgsub, pupil_sub, radius_range, binfac):
+
+    # Create the output array so we know for what positions we have to compute values
+    output = numpy.zeros(shape=(9000,9000))
+    output_binned, output_radius, output_angle = get_radii_angles(output, (output.shape[0]/2, output.shape[1]/2), binfac)
+
+    # Convert positions into format scipy wants
+    coords = numpy.zeros(shape=(output_binned.ravel().shape[0],2))
+    coords[:,0] = output_radius.ravel()[:]
+    coords[:,1] = output_angle.ravel()[:]
+
+    # Now do the hard work: Compute mean/median values for pupil ghost in polar coordinates
+    r_inner, r_outer, dr_full = radius_range
+    dr = dr_full/binfac
+    r_inner /= binfac
+    r_outer /= binfac
+    n_radii = int(math.ceil(r_outer / dr))
+    
+    n_angles = 360
+    d_angle = numpy.pi / n_angles
+
+    polar = numpy.zeros(shape=(n_radii, n_angles))
+    for r in range(polar.shape[0]):
+        stdout_write("\rWorking on radius %d of %d" % (r, polar.shape[0]))
+        for phi in range(polar.shape[1]):
+            r_min = r * dr
+            r_max = (r+1) * dr
+            phi_min = phi * d_angle
+            phi_max = (phi+1) * d_angle
+
+            in_sector = (all_radius > r_min) & (all_radius <= r_max) & (all_angle > phi_min) & (all_angle <= phi_max)
+            pixels = all_bgsub[in_sector]
+            valid_pixels = pixels[numpy.isfinite(pixels)]
+
+            median = numpy.mean(valid_pixels)
+            polar[r,phi] = median
+    
+    dummy = pyfits.PrimaryHDU(data=polar)
+    dummy.writeto("polar_fit.fits", clobber=True)
+
+    # matched = scipy.ndimage.map_coordinates
+    
+    return
 
 
 def fit_azimuthal_profiles(data, radius, angle, bgsub, pupil_sub, radius_range):
@@ -473,6 +580,7 @@ def fit_azimuthal_profiles(data, radius, angle, bgsub, pupil_sub, radius_range):
         # Select knots for the spline fitting
         number_knots = numpy.sum(valid_pixels_in_ring) / 100
         if (number_knots < 30): number_knots = 30
+        if (number_knots > 100): number_knots = 100
         angle_knots = numpy.linspace(min_angle, max_angle, number_knots) 
 
         # Now eliminate knots in regions with no data
@@ -496,7 +604,11 @@ def fit_azimuthal_profiles(data, radius, angle, bgsub, pupil_sub, radius_range):
             az_profile = scipy.interpolate.LSQUnivariateSpline(sorted_angles, sorted_data, good_angle_knots, k=3)
             radial_splines[cur_radius] = az_profile
         except:
-            stdout_write("#\n# Serious problem found in ring %d - %d\n#\n" % (int(ri), int(ro)))
+            stdout_write("\n#\n")
+            print "# Serious problem found in ring %d - %d" % (int(ri), int(ro))
+            print "# Number of elements in ring: ", sorted_angles.shape, sorted_data.shape
+            print "# Number of knots:", good_angle_knots.shape
+            print "#"
 
         if (show_plots):
             fine_profile_x = numpy.linspace(min_angle, max_angle, 1000)
@@ -509,7 +621,57 @@ def fit_azimuthal_profiles(data, radius, angle, bgsub, pupil_sub, radius_range):
 
     print " - done!"
 
-    return
+    return radial_splines
+
+
+
+def compute_pupilghost(data, radius, angle, radius_range, 
+                       radial_splines):
+    #------------------------------------------------------------------------------
+    #
+    # Now we have all components, so compute the pupil ghost template
+    #
+    #------------------------------------------------------------------------------
+
+    #
+    # Go through all the pixels in the data block and compute the pupil ghost.
+    # Radial profile is simple, for the azimuthal interpolate linearly between the two radii
+    #
+
+    nonradial_profile = numpy.zeros(shape=data.shape)
+    for x in range(data.shape[0]):
+        sys.stdout.write("\rCreating pupil-ghost template, %.1f %% done ..." % ((x+1)*100.0/data.shape[0]))
+        sys.stdout.flush()
+        for y in range(data.shape[1]):
+
+            radius_here = radius[x,y]
+            if (radius_here < r_inner or radius_here > r_outer):
+                continue
+
+            angle_here = angle[x,y]
+
+            r_here = float(radius_here) / dr
+            ri = int(math.floor(r_here-0.5))
+            ro = int(math.ceil(r_here-0.5))
+
+            val_i, val_o = 0,0
+            if (radial_splines[ri] != None):
+                val_i = radial_splines[ri](angle_here)
+            if (radial_splines[ro] != None):
+                val_o = radial_splines[ro](angle_here)
+
+            # Now interpolate linearly between the two
+            if (ri == ro):
+                nonradial_profile[x,y] = val_i
+            else:
+                slope = (val_o - val_i) / float(ro - ri)
+                nonradial_profile[x,y] = (r_here - float(ri)) * slope + val_i
+
+#            if (nonradial_profile[x,y] > pupil_radial_2d[x,y]):
+#                nonradial_profile[x,y] = pupil_radial_2d[x,y]
+    print " complete!"
+
+    return nonradial_profile
 
 
 def fit_pupilghost(hdus, centers, rotator_angles, radius_range, dr_full, 
