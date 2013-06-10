@@ -137,7 +137,7 @@ def get_radii_angles(data_fullres, center, binfac):
 
 
 def fit_pupilghost(hdus, centers, radius_range, dr_full, 
-                   write_intermediate=False, show_plots=False):
+                   write_intermediate=True, show_plots=False):
 
 
     # Choose binning of raw-data to speed up computation
@@ -153,9 +153,24 @@ def fit_pupilghost(hdus, centers, radius_range, dr_full,
     template = numpy.zeros(shape=(9000,9000))
     template_binned, template_radius, template_angle = get_radii_angles(template, (4500,4500), 4)
 
+    combined = numpy.zeros(shape=(9000,9000))
+    combined[:,:] = numpy.NaN
+
     data, radius, angle = None, None, None
     for i in range(len(hdus)):
+
         stdout_write("Adding OTA %s ...\n" % (hdus[i].header['EXTNAME']))
+
+        # Use center position to add the new frame into the combined frame
+        # bx, by are the pixel position of the bottom left corner of the frame to be inserted
+        bx = template.shape[0] / 2 - centers[i][0]
+        by = template.shape[1] / 2 - centers[i][1]
+        print bx, by
+        tx, ty = bx + hdus[i].data.shape[0], by + hdus[i].data.shape[1]
+
+        combined[bx:tx, by:ty] = hdus[i].data[:,:]
+        continue
+
         # Bin data, convert into polar coordinates
         _data, _radius, _angle = get_radii_angles(hdus[i].data, centers[i], binfac)
 
@@ -164,9 +179,9 @@ def fit_pupilghost(hdus, centers, radius_range, dr_full,
             radius = _radius
             angle = _angle
         else:
-            data = numpy.append(data, _data)
-            radius = numpy.append(radius, _radius)
-            angle = numpy.append(angle, _angle)
+            data = numpy.append(data, _data, axis=0)
+            radius = numpy.append(radius, _radius, axis=0)
+            angle = numpy.append(angle, _angle, axis=0)
 
         #data_fullres, center, binfac)
     
@@ -174,6 +189,11 @@ def fit_pupilghost(hdus, centers, radius_range, dr_full,
     if (write_intermediate):
         raw_hdu = pyfits.PrimaryHDU(data=data)
         raw_hdu.writeto("raw.fits", clobber=True)
+
+        combined_hdu = pyfits.PrimaryHDU(data=combined)
+        combined_hdu.writeto("raw_combined.fits", clobber=True)
+
+    sys.exit(0)
 
     #
     # Compute the number of radial bins
@@ -583,10 +603,95 @@ if __name__ == "__main__":
 
     hdu_ref = pyfits.open(template)
 
+    # .1
     pupilghost_centers = {"OTA33.SCI": (4080, 4180),
                           "OTA34.SCI": (4115, -190),
                           "OTA44.SCI": (-90, -230),
                           "OTA43.SCI": (-120, 4150),
+                          }
+
+    # .2
+    pupilghost_centers = {"OTA33.SCI": (4080, 4180),
+                          "OTA34.SCI": (4115, -120),
+                          "OTA44.SCI": (-20, -230),
+                          "OTA43.SCI": (-120, 4150),
+                          }
+
+    # .3
+    pupilghost_centers = {"OTA33.SCI": (4080, 4180),
+                          "OTA34.SCI": (4115, -120),
+                          "OTA44.SCI": (-60, -190),
+                          "OTA43.SCI": (-150, 4120),
+                          }
+
+    # .4
+    pupilghost_centers = {"OTA33.SCI": (4080, 4180),
+                          "OTA34.SCI": (4095, -140),
+                          "OTA44.SCI": (-30, -210),
+                          "OTA43.SCI": (-120, 4150),
+                          }
+
+    # .5
+    pupilghost_centers = {"OTA33.SCI": (4080, 4180),
+                          "OTA34.SCI": (4095, -140),
+                          "OTA44.SCI": (-50, -180),
+                          "OTA43.SCI": (-120, 4170),
+                          }
+
+    # .6
+    pupilghost_centers = {"OTA33.SCI": (4080, 4180),
+                          "OTA34.SCI": (4095, -140),
+                          "OTA44.SCI": (-100, -170),
+                          "OTA43.SCI": (-120, 4170),
+                          }
+
+    # .7
+    pupilghost_centers = {"OTA33.SCI": (4080, 4180),
+                          "OTA34.SCI": (4095, -140),
+                          "OTA44.SCI": (-115, -150),
+                          "OTA43.SCI": (-120, 4170),
+                          }
+
+    # .8
+    pupilghost_centers = {"OTA33.SCI": (4080, 4180),
+                          "OTA34.SCI": (4080, -140),
+                          "OTA44.SCI": (-115, -150),
+                          "OTA43.SCI": (-120, 4170),
+                          }
+
+    # .9
+    pupilghost_centers = {"OTA33.SCI": (4205, 4225),
+                          "OTA34.SCI": (4205,  -95),
+                          "OTA44.SCI": (  10, -105),
+                          "OTA43.SCI": (   5, 4215),
+                          }
+
+    # .10
+    pupilghost_centers = {"OTA33.SCI": (4205, 4135),
+                          "OTA34.SCI": (4205, -185),
+                          "OTA44.SCI": (  10, -195),
+                          "OTA43.SCI": (   5, 4125),
+                          }
+
+    # .11
+    pupilghost_centers = {"OTA33.SCI": (4190, 4150),
+                          "OTA34.SCI": (4205, -185),
+                          "OTA44.SCI": (  10, -195),
+                          "OTA43.SCI": (   5, 4125),
+                          }
+
+    # .12
+    pupilghost_centers = {"OTA33.SCI": (4190, 4150),
+                          "OTA34.SCI": (4205, -165),
+                          "OTA44.SCI": (  10, -185),
+                          "OTA43.SCI": (  10, 4120),
+                          }
+
+    # .13
+    pupilghost_centers = {"OTA33.SCI": (4190, 4150),
+                          "OTA34.SCI": (4205, -165),
+                          "OTA44.SCI": (  10, -185),
+                          "OTA43.SCI": (  10, 4130),
                           }
 
     bpmdir = cmdline_arg_set_or_default("-bpm", None)
