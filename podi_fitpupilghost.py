@@ -136,7 +136,7 @@ def get_radii_angles(data_fullres, center, binfac):
     return data, radius, angle
 
 
-def fit_pupilghost(data_fullres, center, radius_range, dr_full, 
+def fit_pupilghost(hdus, centers, radius_range, dr_full, 
                    write_intermediate=False, show_plots=False):
 
 
@@ -153,8 +153,22 @@ def fit_pupilghost(data_fullres, center, radius_range, dr_full,
     template = numpy.zeros(shape=(9000,9000))
     template_binned, template_radius, template_angle = get_radii_angles(template, (4500,4500), 4)
 
-    # Bin data, convert into polar coordinates
-    data, radius, angle = get_radii_angles(data_fullres, center, binfac)
+    data, radius, angle = None, None, None
+    for i in range(len(hdus)):
+        stdout_write("Adding OTA %s ...\n" % (hdus[i].header['EXTNAME']))
+        # Bin data, convert into polar coordinates
+        _data, _radius, _angle = get_radii_angles(hdus[i].data, centers[i], binfac)
+
+        if (data == None):
+            data = _data
+            radius = _radius
+            angle = _angle
+        else:
+            data = numpy.append(data, _data)
+            radius = numpy.append(radius, _radius)
+            angle = numpy.append(angle, _angle)
+
+        #data_fullres, center, binfac)
     
     # write some intermediate data products
     if (write_intermediate):
@@ -165,7 +179,7 @@ def fit_pupilghost(data_fullres, center, radius_range, dr_full,
     # Compute the number of radial bins
     #
     # Here: Add some correction if the center position is outside the covered area
-    max_radius = 1.3 * math.sqrt(data.shape[0] * data.shape[1])
+    max_radius = 1.3 * r_outer #math.sqrt(data.shape[0] * data.shape[1])
     # Splitting up image into a number of rings
     n_radii = int(math.ceil(max_radius / dr))
 
@@ -579,24 +593,30 @@ if __name__ == "__main__":
 
     hdulist_out = [hdu_ref[0]]
 
+    hdus = []
+    centers = []
+
     for i in range(1, len(hdu_ref)):
 
         extname = hdu_ref[i].header['EXTNAME']
         if (extname in pupilghost_centers):
             center_x, center_y = pupilghost_centers[extname]
 
-            print "Using center position %d, %d" % (center_y, center_x)
+            print "Using center position %d, %d for OTA %s" % (center_y, center_x, extname)
 
             data = hdu_ref[i].data
             if (bpmdir != None):
                 bpmfile = "%s/bpm_xy%s.reg" % (bpmdir, extname[3:5])
                 mask_broken_regions(data, bpmfile, True)
 
-            correction = fit_pupilghost(data, (center_y, center_x), (r_inner, r_outer), dr)
+            hdus.append(hdu_ref[i])
+            centers.append((center_y, center_x))
 
-            hdu_ref[i].data = correction
-            hdulist_out.append(hdu_ref[i])
+    correction = fit_pupilghost(hdus, centers, (r_inner, r_outer), dr)
 
-    hdu_out = pyfits.HDUList(hdulist_out)
-    hdu_out.writeto(output_filename, clobber=True)
+            #hdu_ref[i].data = correction
+            #hdulist_out.append(hdu_ref[i])
+
+    #hdu_out = pyfits.HDUList(hdulist_out)
+    #hdu_out.writeto(output_filename, clobber=True)
 
