@@ -142,18 +142,20 @@ def merge_OTAs(hdus, centers):
     combined = numpy.zeros(shape=(9000,9000))
     combined[:,:] = numpy.NaN
 
+    stdout_write("Adding OTA")
     for i in range(len(hdus)):
 
-        stdout_write("Adding OTA %s ...\n" % (hdus[i].header['EXTNAME']))
-
+        #stdout_write("Adding OTA %s ...\n" % (hdus[i].header['EXTNAME']))
+        stdout_write(" %s" % (hdus[i].header['EXTNAME']))
         # Use center position to add the new frame into the combined frame
         # bx, by are the pixel position of the bottom left corner of the frame to be inserted
         bx = combined.shape[0] / 2 - centers[i][0]
         by = combined.shape[1] / 2 - centers[i][1]
-        print bx, by
+        #print bx, by
         tx, ty = bx + hdus[i].data.shape[0], by + hdus[i].data.shape[1]
 
         combined[bx:tx, by:ty] = hdus[i].data[:,:]
+    stdout_write("\n")
 
     return combined
 
@@ -166,7 +168,7 @@ def load_frame(filename, pupilghost_centers, binfac, bpmdir):
     centers = []
 
     rotator_angles = [hdu_ref[0].header['ROTOFF']]
-    stdout_write("Loading frame %s ...\n" % (filename))
+    stdout_write("\nLoading frame %s ...\n" % (filename))
 
     for i in range(1, len(hdu_ref)):
 
@@ -175,7 +177,7 @@ def load_frame(filename, pupilghost_centers, binfac, bpmdir):
         if (extname in pupilghost_centers):
             center_x, center_y = pupilghost_centers[extname]
 
-            stdout_write("Using center position %d, %d for OTA %s\n" % (center_y, center_x, extname))
+            #stdout_write("Using center position %d, %d for OTA %s\n" % (center_y, center_x, extname))
 
             data = hdu_ref[i].data
             if (bpmdir != None):
@@ -188,6 +190,8 @@ def load_frame(filename, pupilghost_centers, binfac, bpmdir):
     combined = merge_OTAs(hdus, centers)
     data, radius, angle = get_radii_angles(combined, (combined.shape[0]/2, combined.shape[1]/2), binfac)
     angle -= rotator_angles[0]
+
+    angle[angle < 0] += 360.
 
     hdu_ref.close()
 
@@ -283,7 +287,7 @@ def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
     for filename in filenames:
         # Load and prepare all files
         data, radius, angle = load_frame(filename, pupilghost_centers, binfac, bpmdir)
-        bg_sub = subtract_background(data, radius, angle, radius_range, binfac)
+        bgsub = subtract_background(data, radius, angle, radius_range, binfac)
 
         # Create a master collection containing all files
         if (all_data == None):
@@ -291,7 +295,7 @@ def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
             all_data = data
             all_radius = radius
             all_angle = angle
-            all_bgsub = bg_sub
+            all_bgsub = bgsub
         else:
             # if we already have some entries, add the new ones to the collection
             all_data = numpy.append(all_data, data, axis=0)
@@ -302,6 +306,109 @@ def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
     #
     # Now we have a collection of a bunch of files, possibly each with separate rotator angles
     #
+
+    hdu = pyfits.PrimaryHDU(data = all_data)
+    hdu.writeto("all_data.fits", clobber=True)
+    hdu = pyfits.PrimaryHDU(data = all_bgsub)
+    hdu.writeto("all_bgsub.fits", clobber=True)
+
+    pupil_sub = fit_radial_profile(all_data, all_radius, all_angle, all_bgsub, radius_range)
+
+    fit_nonradial_profiles(data, radius, angle, bgsub, pupil_sub, radius_range)
+
+    return
+
+
+
+def fit_radial_profile(data, radius, angle, bgsub, radius_range):
+    show_plots = True
+
+    #------------------------------------------------------------------------------
+    #
+    # Here we assume that all files have their background removed. 
+    # Then we continue with the radial profile.
+    #
+    #------------------------------------------------------------------------------
+
+    stdout_write("\nComputing radial profile ...\n")
+
+    r_inner, r_outer, dr_full = radius_range
+    dr = dr_full/binfac
+    r_inner /= binfac
+    r_outer /= binfac
+
+    n_radii = int(math.ceil(r_outer / dr))
+  
+    #
+    # Next step: Fit the radial profile
+    #
+    pupil_radii = numpy.zeros(shape=(n_radii))
+    pupil_level = numpy.zeros(shape=(n_radii))
+    min_r, max_r = 10000, -10000
+    for i in range(n_radii):
+
+        ri = i * dr
+        ro = ri + dr
+
+        # Only use rings within the pupil gost rings
+        if (ri < r_outer and ro > r_inner):
+            ri = numpy.max([ri, r_inner])
+            ro = numpy.min([ro, r_outer])
+            min_r = numpy.min([min_r, i])
+            max_r = numpy.max([max_r, i])
+        else:
+            continue
+
+        median, count = get_median_level(bgsub, radius, ri, ro)
+
+        pupil_radii[i] = 0.5 * (ri + ro)
+        pupil_level[i] = median
+
+
+    #
+    # Now fit the profile with a 1-D spline
+    #
+    radial_knots = numpy.linspace(r_inner+0.7*dr, r_outer-0.7*dr, (r_outer-r_inner-1.4*dr)/dr/1.5)
+    radial_profile = scipy.interpolate.LSQUnivariateSpline(pupil_radii[min_r:max_r+1], pupil_level[min_r:max_r+1], radial_knots, k=2)
+    
+    if (show_plots):
+        # create a smooth profile for plotting
+        smooth_radial_1d_x = numpy.linspace(r_inner, r_outer, 1300)
+        smooth_radial_1d_y = radial_profile(smooth_radial_1d_x)
+        knots_y = radial_profile(radial_knots)
+        plot.plot(pupil_radii, pupil_level, '.-', radial_knots, knots_y, 'o', smooth_radial_1d_x, smooth_radial_1d_y)
+        plot.show()
+
+    #
+    # Compute the 2-d radial profile
+    #
+    radius_1d = radius.ravel()
+    pupil_radial_2d = radial_profile(radius.ravel()).reshape(radius.shape)
+    # set all pixels outside the pupil ghost radial range to 0
+    pupil_radial_2d[(radius > r_outer) | (radius < r_inner)] = 0
+    # and subtract the pupil ghost
+    
+    pupil_sub = bgsub - pupil_radial_2d
+
+    #if (write_intermediate):
+    pupil_sub_hdu = pyfits.PrimaryHDU(data = pupil_sub)
+    pupil_sub_hdu.writeto("all_pupilsub.fits", clobber=True)
+
+    return pupil_sub
+
+#    template_radius_1d = template_radius.ravel()
+#    template_radial = radial_profile(template_radius.ravel()).reshape(template_radius.shape)
+#    template_radial[(template_radius > r_outer) | (template_radius < r_inner)] = 0
+#    pupil_sub_hdu = pyfits.PrimaryHDU(data = template_radial)
+#    pupil_sub_hdu.writeto("template_radial.fits", clobber=True)
+
+
+    return
+
+
+
+def fit_nonradial_profiles(data, radius, angle, bgsub, pupil_sub, radius_range):
+
 
     return
 
@@ -731,6 +838,13 @@ def sort_angles(angles, data):
 #################################
 if __name__ == "__main__":
 
+    print """\
+
+  fit-pupilghost tool
+  part of the pODI QuickReduce pipeline
+  (c) 2013, Ralf Kotulla (kotulla@uwm.edu)
+  Contact the author with questions and comments.
+"""
 
     # Read in the input parameters
     template = sys.argv[1]
