@@ -12,8 +12,10 @@ import math
 import scipy.optimize
 
 from podi_definitions import *
+az_knot_limit = [50,600]
 
 write_intermediate = True
+use_buffered_files  = True
 
 def add_circle(buffer, center_x, center_y, radius, amplitude):
 
@@ -167,7 +169,7 @@ def load_frame(filename, pupilghost_centers, binfac, bpmdir):
     hdus = []
     centers = []
 
-    rotator_angle = math.radians(hdu_ref[0].header['ROTOFF'])
+    rotator_angle = hdu_ref[0].header['ROTSTART']
     stdout_write("\nLoading frame %s ...\n" % (filename))
 
     for i in range(1, len(hdu_ref)):
@@ -188,14 +190,18 @@ def load_frame(filename, pupilghost_centers, binfac, bpmdir):
             centers.append((center_y, center_x))
 
     combined = merge_OTAs(hdus, centers)
-    data, radius, angle = get_radii_angles(combined, (combined.shape[0]/2, combined.shape[1]/2), binfac)
-    angle -= rotator_angle
 
+    data, radius, angle = get_radii_angles(combined, (combined.shape[0]/2, combined.shape[1]/2), binfac)
+
+    data_rotated = rotate_around_center(data, rotator_angle)
+
+
+    #angle -= math.radians(rotator_angle)
     angle[angle < 0] += 2*numpy.pi
 
     hdu_ref.close()
 
-    return data, radius, angle
+    return data_rotated, radius, angle
 
 
 def subtract_background(data, radius, angle, radius_range, binfac):
@@ -271,9 +277,9 @@ def subtract_background(data, radius, angle, radius_range, binfac):
     
     bg_sub = data - background
 
-    if (write_intermediate):
-        bgsub_hdu = pyfits.PrimaryHDU(data=bg_sub)
-        bgsub_hdu.writeto("bgsub.fits", clobber=True)
+    #if (write_intermediate):
+    #    bgsub_hdu = pyfits.PrimaryHDU(data=bg_sub)
+    #    bgsub_hdu.writeto("bgsub.fits", clobber=True)
     
     return bg_sub
 
@@ -314,9 +320,11 @@ def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
 
     pupil_sub, radial_profile, radial_2d = fit_radial_profile(all_data, all_radius, all_angle, all_bgsub, radius_range)
 
+    pyfits.PrimaryHDU(data=pupil_sub).writeto("pupilsub.fits", clobber=True)
+    pyfits.PrimaryHDU(data=radial_2d).writeto("radial2d.fits", clobber=True)
     # create_mapped_coordinates(all_data, all_radius, all_angle, all_bgsub, pupil_sub, radius_range, binfac)
 
-    azimuthal_fits = fit_azimuthal_profiles(data, radius, angle, bgsub, pupil_sub, radius_range)
+    azimuthal_fits = fit_azimuthal_profiles(all_data, all_radius, all_angle, all_bgsub, pupil_sub, radius_range)
 
     
     # 
@@ -326,8 +334,9 @@ def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
     # First get a fresh buffer of coordinates
     outbuffer = numpy.zeros(shape=(9000,9000))
     out_data, out_radius, out_angle = get_radii_angles(outbuffer, (outbuffer.shape[0]/2, outbuffer.shape[1]/2), binfac)
+    out_angle[out_angle < 0] += 2*numpy.pi
 
-    azimuthal_2d = compute_pupilghost(out_data, out_radius, out_angle, radius_range, 
+    azimuthal_2d = compute_pupilghost(out_data, out_radius, out_angle, radius_range, binfac,
                                       azimuthal_fits)
     
     pyfits.PrimaryHDU(data=azimuthal_2d).writeto("fit_nonradial.fits", clobber=True)
@@ -335,7 +344,7 @@ def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
     # Compute the 2-d radial profile. The extreme values beyond the fitting radius 
     # might be garbage, so set all pixels outside the pupil ghost radial range to 0
     radial_2d = radial_profile(out_radius.ravel()).reshape(out_radius.shape)
-    radial_2d[(radius > r_outer) | (radius < r_inner)] = 0
+    radial_2d[(radius > r_outer/binfac) | (radius < r_inner/binfac)] = 0
 
     pyfits.PrimaryHDU(data=radial_2d).writeto("fit_radial.fits", clobber=True)
     try:
@@ -579,9 +588,13 @@ def fit_azimuthal_profiles(data, radius, angle, bgsub, pupil_sub, radius_range):
 
         # Select knots for the spline fitting
         number_knots = numpy.sum(valid_pixels_in_ring) / 100
-        if (number_knots < 30): number_knots = 30
-        if (number_knots > 100): number_knots = 100
+        if (number_knots < az_knot_limit[0]): number_knots = az_knot_limit[0]
+        if (number_knots > az_knot_limit[1]): number_knots = az_knot_limit[1]
         angle_knots = numpy.linspace(min_angle, max_angle, number_knots) 
+
+        file = open("bincount.log", "a")
+        print >>file, ri, ro, angle_knots.shape[0], numpy.sum(valid_pixels_in_ring)
+        file.close()
 
         # Now eliminate knots in regions with no data
         for i in range(angle_knots.shape[0]):
@@ -625,7 +638,8 @@ def fit_azimuthal_profiles(data, radius, angle, bgsub, pupil_sub, radius_range):
 
 
 
-def compute_pupilghost(data, radius, angle, radius_range, 
+def compute_pupilghost(data, radius, angle, 
+                       radius_range, binfac,
                        radial_splines):
     #------------------------------------------------------------------------------
     #
@@ -637,6 +651,11 @@ def compute_pupilghost(data, radius, angle, radius_range,
     # Go through all the pixels in the data block and compute the pupil ghost.
     # Radial profile is simple, for the azimuthal interpolate linearly between the two radii
     #
+
+    r_inner, r_outer, dr = radius_range
+    r_inner /= binfac
+    r_outer /= binfac
+    dr /= binfac
 
     nonradial_profile = numpy.zeros(shape=data.shape)
     for x in range(data.shape[0]):
@@ -654,12 +673,23 @@ def compute_pupilghost(data, radius, angle, radius_range,
             ri = int(math.floor(r_here-0.5))
             ro = int(math.ceil(r_here-0.5))
 
-            val_i, val_o = 0,0
-            if (radial_splines[ri] != None):
-                val_i = radial_splines[ri](angle_here)
-            if (radial_splines[ro] != None):
-                val_o = radial_splines[ro](angle_here)
+            if (ri < 0):
+                continue
+            elif (ro >= len(radial_splines) and ri < len(radial_splines)):
+                ro = ri
+            elif (ri >= len(radial_splines)):
+                continue
 
+            try:
+                val_i, val_o = 0,0
+                if (radial_splines[ri] != None):
+                    val_i = radial_splines[ri](angle_here)
+                if (radial_splines[ro] != None):
+                    val_o = radial_splines[ro](angle_here)
+            except:
+                print "Found a problem: x/y = ",x,y
+                print "                 r_here/dr/ri/ro=",r_here, dr, ri, ro
+                pass
             # Now interpolate linearly between the two
             if (ri == ro):
                 nonradial_profile[x,y] = val_i
@@ -1105,6 +1135,8 @@ if __name__ == "__main__":
   part of the pODI QuickReduce pipeline
   (c) 2013, Ralf Kotulla (kotulla@uwm.edu)
   Contact the author with questions and comments.
+  Website: members.galev.org/rkotulla
+           --> Research --> podi-pipeline
 """
 
     # Read in the input parameters
