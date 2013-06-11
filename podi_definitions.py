@@ -74,7 +74,7 @@ central_2x2 = [22,23,32,33]
 # Enter here the OTAs with full coverage in each of the filters. These OTAs
 # will then be used to compute the median illumination level to correct/normalize the flat-fields
 #
-otas_to_normalize_ff = {"odi_g": all_otas,
+otas_to_normalize_ff = {"odi_g": [22,23,24,32,42],
                         "odi_r": all_otas,
                         "odi_i": all_otas,
                         "odi_z": all_otas,
@@ -439,4 +439,29 @@ def log_svn_version(hdr):
     return
 
 
+
+def rotate_around_center(data, angle, mask_limit = 0.1):
+
+    # Prepare mask so we can mask out undefined regions
+    mask = numpy.zeros(shape=data.shape)
+    mask[numpy.isnan(data)] = 1
+
+    # Replace NaN's with some numer to make interpolation work
+    data[numpy.isnan(data)] = 0
+
+
+    # Now rotate both the image and its mask
+    rotated = scipy.ndimage.interpolation.rotate(input=data, angle=angle, axes=(1, 0), 
+                                                 reshape=False, 
+                                                 mode='constant', cval=0, )
+
+    rotated_mask = scipy.ndimage.interpolation.rotate(input=mask, angle=angle, axes=(1, 0), 
+                                                      reshape=False, 
+                                                      mode='constant', cval=1, )
+
+    # And finally apply the mask
+    rotated[rotated_mask > mask_limit] = numpy.NaN
+
+    # and return the results
+    return rotated
 
