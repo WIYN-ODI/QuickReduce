@@ -115,7 +115,7 @@ def invert_all_xtalk():
     global xtalk_matrix
 
     for ota in xtalk_coeffs:
-        print ota
+        # print ota
         ota_matrices = []
         
         for row_matrix in xtalk_coeffs[ota]:
