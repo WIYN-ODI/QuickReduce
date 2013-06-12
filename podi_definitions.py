@@ -17,6 +17,8 @@ import math
 import numpy
 import pyfits
 import subprocess
+import scipy
+import scipy.ndimage
 
 ############
 #                  | | |
@@ -440,28 +442,38 @@ def log_svn_version(hdr):
 
 
 
-def rotate_around_center(data, angle, mask_limit = 0.1):
+def rotate_around_center(data, angle, mask_limit = 0.1, verbose=True, safety=1):
+
+    if (verbose):
+        stdout_write("Rotating data block by %.1f deg ..." % (angle))
 
     # Prepare mask so we can mask out undefined regions
     mask = numpy.zeros(shape=data.shape)
-    mask[numpy.isnan(data)] = 1
+    mask[numpy.isnan(data)] = 1.
 
     # Replace NaN's with some numer to make interpolation work
-    data[numpy.isnan(data)] = 0
+    data[numpy.isnan(data)] = 0.
 
 
     # Now rotate both the image and its mask
     rotated = scipy.ndimage.interpolation.rotate(input=data, angle=angle, axes=(1, 0), 
-                                                 reshape=False, 
+                                                 reshape=False, order=3,
                                                  mode='constant', cval=0, )
 
     rotated_mask = scipy.ndimage.interpolation.rotate(input=mask, angle=angle, axes=(1, 0), 
-                                                      reshape=False, 
+                                                      reshape=False, order=1,
                                                       mode='constant', cval=1, )
 
+    # Blur out the NaN mask to make sure we get clean edges. This approach
+    # is on the conservative side, rather clipping some pixels too many then to 
+    # add artificial edges that later are hard to remove and/or deal with
+    filter_gaussed = scipy.ndimage.filters.gaussian_filter(input=rotated_mask, order=0, sigma=safety)
+
     # And finally apply the mask
-    rotated[rotated_mask > mask_limit] = numpy.NaN
+    # rotated[rotated_mask > mask_limit] = numpy.NaN
+    rotated[filter_gaussed > mask_limit] = numpy.NaN
 
     # and return the results
+    if (verbose): stdout_write(" done!\n")
     return rotated
 
