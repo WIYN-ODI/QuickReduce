@@ -193,7 +193,18 @@ def load_frame(filename, pupilghost_centers, binfac, bpmdir):
 
     data, radius, angle = get_radii_angles(combined, (combined.shape[0]/2, combined.shape[1]/2), binfac)
 
-    data_rotated = rotate_around_center(data, rotator_angle)
+    if (use_buffered_files):
+        buffered_file = "pg_buffer_%+03d.fits" % rotator_angle
+        if (os.path.isfile(buffered_file)):
+            hdu = pyfits.open(buffered_file)
+            data_rotated = hdu[0].data
+            hdu.close()
+            pass
+        else:
+            data_rotated = rotate_around_center(data, rotator_angle)
+            pyfits.PrimaryHDU(data=data_rotated).writeto(buffered_file, clobber=True)
+    else:
+        data_rotated = rotate_around_center(data, rotator_angle)
 
 
     #angle -= math.radians(rotator_angle)
