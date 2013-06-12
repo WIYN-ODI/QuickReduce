@@ -291,18 +291,13 @@ headers_to_delete_from_otas = [
     ]
 
 
-pupilghost_centers = {
-    "odi_r": {"OTA33.SCI": (4080, 4180),
-              "OTA34.SCI": (4115, -190),
-              "OTA44.SCI": (-90, -230),
-              "OTA43.SCI": (-120, 4150),
-              },
-    "odi_i": {"OTA33.SCI": (4080, 4180),
-              "OTA34.SCI": (4115, -190),
-              "OTA44.SCI": (-90, -230),
-              "OTA43.SCI": (-120, 4150),
-              }
-    }
+# .13
+pupilghost_centers = {"OTA33.SCI": (4190, 4150),
+                      "OTA34.SCI": (4205, -165),
+                      "OTA44.SCI": (  10, -185),
+                      "OTA43.SCI": (  10, 4130),
+                      }
+
 
 
 def inherit_headers(header, primary_header):
