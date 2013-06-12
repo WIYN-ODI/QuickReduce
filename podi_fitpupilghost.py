@@ -106,7 +106,7 @@ def get_median_level(data, radii, ri, ro):
     selected = (radii > ri) & (radii < ro) & (numpy.isfinite(data))
     pixelcount = numpy.sum(selected)
     if (pixelcount > 0):
-        median = numpy.median(data[selected])
+        median = numpy.median(data[selected][0:5001])
     else:
         median = numpy.NaN
 
@@ -141,7 +141,7 @@ def get_radii_angles(data_fullres, center, binfac):
 
 def merge_OTAs(hdus, centers):
 
-    combined = numpy.zeros(shape=(9000,9000))
+    combined = numpy.zeros(shape=(9000,9000), dtype=numpy.float32)
     combined[:,:] = numpy.NaN
 
     stdout_write("   Adding OTA")
@@ -172,47 +172,53 @@ def load_frame(filename, pupilghost_centers, binfac, bpmdir):
     rotator_angle = hdu_ref[0].header['ROTSTART']
     stdout_write("\nLoading frame %s ...\n" % (filename))
 
-    for i in range(1, len(hdu_ref)):
-
-        extname = hdu_ref[i].header['EXTNAME']
-
-        if (extname in pupilghost_centers):
-            center_x, center_y = pupilghost_centers[extname]
-
-            #stdout_write("Using center position %d, %d for OTA %s\n" % (center_y, center_x, extname))
-
-            data = hdu_ref[i].data
-            if (bpmdir != None):
-                bpmfile = "%s/bpm_xy%s.reg" % (bpmdir, extname[3:5])
-                mask_broken_regions(data, bpmfile, True)
-
-            hdus.append(hdu_ref[i])
-            centers.append((center_y, center_x))
-
-    combined = merge_OTAs(hdus, centers)
-
-    data, radius, angle = get_radii_angles(combined, (combined.shape[0]/2, combined.shape[1]/2), binfac)
-
-    if (use_buffered_files):
-        buffered_file = "pg_buffer_%+03d.fits" % rotator_angle
-        if (os.path.isfile(buffered_file)):
-            hdu = pyfits.open(buffered_file)
-            data_rotated = hdu[0].data
-            hdu.close()
-            pass
-        else:
-            data_rotated = rotate_around_center(data, rotator_angle)
-            pyfits.PrimaryHDU(data=data_rotated).writeto(buffered_file, clobber=True)
+    combined_file = "pg_combined_%+04d.fits" % numpy.around(rotator_angle)
+    print "combined-file:",combined_file
+    if (use_buffered_files and os.path.isfile(combined_file)):
+        hdu = pyfits.open(combined_file)
+        combined = hdu[0].data
+        hdu.close()
     else:
-        data_rotated = rotate_around_center(data, rotator_angle)
+        for i in range(1, len(hdu_ref)):
 
+            extname = hdu_ref[i].header['EXTNAME']
+
+            if (extname in pupilghost_centers):
+                center_x, center_y = pupilghost_centers[extname]
+
+                #stdout_write("Using center position %d, %d for OTA %s\n" % (center_y, center_x, extname))
+
+                data = hdu_ref[i].data
+                if (bpmdir != None):
+                    bpmfile = "%s/bpm_xy%s.reg" % (bpmdir, extname[3:5])
+                    mask_broken_regions(data, bpmfile, True)
+
+                hdus.append(hdu_ref[i])
+                centers.append((center_y, center_x))
+
+        combined = merge_OTAs(hdus, centers)
+        if (use_buffered_files):
+            pyfits.PrimaryHDU(data=combined).writeto(combined_file, clobber=True)
+
+
+    rotated_file = "pg_rotated_%+04d.fits" % numpy.around(rotator_angle)
+    if (use_buffered_files and os.path.isfile(rotated_file)):
+        hdu = pyfits.open(rotated_file)
+        combined_rotated = hdu[0].data
+        hdu.close()
+    else:
+        combined_rotated = rotate_around_center(combined, rotator_angle)
+        if (use_buffered_files):
+            pyfits.PrimaryHDU(data=combined_rotated).writeto(rotated_file, clobber=True)
+
+    data_rotated, radius, angle = get_radii_angles(combined_rotated, (combined_rotated.shape[0]/2, combined_rotated.shape[1]/2), binfac)
 
     #angle -= math.radians(rotator_angle)
     angle[angle < 0] += 2*numpy.pi
 
     hdu_ref.close()
 
-    return data_rotated, radius, angle
+    return data_rotated, radius, angle, rotator_angle
 
 
 def subtract_background(data, radius, angle, radius_range, binfac):
@@ -300,11 +306,25 @@ def subtract_background(data, radius, angle, radius_range, binfac):
 def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
 
     all_data, all_radius, all_angle, all_bgsub = None, None, None, None
+    print "Running do_work"
 
     for filename in filenames:
         # Load and prepare all files
-        data, radius, angle = load_frame(filename, pupilghost_centers, binfac, bpmdir)
-        bgsub = subtract_background(data, radius, angle, radius_range, binfac)
+        stdout_write("\n\nWorking on file %s ...\n" % (filename))
+        data, radius, angle, rotator_angle = load_frame(filename, pupilghost_centers, binfac, bpmdir)
+
+        bgsub_file = "pg_bgsub_%+04d.fits" % numpy.around(rotator_angle)
+        if (use_buffered_files and os.path.isfile(bgsub_file)):
+            hdu = pyfits.open(combined_file)
+            bgsub = hdu[0].data
+            hdu.close()
+        else:
+            bgsub = subtract_background(data, radius, angle, radius_range, binfac)
+            if (use_buffered_files):
+                pyfits.PrimaryHDU(data=bgsub).writeto(bgsub_file, clobber=True)
+
+        if (cmdline_arg_isset("-onlyprepfiles")):
+            continue
 
         # Create a master collection containing all files
         if (all_data == None):
@@ -319,6 +339,10 @@ def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
             all_radius = numpy.append(all_radius, radius, axis=0)
             all_angle = numpy.append(all_angle, angle, axis=0)
             all_bgsub = numpy.append(all_bgsub, bgsub, axis=0)
+
+    if (cmdline_arg_isset("-onlyprepfiles")):
+        sys.exit(0)
+
 
     #
     # Now we have a collection of a bunch of files, possibly each with separate rotator angles
