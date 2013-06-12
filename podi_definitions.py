@@ -437,7 +437,7 @@ def log_svn_version(hdr):
 
 
 
-def rotate_around_center(data, angle, mask_limit = 0.1, verbose=True, safety=1):
+def rotate_around_center(data, angle, mask_limit = 0.1, verbose=True, safety=1, mask_nans=True):
 
     if (verbose):
         stdout_write("Rotating data block by %.1f deg ..." % (angle))
@@ -455,19 +455,20 @@ def rotate_around_center(data, angle, mask_limit = 0.1, verbose=True, safety=1):
                                                  reshape=False, order=3,
                                                  mode='constant', cval=0, )
 
-    rotated_mask = scipy.ndimage.interpolation.rotate(input=mask, angle=angle, axes=(1, 0), 
-                                                      reshape=False, order=1,
-                                                      mode='constant', cval=1, )
+    if (mask_nans):
+        rotated_mask = scipy.ndimage.interpolation.rotate(input=mask, angle=angle, axes=(1, 0), 
+                                                          reshape=False, order=1,
+                                                          mode='constant', cval=1, )
 
-    # Blur out the NaN mask to make sure we get clean edges. This approach
-    # is on the conservative side, rather clipping some pixels too many then to 
-    # add artificial edges that later are hard to remove and/or deal with
-    filter_gaussed = scipy.ndimage.filters.gaussian_filter(input=rotated_mask, order=0, sigma=safety)
+        # Blur out the NaN mask to make sure we get clean edges. This approach
+        # is on the conservative side, rather clipping some pixels too many then to 
+        # add artificial edges that later are hard to remove and/or deal with
+        filter_gaussed = scipy.ndimage.filters.gaussian_filter(input=rotated_mask, order=0, sigma=safety)
 
-    # And finally apply the mask
-    # rotated[rotated_mask > mask_limit] = numpy.NaN
-    rotated[filter_gaussed > mask_limit] = numpy.NaN
-
+        # And finally apply the mask
+        # rotated[rotated_mask > mask_limit] = numpy.NaN
+        rotated[filter_gaussed > mask_limit] = numpy.NaN
+        
     # and return the results
     if (verbose): stdout_write(" done!\n")
     return rotated
