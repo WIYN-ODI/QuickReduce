@@ -169,14 +169,14 @@ def load_frame(filename, pupilghost_centers, binfac, bpmdir):
     hdus = []
     centers = []
 
-    rotator_angle = hdu_ref[0].header['ROTSTART']
+    rotator_angle = hdu_ref[0].header['ROTSTART'] 
     stdout_write("\nLoading frame %s ...\n" % (filename))
 
     combined_file = "pg_combined_%+04d.fits" % numpy.around(rotator_angle)
     print "combined-file:",combined_file
     if (use_buffered_files and os.path.isfile(combined_file)):
         hdu = pyfits.open(combined_file)
-        combined = hdu[0].data
+        combined = hdu[1].data
         hdu.close()
     else:
         for i in range(1, len(hdu_ref)):
@@ -186,30 +186,32 @@ def load_frame(filename, pupilghost_centers, binfac, bpmdir):
             if (extname in pupilghost_centers):
                 center_x, center_y = pupilghost_centers[extname]
 
-                #stdout_write("Using center position %d, %d for OTA %s\n" % (center_y, center_x, extname))
+                stdout_write("Using center position %d, %d for OTA %s\n" % (center_y, center_x, extname))
 
                 data = hdu_ref[i].data
                 if (bpmdir != None):
                     bpmfile = "%s/bpm_xy%s.reg" % (bpmdir, extname[3:5])
-                    mask_broken_regions(data, bpmfile, True)
+                    mask_broken_regions(data, bpmfile, verbose=False)
 
                 hdus.append(hdu_ref[i])
                 centers.append((center_y, center_x))
 
         combined = merge_OTAs(hdus, centers)
         if (use_buffered_files):
-            pyfits.PrimaryHDU(data=combined).writeto(combined_file, clobber=True)
+            pyfits.HDUList([pyfits.PrimaryHDU(), pyfits.ImageHDU(data=combined)]).writeto(combined_file, clobber=True)
+            #pyfits.PrimaryHDU(data=combined).writeto(combined_file, clobber=True)
 
 
     rotated_file = "pg_rotated_%+04d.fits" % numpy.around(rotator_angle)
     if (use_buffered_files and os.path.isfile(rotated_file)):
         hdu = pyfits.open(rotated_file)
-        combined_rotated = hdu[0].data
+        combined_rotated = hdu[1].data
         hdu.close()
     else:
         combined_rotated = rotate_around_center(combined, rotator_angle)
         if (use_buffered_files):
-            pyfits.PrimaryHDU(data=combined_rotated).writeto(rotated_file, clobber=True)
+            pyfits.HDUList([pyfits.PrimaryHDU(), pyfits.ImageHDU(data=combined_rotated)]).writeto(rotated_file, clobber=True)
+            # pyfits.PrimaryHDU(data=combined_rotated).writeto(rotated_file, clobber=True)
 
     data_rotated, radius, angle = get_radii_angles(combined_rotated, (combined_rotated.shape[0]/2, combined_rotated.shape[1]/2), binfac)
 
@@ -313,15 +315,19 @@ def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
         stdout_write("\n\nWorking on file %s ...\n" % (filename))
         data, radius, angle, rotator_angle = load_frame(filename, pupilghost_centers, binfac, bpmdir)
 
+        #if (cmdline_arg_isset("-onlyprepfiles")):
+        #    continue
+
         bgsub_file = "pg_bgsub_%+04d.fits" % numpy.around(rotator_angle)
         if (use_buffered_files and os.path.isfile(bgsub_file)):
-            hdu = pyfits.open(combined_file)
-            bgsub = hdu[0].data
+            hdu = pyfits.open(bgsub_file)
+            bgsub = hdu[1].data
             hdu.close()
         else:
             bgsub = subtract_background(data, radius, angle, radius_range, binfac)
             if (use_buffered_files):
-                pyfits.PrimaryHDU(data=bgsub).writeto(bgsub_file, clobber=True)
+                pyfits.HDUList([pyfits.PrimaryHDU(), pyfits.ImageHDU(data=bgsub)]).writeto(bgsub_file, clobber=True)
+                # pyfits.PrimaryHDU(data=bgsub).writeto(bgsub_file, clobber=True)
 
         if (cmdline_arg_isset("-onlyprepfiles")):
             continue
