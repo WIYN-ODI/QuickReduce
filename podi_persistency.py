@@ -79,6 +79,32 @@ def map_persistency_effects(hdulist):
     return mask_thisframe_list, mask_timeseries_list
 
 
+def add_mask_to_map(mask, mjd, map_in):
+
+    # Make a copy of the input frame
+    map_out = map_in.copy()
+
+    # Compute the width and height of one cell
+    dx, dy = map_in.shape[1]/8, map_in.shape[0]/8
+
+    this_map = numpy.zeros(map_in.shape)
+
+    for cell in mask:
+        print cell, mask[cell].shape
+
+        x,y = int(cell[2]), int(cell[3])
+        
+        # Compute the bottom left and top right pixel coordinates of this cell in the existing map
+        bx, by = x * dx, (7-y)*dy
+        tx, ty = bx + dx, by + dy
+
+        # In this small cell region, apply mask and update the MJD with the given timestamp
+        map_out[by:ty,bx:tx][mask[cell]] = mjd
+
+    return map_out
+        
+    
+
 def create_new_persistency_map(shape, write_fits=None):
 
     sy, sx = shape
@@ -157,17 +183,23 @@ if __name__ == "__main__":
 
     inputfile = sys.argv[1]
     hdulist = pyfits.open(inputfile)
+    persistency_map_in = sys.argv[2]
 
-
-    persistency_map_file = sys.argv[2]
+    outputfile = sys.argv[3]
+    persistency_map_out = sys.argv[4]
 
     hdulist = pyfits.open(inputfile)
     mjd = hdulist[0].header['MJD-OBS']
 
-    if (os.path.isfile(persistency_map_file)):
-        persistency_hdu = pyfits.open(persistency_map_file)
 
     mask_thisframe, mask_timeseries = map_persistency_effects(hdulist)
+
+    persistency_hdu = pyfits.open(persistency_map_in)
+    map_in = persistency_hdu[1].data
+
+    map_out = add_mask_to_map(mask_timeseries, mjd, map_in)
+    persistency_hdu[1].data = map_out
+    persistency_hdu.writeto(persistency_map_out, clobber=True)
 
     for ext in range(0, len(hdulist)):
         if (str(type(hdulist[ext])) != "<class 'pyfits.hdu.image.ImageHDU'>"):
@@ -180,4 +212,4 @@ if __name__ == "__main__":
             # data[mask_time] = mjd
             # data[saturated] = 0
 
-    hdulist.writeto("persistency.fits", clobber=True)
+    #hdulist.writeto("persistency.fits", clobber=True)
