@@ -79,10 +79,86 @@ def map_persistency_effects(hdulist):
     return mask_thisframe_list, mask_timeseries_list
 
 
+def create_new_persistency_map(shape, write_fits=None):
+
+    sy, sx = shape
+    px, py = 8*sx, 8*sy
+
+    # Create a primary header.
+    # This only contains the MJD of this exposure
+    primary_hdu = pyfits.PrimaryHDU()
+    primary_hdu.header.update("MJD", 0.0, "MJD of exposure")
+    
+    primary_hdu.header.update("CELL_X", sx, "x-width of each cell")
+    primary_hdu.header.update("CELL_Y", sy, "y-width of each cell")
+    
+    # Add primary header to HDU list
+    hdulist = [primary_hdu]
+
+    # Define some sizes to be used for displaying the frame as "Mosaic IRAF" in ds9
+    iraf_gap = 100
+    iraf_size_x, iraf_size_y = px+iraf_gap, py+iraf_gap
+
+    stdout_write("Creating mask for OTA")
+    for ota_x,ota_y in available_ota_coords:
+        ota = ota_x * 10 + ota_y
+        stdout_write(" %02d" % (ota))
+        
+        # Create new array with the full dimensions of the 8x8 cell array, 
+        # with overscan still attached
+        data = numpy.zeros(shape=(py,px), dtype=numpy.float32)
+
+        # Create extension name
+        ext_name = "OTA%02d.PERS" % (ota)
+
+        # Create the ImageHDU
+        imghdu = pyfits.ImageHDU(data=data)
+        imghdu.update_ext_name(ext_name)
+
+        # Add some additional info so we can display it in ds9:
+        detsec = '[%d:%d,%d:%d]' % (ota_x*iraf_size_x, ota_x*iraf_size_x+px, ota_y*iraf_size_y, ota_y*iraf_size_y+py)
+        imghdu.header.update("DETSEC", detsec, "Iraf mosaic area of the detector")
+
+        detsize = '[1:%d,1:%d]' % (px, py)
+        imghdu.header.update("DETSIZE", detsize, "Iraf total image pixels in full mosaic")
+
+        # Add this OTA to the list of all OTAs in this map
+        hdulist.append(imghdu)
+
+    stdout_write(" done!\n")
+
+    if (write_fits != None):
+        stdout_write("Writing persistency map (%s) ..." % write_fits)
+        fits_hdu = pyfits.HDUList(hdulist)
+        clobberfile(write_fits)
+        fits_hdu.writeto(write_fits, clobber=True)
+        stdout_write(" done!\n")
+        return
+    else:
+        stdout_write("Handing on results ...\n")
+
+    return fits_hdu
+
 if __name__ == "__main__":
 
     
+    if (cmdline_arg_isset('-newmap')):
+        inputfile = get_clean_cmdline()[1]
+        outputfile = get_clean_cmdline()[2]
+        hdulist = pyfits.open(inputfile)
+        
+        # If this flag is set, simply create a new persistency map
+        shape = hdulist[1].data.shape
+        create_new_persistency_map(shape, write_fits=outputfile)
+
+        # Quit the program right here
+        sys.exit(0)
+        
+
     inputfile = sys.argv[1]
+    hdulist = pyfits.open(inputfile)
+
+
     persistency_map_file = sys.argv[2]
 
     hdulist = pyfits.open(inputfile)
