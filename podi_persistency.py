@@ -13,12 +13,12 @@ from podi_definitions import *
 
 
 
-def map_persistency_effects(hdulist):
+def map_persistency_effects(hdulist, verbose=False):
 
     mask_thisframe_list = {}
     mask_timeseries_list = {}
 
-    stdout_write("Creating persistency masks ...")
+    if (verbose): stdout_write("Creating persistency masks ...")
     saturated_pixels_total = 0
     extensions_with_saturated_pixels = 0
     pixels_masked_out_thisframe = 0
@@ -73,9 +73,10 @@ def map_persistency_effects(hdulist):
         #data[mask_time] = mjd
         #data[saturated] = 0
 
-    stdout_write("\n   masked %d/%d pixels caused by %d saturated pixels in %d extensions\n" % (
-            pixels_masked_out_thisframe, pixels_masked_out_timeseries, 
-            saturated_pixels_total, extensions_with_saturated_pixels))
+    if (verbose):
+        stdout_write("\n   masked %d/%d pixels caused by %d saturated pixels in %d extensions\n" % (
+                pixels_masked_out_thisframe, pixels_masked_out_timeseries, 
+                saturated_pixels_total, extensions_with_saturated_pixels))
 
     return mask_thisframe_list, mask_timeseries_list
 
@@ -102,10 +103,60 @@ def get_timestamp_from_mjd(mjd):
     return "%04d%02d%02dT%02d%02d%02d" % (year, month, day, hour, minute, int(math.floor(second)))
 
 
+def get_mjd_from_timestamp(timestamp):
+    
+    year, month, day = int(timestamp[0:4]), int(timestamp[4:6]), int(timestamp[6:8])
+    hour, minute, second = int(timestamp[9:11]), int(timestamp[11:13]), int(timestamp[13:15])
 
-def find_latest_persistency_map(directory, mjd):
+    off, mjd1 = jdcal.gcal2jd(year, month, day)
+    mjd2 = hour/24. + minute/1440. + second/86400.
 
-    return
+    return mjd1 + mjd2
+
+
+def find_latest_persistency_map(directory, mjd, verbose=False):
+
+    # Get a list of all files in the specified directory
+    filelist = os.listdir(directory)
+
+    min_delta_mjd = 1e9
+    latest_map = None
+
+    #
+    # Now go over the files and find matching ones, and amonsgst the matching 
+    # ones the one file with the closest time stamp
+    # filename structure is: persistency_map_20121220T162345.fits
+    #                                        |             |
+    #                                      the usual timestamp
+    #
+    for file in filelist:
+        #print file[:16]
+        if (file[:16] != "persistency_map_"):
+            continue
+
+        # Extract timestamp and convert to MJD.
+        timestamp = file[16:31]
+        file_mjd = get_mjd_from_timestamp(timestamp)
+
+        if (verbose): print file, file_mjd
+
+        if (file_mjd >= mjd):
+            # That's weird, this file shouldn't exist, but maybe it's just a 
+            # re-run of the pipeline. Let's ignore it
+            continue
+        
+        # Check if this is a closer match than the one we had before
+        d_mjd = mjd - file_mjd
+        if (d_mjd < min_delta_mjd):
+            latest_map = file
+            min_delta_mjd = d_mjd
+            if (verbose): print "Found better match: %s (MJD=%.6f, or %d secs)" % (latest_map, file_mjd, min_delta_mjd*86400)
+
+    # Create full filename and return
+    fullpath = "%s/%s" % (directory, latest_map)
+    print "Using",fullpath,"as persistency map"
+    return fullpath
+
 
 
 def add_mask_to_map(mask, mjd, map_in):
@@ -213,6 +264,11 @@ if __name__ == "__main__":
         # Quit the program right here
         sys.exit(0)
         
+    if (cmdline_arg_isset('-findmap')):
+        directory = get_clean_cmdline()[1]
+        mjd = float(get_clean_cmdline()[2])
+        find_latest_persistency_map(directory, mjd)
+        sys.exit(0)
 
     inputfile = sys.argv[1]
     hdulist = pyfits.open(inputfile)
