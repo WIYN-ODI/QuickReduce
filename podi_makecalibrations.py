@@ -23,6 +23,7 @@ from podi_definitions import *
 from podi_collectcells import *
 from podi_imcombine import *
 from podi_makeflatfield import *
+import podi_matchpupilghost
 
 if __name__ == "__main__":
 
@@ -35,6 +36,8 @@ if __name__ == "__main__":
     output_directory = get_clean_cmdline()[2]
 
     tmp_directory = cmdline_arg_set_or_default("-tmpdir", output_directory + "/tmp")
+    pgtempdir = cmdline_arg_set_or_default("-pupilghost", None)
+
 
     if (not os.path.isfile(filelist_filename)):
         stdout_write("Unable to open input filelist %s" % (filelist_filename))
@@ -184,7 +187,27 @@ if __name__ == "__main__":
                 #print flats_to_stack
 
                 stdout_write("Stacking %d frames into %s ..." % (len(flats_to_stack), flat_frame))
-                imcombine(flats_to_stack, flat_frame, "median")
+                flat_hdus = imcombine(flats_to_stack, flat_frame, "median", return_hdu=True)
+
+                #
+                # Now apply the pupil ghost correction 
+                # Only do this if requested via keyword -pupilghost=(dirname)
+                #
+                if (pgtempdir != None):
+                    # Get level os active filter and determine what the template filename is
+                    filter_level = get_filter_level(flat_hdus[0].header)
+                    pg_template = "%s/pupilghost_template___level_%d.fits" % (pgtempdir, filter_level)
+
+                    # If we have a template for this level
+                    if (os.path.isfile(pg_template)):
+                        pg_hdu = pyfits.open(pg_template)
+                        scaling = podi_matchpupilghost.scaling_factors[filter]
+                        podi_matchpupilghost.subtract_pupilghost(flat_hdus, pg_hdu, scaling)
+                        flat_hdus[0].header.update("PUPLGOST", pg_template, "pupilghost template")
+                        flat_hdus[0].header.update("PUPLGFAC", scaling, "pupilghost scaling")
+
+                # And finally write the (maybe pupilghost-corrected) flat-field to disk
+                flat_hdus.writeto(flat_frame, clobber=True)
             else:
                 stdout_write("Flatfield (%s) already exists!\n" % filter)       
             if (not cmdline_arg_isset("-keeptemps")):
