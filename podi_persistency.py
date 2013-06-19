@@ -7,6 +7,7 @@ import numpy
 import scipy
 import pywcs
 from astLib import astWCS
+import jdcal
 
 from podi_definitions import *
 
@@ -79,6 +80,34 @@ def map_persistency_effects(hdulist):
     return mask_thisframe_list, mask_timeseries_list
 
 
+
+
+def mjd_to_time(mjd):
+
+    year, month, day, time = jdcal.jd2gcal(2400000.5, mjd)
+
+    hour = int(math.floor(time * 24.))
+    x = time*24 - hour
+
+    minute = int(math.floor(x * 60))
+    x = x * 60 - minute
+
+    second = x * 60
+
+    return year, month, day, hour, minute, second
+
+
+def get_timestamp_from_mjd(mjd):
+    year, month, day, hour, minute, second = mjd_to_time(mjd)
+    return "%04d%02d%02dT%02d%02d%02d" % (year, month, day, hour, minute, int(math.floor(second)))
+
+
+
+def find_latest_persistency_map(directory, mjd):
+
+    return
+
+
 def add_mask_to_map(mask, mjd, map_in):
 
     # Make a copy of the input frame
@@ -104,6 +133,10 @@ def add_mask_to_map(mask, mjd, map_in):
     return map_out
         
     
+def subtract_persistency(persistency_map, image_hdu):
+
+    return
+
 
 def create_new_persistency_map(shape, write_fits=None):
 
