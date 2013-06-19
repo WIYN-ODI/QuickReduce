@@ -110,7 +110,7 @@ def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_fil
 
 
 
-def imcombine(input_filelist, outputfile, operation):
+def imcombine(input_filelist, outputfile, operation, return_hdu=False):
     queue = multiprocessing.JoinableQueue()
 
     # First loop over all filenames and make sure all files exist
@@ -148,7 +148,7 @@ def imcombine(input_filelist, outputfile, operation):
     #
     # Now loop over all extensions and compute the mean
     #
-    for cur_ext in range(1, len(ref_hdulist)):
+    for cur_ext in range(1, 6): #len(ref_hdulist)):
         # Check what OTA we are dealing with
         if (not is_image_extension(ref_hdulist[cur_ext].header)):
             continue
@@ -233,14 +233,22 @@ def imcombine(input_filelist, outputfile, operation):
         del shmem_buffer
         del shmem_results
 
-    stdout_write(" writing results to file %s ..." % (outputfile))
     out_hdu = pyfits.HDUList(out_hdulist)
-    clobberfile(outputfile)
-    out_hdu.writeto(outputfile, clobber=True)
-    out_hdu.close()
-    del out_hdu
-    del out_hdulist    
-    stdout_write(" done!\n")
+    if (not return_hdu and outputfile != None):
+        stdout_write(" writing results to file %s ..." % (outputfile))
+        clobberfile(outputfile)
+        out_hdu.writeto(outputfile, clobber=True)
+        out_hdu.close()
+        del out_hdu
+        del out_hdulist
+        stdout_write(" done!\n")
+    elif (return_hdu):
+        stdout_write(" returning HDU for further processing ...\n")
+        return out_hdu
+    else:
+        stdout_write(" couldn't write output file, no filename given!\n")
+
+    return
 
 if __name__ == "__main__":
 
