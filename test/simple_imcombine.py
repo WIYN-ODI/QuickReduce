@@ -148,7 +148,7 @@ def imcombine(input_filelist, outputfile, operation):
     #
     # Now loop over all extensions and compute the mean
     #
-    for cur_ext in range(len(ref_hdulist)):
+    for cur_ext in range(1, len(ref_hdulist)):
         # Check what OTA we are dealing with
 
         stdout_write("\rCombining frames for extension %2d / %2d ..." % (cur_ext+1, len(ref_hdulist)))
