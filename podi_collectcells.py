@@ -201,9 +201,13 @@ def collect_reduce_ota(filename,
         # Open the latest persistency map and prepare to use it
         #
         persistency_map_file = options["persistency_map"]
-        persistency_hdu = pyfits.open(persistency_map_file)
-        pers_extname = "OTA%02d.PERS" % (ota)
-        persistency_map = persistency_hdu[pers_extname]
+        if (persistency_map_file == None):
+            stdout_write("Couldn't open/find persistency map!\n")
+            persistency_map = None
+        else:
+            persistency_hdu = pyfits.open(persistency_map_file)
+            pers_extname = "OTA%02d.PERS" % (ota)
+            persistency_map = persistency_hdu[pers_extname]
 
         #
         # Allocate memory for the merged frame, and set all pixels by default to NaN.
@@ -214,6 +218,15 @@ def collect_reduce_ota(filename,
         
         for cell in range(1,65):
             stdout_write("\r%s:   OTA %02d, cell %s ..." % (obsid, ota, hdulist[cell].header['EXTNAME']))
+
+            #
+            # Special case for cell 0,7 (the one in the bottom left corner):
+            # Copy the CRPIX values into the merged image header 
+            #
+            if (hdulist[cell].header['EXTNAME'] == "XY07"):
+                # print "Setting CRPIXs", hdulist[cell].header['CRPIX1'], hdulist[cell].header['CRPIX2']
+                hdu.header.update("CRPIX1", hdulist[cell].header['CRPIX1'], "Ref. pixel RA")
+                hdu.header.update("CRPIX2", hdulist[cell].header['CRPIX2'], "Ref. pixel DEC")
 
             # Check if this is one of the broken cells
             wm_cellx, wm_celly = hdulist[cell].header['WN_CELLX'], hdulist[cell].header['WN_CELLY']
@@ -227,6 +240,9 @@ def collect_reduce_ota(filename,
                     #print "found broken cell", hdulist[cell].header['EXTNAME'],broken_cell
                     break
 
+            if (broken):
+                continue # with the next cell
+
             # Apply the persistency correction for the current frame
             cellname = hdulist[cell].header['EXTNAME']
             if (cellname in persistency_mask_thisframe):
@@ -235,51 +251,42 @@ def collect_reduce_ota(filename,
                 # Change this once we have a better idea how to.
                 hdulist[cell].data[persistency_mask_thisframe[cellname]] = numpy.NaN
 
-            # If not, overscan subtract and insert into large frame
-            if (not broken):
-                overscan_region = extract_region(hdulist[cell].data, '[500:530,1:494]')
-                overscan_level = numpy.median(overscan_region)
+            # Now overscan subtract and insert into large frame
+            overscan_region = extract_region(hdulist[cell].data, '[500:530,1:494]')
+            overscan_level = numpy.median(overscan_region)
 
-                hdulist[cell].data -= overscan_level
+            hdulist[cell].data -= overscan_level
 
-                if (gain_correct_frames):
-                # Correct for the gain variations in each cell
-                    try:
-                        gain = float(hdulist[cell].header['GAIN'])
-                        hdulist[cell].data *= gain
-                    except:
-                        print "Couldn't find the GAIN header!"
-                        pass
+            if (gain_correct_frames):
+            # Correct for the gain variations in each cell
+                try:
+                    gain = float(hdulist[cell].header['GAIN'])
+                    hdulist[cell].data *= gain
+                except:
+                    print "Couldn't find the GAIN header!"
+                    pass
 
-                if (True): #hardcoded_detsec):
-                    cell_xy = hdulist[cell].header['EXTNAME'][2:4]
-                    x, y = int(cell_xy[0]), int(cell_xy[1])
+            if (True): #hardcoded_detsec):
+                cell_xy = hdulist[cell].header['EXTNAME'][2:4]
+                x, y = int(cell_xy[0]), int(cell_xy[1])
 
-                    datasec = '[1:480,1:494]'
-                    _y = 7 - y
-                    y1 = 1 + (505*_y)  #was 503 
-                    #taken from ODI OTA Technical Datasheet (det area 480x494, streets 11/28 px)
-                    y2 = y1 + 493
-                    x1 = 1 + 508 * x
-                    x2 = x1 + 479
-                    detsec = '[%d:%d,%d:%d]' % (x1, x2, y1, y2)
+                datasec = '[1:480,1:494]'
+                _y = 7 - y
+                y1 = 1 + (505*_y)  #was 503 
+                #taken from ODI OTA Technical Datasheet (det area 480x494, streets 11/28 px)
+                y2 = y1 + 493
+                x1 = 1 + 508 * x
+                x2 = x1 + 479
+                detsec = '[%d:%d,%d:%d]' % (x1, x2, y1, y2)
 
-                    insert_into_array(hdulist[cell].data, 
-                                      datasec, merged, detsec)
-                else:
-                    insert_into_array(hdulist[cell].data, 
-                                      hdulist[cell].header['DATASEC'],
-                                      merged,
-                                      hdulist[cell].header['DETSEC'])
+                insert_into_array(hdulist[cell].data, 
+                                  datasec, merged, detsec)
+            else:
+                insert_into_array(hdulist[cell].data, 
+                                  hdulist[cell].header['DATASEC'],
+                                  merged,
+                                  hdulist[cell].header['DETSEC'])
 
-            #
-            # Special case for cell 0,7 (the one in the bottom left corner):
-            # Copy the CRPIX values into the merged image header 
-            #
-            if (hdulist[cell].header['EXTNAME'] == "XY07"):
-                # print "Setting CRPIXs", hdulist[cell].header['CRPIX1'], hdulist[cell].header['CRPIX2']
-                hdu.header.update("CRPIX1", hdulist[cell].header['CRPIX1'], "Ref. pixel RA")
-                hdu.header.update("CRPIX2", hdulist[cell].header['CRPIX2'], "Ref. pixel DEC")
                 
         #
         # Get some information for the OTA
