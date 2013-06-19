@@ -144,6 +144,15 @@ def collect_reduce_ota(filename,
         for c in cards:
             hdu.header.update(c.key, c.value, c.comment)
 
+        
+        #
+        # Check all frames for persistency effects. This needs to be done NOW as otherwise
+        # cross-talk and overscan corrections affect pixels with saturated levels which 
+        # might cause us to miss some of them.
+        #
+        if ('persistency' in options):
+            persistency_mask_thisframe, persistency_mask_timeseries = podi_persistency.map_persistency_effects(hdulist)
+            
         # 
         # Perform cross-talk correction, using coefficients found in the 
         # podi_crosstalk package.
@@ -188,6 +197,13 @@ def collect_reduce_ota(filename,
                 xy_name = "xy%d%d" % (column, row)
                 hdulist[xy_name].data = xtalk_corr[column]
 
+        #
+        # Open the latest persistency map and prepare to use it
+        #
+        persistency_map_file = options["persistency_map"]
+        persistency_hdu = pyfits.open(persistency_map_file)
+        pers_extname = "OTA%02d.PERS" % (ota)
+        persistency_map = persistency_hdu[pers_extname]
 
         #
         # Allocate memory for the merged frame, and set all pixels by default to NaN.
@@ -210,6 +226,14 @@ def collect_reduce_ota(filename,
                     broken = True
                     #print "found broken cell", hdulist[cell].header['EXTNAME'],broken_cell
                     break
+
+            # Apply the persistency correction for the current frame
+            cellname = hdulist[cell].header['EXTNAME']
+            if (cellname in persistency_mask_thisframe):
+                # If we have corrections to be applied to this cell, set all problematic 
+                # pixels to NaN
+                # Change this once we have a better idea how to.
+                hdulist[cell].data[persistency_mask_thisframe[cellname]] = numpy.NaN
 
             # If not, overscan subtract and insert into large frame
             if (not broken):
@@ -628,8 +652,9 @@ def collectcells(input, outputfile,
 
         stdout_write("Replaced some keywords, new output filename: ---> %s\n" % (outputfile))
 
-    mjd = hdulist[0]['MJD-OBS']
-        
+    mjd = hdulist[0].header['MJD-OBS']
+    recent_persistency_map = podi_persistency.find_latest_persistency_map(".", mjd)
+
     hdulist.close()
     del hdulist
 
@@ -694,6 +719,7 @@ def collectcells(input, outputfile,
 
     options = {
         "persistency": True,
+        "persistency_map": recent_persistency_map,
         }
 
 
