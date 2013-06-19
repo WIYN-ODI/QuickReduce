@@ -36,6 +36,7 @@ import podi_search_ipprefcat
 import podi_fixwcs
 import podi_sitesetup as sitesetup
 import podi_crosstalk
+import podi_persistency
 
 from astLib import astWCS
 
@@ -99,7 +100,13 @@ def collect_reduce_ota(filename,
                        prepare_fixwcs=False,
                        hardcoded_detsec=False,
                        verbose=False,
-                       user_wcs_offset=None):
+                       user_wcs_offset=None,
+                       options=None):
+
+    data_products = {
+        "hdu": None,
+        "wcsdata": None,
+        }
 
     if (not os.path.isfile(filename)):
         stdout_write("Couldn't find file %s ..." % (filename))
@@ -112,7 +119,7 @@ def collect_reduce_ota(filename,
             hdulist = pyfits.open(filename, memmap=False)
         except:
             # This happed with corrupt files
-            return None, None
+            return data_products
 
         detsize = break_region_string(hdulist[0].header['DETSIZE'])
         det_x1, det_x2, det_y1, det_y2 = detsize
@@ -480,8 +487,10 @@ def collect_reduce_ota(filename,
                     fixwcs_data = (odi_ra, odi_dec, ref_ra, ref_dec, dx, dy, source_cat, matchcount)
         else:
             fixwcs_data = None
-            
-    return hdu, fixwcs_data
+           
+    data_products['hdu'] = hdu
+    data_products['wcsdata'] = fixwcs_data
+    return data_products #hdu, fixwcs_data
     
 
 
@@ -497,7 +506,8 @@ def parallel_collect_reduce_ota(queue, return_queue,
                                 pixelvalue_indef=numpy.NaN,
                                 wcs_solution=None, prepare_fixwcs=False,
                                 hardcoded_detsec=False,
-                                user_wcs_offset=None):
+                                user_wcs_offset=None,
+                                options=None):
 
     while (True):
         cmd_quit, filename, ota_id = queue.get()
@@ -506,7 +516,8 @@ def parallel_collect_reduce_ota(queue, return_queue,
             return
 
         # Do the work
-        hdu, wcsfix_data = collect_reduce_ota(filename, 
+        # hdu, wcsfix_data = collect_reduce_ota(filename, 
+        data_products = collect_reduce_ota(filename, 
                            bias_dir, dark_dir, flatfield_dir, bpm_dir,
                            offset_pointing=offset_pointing,
                            offset_dither=offset_dither,
@@ -516,11 +527,13 @@ def parallel_collect_reduce_ota(queue, return_queue,
                            prepare_fixwcs=prepare_fixwcs,
                            hardcoded_detsec=hardcoded_detsec,
                            user_wcs_offset=user_wcs_offset,
+                                              options=options
             )
 
         # Add the results to the return_queue so the master process can assemble the result file
         # print "Adding results for OTA",ota_id,"to return queue"
-        return_queue.put( (hdu, ota_id, wcsfix_data) )
+        # return_queue.put( (hdu, ota_id, wcsfix_data) )
+        return_queue.put( (ota_id, data_products) )
         queue.task_done()
         
     return
@@ -573,24 +586,27 @@ def collectcells(input, outputfile,
     if (outputfile == None):
         outputfile = "%s/%s.fits" % (directory, filebase)
 
+    hdulist = None
+    for ota in all_otas:
+        filename = "%s/%s.%02d.fits" % (directory, filebase, ota)
+        if (not os.path.isfile(filename)):
+            filename = "%s/%s.%02d.fits.fz" % (directory, filebase, ota)
+        try:
+            hdulist = pyfits.open(filename)
+            break
+        except:
+            stdout_write("Problem opening an existing fits-file (%s), aborting!\n" % filename)
+            continue
+
+    if (hdulist == None):
+        print "Something is wrong here, can't find/open any of the files..."
+        return -1
+
     if (outputfile.find("%") >= 0):
         # The output filename contains special tags that should 
         # be replaced by values from the file header
 
-        filename = "%s/%s.%02d.fits" % (directory, filebase, 33)
-        if (not os.path.isfile(filename)):
-            filename = "%s/%s.%02d.fits.fz" % (directory, filebase, 33)
-            if (not os.path.isfile(filename)):
-                print "Error opening OTA 3,3 (%s)" % (filename)
-                return -1
-        try:
-            hdulist = pyfits.open(filename)
-        except:
-            stdout_write("Problem opening a fits-file (%s), aborting!\n" % filename)
-            return None
-
         header = hdulist[0].header
-        
         while (outputfile.find("%") >= 0):
             start = outputfile.find("%") 
             if (outputfile[start:start+7] == "%FILTER"):
@@ -608,11 +624,15 @@ def collectcells(input, outputfile,
                 stdout_write("found unknown tag in %s\n" % outputfile)
                 break
 
-        hdulist.close()
-        del hdulist
         del header
 
         stdout_write("Replaced some keywords, new output filename: ---> %s\n" % (outputfile))
+
+    mjd = hdulist[0]['MJD-OBS']
+        
+    hdulist.close()
+    del hdulist
+
 
     if (os.path.isfile(outputfile) and not clobber_mode):
         print "#####################################################"
@@ -672,6 +692,11 @@ def collectcells(input, outputfile,
     processes = []
     #for i in range(number_cpus):
 
+    options = {
+        "persistency": True,
+        }
+
+
     worker_args = (queue, return_queue,
                    bias_dir, dark_dir, flatfield_dir, bpm_dir,
                    offset_pointing,
@@ -682,6 +707,7 @@ def collectcells(input, outputfile,
                    fixwcs,
                    hardcoded_detsec,
                    user_wcs_offset,
+                   options,
                    )
 
     number_extensions = 0
@@ -740,7 +766,12 @@ def collectcells(input, outputfile,
     ############################################################
     global_number_matches = None
     for i in range(len(available_ota_coords)):
-        hdu, ota_id, wcsfix_data = return_queue.get()
+        #hdu, ota_id, wcsfix_data = return_queue.get()
+        ota_id, data_products = return_queue.get()
+
+        hdu = data_products['hdu']
+        wcsfix_data = data_products['wcsdata']
+
         if (hdu == None):
             continue
 
