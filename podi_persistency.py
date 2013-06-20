@@ -152,6 +152,9 @@ def find_latest_persistency_map(directory, mjd, verbose=False):
             min_delta_mjd = d_mjd
             if (verbose): print "Found better match: %s (MJD=%.6f, or %d secs)" % (latest_map, file_mjd, min_delta_mjd*86400)
 
+    if (latest_map == None):
+        return None
+
     # Create full filename and return
     fullpath = "%s/%s" % (directory, latest_map)
     print "Using",fullpath,"as persistency map"
@@ -169,6 +172,9 @@ def add_mask_to_map(mask, mjd, map_in):
 
     this_map = numpy.zeros(map_in.shape)
 
+    #print mask
+    #print map_in.shape
+
     for cell in mask:
         print cell, mask[cell].shape
 
@@ -183,6 +189,28 @@ def add_mask_to_map(mask, mjd, map_in):
 
     return map_out
         
+
+def get_correction(persistency_map, cell_position, mjd):
+
+    # Compute how big each subframe is
+    dx, dy = persistency_map.shape[1]/8, persistency_map.shape[0]/8
+
+    cell_x, cell_y = cell_position
+
+    # From this and the cell-coordinates, determine the 
+    # bottom left and top right pixel coordinates
+    bx, by = cell_x * dx, (7-cell_y)*dy
+    tx, ty = bx + dx, by + dy
+
+    # Now extract frame and compute time-difference 
+    # between then and now
+    d_mjd = persistency_map[by:ty,bx:tx] #- mjd
+
+    # Add some clever function here...
+    correction = d_mjd 
+
+    return correction
+
     
 def subtract_persistency(persistency_map, image_hdu):
 
