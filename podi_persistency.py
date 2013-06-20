@@ -160,6 +160,15 @@ def find_latest_persistency_map(directory, mjd, verbose=False):
     print "Using",fullpath,"as persistency map"
     return fullpath
 
+def persistency_map_filename(directory, mjd):
+    
+    # First convert MJD to timestamp
+    timestamp = get_timestamp_from_mjd(mjd)
+
+    # And then create and return filename
+    filename = "%s/persistency_map_%s.fits" % (directory, timestamp)
+    
+    return filename
 
 
 def add_mask_to_map(mask, mjd, map_in):
