@@ -153,6 +153,32 @@ def collect_reduce_ota(filename,
         if ('persistency' in options):
             persistency_mask_thisframe, persistency_mask_timeseries = podi_persistency.map_persistency_effects(hdulist)
             
+        #
+        # Open the latest persistency map and prepare to use it
+        #
+        persistency_map_file = options["persistency_map"]
+        if (persistency_map_file == None):
+            stdout_write("Couldn't open/find persistency map!\n")
+            persistency_map = None
+        else:
+            persistency_hdu = pyfits.open(persistency_map_file)
+            pers_extname = "OTA%02d.PERS" % (ota)
+            persistency_map = persistency_hdu[pers_extname].data
+
+        # Also read the MJD for this frame. This will be needed later for the correction
+        mjd = hdu.header['MJD-OBS']
+        #print "MJD of this frame =",mjd
+
+        #
+        # Create a new updated persistency map with saturation-affected in this 
+        # frame being marked with the MJD of this frame
+        #
+        if (persistency_map != None and 'persistency' in options):
+            persistency_map_after = podi_persistency.add_mask_to_map(persistency_mask_timeseries, mjd, persistency_map)
+            data_products['persistency_map_out'] = persistency_map_after
+        if (cmdline_arg_isset("-update_persistency_only")):
+            return data_products
+        
         # 
         # Perform cross-talk correction, using coefficients found in the 
         # podi_crosstalk package.
@@ -164,9 +190,6 @@ def collect_reduce_ota(filename,
 
         # Allocate some memory for the cells in one row
         xtalk_corr = [None] * 8
-
-        #print podi_crosstalk.xtalk_matrix
-        #sys.exit(0)
 
         # Now go through each of the 8 lines
         for row in range(8):
@@ -196,18 +219,6 @@ def collect_reduce_ota(filename,
                 # back into the hdulist so can can continue with the overscan subtraction etc.
                 xy_name = "xy%d%d" % (column, row)
                 hdulist[xy_name].data = xtalk_corr[column]
-
-        #
-        # Open the latest persistency map and prepare to use it
-        #
-        persistency_map_file = options["persistency_map"]
-        if (persistency_map_file == None):
-            stdout_write("Couldn't open/find persistency map!\n")
-            persistency_map = None
-        else:
-            persistency_hdu = pyfits.open(persistency_map_file)
-            pers_extname = "OTA%02d.PERS" % (ota)
-            persistency_map = persistency_hdu[pers_extname]
 
         #
         # Allocate memory for the merged frame, and set all pixels by default to NaN.
@@ -266,6 +277,13 @@ def collect_reduce_ota(filename,
                     print "Couldn't find the GAIN header!"
                     pass
 
+            #
+            # Now apply the persistency correction before we trim down the frame
+            #
+            if (persistency_map != None and 'persistency' in options):
+                persistency_correction = podi_persistency.get_correction(persistency_map, (wm_cellx, wm_celly), mjd)
+                hdulist[cell].data -= persistency_correction
+            
             if (True): #hardcoded_detsec):
                 cell_xy = hdulist[cell].header['EXTNAME'][2:4]
                 x, y = int(cell_xy[0]), int(cell_xy[1])
