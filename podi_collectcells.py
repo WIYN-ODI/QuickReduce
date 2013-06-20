@@ -175,7 +175,9 @@ def collect_reduce_ota(filename,
         #
         if (persistency_map != None and 'persistency' in options):
             persistency_map_after = podi_persistency.add_mask_to_map(persistency_mask_timeseries, mjd, persistency_map)
-            data_products['persistency_map_out'] = persistency_map_after
+            persistency_new_hdu = pyfits.ImageHDU(header=persistency_hdu[pers_extname].header,
+                                                  data=persistency_map_after)
+            data_products['persistency_map_updated'] = persistency_new_hdu
         if (cmdline_arg_isset("-update_persistency_only")):
             return data_products
         
@@ -677,9 +679,22 @@ def collectcells(input, outputfile,
 
         stdout_write("Replaced some keywords, new output filename: ---> %s\n" % (outputfile))
 
+    #
+    # Some book-keeping about persistency coming next
+    #
+
+    # Work out what the most recent persistency filename is
     mjd = hdulist[0].header['MJD-OBS']
+    print "MJD of this frame=",mjd,podi_persistency.get_timestamp_from_mjd(mjd)
     recent_persistency_map = podi_persistency.find_latest_persistency_map(".", mjd)
 
+    # Prepare the updated persistency map
+    persistency = [None] * (len(available_ota_coords)+1)
+    persistency[0] = pyfits.PrimaryHDU()
+    persistency[0].header.update("MJD", mjd)
+    persistency_output_filename = podi_persistency.persistency_map_filename(".", mjd)
+    print "persistency file written next:",persistency_output_filename
+    # We know enough about the current frame, so close the file
     hdulist.close()
     del hdulist
 
@@ -807,6 +822,7 @@ def collectcells(input, outputfile,
     fixwcs_odi_sourcecat = None
     fixwcs_bestguess = numpy.ones(shape=(len(available_ota_coords),2)) * -1000
 
+
     ############################################################
     #
     # In this loop:
@@ -822,6 +838,10 @@ def collectcells(input, outputfile,
 
         hdu = data_products['hdu']
         wcsfix_data = data_products['wcsdata']
+
+        if ("persistency_map_updated" in data_products):
+            # We also received an updated persistency map
+            persistency[ota_id] = data_products["persistency_map_updated"]
 
         if (hdu == None):
             continue
@@ -912,6 +932,13 @@ def collectcells(input, outputfile,
             tmp_ota_list.append(ota_list[ext])
     ota_list = tmp_ota_list
     #print "cleaned up, now",len(ota_list),"extensions left"
+
+    # Write the updated persistency file 
+    stdout_write("Writing new persistency map (%s) ..." % (persistency_output_filename))
+    pers_hdulist = pyfits.HDUList(persistency)
+    clobberfile(persistency_output_filename)
+    pers_hdulist.writeto(persistency_output_filename, clobber=True)
+    stdout_write(" done!\n")
 
     # Now update the headers in all OTA extensions.
     for extension in range(1, len(ota_list)):
