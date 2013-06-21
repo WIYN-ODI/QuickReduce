@@ -148,7 +148,7 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
     #
     # Now loop over all extensions and compute the mean
     #
-    for cur_ext in range(1, 6): #len(ref_hdulist)):
+    for cur_ext in range(1, len(ref_hdulist)):
         # Check what OTA we are dealing with
         if (not is_image_extension(ref_hdulist[cur_ext].header)):
             continue
