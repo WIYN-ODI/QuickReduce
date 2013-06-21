@@ -37,6 +37,7 @@ import podi_fixwcs
 import podi_sitesetup as sitesetup
 import podi_crosstalk
 import podi_persistency
+import podi_asyncfitswrite
 
 from astLib import astWCS
 
@@ -263,7 +264,8 @@ def collect_reduce_ota(filename,
                 # If we have corrections to be applied to this cell, set all problematic 
                 # pixels to NaN
                 # Change this once we have a better idea how to.
-                hdulist[cell].data[persistency_mask_thisframe[cellname]] = numpy.NaN
+                hdulist[cell].data = podi_persistency.apply_mask_to_data(persistency_mask_thisframe[cellname], hdulist[cell].data)
+                #hdulist[cell].data[persistency_mask_thisframe[cellname]] = numpy.NaN
 
             # Now overscan subtract and insert into large frame
             overscan_region = extract_region(hdulist[cell].data, '[500:530,1:494]')
@@ -612,6 +614,8 @@ def collectcells(input, outputfile,
     print "Received options:", options
     if (options == None): options = set_default_options()
 
+    afw = podi_asyncfitswrite.async_fits_writer()
+
     if (os.path.isfile(input)):
         # Assume this is one of the fits files in the right directory
         # In that case, extract the FILENAME header and convert it into 
@@ -930,7 +934,8 @@ def collectcells(input, outputfile,
     stdout_write("Writing new persistency map (%s) ..." % (persistency_output_filename))
     pers_hdulist = pyfits.HDUList(persistency)
     clobberfile(persistency_output_filename)
-    pers_hdulist.writeto(persistency_output_filename, clobber=True)
+    #pers_hdulist.writeto(persistency_output_filename, clobber=True)
+    afw.write(pers_hdulist, persistency_output_filename)
     stdout_write(" done!\n")
     if (options['update_persistency_only']):
         stdout_write("Only updating the persistency map now, skipping rest of work!\n")
@@ -1160,12 +1165,16 @@ def collectcells(input, outputfile,
     if (not batchmode):
         stdout_write("writing output file ...")
         clobberfile(outputfile)
-        hdulist.writeto(outputfile, clobber=True)
+        # hdulist.writeto(outputfile, clobber=True)
+        afw.write(hdulist, outputfile)
     else:
         stdout_write(" continuing ...")
         return hdulist
 
     stdout_write(" done!\n")
+
+    afw.finish(userinfo=True)
+
     return 0
 
 
