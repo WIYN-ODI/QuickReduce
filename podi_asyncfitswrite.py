@@ -41,7 +41,7 @@ class async_fits_writer_thread (threading.Thread):
             #time.sleep(2)
             clobberfile(filename)
             hdulist.writeto(filename, clobber=True)
-            stdout_write("File %s finished writing to disk\n" % (filename))
+            if (verbose): stdout_write("File %s finished writing to disk\n" % (filename))
             self.queue.task_done()
 
         if (verbose): print "All done, going home!" 
@@ -62,7 +62,7 @@ class async_fits_writer():
         self.start_threads()
        
     def write(self,hdulist, filename):
-        stdout_write("Queued file %s for writing to disk.\n" % (filename))
+        if (verbose): stdout_write("Queued file %s for writing to disk.\n" % (filename))
         self.fits_queue.put((hdulist, filename, False))
 
     def start_threads(self):
@@ -77,13 +77,15 @@ class async_fits_writer():
         self.finish()
         self.start_threads()
 
-    def finish(self):
+    def finish(self, userinfo=False):
+        if (userinfo): stdout_write("Waiting for asynchronous I/O to complete ...")
         if (verbose): print "Sending shutdown commands"
         for t in self.threads:
             self.fits_queue.put((None, None, True))
         for t in self.threads:
             t.join()
         if (verbose): print "Finishing up work"
+        if (userinfo): stdout_write(" done!\n")
 
     def __del__(self):
         self.finish()
