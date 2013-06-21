@@ -298,6 +298,488 @@ pupilghost_centers = {"OTA33.SCI": (4190, 4150),
                       "OTA43.SCI": (  10, 4130),
                       }
 
+for ext in pupilghost_centers:
+    cx, cy = pupilghost_centers[ext]
+    cx += -9
+    cy += +4
+    pupilghost_centers[ext] = (cx, cy)
+#    pupilghost_centers[ext][0] += 1
+#    pupilghost_centers[ext][1] += 1
+
+
+# .14
+pupilghost_centers = {"OTA33.SCI": (4181, 4154),
+                      "OTA34.SCI": (4196, -161),
+                      "OTA44.SCI": (   1, -181),
+                      "OTA43.SCI": (   1, 4134),
+                      }
+
+
+# .15
+pupilghost_centers = {"OTA33.SCI": (4181+2, 4154+2),
+                      "OTA34.SCI": (4196+2, -161-2),
+                      "OTA44.SCI": (   1-2, -181-2),
+                      "OTA43.SCI": (   1, 4134),
+                      }
+
+
+# .16
+pupilghost_centers = {"OTA33.SCI": (4181-8, 4154+2),
+                      "OTA34.SCI": (4196-10, -161-2),
+                      "OTA44.SCI": (   1+5, -181-7),
+                      "OTA43.SCI": (   1, 4134),
+                      }
+pupilghost_centers = {"OTA33.SCI": (4173, 4156),
+                      "OTA34.SCI": (4186, -163),
+                      "OTA44.SCI": (   6, -188),
+                      "OTA43.SCI": (   1, 4134),
+                      }
+
+# 17
+pupilghost_centers = {"OTA33.SCI": (4173, 4156),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (   6, -188),
+                      "OTA43.SCI": (   1, 4134),
+                      }
+
+# 18
+pupilghost_centers = {"OTA33.SCI": (4173, 4156),
+                      "OTA34.SCI": (4195, -172),
+                      "OTA44.SCI": (   6, -188),
+                      "OTA43.SCI": (   1, 4134),
+                      }
+
+# 19
+pupilghost_centers = {"OTA33.SCI": (4173, 4156),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (   6, -188),
+                      "OTA43.SCI": (   -4, 4139),
+                      }
+
+# 20
+pupilghost_centers = {"OTA33.SCI": (4173, 4156),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (   6, -188),
+                      "OTA43.SCI": (   -2, 4137),
+                      }
+
+# 21
+pupilghost_centers = {"OTA33.SCI": (4173, 4156),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (   8, -186),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+# 22
+pupilghost_centers = {"OTA33.SCI": (4173, 4156),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (   4, -190),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+# 23
+pupilghost_centers = {"OTA33.SCI": (4173, 4156),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (   0, -194),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+# 24
+pupilghost_centers = {"OTA33.SCI": (4175, 4158),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (   6, -188),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+# 25
+pupilghost_centers = {"OTA33.SCI": (4175, 4158),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  16, -178),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+# 26
+pupilghost_centers = {"OTA33.SCI": (4175, 4158),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  21, -173),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+# 27
+pupilghost_centers = {"OTA33.SCI": (4170, 4153),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  16, -178),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+
+# 28
+pupilghost_centers = {"OTA33.SCI": (4170, 4153),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  21, -173),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+
+# 29
+pupilghost_centers = {"OTA33.SCI": (4164, 4147),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  15, -179),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+
+# 30
+pupilghost_centers = {"OTA33.SCI": (4167, 4150),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  18, -176),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+
+# 31
+pupilghost_centers = {"OTA33.SCI": (4166, 4149),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  17, -177),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+
+# 32
+pupilghost_centers = {"OTA33.SCI": (4166, 4149),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  18, -176),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+
+# 33
+pupilghost_centers = {"OTA33.SCI": (4167, 4150),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  17, -177),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+# 34
+pupilghost_centers = {"OTA33.SCI": (4167, 4150),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  12, -177),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+# 35
+pupilghost_centers = {"OTA33.SCI": (4167, 4150),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  12, -172),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+
+# 36
+pupilghost_centers = {"OTA33.SCI": (4170, 4153),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  15, -169),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+# 37
+pupilghost_centers = {"OTA33.SCI": (4164, 4147),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (   9, -175),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+
+# 38
+pupilghost_centers = {"OTA33.SCI": (4165, 4148),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  10, -174),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+# 39
+pupilghost_centers = {"OTA33.SCI": (4165, 4148),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (   9, -175),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+
+
+# 40
+pupilghost_centers = {"OTA33.SCI": (4164, 4147),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  10, -174),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+
+# 41
+pupilghost_centers = {"OTA33.SCI": (4164, 4147),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  15, -169),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+# 42
+pupilghost_centers = {"OTA33.SCI": (4167, 4150),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  16, -168),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+# 43
+pupilghost_centers = {"OTA33.SCI": (4161, 4144),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  16, -168),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+# 44
+pupilghost_centers = {"OTA33.SCI": (4165, 4144),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  16, -164),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+
+# 45
+pupilghost_centers = {"OTA33.SCI": (4165, 4144),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  28, -152),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+
+# 46
+pupilghost_centers = {"OTA33.SCI": (4165, 4144),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  20, -160),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+# 47
+pupilghost_centers = {"OTA33.SCI": (4165, 4144),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  16, -164),
+                      "OTA43.SCI": (  -1, 4136),
+                      }
+
+
+
+# 48
+pupilghost_centers = {"OTA33.SCI": (4165, 4144),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  20, -160),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+
+# 49
+pupilghost_centers = {"OTA33.SCI": (4165, 4140),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  20, -155),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+
+# 50
+pupilghost_centers = {"OTA33.SCI": (4165, 4140),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  10, -155),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+# 51
+pupilghost_centers = {"OTA33.SCI": (4165, 4140),
+                      "OTA34.SCI": (4190, -167),
+                      "OTA44.SCI": (  20, -145),
+                      "OTA43.SCI": (   -1, 4136),
+                      }
+
+
+
+# .13
+pupilghost_centers = {"OTA33.SCI": (4190, 4150),
+                      "OTA34.SCI": (4205, -165),
+                      "OTA44.SCI": (  10, -185),
+                      "OTA43.SCI": (  10, 4130),
+                      }
+
+
+# .52
+pupilghost_centers = {"OTA33.SCI": (4185, 4150),
+                      "OTA34.SCI": (4200, -165),
+                      "OTA44.SCI": (  10, -185),
+                      "OTA43.SCI": (  10, 4130),
+                      }
+
+
+# .53
+pupilghost_centers = {"OTA33.SCI": (4180, 4150),
+                      "OTA34.SCI": (4195, -165),
+                      "OTA44.SCI": (  10, -185),
+                      "OTA43.SCI": (  10, 4130),
+                      }
+
+
+# .54
+pupilghost_centers = {"OTA33.SCI": (4175, 4150),
+                      "OTA34.SCI": (4190, -165),
+                      "OTA44.SCI": (  10, -185),
+                      "OTA43.SCI": (  10, 4130),
+                      }
+
+
+# .55
+pupilghost_centers = {"OTA33.SCI": (4175, 4145),
+                      "OTA34.SCI": (4190, -165),
+                      "OTA44.SCI": (  10, -185),
+                      "OTA43.SCI": (  10, 4130),
+                      }
+
+
+# .56
+pupilghost_centers = {"OTA33.SCI": (4175, 4145),
+                      "OTA34.SCI": (4195, -170),
+                      "OTA44.SCI": (  10, -185),
+                      "OTA43.SCI": (  10, 4130),
+                      }
+
+
+# .57
+pupilghost_centers = {"OTA33.SCI": (4175, 4145),
+                      "OTA34.SCI": (4185, -170),
+                      "OTA44.SCI": (  10, -185),
+                      "OTA43.SCI": (  10, 4130),
+                      }
+
+
+# .58
+pupilghost_centers = {"OTA33.SCI": (4175, 4145),
+                      "OTA34.SCI": (4175, -170),
+                      "OTA44.SCI": (  10, -185),
+                      "OTA43.SCI": (  10, 4130),
+                      }
+
+
+# .59
+pupilghost_centers = {"OTA33.SCI": (4175, 4145),
+                      "OTA34.SCI": (4175, -170),
+                      "OTA44.SCI": (  10, -185),
+                      "OTA43.SCI": (  15, 4130),
+                      }
+
+
+# .60
+pupilghost_centers = {"OTA33.SCI": (4175, 4145),
+                      "OTA34.SCI": (4180, -170),
+                      "OTA44.SCI": (  10, -185),
+                      "OTA43.SCI": (  10, 4130),
+                      }
+
+
+# .61
+pupilghost_centers = {"OTA33.SCI": (4175, 4145),
+                      "OTA34.SCI": (4172, -173),
+                      "OTA44.SCI": (  10, -185),
+                      "OTA43.SCI": (  13, 4133),
+                      }
+
+
+
+# .62
+pupilghost_centers = {"OTA33.SCI": (4175, 4145),
+                      "OTA34.SCI": (4170, -175),
+                      "OTA44.SCI": (  10, -185),
+                      "OTA43.SCI": (  10, 4130),
+                      }
+
+
+# .63
+pupilghost_centers = {"OTA33.SCI": (4175, 4145),
+                      "OTA34.SCI": (4165, -180),
+                      "OTA44.SCI": (  10, -185),
+                      "OTA43.SCI": (  10, 4130),
+                      }
+
+
+
+# .64
+pupilghost_centers = {"OTA33.SCI": (4175, 4145),
+                      "OTA34.SCI": (4185, -160),
+                      "OTA44.SCI": (  10, -185),
+                      "OTA43.SCI": (  10, 4130),
+                      }
+
+
+# .65
+pupilghost_centers = {"OTA33.SCI": (4175, 4145),
+                      "OTA34.SCI": (4175, -170),
+                      "OTA44.SCI": (  10, -185),
+                      "OTA43.SCI": (  20, 4140),
+                      }
+
+
+
+# .66
+pupilghost_centers = {"OTA33.SCI": (4175, 4145),
+                      "OTA34.SCI": (4165, -170),
+                      "OTA44.SCI": (  10, -185),
+                      "OTA43.SCI": (  10, 4130),
+                      }
+
+
+# .67
+pupilghost_centers = {"OTA33.SCI": (4175, 4145),
+                      "OTA34.SCI": (4165, -170),
+                      "OTA44.SCI": (  10, -185),
+                      "OTA43.SCI": (  10, 4125), #0,-5
+                      }
+
+# .68
+pupilghost_centers = {"OTA33.SCI": (4178, 4148), # +3 +3
+                      "OTA34.SCI": (4165, -170), #
+                      "OTA44.SCI": (   7, -188), # -3 -3
+                      "OTA43.SCI": (  10, 4125), #
+                      }
+
+# .69 from 66
+pupilghost_centers = {"OTA33.SCI": (4175, 4145),
+                      "OTA34.SCI": (4165, -170),
+                      "OTA44.SCI": (  10, -185),
+                      "OTA43.SCI": (  10, 4128), #0,-2
+                      }
+
+# .70 from 66
+pupilghost_centers = {"OTA33.SCI": (4175, 4145),
+                      "OTA34.SCI": (4165, -170),
+                      "OTA44.SCI": (  10, -185),
+                      "OTA43.SCI": (  10, 4133), #0,+3
+                      }
+
 
 
 def inherit_headers(header, primary_header):
@@ -473,3 +955,25 @@ def rotate_around_center(data, angle, mask_limit = 0.1, verbose=True, safety=1, 
     if (verbose): stdout_write(" done!\n")
     return rotated
 
+
+
+def get_filter_level(header):
+    
+    filter_level = 0
+    filter_count = 0
+ 
+    for lvl in range(1,4):
+        for arm in "ABC":
+            keyword = "FLTARM%d%s" % (lvl, arm)
+            # print keyword
+
+            if (header[keyword].strip() == "IN"):
+                filter_count += 1
+                if (filter_count == 1):
+                    filter_level = lvl
+
+    if (filter_count > 1):
+        return -1
+
+    return filter_level
+            
