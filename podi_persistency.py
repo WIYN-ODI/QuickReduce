@@ -204,7 +204,7 @@ def add_mask_to_map(mask, mjd, map_in):
 def apply_mask_to_data(mask, data):
 
     out = data
-    #out[mask] = numpy.NaN
+    out[mask] = numpy.NaN
 
     return out
 
@@ -221,13 +221,14 @@ def get_correction(persistency_map, cell_position, mjd):
     tx, ty = bx + dx, by + dy
 
     # Now extract frame and compute time-difference 
-    # between then and now
-    d_mjd = persistency_map[by:ty,bx:tx]
+    # between then and now, and convert delta_MJDs into seconds
+    d_mjd = (persistency_map[by:ty,bx:tx] - mjd) * 86400.
 
     # Add some clever function here...
-    # correction = d_mjd 
-    # correction[(d_mjd < mjd) & (d_mjd > 0)] = numpy.NaN
-    correction = 0
+    # Only use correction if they are within 10 minutes of the frame
+    invalid_range_dmjd = (d_mjd < -600) | (d_mjd >= 0)
+    correction = 20. * numpy.exp(d_mjd / 125.)
+    correction[invalid_range_dmjd] = 0
 
     return correction
 
