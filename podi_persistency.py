@@ -114,6 +114,7 @@ def get_mjd_from_timestamp(timestamp):
     return mjd1 + mjd2
 
 
+mjd_seconds = 1. / 86400.
 def find_latest_persistency_map(directory, mjd, verbose=False):
 
     # Get a list of all files in the specified directory
@@ -138,7 +139,7 @@ def find_latest_persistency_map(directory, mjd, verbose=False):
         timestamp = file[16:31]
         file_mjd = get_mjd_from_timestamp(timestamp)
 
-        if (verbose): print file, file_mjd
+        if (verbose): print file, file_mjd, mjd, "smaller:",(file_mjd<mjd)
 
         if (file_mjd >= mjd):
             # That's weird, this file shouldn't exist, but maybe it's just a 
@@ -146,8 +147,10 @@ def find_latest_persistency_map(directory, mjd, verbose=False):
             continue
         
         # Check if this is a closer match than the one we had before
+        # Set 5 seconds as a minimum time requirement to prevent us from potentially 
+        # finding the persistency map of this file from an earlier run.
         d_mjd = mjd - file_mjd
-        if (d_mjd < min_delta_mjd):
+        if (d_mjd < min_delta_mjd and d_mjd > 5*mjd_seconds): 
             latest_map = file
             min_delta_mjd = d_mjd
             if (verbose): print "Found better match: %s (MJD=%.6f, or %d secs)" % (latest_map, file_mjd, min_delta_mjd*86400)
@@ -185,7 +188,7 @@ def add_mask_to_map(mask, mjd, map_in):
     #print map_in.shape
 
     for cell in mask:
-        print cell, mask[cell].shape
+        # print "in add_mask_to_map",cell, mask[cell].shape
 
         x,y = int(cell[2]), int(cell[3])
         
@@ -213,10 +216,11 @@ def get_correction(persistency_map, cell_position, mjd):
 
     # Now extract frame and compute time-difference 
     # between then and now
-    d_mjd = persistency_map[by:ty,bx:tx] #- mjd
+    d_mjd = persistency_map[by:ty,bx:tx]
 
     # Add some clever function here...
     correction = d_mjd 
+    correction[(d_mjd < mjd) & (d_mjd > 0)] = numpy.NaN
 
     return correction
 
@@ -291,7 +295,7 @@ if __name__ == "__main__":
     
     if (cmdline_arg_isset('-newmap')):
         inputfile = get_clean_cmdline()[1]
-        outputfile = get_clean_cmdline()[2]
+        outputfile = "persistency_map_00000000T000000.fits" #get_clean_cmdline()[2]
         hdulist = pyfits.open(inputfile)
         
         # If this flag is set, simply create a new persistency map
@@ -304,7 +308,7 @@ if __name__ == "__main__":
     if (cmdline_arg_isset('-findmap')):
         directory = get_clean_cmdline()[1]
         mjd = float(get_clean_cmdline()[2])
-        find_latest_persistency_map(directory, mjd)
+        find_latest_persistency_map(directory, mjd, verbose=True)
         sys.exit(0)
 
     inputfile = sys.argv[1]
