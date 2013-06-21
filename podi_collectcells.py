@@ -174,11 +174,12 @@ def collect_reduce_ota(filename,
         # frame being marked with the MJD of this frame
         #
         if (persistency_map != None and 'persistency' in options):
+            # print pers_extname,
             persistency_map_after = podi_persistency.add_mask_to_map(persistency_mask_timeseries, mjd, persistency_map)
             persistency_new_hdu = pyfits.ImageHDU(header=persistency_hdu[pers_extname].header,
                                                   data=persistency_map_after)
             data_products['persistency_map_updated'] = persistency_new_hdu
-        if (cmdline_arg_isset("-update_persistency_only")):
+        if (options["update_persistency_only"]):
             return data_products
         
         # 
@@ -605,7 +606,11 @@ def collectcells(input, outputfile,
                  hardcoded_detsec=False,
                  clobber_mode=True,
                  verbose=False,
-                 user_wcs_offset=None):
+                 user_wcs_offset=None,
+                 options=None):
+
+    print "Received options:", options
+    if (options == None): options = set_default_options()
 
     if (os.path.isfile(input)):
         # Assume this is one of the fits files in the right directory
@@ -698,6 +703,10 @@ def collectcells(input, outputfile,
     hdulist.close()
     del hdulist
 
+    # Update some options
+    # This has to move in the near future to make things nice and tidy
+    options["persistency"] = True
+    options["persistency_map"] = recent_persistency_map
 
     if (os.path.isfile(outputfile) and not clobber_mode):
         print "#####################################################"
@@ -756,12 +765,6 @@ def collectcells(input, outputfile,
     
     processes = []
     #for i in range(number_cpus):
-
-    options = {
-        "persistency": True,
-        "persistency_map": recent_persistency_map,
-        }
-
 
     worker_args = (queue, return_queue,
                    bias_dir, dark_dir, flatfield_dir, bpm_dir,
@@ -848,7 +851,7 @@ def collectcells(input, outputfile,
 
         ota_list[ota_id] = hdu
         
-        if (fixwcs):
+        if (fixwcs and not options['update_persistency_only']):
             
             if (wcsfix_data != None):
                 odi_ra, odi_dec, ref_ra, ref_dec, dx, dy, source_cat, number_matches = wcsfix_data
@@ -891,7 +894,7 @@ def collectcells(input, outputfile,
             #continue
             #fixwcs_bestguess = numpy.append(fixwcs_bestguess, add_to_bestguess, axis=0)
 
-    if (fixwcs):
+    if (fixwcs and not options['update_persistency_only']):
         x = open("fixwcs.nmatches","w")
         numpy.savetxt(x, global_number_matches)
         x.close()
@@ -920,7 +923,19 @@ def collectcells(input, outputfile,
     #    primary extension instead (defined in headers_to_inherit, see podi_definitions)
     # 3) Delete a bunch of headers that are no longer necessary (defined in 
     #    headers_to_delete_from_otas, see podi_definitions)
+    # 4) Write the updated persistency map to file
     #
+
+    # Write the updated persistency file 
+    stdout_write("Writing new persistency map (%s) ..." % (persistency_output_filename))
+    pers_hdulist = pyfits.HDUList(persistency)
+    clobberfile(persistency_output_filename)
+    pers_hdulist.writeto(persistency_output_filename, clobber=True)
+    stdout_write(" done!\n")
+    if (options['update_persistency_only']):
+        stdout_write("Only updating the persistency map now, skipping rest of work!\n")
+        return 0
+
 
     # First step:
     # Delete all HDU entries that are set to None, indicating that there was something
@@ -932,13 +947,6 @@ def collectcells(input, outputfile,
             tmp_ota_list.append(ota_list[ext])
     ota_list = tmp_ota_list
     #print "cleaned up, now",len(ota_list),"extensions left"
-
-    # Write the updated persistency file 
-    stdout_write("Writing new persistency map (%s) ..." % (persistency_output_filename))
-    pers_hdulist = pyfits.HDUList(persistency)
-    clobberfile(persistency_output_filename)
-    pers_hdulist.writeto(persistency_output_filename, clobber=True)
-    stdout_write(" done!\n")
 
     # Now update the headers in all OTA extensions.
     for extension in range(1, len(ota_list)):
@@ -1241,6 +1249,16 @@ def odi_sources_to_tablehdu(ota_list, fixwcs_odi_sourcecat):
     return tbhdu
 
 
+def set_default_options(options_in=None):
+
+    options = {}
+    if (options_in != None):
+        options = options_in
+
+    options["update_persistency_only"] = False
+    
+    return options
+
 
 if __name__ == "__main__":
 
@@ -1255,6 +1273,9 @@ if __name__ == "__main__":
         outputfile = "mergedcells.fits"
     print "Writing results into",outputfile
 
+    # Set the options for collectcells to some reasonable start values
+    options = set_default_options()
+
     # For now assume that the WCS template file is located in the same directory as the executable
     root_dir, py_exe = os.path.split(os.path.abspath(sys.argv[0]))
     wcs_solution = root_dir + "/wcs_distort2.fits"
@@ -1266,6 +1287,8 @@ if __name__ == "__main__":
     
     hardcoded_detsec = cmdline_arg_isset("-hard_detsec")
     clobber_mode = not cmdline_arg_isset("-noclobber")
+
+    options["update_persistency_only"] = cmdline_arg_isset("-update_persistency_only")
 
     # Handle all reduction flags from command line
     bias_dir, dark_dir, flatfield_dir, bpm_dir, start = read_reduction_directories()
@@ -1285,7 +1308,9 @@ if __name__ == "__main__":
                      fixwcs=fixwcs,
                      hardcoded_detsec=hardcoded_detsec,
                      clobber_mode=clobber_mode,
-                     user_wcs_offset=user_wcs_offset)
+                     user_wcs_offset=user_wcs_offset,
+                     options=options
+                     )
     except:
         stdout_write("\n\n##############################\n#\n# Something terrible happened!\n")
         etype, error, stackpos = sys.exc_info()
