@@ -614,7 +614,7 @@ def collectcells(input, outputfile,
     print "Received options:", options
     if (options == None): options = set_default_options()
 
-    afw = podi_asyncfitswrite.async_fits_writer()
+    afw = podi_asyncfitswrite.async_fits_writer(2)
 
     if (os.path.isfile(input)):
         # Assume this is one of the fits files in the right directory
@@ -1163,15 +1163,14 @@ def collectcells(input, outputfile,
 
     hdulist = pyfits.HDUList(ota_list)
     if (not batchmode):
-        stdout_write("writing output file ...")
+        stdout_write("writing output file (%s)..." % (outputfile))
         clobberfile(outputfile)
         # hdulist.writeto(outputfile, clobber=True)
         afw.write(hdulist, outputfile)
+        stdout_write(" done!\n")
     else:
         stdout_write(" continuing ...")
         return hdulist
-
-    stdout_write(" done!\n")
 
     afw.finish(userinfo=True)
 
