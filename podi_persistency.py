@@ -201,6 +201,12 @@ def add_mask_to_map(mask, mjd, map_in):
 
     return map_out
         
+def apply_mask_to_data(mask, data):
+
+    out = data
+    #out[mask] = numpy.NaN
+
+    return out
 
 def get_correction(persistency_map, cell_position, mjd):
 
@@ -219,8 +225,9 @@ def get_correction(persistency_map, cell_position, mjd):
     d_mjd = persistency_map[by:ty,bx:tx]
 
     # Add some clever function here...
-    correction = d_mjd 
-    correction[(d_mjd < mjd) & (d_mjd > 0)] = numpy.NaN
+    # correction = d_mjd 
+    # correction[(d_mjd < mjd) & (d_mjd > 0)] = numpy.NaN
+    correction = 0
 
     return correction
 
