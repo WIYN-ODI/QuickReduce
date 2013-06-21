@@ -57,17 +57,25 @@ class async_fits_writer():
         # Here, create all tools for the threaded fits writer
         self.queue_lock = threading.Lock()
         self.fits_queue = multiprocessing.JoinableQueue() #Queue.Queue()
+        self.number_threads = number_threads
 
+        self.start_threads()
+       
+    def write(self,hdulist, filename):
+        stdout_write("Queued file %s for writing to disk.\n" % (filename))
+        self.fits_queue.put((hdulist, filename, False))
+
+    def start_threads(self):
         # Create new threads
-        for i in range(number_threads):
+        for i in range(self.number_threads):
             thread = async_fits_writer_thread(self.fits_queue, self.queue_lock)
             thread.deamon = True
             thread.start()
             self.threads.append(thread)
        
-    def write(self,hdulist, filename):
-        stdout_write("Queued file %s for writing to disk.\n" % (filename))
-        self.fits_queue.put((hdulist, filename, False))
+    def wait(self):
+        self.finish()
+        self.start_threads()
 
     def finish(self):
         if (verbose): print "Sending shutdown commands"
@@ -95,6 +103,9 @@ if __name__ == "__main__":
     afw.write(hdulist, "deleteme.test4.fits")
     afw.write(hdulist, "deleteme.test5.fits")
     afw.write(hdulist, "deleteme.test6.fits")
+    print "Waiting"
+    afw.wait()
+    print "Starting new round"
     afw.write(hdulist, "deleteme.test7.fits")
     afw.write(hdulist, "deleteme.test8.fits")
     print "Done queueing all files for output!"
