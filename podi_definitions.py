@@ -977,3 +977,24 @@ def get_filter_level(header):
 
     return filter_level
             
+
+
+
+
+def cell2ota__extract_data_from_cell(data_in=None):
+
+    if (data_in == None):
+        return numpy.zeros(shape=(494,480))
+
+    return data_in[0:494, 0:480]
+
+def cell2ota__get_target_region(x, y):
+
+    #taken from ODI OTA Technical Datasheet (det area 480x494, streets 11/28 px)
+    _y = 7 - y
+    y1 = (505*_y)  #was 503 
+    y2 = y1 + 494
+    x1 = 508 * x
+    x2 = x1 + 480
+
+    return x1, x2, y1, y2
