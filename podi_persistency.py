@@ -132,7 +132,7 @@ def find_latest_persistency_map(directory, mjd, verbose=False):
     #
     for file in filelist:
         #print file[:16]
-        if (file[:16] != "persistency_map_"):
+        if (file[:16] != "persistency_map_" or file[31:] != ".fits"):
             continue
 
         # Extract timestamp and convert to MJD.
@@ -193,11 +193,12 @@ def add_mask_to_map(mask, mjd, map_in):
         x,y = int(cell[2]), int(cell[3])
         
         # Compute the bottom left and top right pixel coordinates of this cell in the existing map
-        bx, by = x * dx, (7-y)*dy
-        tx, ty = bx + dx, by + dy
+        bx, tx, by, ty = cell2ota__get_target_region(x, y)
 
         # In this small cell region, apply mask and update the MJD with the given timestamp
-        map_out[by:ty,bx:tx][mask[cell]] = mjd
+        mask_datasec = cell2ota__extract_data_from_cell(mask[cell])
+
+        map_out[by:ty,bx:tx][mask_datasec] = mjd
 
     return map_out
         
@@ -217,8 +218,7 @@ def get_correction(persistency_map, cell_position, mjd):
 
     # From this and the cell-coordinates, determine the 
     # bottom left and top right pixel coordinates
-    bx, by = cell_x * dx, (7-cell_y)*dy
-    tx, ty = bx + dx, by + dy
+    bx, tx, by, ty = cell2ota__get_target_region(cell_x, cell_y)
 
     # Now extract frame and compute time-difference 
     # between then and now, and convert delta_MJDs into seconds
@@ -238,10 +238,14 @@ def subtract_persistency(persistency_map, image_hdu):
     return
 
 
-def create_new_persistency_map(shape, write_fits=None):
+def create_new_persistency_map(shape=None, write_fits=None):
 
-    sy, sx = shape
-    px, py = 8*sx, 8*sy
+    if (shape == None):
+        sx, sy = 480, 494
+        px, py = 4096, 4096
+    else:
+        sy, sx = shape
+        px, py = 8*sx, 8*sy
 
     # Create a primary header.
     # This only contains the MJD of this exposure
@@ -302,13 +306,10 @@ if __name__ == "__main__":
 
     
     if (cmdline_arg_isset('-newmap')):
-        inputfile = get_clean_cmdline()[1]
         outputfile = "persistency_map_00000000T000000.fits" #get_clean_cmdline()[2]
-        hdulist = pyfits.open(inputfile)
         
         # If this flag is set, simply create a new persistency map
-        shape = hdulist[1].data.shape
-        create_new_persistency_map(shape, write_fits=outputfile)
+        create_new_persistency_map(None, write_fits=outputfile)
 
         # Quit the program right here
         sys.exit(0)
