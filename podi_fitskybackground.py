@@ -59,6 +59,66 @@ def polyval2d(x, y, m):
 min_found = 200
 max_tried = 1.5*min_found
 
+
+
+def sample_background(data, wcs, starcat, min_found=200, boxwidth=30, fit_regions=[]):
+
+
+    # Now pick a number of random data points, and keep 
+    # searching until we either found 50 per OTA or have tried 100 times
+    found = 0
+    tried = 0
+    max_tried = 1.5*min_found
+    box_center = numpy.zeros(shape=(max_tried,2))
+    box_center[:,0] = numpy.random.randint(boxwidth, data.shape[0]-boxwidth, max_tried)
+    box_center[:,1] = numpy.random.randint(boxwidth, data.shape[1]-boxwidth, max_tried)
+
+    # Unpack the x/y coordinates of all known stars/sources in this frame
+    ota_x, ota_y = starcat
+
+    #
+    # Now check the randomly selected regions
+    #
+    while (found < min_found and tried < max_tried):
+        #print box_center[tried,:]
+
+        x1, x2 = box_center[tried,0]-boxwidth, box_center[tried,0]+boxwidth
+        y1, y2 = box_center[tried,1]-boxwidth, box_center[tried,1]+boxwidth
+
+        cutout = data[y1:y2,x1:x2]
+        if (not numpy.isfinite(numpy.min(cutout))):
+            # Contains an illegal value
+            tried += 1
+            continue
+
+        # Check if there's a star in or close to this box
+        star_contaminated = False
+        dx = box_center[tried,1] - ota_x
+        dy = box_center[tried,0] - ota_y
+        dr = numpy.sqrt( dx**2 + dy**2 )
+        dr_sorted = numpy.sort(dr)
+        if (dr_sorted[0] < 5*boxwidth):
+            # This means there's a star nearby
+            tried += 1
+            continue
+            pass
+
+        sky_level = numpy.median(cutout)
+
+        ra, dec = 0., 0.
+        if (wcs != None):
+            ra, dec = wcs.pix2wcs(box_center[tried,0], box_center[tried,1])
+
+        sky_point = [ra, dec, box_center[tried,0], box_center[tried,1], sky_level, tried, dr_sorted[0]]
+        fit_regions.append(sky_point)
+
+        tried += 1
+        found += 1
+
+    return fit_regions
+
+
+
 def fit_background(hdulist, plotname=None, exclude_videocells=True, fit_order=3, makeplots="none"):
 
     # First of all, get the list of sources in all the frames
@@ -127,47 +187,57 @@ def fit_background(hdulist, plotname=None, exclude_videocells=True, fit_order=3,
         # Determine the maximum and minimum coordinates
         minmax_radec = find_maximum_extent(minmax_radec, wcs, max_xy)
 
-        # Now pick a number of random data points, and keep 
-        # searching until we either found 50 per OTA or have tried 100 times
-        found = 0
-        tried = 0
-        box_center = numpy.zeros(shape=(max_tried,2))
-        box_center[:,0] = numpy.random.randint(boxwidth, max_xy[0]-boxwidth, max_tried)
-        box_center[:,1] = numpy.random.randint(boxwidth, max_xy[1]-boxwidth, max_tried)
+        starcat = (ota_x, ota_y)
+        fit_regions = sample_background(hdulist[ext_name].data, wcs, 
+                                        starcat, 
+                                        min_found=200, 
+                                        boxwidth=20, 
+                                        fit_regions=fit_regions)
 
-        while (found < min_found and tried < max_tried):
-            #print box_center[tried,:]
+        continue
 
-            x1, x2 = box_center[tried,0]-boxwidth, box_center[tried,0]+boxwidth
-            y1, y2 = box_center[tried,1]-boxwidth, box_center[tried,1]+boxwidth
+        if (False):
+            # Now pick a number of random data points, and keep 
+            # searching until we either found 50 per OTA or have tried 100 times
+            found = 0
+            tried = 0
+            box_center = numpy.zeros(shape=(max_tried,2))
+            box_center[:,0] = numpy.random.randint(boxwidth, max_xy[0]-boxwidth, max_tried)
+            box_center[:,1] = numpy.random.randint(boxwidth, max_xy[1]-boxwidth, max_tried)
 
-            cutout = hdulist[ext_name].data[y1:y2,x1:x2]
-            if (not numpy.isfinite(numpy.min(cutout))):
-                # Contains an illegal value
+            while (found < min_found and tried < max_tried):
+                #print box_center[tried,:]
+
+                x1, x2 = box_center[tried,0]-boxwidth, box_center[tried,0]+boxwidth
+                y1, y2 = box_center[tried,1]-boxwidth, box_center[tried,1]+boxwidth
+
+                cutout = hdulist[ext_name].data[y1:y2,x1:x2]
+                if (not numpy.isfinite(numpy.min(cutout))):
+                    # Contains an illegal value
+                    tried += 1
+                    continue
+
+                # Check if there's a star in or close to this box
+                star_contaminated = False
+                dx = box_center[tried,1] - ota_x
+                dy = box_center[tried,0] - ota_y
+                dr = numpy.sqrt( dx**2 + dy**2 )
+                dr_sorted = numpy.sort(dr)
+                if (dr_sorted[0] < 5*boxwidth):
+                    # This means there's a star nearby
+                    tried += 1
+                    continue
+                    pass
+
+                sky_level = numpy.median(cutout)
+
+                ra, dec = wcs.pix2wcs(box_center[tried,0], box_center[tried,1])
+
+                sky_point = [ra, dec, box_center[tried,0], box_center[tried,1], sky_level, tried, dr_sorted[0]]
+                fit_regions.append(sky_point)
+
                 tried += 1
-                continue
-
-            # Check if there's a star in or close to this box
-            star_contaminated = False
-            dx = box_center[tried,1] - ota_x
-            dy = box_center[tried,0] - ota_y
-            dr = numpy.sqrt( dx**2 + dy**2 )
-            dr_sorted = numpy.sort(dr)
-            if (dr_sorted[0] < 5*boxwidth):
-                # This means there's a star nearby
-                tried += 1
-                continue
-                pass
-
-            sky_level = numpy.median(cutout)
-
-            ra, dec = wcs.pix2wcs(box_center[tried,0], box_center[tried,1])
-
-            sky_point = [ra, dec, box_center[tried,0], box_center[tried,1], sky_level, tried, dr_sorted[0]]
-            fit_regions.append(sky_point)
-
-            tried += 1
-            found += 1
+                found += 1
 
     stdout_write(" done!\n")
     #dump = open("skyfit.dump", "w")
