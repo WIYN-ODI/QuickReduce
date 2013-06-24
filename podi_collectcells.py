@@ -38,6 +38,7 @@ import podi_sitesetup as sitesetup
 import podi_crosstalk
 import podi_persistency
 import podi_asyncfitswrite
+import podi_fitskybackground
 
 from astLib import astWCS
 
@@ -488,7 +489,7 @@ def collect_reduce_ota(filename,
                 fitsfile = "%s/tmp_OTA%02d.fits" % (sitesetup.scratch_dir, ota)
                 catfile = "%s/tmp_OTA%02d.cat" % (sitesetup.scratch_dir, ota)
                 hdulist.writeto(fitsfile, clobber=True)
-                sexcmd = "sex -c /work/podi_devel/.config/wcsfix.sex -CATALOG_NAME %s %s" % (catfile, fitsfile)
+                sexcmd = "sex -c /work/podi_devel/.config/wcsfix.sex -CATALOG_NAME %s %s >&/dev/null" % (catfile, fitsfile)
                 os.system(sexcmd)
                 try:
                     source_cat = numpy.loadtxt(catfile)
@@ -530,9 +531,34 @@ def collect_reduce_ota(filename,
                     fixwcs_data = (odi_ra, odi_dec, ref_ra, ref_dec, dx, dy, source_cat, matchcount)
         else:
             fixwcs_data = None
-           
+
+        #
+        # Sample that background at random place so we can derive a median background level later on
+        # This is necessary both for the pupil ghost correction AND the fringing correction
+        #
+        starcat = None
+        if (fixwcs_data != None):
+            src_cat = fixwcs_data[6]
+            ota_x, ota_y = src_cat[:,2], src_cat[:,3]
+            # print "ota_x=",ota_x
+            # print "ota_y=",ota_y
+            starcat = (ota_x, ota_y)
+        # Now sample the background, excluding regions close to known sources
+        bg_sampled = numpy.array(podi_fitskybackground.sample_background(data=merged, wcs=None, 
+                                                                         starcat=starcat, 
+                                                                         min_found=200, boxwidth=30))
+
+        background_level_median = numpy.median(bg_sampled[:,4])
+        background_level_mean   = numpy.mean(bg_sampled[:,4])
+        background_level_std    = numpy.std(bg_sampled[:,4])
+        hdu.header.update("SKY_MEDI", background_level_median, "sky-level median")
+        hdu.header.update("SKY_MEAN", background_level_mean, "sky-level mean")
+        hdu.header.update("SKY_STD", background_level_std, "sky-level rms")
+
     data_products['hdu'] = hdu
     data_products['wcsdata'] = fixwcs_data
+    data_products['background'] = bg_sampled
+
     return data_products #hdu, fixwcs_data
     
 
@@ -600,7 +626,7 @@ def collectcells(input, outputfile,
     print "Received options:", options
     if (options == None): options = set_default_options()
 
-    afw = podi_asyncfitswrite.async_fits_writer(2)
+    # afw = podi_asyncfitswrite.async_fits_writer(1)
 
     if (os.path.isfile(input)):
         # Assume this is one of the fits files in the right directory
@@ -919,8 +945,8 @@ def collectcells(input, outputfile,
     stdout_write("Writing new persistency map (%s) ..." % (persistency_output_filename))
     pers_hdulist = pyfits.HDUList(persistency)
     clobberfile(persistency_output_filename)
-    #pers_hdulist.writeto(persistency_output_filename, clobber=True)
-    afw.write(pers_hdulist, persistency_output_filename)
+    pers_hdulist.writeto(persistency_output_filename, clobber=True)
+    # afw.write(pers_hdulist, persistency_output_filename)
     stdout_write(" done!\n")
     if (options['update_persistency_only']):
         stdout_write("Only updating the persistency map now, skipping rest of work!\n")
@@ -1009,6 +1035,7 @@ def collectcells(input, outputfile,
         # Add the previous (best-guess) shift and the new refinement
         wcs_shift = wcs_shift_guess + wcs_shift_refinement
         stdout_write("Further refinement: %.2f'' %.2f''\n" % (wcs_shift_refinement[0]*3600., wcs_shift_refinement[1]*3600.))
+
 
         # Create some plots for WCS diagnosis
         fig = matplotlib.pyplot.figure()
@@ -1126,11 +1153,17 @@ def collectcells(input, outputfile,
             numpy.savetxt(wcsfit, old_new)
             wcsfit.close()
 
-
+        #
         # Save the two catalogs to the output file
+        #
+
+        # Save a simple copy of the 2MASS reference catalog
         ota_list.append( sexcat_to_tablehdu(fixwcs_ref_ra, fixwcs_ref_dec) )
 
-        ota_list.append( odi_sources_to_tablehdu(ota_list, fixwcs_odi_sourcecat) )
+        # Re-compute all ODI star positions from their pixel positions to match the new WCS solution.
+        # Also return the catalog as TableHDU so we can add it to the output file
+        odi_cat_hdu, odi_source_catalog = odi_sources_to_tablehdu(ota_list, fixwcs_odi_sourcecat)
+        ota_list.append(odi_cat_hdu)
 
         print >>x, "\n\n\n\n\n"
         dummy = numpy.ones(shape=(fixwcs_odi_ra.shape[0],2))
@@ -1146,18 +1179,25 @@ def collectcells(input, outputfile,
 
         x.close()
 
+    #print "Waiting for a bit"
+    #afw.wait()
+    #print "done waiting, writing output file"
+    #print ota_list
     hdulist = pyfits.HDUList(ota_list)
+
+    #print "hdulist=",hdulist
+
     if (not batchmode):
         stdout_write("writing output file (%s)..." % (outputfile))
         clobberfile(outputfile)
-        # hdulist.writeto(outputfile, clobber=True)
-        afw.write(hdulist, outputfile)
+        hdulist.writeto(outputfile, clobber=True)
+        # afw.write(hdulist, outputfile)
         stdout_write(" done!\n")
     else:
         stdout_write(" continuing ...")
         return hdulist
 
-    afw.finish(userinfo=True)
+    # afw.finish(userinfo=True)
 
     return 0
 
@@ -1239,7 +1279,7 @@ def odi_sources_to_tablehdu(ota_list, fixwcs_odi_sourcecat):
     tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
 
     tbhdu.update_ext_name("CAT.ODI", comment=None)
-    return tbhdu
+    return tbhdu, final_cat
 
 
 def set_default_options(options_in=None):
