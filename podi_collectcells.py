@@ -213,7 +213,8 @@ def collect_reduce_ota(filename,
 
                     correction = hdulist[xy_name].data * podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column]
                     if (column != xtalk_column):
-                        correction[hdulist[xy_name].data >= podi_crosstalk.xtalk_saturation_limit] = -1 * podi_crosstalk.xtalk_saturated_correction
+                        saturated = hdulist[xy_name].data >= podi_crosstalk.xtalk_saturation_limit
+                        correction[saturated] = -1 * podi_crosstalk.xtalk_saturated_correction
 
                     xtalk_corr[column] += correction #hdulist[xy_name].data * podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column]
                     #print xtalk_corr[column][100,100]
@@ -282,33 +283,42 @@ def collect_reduce_ota(filename,
                     print "Couldn't find the GAIN header!"
                     pass
 
+
+            #
+            # Now extract just the data section
+            #
+            datasec = hdulist[cell].data[0:494, 0:480] #by:ty,bx:tx]
+            #if (True): #hardcoded_detsec):
+            #    cell_xy = hdulist[cell].header['EXTNAME'][2:4]
+            #    x, y = int(cell_xy[0]), int(cell_xy[1])
+            #
+            #    datasec = '[1:480,1:494]'
+            #    _y = 7 - y
+            #    y1 = 1 + (505*_y)  #was 503 
+            #    #taken from ODI OTA Technical Datasheet (det area 480x494, streets 11/28 px)
+            #    y2 = y1 + 493
+            #    x1 = 1 + 508 * x
+            #    x2 = x1 + 479
+            #    detsec = '[%d:%d,%d:%d]' % (x1, x2, y1, y2)
+            # 
+            #    insert_into_array(hdulist[cell].data, 
+            #                      datasec, merged, detsec)
+            #else:
+            #    insert_into_array(hdulist[cell].data, 
+            #                      hdulist[cell].header['DATASEC'],
+            #                      merged,
+            #                      hdulist[cell].header['DETSEC'])
+
             #
             # Now apply the persistency correction before we trim down the frame
             #
             if (persistency_map != None and 'persistency' in options):
                 persistency_correction = podi_persistency.get_correction(persistency_map, (wm_cellx, wm_celly), mjd)
-                hdulist[cell].data -= persistency_correction
-            
-            if (True): #hardcoded_detsec):
-                cell_xy = hdulist[cell].header['EXTNAME'][2:4]
-                x, y = int(cell_xy[0]), int(cell_xy[1])
+                datasec -= persistency_correction
 
-                datasec = '[1:480,1:494]'
-                _y = 7 - y
-                y1 = 1 + (505*_y)  #was 503 
-                #taken from ODI OTA Technical Datasheet (det area 480x494, streets 11/28 px)
-                y2 = y1 + 493
-                x1 = 1 + 508 * x
-                x2 = x1 + 479
-                detsec = '[%d:%d,%d:%d]' % (x1, x2, y1, y2)
-
-                insert_into_array(hdulist[cell].data, 
-                                  datasec, merged, detsec)
-            else:
-                insert_into_array(hdulist[cell].data, 
-                                  hdulist[cell].header['DATASEC'],
-                                  merged,
-                                  hdulist[cell].header['DETSEC'])
+            # Insert the reduced data-section of this cell into the large OTA frame
+            bx, tx, by, ty = cell2ota__get_target_region(wm_cellx, wm_celly) 
+            merged[by:ty,bx:tx] = datasec
 
                 
         #
