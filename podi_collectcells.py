@@ -99,7 +99,6 @@ def collect_reduce_ota(filename,
                        pixelvalue_indef=numpy.NaN,
                        wcs_solution=None,
                        prepare_fixwcs=False,
-                       hardcoded_detsec=False,
                        verbose=False,
                        user_wcs_offset=None,
                        options=None):
@@ -288,26 +287,6 @@ def collect_reduce_ota(filename,
             # Now extract just the data section
             #
             datasec = hdulist[cell].data[0:494, 0:480] #by:ty,bx:tx]
-            #if (True): #hardcoded_detsec):
-            #    cell_xy = hdulist[cell].header['EXTNAME'][2:4]
-            #    x, y = int(cell_xy[0]), int(cell_xy[1])
-            #
-            #    datasec = '[1:480,1:494]'
-            #    _y = 7 - y
-            #    y1 = 1 + (505*_y)  #was 503 
-            #    #taken from ODI OTA Technical Datasheet (det area 480x494, streets 11/28 px)
-            #    y2 = y1 + 493
-            #    x1 = 1 + 508 * x
-            #    x2 = x1 + 479
-            #    detsec = '[%d:%d,%d:%d]' % (x1, x2, y1, y2)
-            # 
-            #    insert_into_array(hdulist[cell].data, 
-            #                      datasec, merged, detsec)
-            #else:
-            #    insert_into_array(hdulist[cell].data, 
-            #                      hdulist[cell].header['DATASEC'],
-            #                      merged,
-            #                      hdulist[cell].header['DETSEC'])
 
             #
             # Now apply the persistency correction before we trim down the frame
@@ -569,7 +548,6 @@ def parallel_collect_reduce_ota(queue, return_queue,
                                 offset_pointing=[0,0], offset_dither=[0,0], target_coords=None,
                                 pixelvalue_indef=numpy.NaN,
                                 wcs_solution=None, prepare_fixwcs=False,
-                                hardcoded_detsec=False,
                                 user_wcs_offset=None,
                                 options=None):
 
@@ -589,7 +567,6 @@ def parallel_collect_reduce_ota(queue, return_queue,
                            pixelvalue_indef=pixelvalue_indef,
                            wcs_solution=wcs_solution,
                            prepare_fixwcs=prepare_fixwcs,
-                           hardcoded_detsec=hardcoded_detsec,
                            user_wcs_offset=user_wcs_offset,
                                               options=options
             )
@@ -615,7 +592,6 @@ def collectcells(input, outputfile,
                  wcs_solution=None,
                  batchmode=False,
                  fixwcs=False,
-                 hardcoded_detsec=False,
                  clobber_mode=True,
                  verbose=False,
                  user_wcs_offset=None,
@@ -788,7 +764,6 @@ def collectcells(input, outputfile,
                    pixelvalue_indef,
                    wcs_solution,
                    fixwcs,
-                   hardcoded_detsec,
                    user_wcs_offset,
                    options,
                    )
@@ -1303,7 +1278,6 @@ if __name__ == "__main__":
 
     fixwcs = cmdline_arg_isset("-fixwcs")
     
-    hardcoded_detsec = cmdline_arg_isset("-hard_detsec")
     clobber_mode = not cmdline_arg_isset("-noclobber")
 
     options["update_persistency_only"] = cmdline_arg_isset("-update_persistency_only")
@@ -1324,7 +1298,6 @@ if __name__ == "__main__":
                      bias_dir, dark_dir, flatfield_dir, bpm_dir,
                      wcs_solution=wcs_solution,
                      fixwcs=fixwcs,
-                     hardcoded_detsec=hardcoded_detsec,
                      clobber_mode=clobber_mode,
                      user_wcs_offset=user_wcs_offset,
                      options=options
