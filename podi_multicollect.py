@@ -66,8 +66,6 @@ if __name__ == "__main__":
 
     fixwcs = cmdline_arg_isset("-fixwcs")
     
-    hardcoded_detsec = cmdline_arg_isset("-hard_detsec")
-
     user_wcs_offset = None
     if (cmdline_arg_isset("-wcsoffset")):
         tmp = get_cmdline_arg("-wcsoffset")
@@ -112,7 +110,6 @@ if __name__ == "__main__":
                          bias_dir, dark_dir, flatfield_dir, bpm_dir,
                          wcs_solution=wcs_solution,
                          fixwcs=fixwcs,
-                         hardcoded_detsec=hardcoded_detsec,
                          clobber_mode=clobber_mode,
                          user_wcs_offset=user_wcs_offset)
         except:
