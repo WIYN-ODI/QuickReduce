@@ -107,6 +107,8 @@ def collect_reduce_ota(filename,
     data_products = {
         "hdu": None,
         "wcsdata": None,
+        "sky-samples": None,
+        "sky": None,
         }
 
     if (not os.path.isfile(filename)):
@@ -544,20 +546,21 @@ def collect_reduce_ota(filename,
             # print "ota_y=",ota_y
             starcat = (ota_x, ota_y)
         # Now sample the background, excluding regions close to known sources
-        bg_sampled = numpy.array(podi_fitskybackground.sample_background(data=merged, wcs=None, 
+        sky_samples = numpy.array(podi_fitskybackground.sample_background(data=merged, wcs=None, 
                                                                          starcat=starcat, 
                                                                          min_found=200, boxwidth=30))
 
-        background_level_median = numpy.median(bg_sampled[:,4])
-        background_level_mean   = numpy.mean(bg_sampled[:,4])
-        background_level_std    = numpy.std(bg_sampled[:,4])
-        hdu.header.update("SKY_MEDI", background_level_median, "sky-level median")
-        hdu.header.update("SKY_MEAN", background_level_mean, "sky-level mean")
-        hdu.header.update("SKY_STD", background_level_std, "sky-level rms")
+        sky_level_median = numpy.median(sky_samples[:,4])
+        sky_level_mean   = numpy.mean(sky_samples[:,4])
+        sky_level_std    = numpy.std(sky_samples[:,4])
+        hdu.header.update("SKY_MEDI", sky_level_median, "sky-level median")
+        hdu.header.update("SKY_MEAN", sky_level_mean, "sky-level mean")
+        hdu.header.update("SKY_STD", sky_level_std, "sky-level rms")
 
     data_products['hdu'] = hdu
     data_products['wcsdata'] = fixwcs_data
-    data_products['background'] = bg_sampled
+    data_products['sky-samples'] = sky_samples
+    data_products['sky'] = (sky_level_median, sky_level_mean, sky_level_std)
 
     return data_products #hdu, fixwcs_data
     
@@ -850,6 +853,7 @@ def collectcells(input, outputfile,
     #
     ############################################################
     global_number_matches = None
+    sky_samples = {}
     for i in range(len(available_ota_coords)):
         #hdu, ota_id, wcsfix_data = return_queue.get()
         ota_id, data_products = return_queue.get()
@@ -866,6 +870,8 @@ def collectcells(input, outputfile,
 
         ota_list[ota_id] = hdu
         
+        sky_samples[hdu.header['EXTNAME']] = data_products['sky-samples']
+
         if (fixwcs and not options['update_persistency_only']):
             
             if (wcsfix_data != None):
@@ -939,6 +945,7 @@ def collectcells(input, outputfile,
     # 3) Delete a bunch of headers that are no longer necessary (defined in 
     #    headers_to_delete_from_otas, see podi_definitions)
     # 4) Write the updated persistency map to file
+    # 5) compute the global sky level
     #
 
     # Write the updated persistency file 
@@ -999,6 +1006,24 @@ def collectcells(input, outputfile,
             if (not header in ota.header):
                 continue
             del ota.header[header]
+
+    # 
+    # Now combine all sky-samples to compute the global background level.
+    # Take care to exclude OTAs marked as guide-OTAs and those not covered 
+    # by the narrow-band filters.
+    # 
+    sky_samples_global = None #numpy.empty(0)
+    valid_ext = otas_for_photometry[ota_list[0].header['FILTER']]
+    for ext in sky_samples:
+        print ext, valid_ext, int(ext[3:5])
+        if (int(ext[3:5]) in valid_ext):
+            if (sky_samples_global == None):
+                sky_samples_global = sky_samples[ext]
+            else:
+                sky_samples_global = numpy.append(sky_samples_global, sky_samples[ext], axis=0)
+
+    sky_global_median = numpy.median(sky_samples_global[:,4])
+    ota_list[0].header.update("SKYLEVEL", sky_global_median)
 
     #
     # Fix the WCS if requested
@@ -1334,14 +1359,27 @@ if __name__ == "__main__":
     
     # Collect all cells, perform reduction and write result file
     try:
-        collectcells(input, outputfile,
+        import cProfile, pstats
+    #cProfile.run('findstar_allota(inputfile)', "profiler")
+ 
+#        collectcells(input, outputfile,
+#                     bias_dir, dark_dir, flatfield_dir, bpm_dir,
+#                     wcs_solution=wcs_solution,
+#                     fixwcs=fixwcs,
+#                     clobber_mode=clobber_mode,
+#                     user_wcs_offset=user_wcs_offset,
+#                     options=options
+#                     )
+        cProfile.run("""collectcells(input, outputfile,
                      bias_dir, dark_dir, flatfield_dir, bpm_dir,
                      wcs_solution=wcs_solution,
                      fixwcs=fixwcs,
                      clobber_mode=clobber_mode,
                      user_wcs_offset=user_wcs_offset,
-                     options=options
-                     )
+                     options=options)""", "profiler")
+        p = pstats.Stats("profiler")
+        p.strip_dirs().sort_stats('time').print_stats()
+        p.sort_stats('time').print_stats()
     except:
         stdout_write("\n\n##############################\n#\n# Something terrible happened!\n")
         etype, error, stackpos = sys.exc_info()
