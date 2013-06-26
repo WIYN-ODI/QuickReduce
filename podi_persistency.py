@@ -29,7 +29,7 @@ def map_persistency_effects(hdulist, verbose=False):
             continue
 
         extname = hdulist[ext].header['EXTNAME']
-        # stdout_write("Working on extension %s (%d)\n" % (extname, ext))
+        if (verbose): stdout_write("Working on extension %s (%d)\n" % (extname, ext))
 
         data = hdulist[ext].data
         saturated = (data >= 65535)
@@ -37,6 +37,8 @@ def map_persistency_effects(hdulist, verbose=False):
         number_saturated_pixels = numpy.sum(saturated)
         if (number_saturated_pixels <= 0):
             continue
+
+        if (verbose): print "number of saturated pixels:", number_saturated_pixels
 
         saturated_pixels_total += number_saturated_pixels
         extensions_with_saturated_pixels += 1
@@ -56,13 +58,37 @@ def map_persistency_effects(hdulist, verbose=False):
 
         #print "overall:",mask_time.shape, mask_thisframe.shape
 
-        for i in range(saturated_rows.shape[0]):
-            mask_up = (cols == saturated_cols[i]) & (rows >= saturated_rows[i])
-            mask_down = (cols == saturated_cols[i]) & (rows <= saturated_rows[i])
-            #print "this:",mask_up.shape, mask_down.shape
 
-            mask_thisframe = (mask_thisframe) | (mask_up)
-            mask_time      = (mask_time)      | (mask_down)
+        #print "saturated cols:",saturated_cols.shape
+
+        unique_cols = set(saturated_cols)
+        #print "unique_rows=",len(unique_cols)
+        #print unique_cols
+
+        #for i in range(saturated_rows.shape[0]):
+        #    print "saturated pixel @",saturated_cols[i], saturated_rows[i], data[saturated_rows[i],saturated_cols[i]]
+
+        # Old, slow method
+        if (False):
+            for i in range(saturated_rows.shape[0]):
+                mask_up = (cols == saturated_cols[i]) & (rows >= saturated_rows[i])
+                mask_down = (cols == saturated_cols[i]) & (rows <= saturated_rows[i])
+                #print "this:",mask_up.shape, mask_down.shape
+
+                mask_thisframe = (mask_thisframe) | (mask_up)
+                mask_time      = (mask_time)      | (mask_down)
+
+        # New, optimized and way faster method
+        row_ids, col_ids = numpy.indices((data.shape[0],1))
+        for col in unique_cols:
+            #print "working on col",col #saturated[col,:]
+            this_col_saturated = row_ids[saturated[:,col]]
+            #print "saturated in this col",this_col_saturated
+            min_y = numpy.min(this_col_saturated)
+            max_y = numpy.max(this_col_saturated)
+
+            mask_thisframe[min_y:, col] = True
+            mask_time[:max_y, col] = True
 
         mask_thisframe_list[extname] = mask_thisframe
         mask_timeseries_list[extname] = mask_time
@@ -331,7 +357,7 @@ if __name__ == "__main__":
     mjd = hdulist[0].header['MJD-OBS']
 
 
-    mask_thisframe, mask_timeseries = map_persistency_effects(hdulist)
+    mask_thisframe, mask_timeseries = map_persistency_effects(hdulist, verbose=True)
 
     persistency_hdu = pyfits.open(persistency_map_in)
     map_in = persistency_hdu[1].data
