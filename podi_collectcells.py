@@ -153,20 +153,23 @@ def collect_reduce_ota(filename,
         # cross-talk and overscan corrections affect pixels with saturated levels which 
         # might cause us to miss some of them.
         #
-        if ('persistency' in options):
+        if (options['persistency_dir'] != None):
             persistency_mask_thisframe, persistency_mask_timeseries = podi_persistency.map_persistency_effects(hdulist)
             
-        #
-        # Open the latest persistency map and prepare to use it
-        #
-        persistency_map_file = options["persistency_map"]
-        if (persistency_map_file == None):
-            stdout_write("Couldn't open/find persistency map!\n")
-            persistency_map = None
+            #
+            # Open the latest persistency map and prepare to use it
+            #
+            persistency_map_file = options["persistency_map"]
+            if (persistency_map_file == None):
+                stdout_write("Couldn't open/find persistency map!\n")
+                persistency_map = None
+            else:
+                persistency_hdu = pyfits.open(persistency_map_file)
+                pers_extname = "OTA%02d.PERS" % (ota)
+                persistency_map = persistency_hdu[pers_extname].data
         else:
-            persistency_hdu = pyfits.open(persistency_map_file)
-            pers_extname = "OTA%02d.PERS" % (ota)
-            persistency_map = persistency_hdu[pers_extname].data
+            #stdout_write("Ignoring persistency effects!\n")
+            pass
 
         # Also read the MJD for this frame. This will be needed later for the correction
         mjd = hdu.header['MJD-OBS']
@@ -176,14 +179,15 @@ def collect_reduce_ota(filename,
         # Create a new updated persistency map with saturation-affected in this 
         # frame being marked with the MJD of this frame
         #
-        if (persistency_map != None and 'persistency' in options):
-            # print pers_extname,
-            persistency_map_after = podi_persistency.add_mask_to_map(persistency_mask_timeseries, mjd, persistency_map)
-            persistency_new_hdu = pyfits.ImageHDU(header=persistency_hdu[pers_extname].header,
-                                                  data=persistency_map_after)
-            data_products['persistency_map_updated'] = persistency_new_hdu
-        if (options["update_persistency_only"]):
-            return data_products
+        if (options['persistency_dir'] != None):
+            if (persistency_map != None and 'persistency' in options):
+                # print pers_extname,
+                persistency_map_after = podi_persistency.add_mask_to_map(persistency_mask_timeseries, mjd, persistency_map)
+                persistency_new_hdu = pyfits.ImageHDU(header=persistency_hdu[pers_extname].header,
+                                                      data=persistency_map_after)
+                data_products['persistency_map_updated'] = persistency_new_hdu
+            if (options["update_persistency_only"]):
+                return data_products
         
         # 
         # Perform cross-talk correction, using coefficients found in the 
@@ -261,14 +265,15 @@ def collect_reduce_ota(filename,
             if (broken):
                 continue # with the next cell
 
-            # Apply the persistency correction for the current frame
-            cellname = hdulist[cell].header['EXTNAME']
-            if (cellname in persistency_mask_thisframe):
-                # If we have corrections to be applied to this cell, set all problematic 
-                # pixels to NaN
-                # Change this once we have a better idea how to.
-                hdulist[cell].data = podi_persistency.apply_mask_to_data(persistency_mask_thisframe[cellname], hdulist[cell].data)
-                #hdulist[cell].data[persistency_mask_thisframe[cellname]] = numpy.NaN
+            if (options['persistency_dir'] != None):
+                # Apply the persistency correction for the current frame
+                cellname = hdulist[cell].header['EXTNAME']
+                if (cellname in persistency_mask_thisframe):
+                    # If we have corrections to be applied to this cell, set all problematic 
+                    # pixels to NaN
+                    # Change this once we have a better idea how to.
+                    hdulist[cell].data = podi_persistency.apply_mask_to_data(persistency_mask_thisframe[cellname], hdulist[cell].data)
+                    #hdulist[cell].data[persistency_mask_thisframe[cellname]] = numpy.NaN
 
             # Now overscan subtract and insert into large frame
             overscan_region = extract_region(hdulist[cell].data, '[500:530,1:494]')
@@ -294,9 +299,10 @@ def collect_reduce_ota(filename,
             #
             # Now apply the persistency correction before we trim down the frame
             #
-            if (persistency_map != None and 'persistency' in options):
-                persistency_correction = podi_persistency.get_correction(persistency_map, (wm_cellx, wm_celly), mjd)
-                datasec -= persistency_correction
+            if (options['persistency_dir'] != None):
+                if (persistency_map != None and 'persistency' in options):
+                    persistency_correction = podi_persistency.get_correction(persistency_map, (wm_cellx, wm_celly), mjd)
+                    datasec -= persistency_correction
 
             # Insert the reduced data-section of this cell into the large OTA frame
             bx, tx, by, ty = cell2ota__get_target_region(wm_cellx, wm_celly) 
@@ -704,28 +710,31 @@ def collectcells(input, outputfile,
         stdout_write("Replaced some keywords, new output filename: ---> %s\n" % (outputfile))
 
     #
-    # Some book-keeping about persistency coming next
+    # Some book-keeping about persistency coming next (if requested)
     #
+    if (options['persistency_dir'] != None):
+        
+        # Work out what the most recent persistency filename is
+        mjd = hdulist[0].header['MJD-OBS']
+        print "MJD of this frame=",mjd,podi_persistency.get_timestamp_from_mjd(mjd)
+        recent_persistency_map = podi_persistency.find_latest_persistency_map(options['persistency_dir'], mjd)
 
-    # Work out what the most recent persistency filename is
-    mjd = hdulist[0].header['MJD-OBS']
-    print "MJD of this frame=",mjd,podi_persistency.get_timestamp_from_mjd(mjd)
-    recent_persistency_map = podi_persistency.find_latest_persistency_map(".", mjd)
+        # Prepare the updated persistency map
+        persistency = [None] * (len(available_ota_coords)+1)
+        persistency[0] = pyfits.PrimaryHDU()
+        persistency[0].header.update("MJD", mjd)
+        persistency_output_filename = podi_persistency.persistency_map_filename(options['persistency_dir'], mjd)
+        print "persistency file written next:",persistency_output_filename
 
-    # Prepare the updated persistency map
-    persistency = [None] * (len(available_ota_coords)+1)
-    persistency[0] = pyfits.PrimaryHDU()
-    persistency[0].header.update("MJD", mjd)
-    persistency_output_filename = podi_persistency.persistency_map_filename(".", mjd)
-    print "persistency file written next:",persistency_output_filename
+        options["persistency_map"] = recent_persistency_map
+
     # We know enough about the current frame, so close the file
     hdulist.close()
     del hdulist
 
     # Update some options
     # This has to move in the near future to make things nice and tidy
-    options["persistency"] = True
-    options["persistency_map"] = recent_persistency_map
+    options["persistency"] = (options['persistency_dir'] != None)       
 
     if (os.path.isfile(outputfile) and not clobber_mode):
         print "#####################################################"
@@ -829,7 +838,7 @@ def collectcells(input, outputfile,
         p = multiprocessing.Process(target=parallel_collect_reduce_ota, args=worker_args)
         p.start()
         processes.append(p)
-        time.sleep(0.1)
+        time.sleep(0.01)
 
     #
     # By now all workers have computed their HDUs or are busy doing so,
@@ -949,15 +958,16 @@ def collectcells(input, outputfile,
     #
 
     # Write the updated persistency file 
-    stdout_write("Writing new persistency map (%s) ..." % (persistency_output_filename))
-    pers_hdulist = pyfits.HDUList(persistency)
-    clobberfile(persistency_output_filename)
-    pers_hdulist.writeto(persistency_output_filename, clobber=True)
-    # afw.write(pers_hdulist, persistency_output_filename)
-    stdout_write(" done!\n")
-    if (options['update_persistency_only']):
-        stdout_write("Only updating the persistency map now, skipping rest of work!\n")
-        return 0
+    if (options['persistency_dir'] != None):
+        stdout_write("Writing new persistency map (%s) ..." % (persistency_output_filename))
+        pers_hdulist = pyfits.HDUList(persistency)
+        clobberfile(persistency_output_filename)
+        pers_hdulist.writeto(persistency_output_filename, clobber=True)
+        # afw.write(pers_hdulist, persistency_output_filename)
+        stdout_write(" done!\n")
+        if (options['update_persistency_only']):
+            stdout_write("Only updating the persistency map now, skipping rest of work!\n")
+            return 0
 
 
     # First step:
@@ -1015,8 +1025,15 @@ def collectcells(input, outputfile,
     sky_samples_global = None #numpy.empty(0)
     valid_ext = otas_for_photometry[ota_list[0].header['FILTER']]
     for ext in sky_samples:
-        print ext, valid_ext, int(ext[3:5])
-        if (int(ext[3:5]) in valid_ext):
+        # print ext, valid_ext, int(ext[3:5])
+        ota_number = int(ext[3:5])
+        ota_name = "OTA%02d.SCI" % (ota_number)
+        not_a_guiding_ota = False
+        for i in range(1, len(ota_list)):
+            if (ota_list[i].header['EXTNAME'] == ota_name):
+                not_a_guiding_ota = (ota_list[i].header['CELLMODE'].find("V") < 0)
+                break
+        if (ota_number in valid_ext and not_a_guiding_ota):
             if (sky_samples_global == None):
                 sky_samples_global = sky_samples[ext]
             else:
@@ -1034,7 +1051,8 @@ def collectcells(input, outputfile,
         best_guess, contrast, drxy = podi_fixwcs.optimize_shift(global_number_matches, 
                                                                 declination=80,
                                                                 debuglogfile=debuglog)
-        stdout_write("Found offset: %.2f', %.2f' (+/- %.1f''), contrast %.1f (%d)\n" % (best_guess[0]*60., best_guess[1]*60., drxy[0]*3600*0.5, contrast, best_guess[2]))
+        stdout_write("Found offset: %.2f', %.2f' (+/- %.1f''), contrast %.1f (%d)\n" % (
+                best_guess[0]*60., best_guess[1]*60., drxy[0]*3600*0.5, contrast, best_guess[2]))
 
         wcs_shift_guess = best_guess[0:2]
 
@@ -1059,7 +1077,8 @@ def collectcells(input, outputfile,
 
         # Add the previous (best-guess) shift and the new refinement
         wcs_shift = wcs_shift_guess + wcs_shift_refinement
-        stdout_write("Further refinement: %.2f'' %.2f''\n" % (wcs_shift_refinement[0]*3600., wcs_shift_refinement[1]*3600.))
+        stdout_write("Further refinement: %.2f'' %.2f''\n" % (
+                wcs_shift_refinement[0]*3600., wcs_shift_refinement[1]*3600.))
 
 
         # Create some plots for WCS diagnosis
@@ -1313,8 +1332,10 @@ def set_default_options(options_in=None):
     if (options_in != None):
         options = options_in
 
-    options["update_persistency_only"] = False
-    
+    options['update_persistency_only'] = False
+    options['persistency_dir'] = None
+    options["persistency_map"] = None
+
     return options
 
 
@@ -1345,6 +1366,8 @@ if __name__ == "__main__":
     
     clobber_mode = not cmdline_arg_isset("-noclobber")
 
+    options['persistency_dir'] = cmdline_arg_set_or_default('-persdir', None)
+
     options["update_persistency_only"] = cmdline_arg_isset("-update_persistency_only")
 
     # Handle all reduction flags from command line
@@ -1359,27 +1382,28 @@ if __name__ == "__main__":
     
     # Collect all cells, perform reduction and write result file
     try:
-        import cProfile, pstats
-    #cProfile.run('findstar_allota(inputfile)', "profiler")
- 
-#        collectcells(input, outputfile,
-#                     bias_dir, dark_dir, flatfield_dir, bpm_dir,
-#                     wcs_solution=wcs_solution,
-#                     fixwcs=fixwcs,
-#                     clobber_mode=clobber_mode,
-#                     user_wcs_offset=user_wcs_offset,
-#                     options=options
-#                     )
-        cProfile.run("""collectcells(input, outputfile,
+        if (cmdline_arg_isset('-profile')):
+            import cProfile, pstats
+            cProfile.run("""collectcells(input, outputfile,
                      bias_dir, dark_dir, flatfield_dir, bpm_dir,
                      wcs_solution=wcs_solution,
                      fixwcs=fixwcs,
                      clobber_mode=clobber_mode,
                      user_wcs_offset=user_wcs_offset,
                      options=options)""", "profiler")
-        p = pstats.Stats("profiler")
-        p.strip_dirs().sort_stats('time').print_stats()
-        p.sort_stats('time').print_stats()
+            p = pstats.Stats("profiler")
+            p.strip_dirs().sort_stats('time').print_stats()
+            p.sort_stats('time').print_stats()
+        else:
+            collectcells(input, outputfile,
+                         bias_dir, dark_dir, flatfield_dir, bpm_dir,
+                         wcs_solution=wcs_solution,
+                         fixwcs=fixwcs,
+                         clobber_mode=clobber_mode,
+                         user_wcs_offset=user_wcs_offset,
+                         options=options
+                         )
+
     except:
         stdout_write("\n\n##############################\n#\n# Something terrible happened!\n")
         etype, error, stackpos = sys.exc_info()
