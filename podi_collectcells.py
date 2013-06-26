@@ -632,7 +632,7 @@ def collectcells(input, outputfile,
                  user_wcs_offset=None,
                  options=None):
 
-    print "Received options:", options
+    # print "Received options:", options
     if (options == None): options = set_default_options()
 
     # afw = podi_asyncfitswrite.async_fits_writer(1)
