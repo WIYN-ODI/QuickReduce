@@ -30,7 +30,7 @@ except:
 #number_cpus = 1
 
 from podi_definitions import *
-
+import bottleneck
 
 def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_filelist, operation):
     #queue, shmem_buffer, shmem_results, size_x, size_y, len_filelist = worker_args
@@ -102,6 +102,10 @@ def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_fil
         elif (operation == "nanmedian"):
             result_buffer[line,:] = scipy.stats.nanmedian(buffer[line,:,:], axis=1)
 
+        elif (operation == "nanmedian.bn"):
+            x = numpy.array(buffer[line,:,:], dtype=numpy.float32)
+            result_buffer[line,:] = bottleneck.nanmedian(x, axis=1)
+
         else:
             result_buffer[line,:] = numpy.mean(buffer[line,:,:], axis=1)             
             
@@ -109,7 +113,7 @@ def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_fil
         queue.task_done()
 
 
-def imcombine_data(datas):
+def imcombine_data(datas, operation="nanmean"):
 
     queue = multiprocessing.JoinableQueue()
 
@@ -120,7 +124,7 @@ def imcombine_data(datas):
     shmem_results = multiprocessing.RawArray(ctypes.c_float, size_x*size_y)
 
     # Extract the shared memory buffer as numpy array to make things easier
-    buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len(filelist)))
+    buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len(datas)))
 
     # Set the full buffer to NaN
     buffer[:,:,:] = numpy.NaN
@@ -136,7 +140,7 @@ def imcombine_data(datas):
     processes = []
     for i in range(number_cpus):
         worker_args = (queue, shmem_buffer, shmem_results,
-                       size_x, size_y, len(filelist), operation)
+                       size_x, size_y, len(datas), operation)
         p = multiprocessing.Process(target=parallel_compute, args=worker_args)
         p.start()
         processes.append(p)
@@ -187,7 +191,6 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
     # Note that file headers are copied from the first file
     reference_filename = filelist[0]
     ref_hdulist = pyfits.open(reference_filename)
-    filter = ref_hdulist[0].header['FILTER']
 
     # Create the primary extension of the output file
     primhdu = pyfits.PrimaryHDU()
@@ -231,7 +234,7 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
             hdulist.close()
             del hdulist
 
-        combined = imcombine_data(data_blocks)
+        combined = imcombine_data(data_blocks, operation=operation)
 
         # Create new ImageHDU
         hdu = pyfits.ImageHDU()
