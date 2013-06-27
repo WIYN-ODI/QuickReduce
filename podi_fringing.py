@@ -20,11 +20,11 @@ import podi_imcombine
 avg_sky_countrates = {
     "odi_i": 3.8,
     "odi_z": 4.0,
+    "823_v2": 0.1,
 }
 
-def make_fringing_template(input_filelist, outputfile, return_hdu=False):
 
-    print "Output file=",outputfile
+def make_fringing_template(input_filelist, outputfile, return_hdu=False):
 
     # First loop over all filenames and make sure all files exist
     hdu_filelist = []
@@ -46,17 +46,30 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False):
     # Add PrimaryHDU to list of OTAs that go into the output file
     out_hdulist = [primhdu]
 
+    filtername = primhdu.header['FILTER']
+    if (outputfile == "auto"):
+        outputfile = "fringing__%s.fits" % (filtername)
+
+    print "Output file=",outputfile
+
+
     #
     # Now loop over all extensions and compute the mean
     #
     for cur_ext in range(1, len(ref_hdulist)):
-
+        
         data_blocks = []
         # Check what OTA we are dealing with
         if (not is_image_extension(ref_hdulist[cur_ext].header)):
             continue
         extname = ref_hdulist[cur_ext].header['EXTNAME']
 
+        if (filtername in otas_for_photometry):
+            useful_otas = otas_for_photometry[filtername]
+            ota_id = int(extname[3:5])
+            if (not ota_id in useful_otas):
+                continue
+        
         stdout_write("\rCombining frames for OTA %s (#% 2d/% 2d) ..." % (extname, cur_ext, len(ref_hdulist)-1))
 
         # Now open all the other files, look for the right extension, and copy their image data to buffer
@@ -92,6 +105,10 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False):
         stdout_write(" combining ...")
         #combined = podi_imcombine.imcombine_data(data_blocks, "nanmedian")
         combined = podi_imcombine.imcombine_data(data_blocks, "nanmedian.bn")
+
+        # Add the assumed skylevel countrate to primary header so we can use it
+        # when it comes to correcting actual data
+        ref_hdulist[0].header.update("SKYCNTRT", avg_sky_countrates[filter], "average countrate of dark sky")
 
         # Create new ImageHDU
         # Insert the imcombine'd frame into the output HDU
