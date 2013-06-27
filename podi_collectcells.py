@@ -388,6 +388,21 @@ def collect_reduce_ota(filename,
                 hdu.header.add_history("CC-FLAT: %s" % (os.path.abspath(flatfield_filename)))
                 del flatfield
 
+        #
+        # If requested, subtract the fringing template
+        #
+        if (options['fringe_dir'] != None):
+            fringe_filename = "%s/fringe__%s.fits" % (options['fringe_dir'], filter_name)
+            if (os.path.isfile(fringe_filename)):
+                fringe_hdu = pyfits.open(fringe_filename)
+                for ext in fringe_hdu[1:]:
+                    if (extname == ext.header['EXTNAME']):
+                        scaled_sky = ext.data * exptime * fringe_hdu[0].header['SKYCNTRT']
+                        merged -= scaled_sky
+                        break
+                fringe_hdu.close()
+                del fringe_hdu
+
         # Finally, apply bad pixel masks 
         # Determine which region file we need
         if (not bpm_dir == None):
@@ -1336,6 +1351,8 @@ def set_default_options(options_in=None):
     options['persistency_dir'] = None
     options["persistency_map"] = None
 
+    options['fringe_dir'] = None
+
     return options
 
 
@@ -1369,6 +1386,8 @@ if __name__ == "__main__":
     options['persistency_dir'] = cmdline_arg_set_or_default('-persdir', None)
 
     options["update_persistency_only"] = cmdline_arg_isset("-update_persistency_only")
+
+    options['fringe_dir'] = cmdline_arg_set_or_default('-fringedir', None)
 
     # Handle all reduction flags from command line
     bias_dir, dark_dir, flatfield_dir, bpm_dir, start = read_reduction_directories()
