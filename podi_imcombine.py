@@ -182,8 +182,10 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
         stdout_write("No existing files found in input list, hence nothing to do!\n")
         return
     elif (len(filelist) == 1):
-        stdout_write("Only 1 file to combine, save the hassle and copy the file!\n")
+        # stdout_write("Only 1 file to combine, save the hassle and copy the file!\n")
         hdulist = pyfits.open(filelist[0])
+        if (return_hdu):
+            return hdulist
         hdulist.writeto(outputfile)
         return
     
