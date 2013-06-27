@@ -186,26 +186,30 @@ if __name__ == "__main__":
                     flats_to_stack.append(flat_outfile)
                 #print flats_to_stack
 
-                stdout_write("Stacking %d frames into %s ..." % (len(flats_to_stack), flat_frame))
+                stdout_write("Stacking %d frames into %s ... " % (len(flats_to_stack), flat_frame))
                 flat_hdus = imcombine(flats_to_stack, flat_frame, "median", return_hdu=True)
+                stdout_write(" done!\n")
 
                 #
                 # Now apply the pupil ghost correction 
                 # Only do this if requested via keyword -pupilghost=(dirname)
                 #
                 if (pgtempdir != None):
+                    stdout_write("Performing pupil ghost correction ...")
                     # Get level os active filter and determine what the template filename is
                     filter_level = get_filter_level(flat_hdus[0].header)
                     pg_template = "%s/pupilghost_template___level_%d.fits" % (pgtempdir, filter_level)
+                    #print pg_template
 
                     # If we have a template for this level
                     if (os.path.isfile(pg_template)):
+                        stdout_write("\n   Using file %s ... " % (pg_template))
                         pg_hdu = pyfits.open(pg_template)
                         scaling = podi_matchpupilghost.scaling_factors[filter]
                         podi_matchpupilghost.subtract_pupilghost(flat_hdus, pg_hdu, scaling)
-                        flat_hdus[0].header.update("PUPLGOST", pg_template, "pupilghost template")
+                        flat_hdus[0].header.update("PUPLGOST", pg_template, "p.g. template")
                         flat_hdus[0].header.update("PUPLGFAC", scaling, "pupilghost scaling")
-
+                    stdout_write(" done!\n")
                 # And finally write the (maybe pupilghost-corrected) flat-field to disk
                 flat_hdus.writeto(flat_frame, clobber=True)
             else:
@@ -214,3 +218,5 @@ if __name__ == "__main__":
                 for file in flats_to_stack:
                     clobberfile(file)
 
+
+    stdout_write("\nAll done, yippie :-)\n\n")
