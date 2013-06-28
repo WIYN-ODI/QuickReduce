@@ -10,6 +10,7 @@ import scipy.interpolate
 #import scipy.signal
 import math
 import scipy.optimize
+import bottleneck
 
 from podi_definitions import *
 az_knot_limit = [50,600]
@@ -103,10 +104,13 @@ def create_from_template(command_file, buffer):
 #
 def get_median_level(data, radii, ri, ro):
 
-    selected = (radii > ri) & (radii < ro) & (numpy.isfinite(data))
+    selected = (radii > ri) & (radii < ro) #& (numpy.isfinite(data))
     pixelcount = numpy.sum(selected)
     if (pixelcount > 0):
-        median = numpy.median(data[selected][0:5001])
+        #cutout = data[selected]
+        #median = numpy.median(cutout[0:5001])
+        cutout = numpy.array(data[selected], dtype=numpy.float32)
+        median = bottleneck.nanmean(cutout)
     else:
         median = numpy.NaN
 
@@ -430,8 +434,9 @@ def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
 
 
 
-def fit_radial_profile(data, radius, angle, bgsub, radius_range):
-    show_plots = False
+def fit_radial_profile(data, radius, angle, bgsub, radius_range, binfac=1, verbose=False, show_plots=False,
+                       force_positive=False, zero_edges=False, save_profile=None):
+    
 
     #------------------------------------------------------------------------------
     #
@@ -440,15 +445,15 @@ def fit_radial_profile(data, radius, angle, bgsub, radius_range):
     #
     #------------------------------------------------------------------------------
 
-    stdout_write("\nComputing radial profile ...\n")
-
     r_inner, r_outer, dr_full = radius_range
     dr = dr_full/binfac
     r_inner /= binfac
     r_outer /= binfac
 
     n_radii = int(math.ceil(r_outer / dr))
-  
+
+    stdout_write("\nComputing radial profile (ri=%d, ro=%d, n=%d, bin=%d)...\n" % (r_inner, r_outer, n_radii, binfac))
+
     #
     # Next step: Fit the radial profile
     #
@@ -469,18 +474,56 @@ def fit_radial_profile(data, radius, angle, bgsub, radius_range):
         else:
             continue
 
+        if (verbose): stdout_write("radius i=%4d" % (i))
         median, count = get_median_level(bgsub, radius, ri, ro)
 
         pupil_radii[i] = 0.5 * (ri + ro)
         pupil_level[i] = median
+        if (verbose): stdout_write("   ri: %4d    ro: %4d    med: %.4f\n" % (ri, ro, median))
 
+    if (force_positive):
+        pupil_level[pupil_level < 0] = 0.
+    if (zero_edges):
+        pupil_level[min_r] = 0.
+        pupil_level[max_r] = 0.
+
+    if (save_profile != None):
+        out = open(save_profile, "w")
+        print >>out, "# Data: radius, median"
+        dummy = numpy.empty(shape=(pupil_radii.shape[0],2))
+        dummy[:,0] = pupil_radii[:]
+        dummy[:,1] = pupil_level[:]
+        #dummy = numpy.append(pupil_radii, pupil_level, axis=1)
+        numpy.savetxt(out, dummy)
 
     #
     # Now fit the profile with a 1-D spline
     #
-    radial_knots = numpy.linspace(r_inner+0.7*dr, r_outer-0.7*dr, (r_outer-r_inner-1.4*dr)/dr/1.5)
+    n_knots = (r_outer-r_inner-2*dr)/dr-1
+    if (n_knots > 75): n_knots=75
+    radial_knots = numpy.linspace(r_inner+0.7*dr, r_outer-0.7*dr, n_knots)
+    if (verbose): print "radial knots=",radial_knots[0:5],"...",radial_knots[-5:]
     radial_profile = scipy.interpolate.LSQUnivariateSpline(pupil_radii[min_r:max_r+1], pupil_level[min_r:max_r+1], radial_knots, k=2)
     
+    # In case of ValueError, this is what causes it (from scipy/intrpolate/interpolate.py): 
+    # if not alltrue(t[k+1:n-k]-t[k:n-k-1] > 0,axis=0):
+    #     raise ValueError('Interior knots t must satisfy '
+    #                      'Schoenberg-Whitney conditions')
+
+    if (save_profile != None):
+        print >>out, "\n\n\n\n\n\n\n\n"
+
+        print >>out, "# spline fit: radius, level"
+        smooth_radial_1d_x = numpy.linspace(r_inner, r_outer, 1300)
+        smooth_radial_1d_y = radial_profile(smooth_radial_1d_x)
+        dummy = numpy.empty(shape=(smooth_radial_1d_x.shape[0],2))
+        dummy[:,0] = smooth_radial_1d_x[:]
+        dummy[:,1] = smooth_radial_1d_y[:]
+        numpy.savetxt(out, dummy)
+
+        out.close()
+
+
     if (show_plots):
         # create a smooth profile for plotting
         smooth_radial_1d_x = numpy.linspace(r_inner, r_outer, 1300)
