@@ -48,7 +48,7 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False):
 
     filtername = primhdu.header['FILTER']
     if (outputfile == "auto"):
-        outputfile = "fringing__%s.fits" % (filtername)
+        outputfile = "fringes__%s.fits" % (filtername)
 
     print "Output file=",outputfile
 
@@ -92,11 +92,11 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False):
                 if (filter in avg_sky_countrates):
                     max_skylevel = 2 * avg_sky_countrates[filter] * exptime
                     if (skylevel > max_skylevel):
-                        stdout_write(" (%.1f)" % (skylevel))
+                        stdout_write(" (%.1f)" % (skylevel/exptime))
                         continue
 
             fringing = (this_hdu.data - skylevel) / skylevel
-            stdout_write(" %.1f" % (skylevel))
+            stdout_write(" %.1f" % (skylevel/exptime))
             data_blocks.append(fringing)
 
             # delete the data block to free some memory, since we won't need it anymore
@@ -105,10 +105,6 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False):
         stdout_write(" combining ...")
         #combined = podi_imcombine.imcombine_data(data_blocks, "nanmedian")
         combined = podi_imcombine.imcombine_data(data_blocks, "nanmedian.bn")
-
-        # Add the assumed skylevel countrate to primary header so we can use it
-        # when it comes to correcting actual data
-        ref_hdulist[0].header.update("SKYCNTRT", avg_sky_countrates[filter], "average countrate of dark sky")
 
         # Create new ImageHDU
         # Insert the imcombine'd frame into the output HDU
@@ -120,6 +116,10 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False):
         stdout_write(" done!\n")
 
         del hdu
+
+    # Add the assumed skylevel countrate to primary header so we can use it
+    # when it comes to correcting actual data
+    out_hdulist[0].header.update("SKYCNTRT", avg_sky_countrates[filter], "average countrate of dark sky")
 
     return_hdu = False
     out_hdu = pyfits.HDUList(out_hdulist)
@@ -177,10 +177,15 @@ if __name__ == "__main__":
         sys.exit(0)
                                
     
-    outputfile = get_clean_cmdline()[1]
+    if (cmdline_arg_isset("-make_template")):
+        outputfile = get_clean_cmdline()[1]
+        filelist = get_clean_cmdline()[2:]
+        operation = cmdline_arg_set_or_default("-op", "mean")
+        operation = cmdline_arg_set_or_default("-op", "nanmedian.bn")
+        make_fringing_template(filelist, outputfile, operation)
 
-    filelist = get_clean_cmdline()[2:]
+        sys.exit(0)
 
-    operation = cmdline_arg_set_or_default("-op", "mean")
+    if (cmdline_arg_isset("-correct")):
 
-    make_fringing_template(filelist, outputfile, operation)
+        sys.exit(0)
