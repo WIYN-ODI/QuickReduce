@@ -209,7 +209,12 @@ if __name__ == "__main__":
                         podi_matchpupilghost.subtract_pupilghost(flat_hdus, pg_hdu, scaling)
                         flat_hdus[0].header.update("PUPLGOST", pg_template, "p.g. template")
                         flat_hdus[0].header.update("PUPLGFAC", scaling, "pupilghost scaling")
-                    stdout_write(" done!\n")
+                        stdout_write(" done!\n")
+                    else:
+                        stdout_write(" --> problem:\n")
+                        stdout_write("Couldn't find the pupilghost template for level %d\n" % (filter_level))
+                        stdout_write("   I was looking for file %s\n" % (pg_template))
+
                 # And finally write the (maybe pupilghost-corrected) flat-field to disk
                 flat_hdus.writeto(flat_frame, clobber=True)
             else:
