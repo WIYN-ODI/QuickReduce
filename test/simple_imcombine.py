@@ -12,6 +12,7 @@ import Queue
 import threading
 import multiprocessing
 import ctypes
+import bottleneck
 
 fix_cpu_count = False
 number_cpus = 2
@@ -102,6 +103,16 @@ def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_fil
         elif (operation == "nanmedian"):
             #print "nanmedian"
             result_buffer[line,:] = scipy.stats.nanmedian(buffer[line,:,:], axis=1)
+
+        elif (operation == "nanmean.bn"):
+            x = numpy.array(buffer[line,:,:], dtype=numpy.float32)
+            result_buffer[line,:] = bottleneck.nanmean(x, axis=1)
+
+        elif (operation == "nanmedian.bn"):
+            #print "nanmedian"
+            x = numpy.array(buffer[line,:,:], dtype=numpy.float32)
+            result_buffer[line,:] = bottleneck.nanmedian(x, axis=1)
+            #result_buffer[line,:] = scipy.stats.nanmedian(buffer[line,:,:], axis=1)
 
         else:
             result_buffer[line,:] = numpy.mean(buffer[line,:,:], axis=1)             
@@ -244,5 +255,6 @@ if __name__ == "__main__":
 
     operation = sys.argv[2] #cmdline_arg_set_or_default("-op", "mean")
     print "operation:", operation
+    print filelist
 
     imcombine(filelist, outputfile, operation)
