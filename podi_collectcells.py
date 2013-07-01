@@ -392,12 +392,15 @@ def collect_reduce_ota(filename,
         # If requested, subtract the fringing template
         #
         if (options['fringe_dir'] != None):
-            fringe_filename = "%s/fringe__%s.fits" % (options['fringe_dir'], filter_name)
+            fringe_filename = "%s/fringes__%s.fits" % (options['fringe_dir'], filter_name)
+            print "Removing fringes",fringe_filename
             if (os.path.isfile(fringe_filename)):
+                print "using fringe map",fringe_filename
                 fringe_hdu = pyfits.open(fringe_filename)
                 for ext in fringe_hdu[1:]:
                     if (extname == ext.header['EXTNAME']):
-                        scaled_sky = ext.data * exptime * fringe_hdu[0].header['SKYCNTRT']
+                        print "scaling for",extname,"=",exposure_time * fringe_hdu[0].header['SKYCNTRT']
+                        scaled_sky = ext.data * exposure_time * fringe_hdu[0].header['SKYCNTRT']
                         merged -= scaled_sky
                         break
                 fringe_hdu.close()
@@ -1058,6 +1061,25 @@ def collectcells(input, outputfile,
     ota_list[0].header.update("SKYLEVEL", sky_global_median)
 
     #
+    # Now that we have the global sky-level, subtract the 
+    # contribution of the pupil ghost to the science frame.
+    #
+    if (options['pupilghost_dir'] != None):
+        filter_level = get_filter_level(ota_list[0].header)
+        pg_template = "%s/pupilghost_radial___level_%d.fits" % (options['pupilghost_dir'], filter_level)
+        stdout_write("looing for radial pupil ghost template %s...\n" % (pg_template))
+        # If we have a template for this level
+        if (os.path.isfile(pg_template)):
+            stdout_write("\n   Using pupilghost template %s ... " % (pg_template))
+            pg_hdu = pyfits.open(pg_template)
+            scaling = podi_matchpupilghost.scaling_factors[filter]
+
+            podi_matchpupilghost.subtract_pupilghost(ota_list, pg_hdu, scaling*sky_global_median, rotate=False)
+            flat_hdus[0].header.update("PUPLGOST", pg_template, "p.g. template")
+            flat_hdus[0].header.update("PUPLGFAC", scaling*sky_global_median, "pupilghost scaling")
+            stdout_write(" done!\n")
+
+    #
     # Fix the WCS if requested
     #
     if (fixwcs):
@@ -1352,6 +1374,7 @@ def set_default_options(options_in=None):
     options["persistency_map"] = None
 
     options['fringe_dir'] = None
+    options['pupilghost_dir'] = None
 
     return options
 
@@ -1383,11 +1406,12 @@ if __name__ == "__main__":
     
     clobber_mode = not cmdline_arg_isset("-noclobber")
 
-    options['persistency_dir'] = cmdline_arg_set_or_default('-persdir', None)
+    options['persistency_dir'] = cmdline_arg_set_or_default('-persistency', None)
 
     options["update_persistency_only"] = cmdline_arg_isset("-update_persistency_only")
 
-    options['fringe_dir'] = cmdline_arg_set_or_default('-fringedir', None)
+    options['fringe_dir'] = cmdline_arg_set_or_default('-fringe', None)
+    options['pupilghost_dir'] = cmdline_arg_set_or_default('-pupilghost', None)
 
     # Handle all reduction flags from command line
     bias_dir, dark_dir, flatfield_dir, bpm_dir, start = read_reduction_directories()
