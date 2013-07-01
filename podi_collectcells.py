@@ -516,6 +516,7 @@ def collect_reduce_ota(filename,
                 catfile = "%s/tmp_OTA%02d.cat" % (sitesetup.scratch_dir, ota)
                 hdulist.writeto(fitsfile, clobber=True)
                 sexcmd = "sex -c /work/podi_devel/.config/wcsfix.sex -CATALOG_NAME %s %s >&/dev/null" % (catfile, fitsfile)
+                print sexcmd
                 os.system(sexcmd)
                 try:
                     source_cat = numpy.loadtxt(catfile)
@@ -554,7 +555,7 @@ def collect_reduce_ota(filename,
                     if (verbose): print "sending %s and %d to shift_align_wcs" % (ota_odi_ra.shape[0], ota_ref_ra.shape[0])
                     dx, dy, n, matchcount = podi_fixwcs.shift_align_wcs(ota_odi_ra, ota_odi_dec, ota_ref_ra, ota_ref_dec)
                     if (verbose): print "WCSFIX dx/dy =", dx, dy
-                    fixwcs_data = (odi_ra, odi_dec, ref_ra, ref_dec, dx, dy, source_cat, matchcount)
+                    fixwcs_data = (odi_ra, odi_dec, ref_ra, ref_dec, dx, dy, source_cat, ipp_cat, matchcount)
         else:
             fixwcs_data = None
 
@@ -866,6 +867,7 @@ def collectcells(input, outputfile,
     fixwcs_ref_ra, fixwcs_ref_dec = numpy.array([]), numpy.array([])
     fixwcs_odi_x,  fixwcs_odi_y   = numpy.array([]), numpy.array([])
     fixwcs_extension = numpy.array([])
+    reference_catalog = None
 
     fixwcs_odi_sourcecat = None
     fixwcs_bestguess = numpy.ones(shape=(len(available_ota_coords),2)) * -1000
@@ -902,8 +904,10 @@ def collectcells(input, outputfile,
         if (fixwcs and not options['update_persistency_only']):
             
             if (wcsfix_data != None):
-                odi_ra, odi_dec, ref_ra, ref_dec, dx, dy, source_cat, number_matches = wcsfix_data
+                odi_ra, odi_dec, ref_ra, ref_dec, dx, dy, source_cat, reference_cat, number_matches = wcsfix_data
 
+                # Append all the returned ODI and reference catalog data to the 
+                # previous list to make one big catalog across all OTAs.
                 fixwcs_odi_ra  = numpy.append(fixwcs_odi_ra,  odi_ra,  axis=0)
                 fixwcs_odi_dec = numpy.append(fixwcs_odi_dec, odi_dec, axis=0)
                 fixwcs_ref_ra  = numpy.append(fixwcs_ref_ra,  ref_ra,  axis=0)
@@ -917,11 +921,8 @@ def collectcells(input, outputfile,
                 #print "source_cat[:,2]=",source_cat[:,2]
                 #print "source_cat[:,3]=",source_cat[:,3]
 
-                if (fixwcs_odi_sourcecat == None):
-                    fixwcs_odi_sourcecat = source_cat
-                else:
-                    #print "Adding some entries to source catalog"
-                    fixwcs_odi_sourcecat = numpy.append(fixwcs_odi_sourcecat, source_cat, axis=0)
+                reference_catalog = reference_cat if (reference_catalog == None) else numpy.append(reference_catalog, reference_cat, axis=0)
+                fixwcs_odi_sourcecat = source_cat if (fixwcs_odi_sourcecat == None) else numpy.append(fixwcs_odi_sourcecat, source_cat, axis=0)
 
                 fixwcs_bestguess[i,:] = [dx, dy]
 
@@ -1171,7 +1172,16 @@ def collectcells(input, outputfile,
         #fig.show(block=True)
         matplotlib.pyplot.close()
         
+        
+        source_cat_file = outputfile+".src.cat"
+        file = open(source_cat_file, "w")
+        numpy.savetxt(file, fixwcs_odi_sourcecat)
+        file.close()
 
+        reference_cat_file = outputfile+".2mass.cat"
+        file = open(reference_cat_file, "w")
+        numpy.savetxt(file, reference_catalog)
+        file.close()
 
         checkalign = outputfile+".cadat"
         x = open(checkalign, "w")
