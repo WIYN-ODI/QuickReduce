@@ -24,7 +24,7 @@ avg_sky_countrates = {
 }
 
 
-def make_fringing_template(input_filelist, outputfile, return_hdu=False):
+def make_fringing_template(input_filelist, outputfile, return_hdu=False, skymode='local'):
 
     # First loop over all filenames and make sure all files exist
     hdu_filelist = []
@@ -86,6 +86,8 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False):
                 continue
             
             skylevel = this_hdu.header['SKY_MEDI']
+            if (skymode == 'global'):
+                skylevel = hdu_filelist[file_number][0].header['SKYLEVEL']
             if ("EXPTIME" in hdu_filelist[file_number][0].header):
                 exptime = hdu_filelist[file_number][0].header['EXPTIME']
                 filter = hdu_filelist[file_number][0].header['FILTER']
@@ -163,6 +165,7 @@ if __name__ == "__main__":
                     continue
 
                 skylevel = hdulist[ext].header['SKY_MEDI']
+                
                 fringing = (hdulist[ext].data - skylevel) / skylevel
                 stdout_write("   %s = %.1f\n" % (hdulist[ext].header['EXTNAME'], skylevel))
 
