@@ -24,16 +24,22 @@ def map_persistency_effects(hdulist, verbose=False):
     pixels_masked_out_thisframe = 0
     pixels_masked_out_timeseries = 0
 
+    #
+    # Check all cells in this file (for on OTA)
+    #
     for ext in range(len(hdulist)):
+        # Skip extensions that are no Image HDUs
         if (str(type(hdulist[ext])) != "<class 'pyfits.hdu.image.ImageHDU'>"):
             continue
 
         extname = hdulist[ext].header['EXTNAME']
         if (verbose): stdout_write("Working on extension %s (%d)\n" % (extname, ext))
 
+        # Find all saturated pixels (values >= 65K)
         data = hdulist[ext].data
         saturated = (data >= 65535)
 
+        # Skip this cell if no pixels are saturated
         number_saturated_pixels = numpy.sum(saturated)
         if (number_saturated_pixels <= 0):
             continue
@@ -43,6 +49,7 @@ def map_persistency_effects(hdulist, verbose=False):
         saturated_pixels_total += number_saturated_pixels
         extensions_with_saturated_pixels += 1
 
+        # Do some book-keeping preparing for the masking
         rows, cols = numpy.indices(data.shape)
 
         mask_thisframe = numpy.zeros(shape=data.shape)
@@ -54,19 +61,11 @@ def map_persistency_effects(hdulist, verbose=False):
         saturated_rows = rows[saturated]
         saturated_cols = cols[saturated]
 
-        # print "# saturated_pixels =",saturated_rows.shape[0], saturated_cols.shape[0]
-
-        #print "overall:",mask_time.shape, mask_thisframe.shape
-
-
-        #print "saturated cols:",saturated_cols.shape
-
         unique_cols = set(saturated_cols)
-        #print "unique_rows=",len(unique_cols)
-        #print unique_cols
 
-        #for i in range(saturated_rows.shape[0]):
-        #    print "saturated pixel @",saturated_cols[i], saturated_rows[i], data[saturated_rows[i],saturated_cols[i]]
+        #
+        # Now convert the list of saturated pixels into a map
+        #
 
         # Old, slow method
         if (False):
@@ -104,6 +103,11 @@ def map_persistency_effects(hdulist, verbose=False):
                 pixels_masked_out_thisframe, pixels_masked_out_timeseries, 
                 saturated_pixels_total, extensions_with_saturated_pixels))
 
+    # return two maps:
+    # mask_thisframe:  Masks where all saturated pixels and 
+    #                  columns above the saturated pixels are masked
+    # mask_timeseries: Mask with all persistent pixels (saturated pixels 
+    #                  and the rows below) are masked
     return mask_thisframe_list, mask_timeseries_list
 
 
@@ -179,7 +183,8 @@ def find_latest_persistency_map(directory, mjd, verbose=False):
         if (d_mjd < min_delta_mjd and d_mjd > 5*mjd_seconds): 
             latest_map = file
             min_delta_mjd = d_mjd
-            if (verbose): print "Found better match: %s (MJD=%.6f, or %d secs)" % (latest_map, file_mjd, min_delta_mjd*86400)
+            if (verbose): print "Found better match: %s (MJD=%.6f, or %d secs)" % (
+                latest_map, file_mjd, min_delta_mjd*86400)
 
     if (latest_map == None):
         return None
@@ -200,6 +205,11 @@ def persistency_map_filename(directory, mjd):
     return filename
 
 
+#
+# This routine converts the masks into the persistency map that will
+# a) be stored on disk to keep track of the persistency and b) be used
+# to compute the correction for the science frame
+#
 def add_mask_to_map(mask, mjd, map_in):
 
     # Make a copy of the input frame
@@ -228,6 +238,10 @@ def add_mask_to_map(mask, mjd, map_in):
 
     return map_out
         
+#
+# Mask out all saturated or saturation-effected pixels in the current
+# frame (i.e. the one where pixels are saturated)
+#
 def apply_mask_to_data(mask, data):
 
     out = data
@@ -235,6 +249,9 @@ def apply_mask_to_data(mask, data):
 
     return out
 
+#
+# Compute the actual persistency correction from the persistency map.
+#
 def get_correction(persistency_map, cell_position, mjd):
 
     # Compute how big each subframe is
