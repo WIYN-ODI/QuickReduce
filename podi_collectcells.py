@@ -40,6 +40,7 @@ import podi_crosstalk
 import podi_persistency
 import podi_asyncfitswrite
 import podi_fitskybackground
+import podi_matchcatalogs
 
 from astLib import astWCS
 
@@ -1182,9 +1183,30 @@ def collectcells(input, outputfile,
             matching_radius=2, n_repeats=3,
             verbose=False)
 
+        # Now apply all shifts and rotations to the ODI source catalog.
+        # catalog is fixwcs_odi_sourcecat
+        # columns are: 0/1: ra/dec
+        #              2/3: x/y
+        odi_sourcecat_modified = fixwcs_odi_sourcecat.copy()
+        print wcs_shift
+        odi_sourcecat_modified[:,0:2] += wcs_shift
+#        odi_sourcecat_modified[:,1] -= wcs_shift[1]
+        odi_sourcecat_modified[:,0:2] = podi_fixwcs_rotation.apply_transformation(fixrot_trans, odi_sourcecat_modified[:,0:2])
+
+        # Now we have the corrected catalog, match again with the full 2mass reference catalog
+        # 2mass catalog in variable reference_catalog
+        odi_2mass_matched = podi_matchcatalogs.match_catalogs(reference_catalog[:,0:2], odi_sourcecat_modified)
+
+        count = numpy.sum(odi_2mass_matched[:,2] > 0)
+        print "Found ",count," matched odi+2mass pairs"
+
+        numpy.savetxt("odi+2mass.matched", odi_2mass_matched)
+        #numpy.savetxt("odi+2mass.matched2", other)
+
         # Create some plots for WCS diagnosis
         fig = matplotlib.pyplot.figure()
         matches_zeroed = matches - wcs_shift_refinement
+        matches_zeroed = odi_2mass_matched
 
         count, xedges, yedges = numpy.histogram2d(matches_zeroed[:,0]*3600., matches_zeroed[:,1]*3600.,
                                                   bins=[60,60], range=[[-3,3], [-3,3]])
