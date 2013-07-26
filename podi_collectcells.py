@@ -34,6 +34,7 @@ from podi_definitions import *
 import podi_findstars
 import podi_search_ipprefcat
 import podi_fixwcs
+import podi_fixwcs_rotation
 import podi_sitesetup as sitesetup
 import podi_crosstalk
 import podi_persistency
@@ -1083,8 +1084,54 @@ def collectcells(input, outputfile,
     #
     # Fix the WCS if requested
     #
-    if (fixwcs):
+    if (fixwcs and False):
 
+        scaling_xxx = 1800.
+        # New method using external match program
+        source_cat_file = outputfile[:-5]+".wcs.src.cat"
+        file = open(source_cat_file, "w")
+        # extract only the ra,dec,magnitude columns
+        cat_src = numpy.empty(shape=(fixwcs_odi_sourcecat.shape[0],3))
+        cat_src[:,0:2] = fixwcs_odi_sourcecat[:,0:2]*scaling_xxx
+        cat_src[:,2] = fixwcs_odi_sourcecat[:,13]
+        numpy.savetxt(file, cat_src, fmt="%.6f %.6f %.3f")
+        file.close()
+
+        reference_cat_file = outputfile[:-5]+".wcs.2mass.cat"
+        file = open(reference_cat_file, "w")
+        cat_ref = numpy.empty(shape=(reference_catalog.shape[0],3))
+        cat_ref[:,0:2] = reference_catalog[:,0:2] * scaling_xxx
+        cat_ref[:,2] = reference_catalog[:,2]
+        numpy.savetxt(file, cat_ref, fmt="%.6f %.6f %.3f")
+        file.close()
+
+        import matchcat_externalmatch as mc
+        #transf = mc.run_match(source_cat_file, reference_cat_file)
+        transf = mc.run_match(reference_cat_file, source_cat_file, "identity rotangle=0 rottol=5 match=1")
+        a,b,c,d,e,f = transf
+
+        #Apply correction to WCS headers
+        for extension in range(1, len(ota_list)):
+            if (ota_list[extension] == None):
+                continue
+
+            try:
+                cd11 = ota_list[extension].header['CD1_1']
+                cd12 = ota_list[extension].header['CD1_2']
+                cd21 = ota_list[extension].header['CD2_1']
+                cd22 = ota_list[extension].header['CD2_2']
+
+                ota_list[extension].header['CD1_1'] = b*cd11 + e*cd12
+                ota_list[extension].header['CD1_2'] = c*cd11 + f*cd12
+                ota_list[extension].header['CD2_1'] = b*cd21 + e*cd22
+                ota_list[extension].header['CD2_2'] = c*cd21 + f*cdf2
+
+                ota_list[extension].header['CRVAL1'] += (a/scaling_xxx)
+                ota_list[extension].header['CRVAL2'] += (d/scaling_xxx)
+            except:
+                pass
+
+    if (fixwcs):
         debuglog = outputfile+".wcsdebug"
         best_guess, contrast, drxy = podi_fixwcs.optimize_shift(global_number_matches, 
                                                                 declination=80,
@@ -1118,6 +1165,22 @@ def collectcells(input, outputfile,
         stdout_write("Further refinement: %.2f'' %.2f''\n" % (
                 wcs_shift_refinement[0]*3600., wcs_shift_refinement[1]*3600.))
 
+        # Now pickle some data for further development
+        numpy.savetxt("numsave.fixwcs_ref_ra.txt", fixwcs_ref_ra)
+        numpy.savetxt("numsave.fixwcs_ref_dec.txt", fixwcs_ref_dec)
+        numpy.savetxt("numsave.fixwcs_odi_ra.txt", fixwcs_odi_ra)
+        numpy.savetxt("numsave.fixwcs_odi_dec.txt", fixwcs_odi_dec)
+        numpy.savetxt("numsave.fixwcs_odi_y.txt", fixwcs_odi_y)
+        numpy.savetxt("numsave.fixwcs_odi_x.txt", fixwcs_odi_x)
+        numpy.savetxt("numsave.wcs_shift_guess.txt", wcs_shift_guess)
+        numpy.savetxt("numsave.wcs_shift_refinement.txt", wcs_shift_refinement)
+
+        fixrot_trans = podi_fixwcs_rotation.improve_match_and_rotation(
+            fixwcs_ref_ra, fixwcs_ref_dec,
+            fixwcs_odi_ra, fixwcs_odi_dec,
+            wcs_shift,
+            matching_radius=2, n_repeats=3,
+            verbose=False)
 
         # Create some plots for WCS diagnosis
         fig = matplotlib.pyplot.figure()
@@ -1208,7 +1271,8 @@ def collectcells(input, outputfile,
         for extension in range(1, len(ota_list)):
             if (ota_list[extension] == None):
                 continue
-            podi_fixwcs.apply_wcs_shift(wcs_shift, ota_list[extension].header)
+            podi_fixwcs.apply_wcs_shift(wcs_shift, ota_list[extension].header,
+                                        fixrot_trans)
 
             
         if (False):
