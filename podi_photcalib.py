@@ -247,14 +247,11 @@ def photcalib(fitsfile, output_filename, calib_directory, overwrite_cat=None):
     sex_reorg[:,2:6] = sex_cat[:,2:6]
     sex_reorg[:,6] = sex_cat[:,1]
 
-    for cur_ra in range(ra_ranges.shape[0]-1):
-        for cur_dec in range(dec_ranges.shape[0]-1):
-
-            # Select one of the ranges and hand the parameters off to the matching routine
-            matched_cat = podi_matchcatalogs.match_catalogs(std_stars, sex_reorg, ra_ranges[cur_ra:cur_ra+2], dec_ranges[cur_dec:cur_dec+2])
+    # Select one of the ranges and hand the parameters off to the matching routine
+    matched_cat = podi_matchcatalogs.match_catalogs(std_stars, sex_reorg)
             
-            if (matched_cat != None):
-                numpy.savetxt(results, matched_cat, delimiter=" ")
+    if (matched_cat != None):
+        numpy.savetxt(results, matched_cat, delimiter=" ")
                 
     results.close()
 
