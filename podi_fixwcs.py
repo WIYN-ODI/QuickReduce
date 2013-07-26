@@ -605,10 +605,41 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
 
 
 
-def apply_wcs_shift(shift, hdr):
+def apply_wcs_shift(shift, hdr, fixrot_trans=None):
 
     hdr['CRVAL1'] += shift[0]
     hdr['CRVAL2'] += shift[1]
+
+    hdr.update('WCSOF_RA', shift[0], "WCS Zeropoint offset RA")
+    hdr.update('WCSOFDEC', shift[1], "WCS Zeropoint offset DEC")
+
+    if (fixrot_trans != None):
+
+        angle = fixrot_trans[2]
+        
+        # Compute the new CRVAL1/2 values
+        cr1 = hdr['CRVAL1']
+        cr2 = hdr['CRVAL2']
+        hdr['CRVAL1'] =  math.cos(angle)*cr1 + math.sin(angle)*cr2 + fixrot_trans[0]
+        hdr['CRVAL2'] =  math.cos(angle)*cr2 - math.sin(angle)*cr1 + fixrot_trans[1] 
+        print "CR1/2 before=",cr1, cr2
+        print "CR1/2 after =",hdr['CRVAL1'],  hdr['CRVAL2']
+
+        cd11 = hdr['CD1_1']
+        cd12 = hdr['CD1_2']
+        cd21 = hdr['CD2_1']
+        cd22 = hdr['CD2_2']
+
+        co = math.cos(angle)
+        si = math.sin(angle)
+        hdr['CD1_1'] = cd11*co - cd12*si
+        hdr['CD1_2'] = cd11*si + cd12*co
+        hdr['CD2_1'] = cd21*co - cd22*si
+        hdr['CD2_2'] = cd21*si + cd22*co
+        
+        hdr.update('WCSMROT1', fixrot_trans[0])
+        hdr.update('WCSMROT2', fixrot_trans[1])
+        hdr.update('WCSMROT3', math.degrees(fixrot_trans[2])*60.)
 
     # Make sure the RA range stays in valid ranges
     if (hdr['CRVAL1'] < 0): hdr['CRVAL1'] += 360 
@@ -620,9 +651,6 @@ def apply_wcs_shift(shift, hdr):
 
     #hdr.add_history("GLOBAL SHIFT: dRA,dDEC=")
     #hdr.add_history("dRA=%.6f dDEC=%.6f" % (best_guess[0], best_guess[1]))
-
-    hdr.update('WCSOF_RA', shift[0], "WCS Zeropoint offset RA")
-    hdr.update('WCSOFDEC', shift[1], "WCS Zeropoint offset DEC")
 
     return
 
