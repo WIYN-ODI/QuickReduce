@@ -1134,8 +1134,9 @@ def collectcells(input, outputfile,
 
     if (fixwcs):
         debuglog = outputfile+".wcsdebug"
+        declination = ota_list[1].header['CRVAL2']
         best_guess, contrast, drxy = podi_fixwcs.optimize_shift(global_number_matches, 
-                                                                declination=80,
+                                                                declination=declination,
                                                                 debuglogfile=debuglog)
         stdout_write("Found offset: %.2f', %.2f' (+/- %.1f''), contrast %.1f (%d)\n" % (
                 best_guess[0]*60., best_guess[1]*60., drxy[0]*3600*0.5, contrast, best_guess[2]))
