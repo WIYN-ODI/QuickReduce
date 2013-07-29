@@ -114,7 +114,8 @@ def count_matches(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1):
                 idx_ota, idx_ref = index_ota[close_match], index_ref[close_match]
                 #print idx_ota.shape, idx_ref.shape
                 for match in range(idx_ota.shape[0]):
-                    print "MATCH_%d"%(matched_pair),ota_x[idx_ota[match]], ota_y[idx_ota[match]], ref_x[idx_ref[match]], ref_y[idx_ref[match]], shift_dx, shift_dy
+                    print "MATCH_%d"%(matched_pair),ota_x[idx_ota[match]], ota_y[idx_ota[match]], \
+                        ref_x[idx_ref[match]], ref_y[idx_ref[match]], shift_dx, shift_dy
 
                 matched_pair += 1
                 pass
@@ -771,7 +772,7 @@ def optimize_shift(n_matches, verbose=False, declination=0, debuglogfile=None):
 
     # Create memory to hold the alignment data
     # First two columns are dx, dy, third will be #matches
-    total_sum = numpy.zeros(shape=(n_multiple.shape[0],3))
+    total_sum = numpy.zeros(shape=(n_multiple.shape[0],4))
     total_sum[:,0:2] = n_multiple[:,1:3]
 
     if (debuglogfile != None):
@@ -782,14 +783,28 @@ def optimize_shift(n_matches, verbose=False, declination=0, debuglogfile=None):
         numpy.savetxt(debuglog, n_multiple)
         print >>debuglog, "\n\n\n\n\n"
 
+        numpy.savetxt(debuglog, total_sum)
+        print >>debuglog, "\n\n\n\n\n"
+
+
     # Go through the list of possible shifts and sum up all shifts in the neighborhood
-    d_neighbor = 5.0 / 3600.
-    d_ra = d_neighbor / math.cos(math.radians(declination))
-    d_dec = d_neighbor
-    for i in range(n_multiple.shape[0]):
-        nearby = (total_sum[:,0] > total_sum[i,0]-d_ra) & (total_sum[:,0] < total_sum[i,0]+d_ra) \
-            & (total_sum[:,1] > total_sum[i,1]-d_dec) & (total_sum[:,1] < total_sum[i,1]+d_dec)
+    d_neighbor = 5.0 / 3600. # i.e. 5 arcseconds
+    d_ra_max = d_neighbor / math.cos(math.radians(declination))
+    d_dec_max = d_neighbor
+
+    if (verbose): print "\n\n\nXXX Search-radius for match-conglomeration (arcsec): ",\
+            d_ra_max*3600, d_dec_max*3600,"\n\n\n"
+
+    for i in range(total_sum.shape[0]):
+        d_ra = numpy.fabs(total_sum[i,0] - total_sum[:,0])
+        d_dec = numpy.fabs(total_sum[i,1] - total_sum[:,1])
+        
+        nearby = (d_ra < d_ra_max) & (d_dec < d_dec_max)
+
+        #nearby = (total_sum[:,0] > total_sum[i,0]-d_ra) & (total_sum[:,0] < total_sum[i,0]+d_ra) \
+        #    & (total_sum[:,1] > total_sum[i,1]-d_dec) & (total_sum[:,1] < total_sum[i,1]+d_dec)
         total_sum[i,2] = numpy.sum(n_multiple[:,0][nearby])
+        total_sum[i,3] = numpy.sum(nearby)
 
     if (debuglogfile != None):
         numpy.savetxt(debuglog, total_sum)
