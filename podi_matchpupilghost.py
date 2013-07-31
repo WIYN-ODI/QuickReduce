@@ -32,6 +32,9 @@ def subtract_pupilghost(input_hdu, pupil_hdu, scaling, rotate=True):
     if (rotate):
         # Get rotator angle from header
         rotator_angle = input_hdu[0].header['ROTSTART']
+        # print "___%s___" % rotator_angle
+        if (rotator_angle == "unknown"):
+            rotator_angle = 0.0
 
         # Rotate to the right angle
         # Make sure to rotate opposite to the rotator angle since we rotate 
@@ -73,7 +76,10 @@ def subtract_pupilghost(input_hdu, pupil_hdu, scaling, rotate=True):
         #print ext_name, pupilghost_centers[ext_name]
         
         center_x, center_y = centers = pupilghost_centers[ext_name]
+        # print ext_name, center_x, center_y
+
         # Swap x/y since python does it too
+        print "rot.shape=",rotated.shape
         bx = rotated.shape[0] / 2 - center_x
         by = rotated.shape[1] / 2 - center_y
         tx, ty = bx + data_shape[0], by + data_shape[1]
