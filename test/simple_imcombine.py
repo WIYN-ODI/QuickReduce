@@ -114,6 +114,10 @@ def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_fil
             result_buffer[line,:] = bottleneck.nanmedian(x, axis=1)
             #result_buffer[line,:] = scipy.stats.nanmedian(buffer[line,:,:], axis=1)
 
+        elif (operation == "nansum.bn"):
+            x = numpy.array(buffer[line,:,:], dtype=numpy.float32)
+            result_buffer[line,:] = bottleneck.nansum(x, axis=1)
+
         else:
             result_buffer[line,:] = numpy.mean(buffer[line,:,:], axis=1)             
             
