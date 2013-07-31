@@ -1153,14 +1153,17 @@ def collectcells(input, outputfile,
         # Now go back, match the ODI and reference catalogs and refine the solution
         #
         #print "\n\n\n\n\n",fixwcs_odi_x.shape, fixwcs_odi_ra.shape,"\n\n\n\n\n"
-        wcs_shift_refinement, matched_cat, matches = \
-            podi_fixwcs.refine_wcs_shift(ref_x=fixwcs_ref_ra, ref_y=fixwcs_ref_dec, 
-                                         ota_x=fixwcs_odi_ra, ota_y=fixwcs_odi_dec, 
-                                         ota_px_x=fixwcs_odi_x, ota_px_y=fixwcs_odi_y,
-                                         best_guess=wcs_shift_guess, 
-                                         matching_radius=3, #arcsec
-                                         alignment_checkfile=None,
-                                         verbose=False)
+        if (False):
+            wcs_shift_refinement, matched_cat, matches = \
+                podi_fixwcs.refine_wcs_shift(ref_x=fixwcs_ref_ra, ref_y=fixwcs_ref_dec, 
+                                             ota_x=fixwcs_odi_ra, ota_y=fixwcs_odi_dec, 
+                                             ota_px_x=fixwcs_odi_x, ota_px_y=fixwcs_odi_y,
+                                             best_guess=wcs_shift_guess, 
+                                             matching_radius=3, #arcsec
+                                             alignment_checkfile=None,
+                                             verbose=False)
+        else:
+            wcs_shift_refinement = numpy.array([0,0])
 
         # Add the previous (best-guess) shift and the new refinement
         wcs_shift = wcs_shift_guess + wcs_shift_refinement
@@ -1189,7 +1192,7 @@ def collectcells(input, outputfile,
         # columns are: 0/1: ra/dec
         #              2/3: x/y
         odi_sourcecat_modified = fixwcs_odi_sourcecat.copy()
-        print wcs_shift
+        print "wcs-shift=",wcs_shift
         odi_sourcecat_modified[:,0:2] += wcs_shift
 #        odi_sourcecat_modified[:,1] -= wcs_shift[1]
         odi_sourcecat_modified[:,0:2] = podi_fixwcs_rotation.apply_transformation(fixrot_trans, odi_sourcecat_modified[:,0:2])
@@ -1204,60 +1207,11 @@ def collectcells(input, outputfile,
         numpy.savetxt("odi+2mass.matched", odi_2mass_matched)
         #numpy.savetxt("odi+2mass.matched2", other)
 
-        # Create some plots for WCS diagnosis
-        fig = matplotlib.pyplot.figure()
-        matches_zeroed = matches - wcs_shift_refinement
-        matches_zeroed = odi_2mass_matched
-
-        count, xedges, yedges = numpy.histogram2d(matches_zeroed[:,0]*3600., matches_zeroed[:,1]*3600.,
-                                                  bins=[60,60], range=[[-3,3], [-3,3]])
-        img = matplotlib.pyplot.imshow(count.T, 
-                                       extent=(xedges[0],xedges[-1],yedges[0],yedges[-1]), 
-                                       origin='lower', 
-                                       cmap=cmap_bluewhite)
-        # interpolation='nearest', 
-        fig.colorbar(img)
-
-        matplotlib.pyplot.plot(matches_zeroed[:,0]*3600., matches_zeroed[:,1]*3600., "b,", linewidth=0)
-        matplotlib.pyplot.title("WCS Scatter\n%s" % outputfile)
-        matplotlib.pyplot.xlabel("error RA ['']")
-        matplotlib.pyplot.ylabel("error DEC ['']")
-        matplotlib.pyplot.xlim((-3,3))
-        matplotlib.pyplot.ylim((-3,3))
-        matplotlib.pyplot.grid(True)
-        matplotlib.pyplot.axes().set_aspect('equal')
-        png_wcsscatter = outputfile[:-5]+".wcs1.png"
-        fig.savefig(png_wcsscatter)
-        #fig.savefig(png_wcsscatter[:-4]+".eps")
-        matplotlib.pyplot.close()
-
-        fig = matplotlib.pyplot.figure()
-        matched_zeroed = matched_cat
-        matched_zeroed[:,0:2] -= wcs_shift_refinement
-        #matplotlib.pyplot.plot(matched_zeroed[:,0], matched_zeroed[:,1], ",", color=(1,1,1))
-        matching_radius_arcsec = 3. / 3600.
-        valid = (numpy.fabs(matched_zeroed[:,0]-matched_zeroed[:,2]) < matching_radius_arcsec) & \
-            (numpy.fabs(matched_zeroed[:,1]-matched_zeroed[:,3]) < matching_radius_arcsec)
-        matched_zeroed = matched_zeroed[valid]
-        matplotlib.pyplot.quiver(matched_zeroed[:,0], matched_zeroed[:,1],
-                                 (matched_zeroed[:,0]-matched_zeroed[:,2]), 
-                                 (matched_zeroed[:,1]-matched_zeroed[:,3]),
-                                 linewidth=0
-                                 )
-        # Determine min and max values
-        ramin, ramax = numpy.min(matched_zeroed[:,0]), numpy.max(matched_zeroed[:,0])
-        decmin, decmax = numpy.min(matched_zeroed[:,1]), numpy.max(matched_zeroed[:,1])
-        matplotlib.pyplot.title("WCS misalignment\n%s" % outputfile)
-        matplotlib.pyplot.xlim((ramin-0.02, ramax+0.02))
-        matplotlib.pyplot.ylim((decmin-0.02, decmax+0.02))
-        matplotlib.pyplot.xlabel("RA [degrees]")
-        matplotlib.pyplot.xlabel("DEC [degrees]")
-        png_wcsdirection = outputfile[:-5]+".wcs2.png"
-        fig.savefig(png_wcsdirection)
-        #fig.savefig(png_wcsdirection[:-4]+".eps")
-        #fig.show(block=True)
-        matplotlib.pyplot.close()
-        
+        if (True):
+            print "Creating some diagnostic plots"
+            import podi_diagnosticplots
+            podi_diagnosticplots.wcsdiag_scatter(odi_2mass_matched, outputfile[:-5]+".wcs1.png")
+            podi_diagnosticplots.wcsdiag_shift(odi_2mass_matched, outputfile[:-5]+".wcs2.png")
         
         source_cat_file = outputfile+".src.cat"
         file = open(source_cat_file, "w")
@@ -1350,12 +1304,14 @@ def collectcells(input, outputfile,
         numpy.savetxt(x, dummy)
 
         print >>x, "\n\n\n\n\n"
-        numpy.savetxt(x, matched_cat)
+        numpy.savetxt(x, odi_2mass_matched)
 
         print >>x, "\n\n\n\n\n"
         numpy.savetxt(x, fixwcs_odi_sourcecat)
 
         x.close()
+
+        numpy.savetxt("matched_cat.cat", odi_2mass_matched)
 
     #print "Waiting for a bit"
     #afw.wait()
