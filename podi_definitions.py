@@ -781,6 +781,103 @@ pupilghost_centers = {"OTA33.SCI": (4175, 4145),
                       }
 
 
+# using swarp and d_pixel offsets
+pupilghost_centers = {"OTA33.SCI": (4168, 4170),
+                      "OTA34.SCI": (4209, -175),
+                      "OTA44.SCI": (  22, -200),
+                      "OTA43.SCI": (   7, 4144), #0,+3
+                      }
+
+pupilghost_centers = {"OTA33.SCI": (4158, 4170),
+                     "OTA34.SCI": (4199, -175),
+                     "OTA44.SCI": (  12, -200),
+                     "OTA43.SCI": (  -3, 4144), #0,+3
+                     }
+
+#try_33.1
+pupilghost_centers = {"OTA33.SCI": (4168, 4170),}
+
+#try33.2
+pupilghost_centers = {"OTA33.SCI": (4118, 4120),}
+#try33.3
+pupilghost_centers = {"OTA33.SCI": (4125, 4115),}
+#try33.4
+pupilghost_centers = {"OTA33.SCI": (4110, 4130),}
+#try33.5
+pupilghost_centers = {"OTA33.SCI": (4100, 4110),}
+#try33.6
+pupilghost_centers = {"OTA33.SCI": (4107, 4117),}
+#try33.7
+pupilghost_centers = {"OTA33.SCI": (4117, 4117),}
+#try33.8
+pupilghost_centers = {"OTA33.SCI": (4095, 4117),}
+#try33.9
+pupilghost_centers = {"OTA33.SCI": (4100, 4117),}
+#try33.10
+pupilghost_centers = {"OTA33.SCI": (4100, 4130),}
+#try33.11
+pupilghost_centers = {"OTA33.SCI": (4105, 4125),}
+#try33.12
+pupilghost_centers = {"OTA33.SCI": (4115, 4115),}
+#try33.13
+pupilghost_centers = {"OTA33.SCI": (4125, 4105),}
+#try33.14
+pupilghost_centers = {"OTA33.SCI": (4135, 4095),}
+#try33.15/16/17
+pupilghost_centers = {"OTA33.SCI": (4140, 4090),}
+#try33.18
+pupilghost_centers = {"OTA33.SCI": (4130, 4090),}
+#try33.19
+pupilghost_centers = {"OTA33.SCI": (4124, 4082),}
+
+#try33.18 <- best fit for ota 33
+pupilghost_centers = {"OTA33.SCI": (4130, 4090),}
+
+# try34.01
+pupilghost_centers = {"OTA34.SCI": (4199, -175)}
+# try34.02
+pupilghost_centers = {"OTA34.SCI": (4230, -225)}
+# try34.02
+pupilghost_centers = {"OTA34.SCI": (4230, -237)}
+
+
+# try 43.01
+pupilghost_centers = {"OTA43.SCI": (  -3, 4144)}
+# try 43.02
+pupilghost_centers = {"OTA43.SCI": (  17, 4127)}
+# try 43.03
+pupilghost_centers = {"OTA43.SCI": (   3, 4107)}
+# try 43.04 <-- nailed it ;-)
+pupilghost_centers = {"OTA43.SCI": (  -8, 4151)}
+
+
+# try 44.01
+pupilghost_centers = {"OTA44.SCI": (  12, -200)}
+# try 44.02
+pupilghost_centers = {"OTA44.SCI": (  12, -204)}
+
+
+#try33.18 
+pupilghost_centers = {"OTA33.SCI": (4130, 4090),}
+#try33.20
+pupilghost_centers = {"OTA33.SCI": (4176, 4182),}
+#try33.21 <- good enough
+pupilghost_centers = {"OTA33.SCI": (4172, 4182),}
+
+
+# now all together
+pupilghost_centers = {"OTA33.SCI": (4172, 4182),
+                      "OTA43.SCI": (  -8, 4151),
+                      "OTA34.SCI": (4230, -237),
+                      "OTA44.SCI": (  12, -204)}
+
+# try34.02
+pupilghost_centers = {"OTA33.SCI": (4182, 4155),
+                      "OTA43.SCI": ( -23, 4147),
+                      "OTA34.SCI": (4207, -189),
+                      "OTA44.SCI": ( -12, -204)}
+
+#
 
 def inherit_headers(header, primary_header):
     for header in headers_to_inherit:
@@ -919,7 +1016,7 @@ def log_svn_version(hdr):
 
 
 
-def rotate_around_center(data, angle, mask_limit = 0.1, verbose=True, safety=1, mask_nans=True):
+def rotate_around_center(data, angle, mask_limit = 0.1, verbose=True, safety=1, mask_nans=True, spline_order=3):
 
     if (verbose):
         stdout_write("Rotating data block by %.1f deg ..." % (angle))
@@ -934,7 +1031,7 @@ def rotate_around_center(data, angle, mask_limit = 0.1, verbose=True, safety=1, 
 
     # Now rotate both the image and its mask
     rotated = scipy.ndimage.interpolation.rotate(input=data, angle=angle, axes=(1, 0), 
-                                                 reshape=False, order=3,
+                                                 reshape=False, order=spline_order,
                                                  mode='constant', cval=0, )
 
     if (mask_nans):
