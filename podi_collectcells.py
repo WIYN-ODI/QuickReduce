@@ -242,6 +242,7 @@ def collect_reduce_ota(filename,
         
         for cell in range(1,65):
             stdout_write("\r%s:   OTA %02d, cell %s ..." % (obsid, ota, hdulist[cell].header['EXTNAME']))
+            wm_cellx, wm_celly = hdulist[cell].header['WN_CELLX'], hdulist[cell].header['WN_CELLY']
 
             #
             # Special case for cell 0,7 (the one in the bottom left corner):
@@ -253,19 +254,10 @@ def collect_reduce_ota(filename,
                 hdu.header.update("CRPIX2", hdulist[cell].header['CRPIX2'], "Ref. pixel DEC")
 
             # Check if this is one of the broken cells
-            wm_cellx, wm_celly = hdulist[cell].header['WN_CELLX'], hdulist[cell].header['WN_CELLY']
-            broken = False
-            list_of_broken_cells = broken_ota_cells[ota_name]
-            for broken_cell in list_of_broken_cells:
-                x,y = broken_cell
-                #print x,y
-                if (wm_cellx == x and wm_celly == y):
-                    broken = True
-                    #print "found broken cell", hdulist[cell].header['EXTNAME'],broken_cell
-                    break
-
-            if (broken):
-                continue # with the next cell
+            cellmode_id = get_cellmode(hdulist[0].header, hdulist[cell].header)
+            if (not cellmode_id == 0):
+                # This means it either broken (id=-1) or in video-mode (id=1)
+                continue
 
             if (options['persistency_dir'] != None):
                 # Apply the persistency correction for the current frame
