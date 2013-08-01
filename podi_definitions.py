@@ -134,6 +134,39 @@ sdss_equivalents = {"odi_g": 'g',
                     "Us_solid": 'u',
 		    }	
 
+cellmode_ids = {
+    "S": 0,
+    "V": 1,
+    # Add other cellmodes and some numerical representation here
+}
+
+def get_cellmode(primhdr, cellhdr):
+    
+    ota = int(primhdr['FPPOS'][2:4])
+
+    ota_name = "OTA%02d" % ota
+    extname = "OTA%02d.SCI" % ota
+
+    cell = cellhdr['EXTNAME']
+
+    # Check if this is one of the permanently broken cells
+    wm_cellx, wm_celly = cellhdr['WN_CELLX'], cellhdr['WN_CELLY']
+    broken = False
+    list_of_broken_cells = broken_ota_cells[ota_name]
+    for broken_cell in list_of_broken_cells:
+        x,y = broken_cell
+        if (wm_cellx == x and wm_celly == y):
+            return -1
+            break
+
+    # It's not one of the broken cells, but it might still be a guide/video cell
+    idx = wm_cellx + 8 * wm_celly
+    cellmode = primhdr['CELLMODE']
+    this_cellmode = cellmode[idx]
+    cell_id = cellmode_ids[this_cellmode]
+
+    return cell_id
+
 
 def stdout_write(str):
     sys.stdout.write(str)
