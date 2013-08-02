@@ -42,7 +42,7 @@ def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_fil
         cmd_quit, line = queue.get()
         if (cmd_quit):
             queue.task_done()
-            return
+            break
 
         if (operation == "median"):
             result_buffer[line,:] = numpy.median(buffer[line,:,:], axis=1)
@@ -105,23 +105,30 @@ def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_fil
         elif (operation == "nanmedian.bn"):
             x = numpy.array(buffer[line,:,:], dtype=numpy.float32)
             result_buffer[line,:] = bottleneck.nanmedian(x, axis=1)
-
+            x = None
+            del x
         else:
             result_buffer[line,:] = numpy.mean(buffer[line,:,:], axis=1)             
             
 
         queue.task_done()
 
+    buffer = None
+    shmem_buffer = None
+    del shmem_buffer
+    del buffer
+    sys.exit(0)
+
+    return
+
+
 
 def imcombine_data(datas, operation="nanmean"):
-
-    queue = multiprocessing.JoinableQueue()
 
     # Allocate enough shared memory to load a single OTA from all files. The shared part is
     # important to make communication between the main and the slave processes possible.
     size_x, size_y = datas[0].shape[0], datas[0].shape[1]
     shmem_buffer = multiprocessing.RawArray(ctypes.c_float, size_x*size_y*len(datas))
-    shmem_results = multiprocessing.RawArray(ctypes.c_float, size_x*size_y)
 
     # Extract the shared memory buffer as numpy array to make things easier
     buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len(datas)))
@@ -133,19 +140,33 @@ def imcombine_data(datas, operation="nanmean"):
     for data_id in range(len(datas)):
         buffer[:,:,data_id] = datas[data_id][:,:]
 
+    sizes = (size_x, size_y, len(datas))
+    combined = imcombine_sharedmem_data(buffer, operation, sizes)
+
+    del shmem_buffer
+    return combined
+
+def imcombine_sharedmem_data(shmem_buffer, operation, sizes):
+
+    size_x, size_y, n_frames = sizes
+    shmem_results = multiprocessing.RawArray(ctypes.c_float, size_x*size_y)
+
     #
     # Set up the parallel processing environment
     #
+    queue = multiprocessing.JoinableQueue()
+
     #result_buffer = numpy.zeros(shape=(buffer.shape[0], buffer.shape[1]), dtype=numpy.float32)
     processes = []
     for i in range(number_cpus):
         worker_args = (queue, shmem_buffer, shmem_results,
-                       size_x, size_y, len(datas), operation)
+                       size_x, size_y, n_frames, operation)
         p = multiprocessing.Process(target=parallel_compute, args=worker_args)
         p.start()
         processes.append(p)
 
     # Now compute median/average/sum/etc
+    buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, n_frames))
     for line in range(buffer.shape[0]):
         #print "Adding line",line,"to queue"
         queue.put((False,line))
@@ -162,11 +183,14 @@ def imcombine_data(datas, operation="nanmean"):
             p.terminate()
         sys.exit(-1)
 
+    for p in processes:
+        p.terminate()
+
     results = numpy.copy(shmem_as_ndarray(shmem_results).reshape((size_x, size_y)))
 
-    del shmem_buffer
     del shmem_results
     del queue
+    del buffer
 
     return results
 
@@ -208,6 +232,7 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
     #
     # Now loop over all extensions and compute the mean
     #
+    shmem_buffer = None
     for cur_ext in range(1, len(ref_hdulist)):
 
         data_blocks = []
@@ -218,12 +243,26 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
 
         stdout_write("\rCombining frames for OTA %s (#% 2d/% 2d) ..." % (ref_fppos, cur_ext, len(ref_hdulist)-1))
 
+        #
+        # Allocate enough shared momory to hold all frames
+        #
+        print "shared memory before:", shmem_buffer
+        size_x, size_y = ref_hdulist[cur_ext].data.shape[0], ref_hdulist[cur_ext].data.shape[1]
+        shmem_buffer = multiprocessing.RawArray(ctypes.c_float, size_x*size_y*len(filelist))
+        print "allocated memory"
+        # Extract the shared memory buffer as numpy array to make things easier
+        buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len(filelist)))
+        # Set the full buffer to NaN
+        print "setting memory to nan"
+        buffer[:,:,:] = numpy.NaN
+        print "starting work"
+
         # Copy the reference data
-        data_blocks.append(ref_hdulist[cur_ext].data)
-        del ref_hdulist[cur_ext].data
+        #data_blocks.append(ref_hdulist[cur_ext].data)
+        #del ref_hdulist[cur_ext].data
 
         # Now open all the other files, look for the right extension, and copy their image data to buffer
-        for file_number in range(1, len(filelist)):
+        for file_number in range(len(filelist)):
             filename = filelist[file_number]
             hdulist = pyfits.open(filename)
             for i in range(1, len(hdulist)):
@@ -231,13 +270,19 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
                     continue
                 fppos = hdulist[i].header['EXTNAME']
                 if (fppos == ref_fppos):
-                    data_blocks.append(hdulist[i].data)
+                    buffer[:,:,file_number] = hdulist[i].data[:,:]
+                    #data_blocks.append(hdulist[i].data.copy())
                     break
+            hdulist[i].data = None
             hdulist.close()
             del hdulist
+            stdout_write("\n   Added file %s ..." % (filename))
 
-        combined = imcombine_data(data_blocks, operation=operation)
+        stdout_write("\n   Starting imcombine for real ...")
+        #combined = imcombine_data(data_blocks, operation=operation)
+        combined = imcombine_sharedmem_data(shmem_buffer, operation=operation, sizes=(size_x, size_y, len(filelist)))
 
+        stdout_write(" done, writing file ...")
         # Create new ImageHDU
         hdu = pyfits.ImageHDU()
 
@@ -252,7 +297,16 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
         # Append the new HDU to the list of result HDUs
         out_hdulist.append(hdu)
 
+        # Also make sure to delete all the allocated data blocks,
+        # otherwise we'll end up in memory hell's kitchen
+        stdout_write(" freeing memory ...")
+        buffer = None
+        shmem = None
+        del buffer
         del hdu
+        #del shmem_buffer
+        del data_blocks
+        stdout_write(" done\n\n")
 
     out_hdu = pyfits.HDUList(out_hdulist)
     if (not return_hdu and outputfile != None):
