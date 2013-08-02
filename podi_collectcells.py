@@ -463,11 +463,13 @@ def collect_reduce_ota(filename,
                                                    extension_id=ota)
             else:
                 hdulist = pyfits.HDUList([pyfits.PrimaryHDU(header=hdu.header, data=hdu.data)])
-                fitsfile = "%s/tmp_OTA%02d.fits" % (sitesetup.scratch_dir, ota)
-                catfile = "%s/tmp_OTA%02d.cat" % (sitesetup.scratch_dir, ota)
+                obsid = hdulist[0].header['OBSID']
+                process_id = os.getpid()
+                fitsfile = "%s/tmp.pid%d.%s_OTA%02d.fits" % (sitesetup.scratch_dir, process_id, obsid, ota)
+                catfile = "%s/tmp.pid%d.%s_OTA%02d.cat" % (sitesetup.scratch_dir, process_id, obsid, ota)
                 hdulist.writeto(fitsfile, clobber=True)
                 sexcmd = "sex -c /work/podi_devel/.config/wcsfix.sex -CATALOG_NAME %s %s >&/dev/null" % (catfile, fitsfile)
-                print sexcmd
+                if (options['verbose']): print sexcmd
                 os.system(sexcmd)
                 try:
                     source_cat = numpy.loadtxt(catfile)
@@ -481,6 +483,7 @@ def collect_reduce_ota(filename,
                 except:
                     source_cat == None
                 clobberfile(fitsfile)
+                clobberfile(catfile)
 
             fixwcs_data = None
             if (source_cat != None):
