@@ -31,6 +31,7 @@ except:
 
 from podi_definitions import *
 import bottleneck
+verbose = cmdline_arg_isset("-verbose")
 
 def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_filelist, operation):
     #queue, shmem_buffer, shmem_results, size_x, size_y, len_filelist = worker_args
@@ -195,6 +196,48 @@ def imcombine_sharedmem_data(shmem_buffer, operation, sizes):
     return results
 
 
+
+def imcombine_subprocess(extension, filelist, shape, queue, verbose):
+
+    #
+    # Allocate enough shared momory to hold all frames
+    #
+    size_x, size_y = shape[0], shape[1]
+    shmem_buffer = multiprocessing.RawArray(ctypes.c_float, size_x*size_y*len(filelist))
+
+    # Extract the shared memory buffer as numpy array to make things easier
+    buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len(filelist)))
+
+    # Set the full buffer to NaN
+    buffer[:,:,:] = numpy.NaN
+
+    # Now open all files, look for the right extension, and copy their image data to buffer
+    for file_number in range(len(filelist)):
+        filename = filelist[file_number]
+        hdulist = pyfits.open(filename)
+        for i in range(1, len(hdulist)):
+            if (not is_image_extension(hdulist[i].header)):
+                continue
+            fppos = hdulist[i].header['EXTNAME']
+            if (fppos == extension):
+                buffer[:,:,file_number] = hdulist[i].data[:,:]
+                break
+        hdulist[i].data = None
+        hdulist.close()
+        del hdulist
+        if (verbose): stdout_write("\n   Added file %s ..." % (filename))
+
+    # stdout_write("\n   Starting imcombine for real ...")
+    combined = imcombine_sharedmem_data(shmem_buffer, operation=operation, sizes=(size_x, size_y, len(filelist)))
+
+    # put the imcombine'd data into the queue to return them to the main process
+    queue.put(combined)
+
+    # and kill this process, returning all its memory
+    sys.exit(0)
+
+
+
 def imcombine(input_filelist, outputfile, operation, return_hdu=False):
     # First loop over all filenames and make sure all files exist
     filelist = []
@@ -219,12 +262,8 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
     ref_hdulist = pyfits.open(reference_filename)
 
     # Create the primary extension of the output file
-    primhdu = pyfits.PrimaryHDU()
-
     # Copy all headers from the reference HDU
-    cards = ref_hdulist[0].header.ascardlist()
-    for c in cards:
-        primhdu.header.update(c.key, c.value, c.comment)
+    primhdu = pyfits.PrimaryHDU(header=ref_hdulist[0].header)
 
     # Add PrimaryHDU to list of OTAs that go into the output file
     out_hdulist = [primhdu]
@@ -232,7 +271,6 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
     #
     # Now loop over all extensions and compute the mean
     #
-    shmem_buffer = None
     for cur_ext in range(1, len(ref_hdulist)):
 
         data_blocks = []
@@ -244,70 +282,34 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
         stdout_write("\rCombining frames for OTA %s (#% 2d/% 2d) ..." % (ref_fppos, cur_ext, len(ref_hdulist)-1))
 
         #
-        # Allocate enough shared momory to hold all frames
+        # Add some weird-looking construct to move the memory allocation and actual 
+        # imcombine into a separate process. This has to do with if/how/when python releases 
+        # memory (or not), causing a massive short-term memory leak.
+        # With the additional process, the memory is onwed by the other process and the memory
+        # is freed once we destroy this helper process.
         #
-        print "shared memory before:", shmem_buffer
-        size_x, size_y = ref_hdulist[cur_ext].data.shape[0], ref_hdulist[cur_ext].data.shape[1]
-        shmem_buffer = multiprocessing.RawArray(ctypes.c_float, size_x*size_y*len(filelist))
-        print "allocated memory"
-        # Extract the shared memory buffer as numpy array to make things easier
-        buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len(filelist)))
-        # Set the full buffer to NaN
-        print "setting memory to nan"
-        buffer[:,:,:] = numpy.NaN
-        print "starting work"
+        return_queue = multiprocessing.JoinableQueue()
+        worker_args=(ref_fppos, filelist, ref_hdulist[cur_ext].data.shape, return_queue, verbose)
+        p = multiprocessing.Process(target=imcombine_subprocess, args=worker_args)
+        p.start()
+        combined = return_queue.get()
+        p.terminate()
+        del p
 
-        # Copy the reference data
-        #data_blocks.append(ref_hdulist[cur_ext].data)
-        #del ref_hdulist[cur_ext].data
+        if (verbose): stdout_write(" done, creating fits extension ...")
 
-        # Now open all the other files, look for the right extension, and copy their image data to buffer
-        for file_number in range(len(filelist)):
-            filename = filelist[file_number]
-            hdulist = pyfits.open(filename)
-            for i in range(1, len(hdulist)):
-                if (not is_image_extension(hdulist[i].header)):
-                    continue
-                fppos = hdulist[i].header['EXTNAME']
-                if (fppos == ref_fppos):
-                    buffer[:,:,file_number] = hdulist[i].data[:,:]
-                    #data_blocks.append(hdulist[i].data.copy())
-                    break
-            hdulist[i].data = None
-            hdulist.close()
-            del hdulist
-            stdout_write("\n   Added file %s ..." % (filename))
-
-        stdout_write("\n   Starting imcombine for real ...")
-        #combined = imcombine_data(data_blocks, operation=operation)
-        combined = imcombine_sharedmem_data(shmem_buffer, operation=operation, sizes=(size_x, size_y, len(filelist)))
-
-        stdout_write(" done, writing file ...")
-        # Create new ImageHDU
-        hdu = pyfits.ImageHDU()
-
-        # Insert the imcombine'd frame into the output HDU
-        hdu.data = combined
-
-        # Copy all headers from the reference HDU
-        cards = ref_hdulist[cur_ext].header.ascardlist()
-        for c in cards:
-            hdu.header.update(c.key, c.value, c.comment)
+        # Create new ImageHDU, insert the imcombined's data and copy the 
+        # header from the reference frame
+        hdu = pyfits.ImageHDU(data=combined, header=ref_hdulist[cur_ext].header)
 
         # Append the new HDU to the list of result HDUs
         out_hdulist.append(hdu)
 
-        # Also make sure to delete all the allocated data blocks,
-        # otherwise we'll end up in memory hell's kitchen
-        stdout_write(" freeing memory ...")
-        buffer = None
-        shmem = None
-        del buffer
-        del hdu
-        #del shmem_buffer
-        del data_blocks
-        stdout_write(" done\n\n")
+        if (verbose): stdout_write(" done\n")
 
+    #
+    # All work done now, prepare to return the data or write it to disk
+    #
     out_hdu = pyfits.HDUList(out_hdulist)
     if (not return_hdu and outputfile != None):
         stdout_write(" writing results to file %s ..." % (outputfile))
