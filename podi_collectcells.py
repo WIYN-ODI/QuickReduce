@@ -58,52 +58,9 @@ if (sitesetup.number_cpus == "auto"):
 else:
     number_cpus = sitesetup.number_cpus
 
-def read_reduction_directories(start=1, warn=True, verbose=True):
-    #
-    # Read other parameters, specifying the directories for the 
-    # flatfields, darks and biases
-    #
-    # Set all reduction folder to None to mask them as not set
-    flatfield_dir = None
-    bias_dir = None
-    dark_dir = None
-    bpm_dir = None
-
-    if (cmdline_arg_isset("-cals")):
-        bias_dir = get_cmdline_arg("-cals")
-        dark_dir = get_cmdline_arg("-cals")
-        flatfield_dir = get_cmdline_arg("-cals")
-
-    bias_dir = cmdline_arg_set_or_default("-bias", bias_dir)
-    dark_dir = cmdline_arg_set_or_default("-dark", dark_dir)
-    flatfield_dir = cmdline_arg_set_or_default("-flat", flatfield_dir)
-
-    bpm_dir = cmdline_arg_set_or_default("-bpm", bpm_dir)
-    if (bpm_dir == "auto"):
-        full_path = os.path.abspath(sys.argv[0])
-        bpm_dir, dummy = os.path.split()
-
-    # Output some summary on the reduction
-    if (verbose):
-        print """
-Calibration data:
-            Bias: %s
-            Dark: %s
-      Flatfields: %s
-  Bad pixel mask: %s
-""" % (bias_dir, dark_dir, flatfield_dir, bpm_dir)
-
-    i = 0
-    return bias_dir, dark_dir, flatfield_dir, bpm_dir, i
 
 def collect_reduce_ota(filename,
-                       bias_dir, dark_dir, flatfield_dir, bpm_dir,
-                       offset_pointing=[0,0], offset_dither=[0,0], target_coords=None,
-                       pixelvalue_indef=numpy.NaN,
-                       wcs_solution=None,
-                       prepare_fixwcs=False,
                        verbose=False,
-                       user_wcs_offset=None,
                        options=None):
 
     data_products = {
@@ -238,7 +195,7 @@ def collect_reduce_ota(filename,
         # Valid pixels will subsequently be overwritten with real numbers
         #
         merged = numpy.ones(shape=(size_x, size_y), dtype=numpy.float32)
-        merged[:,:] = pixelvalue_indef
+        merged[:,:] = options['indef_pixelvalue']
         
         for cell in range(1,65):
             stdout_write("\r%s:   OTA %02d, cell %s ..." % (obsid, ota, hdulist[cell].header['EXTNAME']))
@@ -319,8 +276,8 @@ def collect_reduce_ota(filename,
             exposure_time = 0
 
         # If we are to do some bias subtraction:
-        if (not bias_dir == None):
-            bias_filename = "%s/bias.fits" % (bias_dir)
+        if (not options['bias_dir'] == None):
+            bias_filename = "%s/bias.fits" % (options['bias_dir'])
             if (os.path.isfile(bias_filename)):
                 bias = pyfits.open(bias_filename)
 
@@ -341,12 +298,12 @@ def collect_reduce_ota(filename,
         #
         # Missing here: Add treatment for frames with detectors switched on or off
         #
-        if (not dark_dir == None):
+        if (not options['dark_dir'] == None):
 
             # For now assume all detectors are switched on
             detectorglow = "yes"
 
-            dark_filename = "%s/dark_%s.fits" % (dark_dir, detectorglow)
+            dark_filename = "%s/dark_%s.fits" % (options['dark_dir'], detectorglow)
             if (os.path.isfile(dark_filename)):
                 dark = pyfits.open(dark_filename)
                 darktime = dark[0].header['EXPTIME']
@@ -365,8 +322,8 @@ def collect_reduce_ota(filename,
  
 
         # If the third parameter points to a directory with flat-fields
-        if (not flatfield_dir == None):
-            flatfield_filename = "%s/flat_%s.fits" % (flatfield_dir, filter_name)
+        if (not options['flat_dir'] == None):
+            flatfield_filename = "%s/flat_%s.fits" % (options['flat_dir'], filter_name)
             if (os.path.isfile(flatfield_filename)):
                 flatfield = pyfits.open(flatfield_filename)
 
@@ -402,8 +359,8 @@ def collect_reduce_ota(filename,
 
         # Finally, apply bad pixel masks 
         # Determine which region file we need
-        if (not bpm_dir == None):
-            region_file = "%s/bpm_%s.reg" % (bpm_dir, fppos)
+        if (not options['bpm_dir'] == None):
+            region_file = "%s/bpm_%s.reg" % (options['bpm_dir'], fppos)
             if (os.path.isfile(region_file)):
                 # Apply the bad pixel regions to file, marking
                 # all bad pixels as NaNs
@@ -418,7 +375,7 @@ def collect_reduce_ota(filename,
         detsec_str = "[%d:%d,%d:%d]" % (start_x, end_x, start_y, end_y)
         hdu.header.update("DETSEC", detsec_str, "position of OTA in focal plane")
                 
-        if (cmdline_arg_isset("-simplewcs") or wcs_solution != None):
+        if (cmdline_arg_isset("-simplewcs") or options['wcs_distortion'] != None):
             #
             # Fudge with the WCS headers, largely undoing what's in the fits file right now,
             # and replacing it with a simpler version that hopefully works better
@@ -441,8 +398,8 @@ def collect_reduce_ota(filename,
         hdu.header.update("CUNIT2", "deg", "")
 
         coord_j2000 = ephem.Equatorial(hdu.header['RA'], hdu.header['DEC'], epoch=ephem.J2000)
-        if (not target_coords == None):
-            ra, dec = target_coords
+        if (not options['target_coords'] == None):
+            ra, dec = options['target_coords']
             coord_j2000 = ephem.Equatorial(ra, dec, epoch=ephem.J2000)
 
         # Write the CRVALs with the pointing information
@@ -451,7 +408,7 @@ def collect_reduce_ota(filename,
         hdu.header['CRVAL2'] = numpy.degrees(coord_j2000.dec) 
 
         # Compute total offsets as the sum from pointing and dither offset
-        offset_total = numpy.array(offset_pointing) + numpy.array(offset_dither)
+        offset_total = numpy.array(options['offset_pointing']) + numpy.array(options['offset_dither'])
 
         # Now add the pointing and dither offsets
         #print offset_total[0] / 3600. / numpy.cos(numpy.radians(hdu.header['CRVAL2']))
@@ -466,15 +423,15 @@ def collect_reduce_ota(filename,
         # should be included in RA/DEC already !!!
         # =========================================================
         #
-        if (user_wcs_offset != None):
+        if (options['offset_pointing'] != None):
             #stdout_write("Applying user's WCS offset\n")
-            hdu.header['CRVAL1'] += user_wcs_offset[0]
-            hdu.header['CRVAL2'] += user_wcs_offset[1]
+            hdu.header['CRVAL1'] += options['offset_pointing'][0]
+            hdu.header['CRVAL2'] += options['offset_pointing'][1]
             
         # Now add the canned WCS solution
-        if (wcs_solution != None):
+        if (options['wcs_distortion'] != None):
             #print "Adding header from WCS minifits (%s)" % (extname)
-            wcs = pyfits.open(wcs_solution)
+            wcs = pyfits.open(options['wcs_distortion'])
             wcs_header = wcs[extname].header
 
             cards = wcs_header.ascardlist()
@@ -494,7 +451,7 @@ def collect_reduce_ota(filename,
         # NAXIS, NAXIS1, NAXIS2 are set correctly
         hdu.data = merged
 
-        if (prepare_fixwcs):
+        if (options['fixwcs']):
             # Create source catalog
             
             if (hdu.header['CELLMODE'].find("V") > -1):
@@ -592,11 +549,6 @@ def collect_reduce_ota(filename,
 #
 #########
 def parallel_collect_reduce_ota(queue, return_queue,
-                                bias_dir, dark_dir, flatfield_dir, bpm_dir,
-                                offset_pointing=[0,0], offset_dither=[0,0], target_coords=None,
-                                pixelvalue_indef=numpy.NaN,
-                                wcs_solution=None, prepare_fixwcs=False,
-                                user_wcs_offset=None,
                                 options=None):
 
     while (True):
@@ -606,18 +558,7 @@ def parallel_collect_reduce_ota(queue, return_queue,
             return
 
         # Do the work
-        # hdu, wcsfix_data = collect_reduce_ota(filename, 
-        data_products = collect_reduce_ota(filename, 
-                           bias_dir, dark_dir, flatfield_dir, bpm_dir,
-                           offset_pointing=offset_pointing,
-                           offset_dither=offset_dither,
-                           target_coords=target_coords,
-                           pixelvalue_indef=pixelvalue_indef,
-                           wcs_solution=wcs_solution,
-                           prepare_fixwcs=prepare_fixwcs,
-                           user_wcs_offset=user_wcs_offset,
-                                              options=options
-            )
+        data_products = collect_reduce_ota(filename, options=options)
 
         # Add the results to the return_queue so the master process can assemble the result file
         # print "Adding results for OTA",ota_id,"to return queue"
@@ -636,13 +577,8 @@ def parallel_collect_reduce_ota(queue, return_queue,
 #
 #########
 def collectcells(input, outputfile,
-                 bias_dir=None, dark_dir=None, flatfield_dir=None, bpm_dir=None,
-                 wcs_solution=None,
                  batchmode=False,
-                 fixwcs=False,
-                 clobber_mode=True,
                  verbose=False,
-                 user_wcs_offset=None,
                  options=None):
 
     # print "Received options:", options
@@ -722,6 +658,15 @@ def collectcells(input, outputfile,
 
         stdout_write("Replaced some keywords, new output filename: ---> %s\n" % (outputfile))
 
+    if (os.path.isfile(outputfile) and not options['clobber']):
+        print "#####################################################"
+        print "#"
+        print "# File %s already exists, skipping!" % (outputfile)
+        print "#"
+        print "#####################################################"
+        print "\n"
+        return
+
     #
     # Some book-keeping about persistency coming next (if requested)
     #
@@ -749,52 +694,12 @@ def collectcells(input, outputfile,
     # This has to move in the near future to make things nice and tidy
     options["persistency"] = (options['persistency_dir'] != None)       
 
-    if (os.path.isfile(outputfile) and not clobber_mode):
-        print "#####################################################"
-        print "#"
-        print "# File %s already exists, skipping!" % (outputfile)
-        print "#"
-        print "#####################################################"
-        print "\n"
-        return
-
     #
-    # Read all offsets from command line
-    # For convenience, there are two sets of offset parameters, that internally simply 
-    # get added up. The reason for this is to make specifying them on the command line 
-    # easier, since the pointing offsets stay constant across a dither pattern, while 
-    # the dither offsets change.
+    # Start assembling the new list of HDUs
     #
-    _offset_pointing = cmdline_arg_set_or_default("-pointing", "0,0")
-    dx,dummy,dy = _offset_pointing.partition(",")
-    offset_pointing = [float(dx), float(dy)]
-
-    _offset_dither = cmdline_arg_set_or_default("-dither", "0,0")
-    dx,dummy,dy = _offset_dither.partition(",")
-    offset_dither = [float(dx), float(dy)]
-
-    target_coords = None
-    if (cmdline_arg_isset("-target")):
-        _target_coords = cmdline_arg_set_or_default("-target", "0,0")
-        ra,dummy,dec = _target_coords.partition(",")
-        target_coords = (ra, dec)
-
-
-    # Start new list of HDUs
     ota_list = [None] * (len(available_ota_coords)+1)
-
     # And add the primary HDU to make the fits file a valid one
-    primhdu = pyfits.PrimaryHDU()
-    ota_list[0] = primhdu
-    
-    # Set the fallback value for undefined pixels (mostly the gaps between the OTA cells)
-    # This works perfectly fine in ds9, but not SExtractor
-    pixelvalue_indef = numpy.NaN
-    if (cmdline_arg_isset("-prep4sex")):
-        # Check if the user requested us to prepare the frame for SExtractor
-        # SExtractor doesn't like NaNs, so replace all of them with something
-        # more negative than -1e30 (that's -1 times SEx's BIG variable)
-        pixelvalue_indef = -1e31
+    ota_list[0] = pyfits.PrimaryHDU()
     
 
     #
@@ -805,19 +710,8 @@ def collectcells(input, outputfile,
     return_queue = multiprocessing.Queue()
     
     processes = []
-    #for i in range(number_cpus):
 
-    worker_args = (queue, return_queue,
-                   bias_dir, dark_dir, flatfield_dir, bpm_dir,
-                   offset_pointing,
-                   offset_dither,
-                   target_coords,
-                   pixelvalue_indef,
-                   wcs_solution,
-                   fixwcs,
-                   user_wcs_offset,
-                   options,
-                   )
+    worker_args = (queue, return_queue, options)
 
     number_extensions = 0
     for ota_id in range(len(available_ota_coords)):
@@ -895,7 +789,7 @@ def collectcells(input, outputfile,
         
         sky_samples[hdu.header['EXTNAME']] = data_products['sky-samples']
 
-        if (fixwcs and not options['update_persistency_only']):
+        if (options['fixwcs'] and not options['update_persistency_only']):
             
             if (wcsfix_data != None):
                 odi_ra, odi_dec, ref_ra, ref_dec, dx, dy, source_cat, reference_cat, number_matches = wcsfix_data
@@ -937,7 +831,7 @@ def collectcells(input, outputfile,
             #continue
             #fixwcs_bestguess = numpy.append(fixwcs_bestguess, add_to_bestguess, axis=0)
 
-    if (fixwcs and not options['update_persistency_only']):
+    if (options['fixwcs'] and not options['update_persistency_only']):
         x = open("fixwcs.nmatches","w")
         numpy.savetxt(x, global_number_matches)
         x.close()
@@ -951,7 +845,7 @@ def collectcells(input, outputfile,
 
     stdout_write(" done!\n")
 
-    if (fixwcs and verbose):
+    if (options['fixwcs'] and verbose):
         print fixwcs_extension
         print fixwcs_odi_x
         print fixwcs_odi_y
@@ -1077,7 +971,7 @@ def collectcells(input, outputfile,
     #
     # Fix the WCS if requested
     #
-    if (fixwcs and False):
+    if (options['fixwcs'] and False):
 
         scaling_xxx = 1800.
         # New method using external match program
@@ -1124,7 +1018,7 @@ def collectcells(input, outputfile,
             except:
                 pass
 
-    if (fixwcs):
+    if (options['fixwcs']):
         debuglog = outputfile+".wcsdebug"
         declination = ota_list[1].header['CRVAL2']
         best_guess, contrast, drxy = podi_fixwcs.optimize_shift(global_number_matches, 
@@ -1421,8 +1315,120 @@ def set_default_options(options_in=None):
     options['fringe_dir'] = None
     options['pupilghost_dir'] = None
 
+    options['bias_dir'] = None
+    options['dark_dir'] = None
+    options['flat_dir'] = None
+    options['bpm_dir']  = None
+
+    options['fixwcs'] = False
+    options['wcs_distortion'] = None
+
+    options['indef_pixelvalue'] = numpy.NaN
+
+    options['offset_pointing'] = [0,0]
+    options['offset_dither'] = [0,0]
+    options['target_coords'] = None
+
+    options['verbose'] = False
+
     return options
 
+
+
+def read_options_from_commandline(options):
+
+    if (options == None):
+        options = set_default_options()
+
+    options['verbose'] = cmdline_arg_isset("-verbose")
+
+    # Handle all reduction flags from command line
+    if (cmdline_arg_isset("-cals")):
+        cals_dir = get_cmdline_arg("-cals")
+        options['bias_dir'] = cals_dir
+        options['dark_dir'] = cals_dir
+        options['flat_dir'] = cals_dir
+
+    options['bias_dir'] = cmdline_arg_set_or_default("-bias", options['bias_dir'])
+    options['dark_dir'] = cmdline_arg_set_or_default("-dark", options['dark_dir'])
+    options['flat_dir'] = cmdline_arg_set_or_default("-flat", options['flat_dir'])
+
+    options['bpm_dir']  = cmdline_arg_set_or_default("-bpm", options['bpm_dir'])
+    if (options['bpm_dir'] == "auto"):
+        full_path = os.path.abspath(sys.argv[0])
+        options['bpm_dir'], dummy = os.path.split()
+        
+    if (options['verbose']):
+        print """
+Calibration data:
+            Bias: %s
+            Dark: %s
+      Flatfields: %s
+  Bad pixel mask: %s
+""" % (options['bias_dir'], options['dark_dir'], options['flat_dir'], options['bpm_dir'])
+
+    options['persistency_dir'] = cmdline_arg_set_or_default('-persistency', None)
+
+    options["update_persistency_only"] = cmdline_arg_isset("-update_persistency_only")
+
+    options['fringe_dir'] = cmdline_arg_set_or_default('-fringe', None)
+    options['pupilghost_dir'] = cmdline_arg_set_or_default('-pupilghost', None)
+
+    options['fixwcs'] = cmdline_arg_isset("-fixwcs")
+    # For now assume that the WCS template file is located in the same directory as the executable
+    root_dir, py_exe = os.path.split(os.path.abspath(sys.argv[0]))
+    options['wcs_distortion'] = root_dir + "/wcs_distort2.fits"
+    options['wcs_distortion'] = cmdline_arg_set_or_default("-wcs", options['wcs_distortion'])
+    if (not os.path.isfile(options['wcs_distortion'])):
+        options['wcs_distortion'] = None
+
+    options['clobber'] = not cmdline_arg_isset("-noclobber")
+    
+    # Set the fallback value for undefined pixels (mostly the gaps between the OTA cells)
+    # This works perfectly fine in ds9, but not SExtractor
+    if (cmdline_arg_isset("-prep4sex")):
+        # Check if the user requested us to prepare the frame for SExtractor
+        # SExtractor doesn't like NaNs, so replace all of them with something
+        # more negative than -1e30 (that's -1 times SEx's BIG variable)
+        options['indef_pixelvalue'] = -1e31
+    
+    try:
+        tmp = float(cmdline_arg_set_or_default('-indefval', numpy.NaN))
+        options['indef_pixelvalue'] = tmp
+    except:
+        pass
+
+    if (cmdline_arg_isset("-wcsoffset")):
+        tmp = get_cmdline_arg("-wcsoffset")
+        items = tmp.split(',')
+        options['offset_pointing'] = [float(items[0]), float(items[1])]
+        stdout_write("Applying a user-defined WCS offset of %.3f, %.3f degrees\n" % (options['offset_pointing'][0], options['offset_pointing'][1]))
+
+    #
+    # Read all offsets from command line
+    # For convenience, there are two sets of offset parameters, that internally simply 
+    # get added up. The reason for this is to make specifying them on the command line 
+    # easier, since the pointing offsets stay constant across a dither pattern, while 
+    # the dither offsets change.
+    #
+    # -target: overwrites the pointing information from the wcs header
+    _target_coords = cmdline_arg_set_or_default("-target", "0,0")
+    ra,dummy,dec = _target_coords.partition(",")
+    options['target_coords'] = (ra, dec)
+    # -pointing: applies a given offset to the pointing position
+    _offset_pointing = cmdline_arg_set_or_default("-pointing", "0,0")
+    dx,dummy,dy = _offset_pointing.partition(",")
+    options['offset_pointing'] = [float(dx), float(dy)]
+    # -dither: identical to -pointing
+    _offset_dither = cmdline_arg_set_or_default("-dither", "0,0")
+    dx,dummy,dy = _offset_dither.partition(",")
+    options['offset_dither'] = [float(dx), float(dy)]
+    #  .
+    # /-\
+    #  |   This section is likely outdated 
+    #
+
+    return options
 
 if __name__ == "__main__":
 
@@ -1440,58 +1446,20 @@ if __name__ == "__main__":
     # Set the options for collectcells to some reasonable start values
     options = set_default_options()
 
-    # For now assume that the WCS template file is located in the same directory as the executable
-    root_dir, py_exe = os.path.split(os.path.abspath(sys.argv[0]))
-    wcs_solution = root_dir + "/wcs_distort2.fits"
-    wcs_solution = cmdline_arg_set_or_default("-wcs", wcs_solution)
-    if (not os.path.isfile(wcs_solution)):
-        wcs_solution = None
+    # Then read the actual given parameters from the command line
+    options = read_options_from_commandline(options)
 
-    fixwcs = cmdline_arg_isset("-fixwcs")
-    
-    clobber_mode = not cmdline_arg_isset("-noclobber")
-
-    options['persistency_dir'] = cmdline_arg_set_or_default('-persistency', None)
-
-    options["update_persistency_only"] = cmdline_arg_isset("-update_persistency_only")
-
-    options['fringe_dir'] = cmdline_arg_set_or_default('-fringe', None)
-    options['pupilghost_dir'] = cmdline_arg_set_or_default('-pupilghost', None)
-
-    # Handle all reduction flags from command line
-    bias_dir, dark_dir, flatfield_dir, bpm_dir, start = read_reduction_directories()
-    
-    user_wcs_offset = None
-    if (cmdline_arg_isset("-wcsoffset")):
-        tmp = get_cmdline_arg("-wcsoffset")
-        items = tmp.split(',')
-        user_wcs_offset = [float(items[0]), float(items[1])]
-        stdout_write("Applying a user-defined WCS offset of %.3f, %.3f degrees\n" % (user_wcs_offset[0], user_wcs_offset[1]))
-    
     # Collect all cells, perform reduction and write result file
     try:
         if (cmdline_arg_isset('-profile')):
             import cProfile, pstats
             cProfile.run("""collectcells(input, outputfile,
-                     bias_dir, dark_dir, flatfield_dir, bpm_dir,
-                     wcs_solution=wcs_solution,
-                     fixwcs=fixwcs,
-                     clobber_mode=clobber_mode,
-                     user_wcs_offset=user_wcs_offset,
                      options=options)""", "profiler")
             p = pstats.Stats("profiler")
             p.strip_dirs().sort_stats('time').print_stats()
             p.sort_stats('time').print_stats()
         else:
-            collectcells(input, outputfile,
-                         bias_dir, dark_dir, flatfield_dir, bpm_dir,
-                         wcs_solution=wcs_solution,
-                         fixwcs=fixwcs,
-                         clobber_mode=clobber_mode,
-                         user_wcs_offset=user_wcs_offset,
-                         options=options
-                         )
-
+            collectcells(input, outputfile, options=options)
     except:
         stdout_write("\n\n##############################\n#\n# Something terrible happened!\n")
         etype, error, stackpos = sys.exc_info()
