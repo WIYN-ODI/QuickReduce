@@ -27,11 +27,36 @@ scaling_factors = {
     "odi_i": 1.0,
 }
 
-def subtract_pupilghost(input_hdu, pupil_hdu, scaling, rotate=True):
+def subtract_pupilghost_extension(input_hdu, rotator_angle, pupil_hdu, scaling, rotate=True, verbose=True):
+    """
+    Contains all functionality to dexecute the actual pupil ghost removal. 
+    The pupil ghost is roatted to match the rotation angle of the science 
+    frame, then scaled with the specified scaling factor and lastly the 
+    scaled template is removed from the science frame. The results stay in 
+    the input_hdu variable that is also returned.
+    """
+
+    #
+    # Check if this extension is included in the pupilghost template
+    #
+    extname = input_hdu.header['EXTNAME']
+    right_ext = -1
+    for this_ext in range(1, len(pupil_hdu)):
+        if (pupil_hdu[this_ext].header['EXTNAME'] == extname):
+            right_ext = this_ext
+            break
+
+    if (right_ext < 0):
+        # This extension is not listed in the pupil-ghost template
+        # We can't do anythin in this case, so let's simply return
+        return
+
+    #
+    # Now we know we have to do something
+    #
+    if (verbose): print "Found matching pupil ghost template in extension",right_ext
 
     if (rotate):
-        # Get rotator angle from header
-        rotator_angle = input_hdu[0].header['ROTSTART']
         # print "___%s___" % rotator_angle
         if (rotator_angle == "unknown"):
             rotator_angle = 0.0
@@ -39,55 +64,57 @@ def subtract_pupilghost(input_hdu, pupil_hdu, scaling, rotate=True):
         # Rotate to the right angle
         # Make sure to rotate opposite to the rotator angle since we rotate 
         # the correction and not the actual data
-        template = pupil_hdu[1].data
+        template = pupil_hdu[right_ext].data
         if (math.fabs(rotator_angle) < 0.5):
+            if (verbose): print "Rotator angle is small (%.2f), skipping rotation" % (rotator_angle)
             rotated = template
         else:
+            if (verbose): print "rotating template by",rotator_angle,"degrees"
             rotated = rotate_around_center(template, -1 * rotator_angle, mask_nans=False)
     else:
-        template = pupil_hdu[1].data
+        if (verbose): print "No rotation requested, skipping rotation"
+        rotated = pupil_hdu[right_ext].data
         
-    # Create a proper HDUList to hold the correction
-    primhdu = pyfits.PrimaryHDU()
-    hdulist = [primhdu]
-
-    # Now go through each of the extensions for which we know the 
-    # centers and cut out the right region of the template.
-    for ext_name in pupilghost_centers:
-        #print "Lookign for ___%s___" % (ext_name)
+    #
+    # Ok, now we have the pupil ghost rotated to the right angle
+    #
         
-        # Now search for right OTA
-        matched_hdu = None
-        for i in range(1,len(input_hdu)):
-            try:
-                if (input_hdu[i].header['EXTNAME'] == ext_name):
-                    matched_hdu = input_hdu[i]
-                #print input_hdu[i].header['EXTNAME'],
-            except:
-                pass
-        if (matched_hdu == None): 
-            print "Could not find extension",ext_name,", this is a problem that shouldn't happen"
-            continue
+    data_shape = input_hdu.data.shape
+    
+    # Better: read the center coordinates from the pupil ghost template file
+    center_x, center_y = pupilghost_centers[extname]
 
-        # Check if this extension exists in the file to be corrected
-        # Generally these OTAs should always exist, but better to be on the safe side
-        data_shape = matched_hdu.data.shape
-            
-        #print ext_name, pupilghost_centers[ext_name]
-        
-        center_x, center_y = centers = pupilghost_centers[ext_name]
-        # print ext_name, center_x, center_y
+    # Swap x/y since python does it too
+    print "rot.shape=",rotated.shape
+    bx = rotated.shape[0] / 2 - center_x
+    by = rotated.shape[1] / 2 - center_y
+    tx, ty = bx + data_shape[0], by + data_shape[1]
 
-        # Swap x/y since python does it too
-        print "rot.shape=",rotated.shape
-        bx = rotated.shape[0] / 2 - center_x
-        by = rotated.shape[1] / 2 - center_y
-        tx, ty = bx + data_shape[0], by + data_shape[1]
+    correction = rotated[by:ty, bx:tx]
+    input_hdu.data -= (correction * scaling)
 
-        correction = rotated[by:ty, bx:tx]
-        input_hdu[ext_name].data -= (correction * scaling)
+    if (verbose): print "all done, going home!"
+    return input_hdu
+
+
+
+
+def subtract_pupilghost(input_hdu, pupil_hdu, scaling, verbose=True):
+    """
+    This is a wrapper around the subtract_pupilghost_extension routine,
+    going through all the extensions that might have a pupil ghost.
+    """
+    
+    # Add some parallelization here
+
+    # Now go through each of the HDUs in the data frame and correct the pupil ghost
+    for i in range(1, len(input_hdu)):
+        rotator_angle = input_hdu[0].header['ROTSTART']
+        subtract_pupilghost_extension(input_hdu[i], rotator_angle, pupil_hdu, scaling=scaling)
 
     return input_hdu
+
+
 
 def create_azimuthal_template(filename, outputfilename):
     """
@@ -124,6 +151,7 @@ def create_azimuthal_template(filename, outputfilename):
 
     return
 
+
 if __name__ == "__main__":
 
     if (cmdline_arg_isset("-makeradial")):
@@ -140,15 +168,19 @@ if __name__ == "__main__":
     input_hdu = pyfits.open(inputframe)
     pupil_hdu = pyfits.open(pupilghost_template)
 
-    # Now, using the rotation angle given in the input frame, 
-    # rotate and extract the pupil ghost sections for each of the OTAs.
-    # And finally apply the correction
     scaling = 1.0
     if (len(sys.argv) > 4):
         scaling = float(sys.argv[4])
     print "using scaling factor",scaling
-    hdu_matched = subtract_pupilghost(input_hdu, pupil_hdu, scaling)
+
+    subtract_pupilghost(input_hdu, pupil_hdu, scaling=scaling)
+
+    # Now, using the rotation angle given in the input frame, 
+    # rotate and extract the pupil ghost sections for each of the OTAs.
+    # And finally apply the correction
+    #hdu_matched = subtract_pupilghost(input_hdu, pupil_hdu, scaling)
+
 
     output_filename = sys.argv[3]
-    hdu_matched.writeto(output_filename, clobber=True)
+    input_hdu.writeto(output_filename, clobber=True)
 
