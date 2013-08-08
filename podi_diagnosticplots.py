@@ -36,7 +36,11 @@ def wcsdiag_scatter(matched_cat, filename):
     # matches_zeroed = matches - wcs_shift_refinement
     matches_zeroed = matched_cat
 
-    count, xedges, yedges = numpy.histogram2d(matches_zeroed[:,0]*3600., matches_zeroed[:,1]*3600.,
+    good_matches = matches_zeroed[matches_zeroed[:,2] >= 0]
+    d_ra  = good_matches[:,0] - good_matches[:,2]
+    d_dec = good_matches[:,1] - good_matches[:,3]
+
+    count, xedges, yedges = numpy.histogram2d(d_ra*3600., d_dec*3600.,
                                               bins=[60,60], range=[[-3,3], [-3,3]])
     img = matplotlib.pyplot.imshow(count.T, 
                                    extent=(xedges[0],xedges[-1],yedges[0],yedges[-1]), 
@@ -45,9 +49,6 @@ def wcsdiag_scatter(matched_cat, filename):
     # interpolation='nearest', 
     fig.colorbar(img)
 
-    good_matches = matches_zeroed[matches_zeroed[:,2] >= 0]
-    d_ra  = good_matches[:,0] - good_matches[:,2]
-    d_dec = good_matches[:,1] - good_matches[:,3]
     matplotlib.pyplot.plot(d_ra*3600., d_dec*3600., "b,", linewidth=0)
     matplotlib.pyplot.title("WCS Scatter")
     matplotlib.pyplot.xlabel("error RA ['']")
