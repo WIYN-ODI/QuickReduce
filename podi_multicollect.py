@@ -38,9 +38,6 @@ if __name__ == "__main__":
         if (not os.path.isdir(output_directory)):
             os.mkdir(output_directory)
     
-    # Handle all reduction flags from command line
-    bias_dir, dark_dir, flatfield_dir, bpm_dir, start = read_reduction_directories(start=start, warn=False)
-
     if (cmdline_arg_isset("-fromfile")):
         filename = get_cmdline_arg("-fromfile")
         file = open(filename, "r")
@@ -57,22 +54,10 @@ if __name__ == "__main__":
         #sys.exit(0)
     else:
         filelist = get_clean_cmdline()[1:]
-        
-    # For now assume that the WCS template file is located in the same directory as the executable
-    root_dir, py_exe = os.path.split(os.path.abspath(sys.argv[0]))
-    wcs_solution = root_dir + "/wcs_distort2.fits"
-    wcs_solution = cmdline_arg_set_or_default("-wcs", wcs_solution)
-    stdout_write("Using canned WCS solution from %s...\n" % (wcs_solution))
 
-    fixwcs = cmdline_arg_isset("-fixwcs")
-    
-    user_wcs_offset = None
-    if (cmdline_arg_isset("-wcsoffset")):
-        tmp = get_cmdline_arg("-wcsoffset")
-        items = tmp.split(',')
-        user_wcs_offset = [float(items[0]), float(items[1])]
-        stdout_write("Applying a user-defined WCS offset of %.3f, %.3f degrees\n" % (user_wcs_offset[0], user_wcs_offset[1]))
-    
+    # Read all options from command line. This is 100% compatible 
+    # with an individual call to podi_collectcells.
+    options = read_options_from_commandline(None)
 
     # Now loop over all files and run collectcells
     for folder in filelist:
@@ -102,16 +87,9 @@ if __name__ == "__main__":
 
         stdout_write("Collecting cells from %s ==> %s\n" % (folder,outputfile))
 
-        clobber_mode = not cmdline_arg_isset("-noclobber")
-
         # Collect all cells, perform reduction and write result file
         try:
-            collectcells(folder, outputfile,
-                         bias_dir, dark_dir, flatfield_dir, bpm_dir,
-                         wcs_solution=wcs_solution,
-                         fixwcs=fixwcs,
-                         clobber_mode=clobber_mode,
-                         user_wcs_offset=user_wcs_offset)
+            collectcells(folder, outputfile, options=options, batchmode=False)
         except:
             stdout_write("\n\n##############################\n#\n# Something terrible happened!\n")
             etype, error, stackpos = sys.exc_info()
