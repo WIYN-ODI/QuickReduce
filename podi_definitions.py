@@ -905,12 +905,33 @@ pupilghost_centers = {"OTA33.SCI": (4172, 4182),
                       "OTA44.SCI": (  12, -204)}
 
 # try34.02
+# This works well for creating a template from the g-band
 pupilghost_centers = {"OTA33.SCI": (4182, 4155),
                       "OTA43.SCI": ( -23, 4147),
                       "OTA34.SCI": (4207, -189),
                       "OTA44.SCI": ( -12, -204)}
 
 #
+
+pupilghost_centers = {
+    "odi_g": {"OTA33.SCI": (4182, 4155),
+              "OTA43.SCI": ( -23, 4147),
+              "OTA34.SCI": (4207, -189),
+              "OTA44.SCI": ( -12, -204)},
+
+    "odi_i": {"OTA33.SCI": (4064, 4148),
+              "OTA34.SCI": (4084, -216),
+              "OTA44.SCI": ( -84, -240),
+              "OTA43.SCI": (-104, 4124)},
+
+    # use the direct coordinates as a backup for compatibility for now
+    "OTA33.SCI": (4182, 4155),
+    "OTA43.SCI": ( -23, 4147),
+    "OTA34.SCI": (4207, -189),
+    "OTA44.SCI": ( -12, -204),
+}
+    
+
 
 def inherit_headers(header, primary_header):
     for header in headers_to_inherit:
