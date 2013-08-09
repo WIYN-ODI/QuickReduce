@@ -189,6 +189,48 @@ if __name__ == "__main__":
 
         sys.exit(0)
 
+    if (cmdline_arg_isset("-samplesky")):
+        import podi_fitskybackground
+        boxsize = int(cmdline_arg_set_or_default("-boxsize", "15"))
+        count = int(cmdline_arg_set_or_default("-count", "12500"))
+
+        print "Using %d boxes with +/- %d pixel width" % (count, boxsize)
+
+        filename = get_clean_cmdline()[1]
+        outputfile = get_clean_cmdline()[2]
+
+        print filename,"-->",outputfile
+        hdulist = pyfits.open(filename)
+        for i in range(len(hdulist)):
+            if (is_image_extension(hdulist[i].header)):
+                extname = hdulist[i].header['EXTNAME']
+                print extname
+                regions = numpy.array(podi_fitskybackground.sample_background(hdulist[i].data, None, None, min_found=count, boxwidth=boxsize))
+                
+                median = numpy.median(regions[:,4])
+                std = numpy.std(regions[:,4])
+
+                histogram, binedges = numpy.histogram(regions[:,4], bins=50, range=(median-2*std,median+2*std))
+                nice_histogram = numpy.empty(shape=(histogram.shape[0], 3))
+                nice_histogram[:,0] = binedges[:-1]
+                nice_histogram[:,1] = binedges[1:]
+                nice_histogram[:,2] = histogram[:]
+                
+                dumpfile = "%s.%s" % (outputfile, extname)
+                df = open(dumpfile, "w")
+                numpy.savetxt(df, regions)
+                print >>df, "\n\n\n\n\n\n\n"
+                numpy.savetxt(df, nice_histogram)
+                print >>df, "\n\n\n\n\n\n\n"
+
+                validpixels = hdulist[i].data
+                fullframe, edges = numpy.histogram(validpixels, bins=50, range=(median-2*std,median+2*std))
+                nice_histogram[:,2] = fullframe[:]
+                numpy.savetxt(df, nice_histogram)
+
+                df.close()
+            
+
     if (cmdline_arg_isset("-correct")):
 
         sys.exit(0)
