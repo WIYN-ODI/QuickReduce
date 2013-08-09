@@ -197,7 +197,7 @@ def imcombine_sharedmem_data(shmem_buffer, operation, sizes):
 
 
 
-def imcombine_subprocess(extension, filelist, shape, queue, verbose):
+def imcombine_subprocess(extension, filelist, shape, operation, queue, verbose):
 
     #
     # Allocate enough shared momory to hold all frames
@@ -289,7 +289,7 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
         # is freed once we destroy this helper process.
         #
         return_queue = multiprocessing.JoinableQueue()
-        worker_args=(ref_fppos, filelist, ref_hdulist[cur_ext].data.shape, return_queue, verbose)
+        worker_args=(ref_fppos, filelist, ref_hdulist[cur_ext].data.shape, operation, return_queue, verbose)
         p = multiprocessing.Process(target=imcombine_subprocess, args=worker_args)
         p.start()
         combined = return_queue.get()
