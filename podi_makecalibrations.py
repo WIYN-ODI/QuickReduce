@@ -36,8 +36,6 @@ if __name__ == "__main__":
     output_directory = get_clean_cmdline()[2]
 
     tmp_directory = cmdline_arg_set_or_default("-tmpdir", output_directory + "/tmp")
-    pgtempdir = cmdline_arg_set_or_default("-pupilghost", None)
-
 
     if (not os.path.isfile(filelist_filename)):
         stdout_write("Unable to open input filelist %s" % (filelist_filename))
@@ -60,6 +58,8 @@ if __name__ == "__main__":
 
     filters = []
     flat_list = []
+
+    options = read_options_from_commandline()
 
     stdout_write("####################\n#\n# Sighting input data\n#\n####################\n")
     _list = open(filelist_filename, "r")
@@ -115,7 +115,7 @@ if __name__ == "__main__":
                 bias_outfile = "%s/bias.%s.fits" % (tmp_directory, basename)
                 if (not os.path.isfile(bias_outfile) or cmdline_arg_isset("-redo")):
                     collectcells(cur_bias, bias_outfile,
-                                 bias_dir=None, dark_dir=None, flatfield_dir=None, bpm_dir=None, 
+                                 options=options,
                                  batchmode=False)
                 bias_to_stack.append(bias_outfile)
             #print bias_list
@@ -128,6 +128,7 @@ if __name__ == "__main__":
             for file in bias_to_stack:
                 clobberfile(file)
 
+    options['bias_dir'] = output_directory
 
     #
     # Now that we have the master bias frame, go ahead and reduce the darks
@@ -145,7 +146,7 @@ if __name__ == "__main__":
                 dark_outfile = "%s/dark.%s.fits" % (tmp_directory, basename)
                 if (not os.path.isfile(dark_outfile) or cmdline_arg_isset("-redo")):
                     collectcells(cur_dark, dark_outfile,
-                                 bias_dir=output_directory, dark_dir=None, flatfield_dir=None, bpm_dir=None, 
+                                 options=options,
                                  batchmode=False)
                 darks_to_stack.append(dark_outfile)
             #print darks_to_stack
@@ -158,7 +159,7 @@ if __name__ == "__main__":
             for file in darks_to_stack:
                 clobberfile(file)
 
-
+    options['dark_dir'] = output_directory
 
 
     #
@@ -177,12 +178,11 @@ if __name__ == "__main__":
                     dummy, basename = os.path.split(cur_flat)
                     flat_outfile = "%s/nflat.%s.%s.fits" % (tmp_directory, filter, basename)
                     if (not os.path.isfile(flat_outfile) or cmdline_arg_isset("-redo")):
-                        wcs_solution = os.path.split(os.path.abspath(sys.argv[0]))[0]+"/wcs_distort2.fits"
-                        wcs_solution = cmdline_arg_set_or_default("-wcs", wcs_solution)
+                        #wcs_solution = os.path.split(os.path.abspath(sys.argv[0]))[0]+"/wcs_distort2.fits"
+                        #wcs_solution = cmdline_arg_set_or_default("-wcs", wcs_solution)
                         hdu_list = collectcells(cur_flat, flat_outfile,
-                                     bias_dir=output_directory, dark_dir=output_directory, flatfield_dir=None, bpm_dir=None, 
-                                     wcs_solution=wcs_solution,
-                                     batchmode=True)
+                                                options=options,
+                                                batchmode=True)
                         normalize_flatfield(None, flat_outfile, binning_x=8, binning_y=8, repeats=3, batchmode_hdu=hdu_list)
                     flats_to_stack.append(flat_outfile)
                 #print flats_to_stack
@@ -195,12 +195,12 @@ if __name__ == "__main__":
                 # Now apply the pupil ghost correction 
                 # Only do this if requested via keyword -pupilghost=(dirname)
                 #
-                if (pgtempdir != None):
+                if (options['pupilghost_dir'] != None):
                     stdout_write("Performing pupil ghost correction ...")
                     # Get level os active filter and determine what the template filename is
                     filter_level = get_filter_level(flat_hdus[0].header)
-                    pg_template = "%s/pupilghost_template___level_%d.fits" % (pgtempdir, filter_level)
-                    #print pg_template
+                    pg_template = "%s/pupilghost_template___level_%d.fits" % (options['pupilghost_dir'], filter_level)
+                    print pg_template
 
                     # If we have a template for this level
                     if (os.path.isfile(pg_template)):
