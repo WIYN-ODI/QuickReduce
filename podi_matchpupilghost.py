@@ -24,10 +24,10 @@ from podi_definitions import *
 
 scaling_factors = {
     "odi_g": 1.0,
-    "odi_i": 1.0,
+    "odi_i": 0.15,
 }
 
-def subtract_pupilghost_extension(input_hdu, rotator_angle, pupil_hdu, scaling, rotate=True, verbose=True):
+def subtract_pupilghost_extension(input_hdu, rotator_angle, filter, pupil_hdu, scaling, rotate=True, verbose=True):
     """
     Contains all functionality to dexecute the actual pupil ghost removal. 
     The pupil ghost is roatted to match the rotation angle of the science 
@@ -51,6 +51,22 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, pupil_hdu, scaling, 
         # We can't do anythin in this case, so let's simply return
         return
 
+    # Better: read the center coordinates from the pupil ghost template file
+    if (filter in pupilghost_centers):
+        if (extname in pupilghost_centers[filter]):
+            center_x, center_y = pupilghost_centers[filter][extname]
+        else:
+            if (extname in pupilghost_centers):
+                center_x, center_y = pupilghost_centers[extname]
+            else:
+                # Don't know what center coordinate to use, abort
+                return
+    elif (extname in pupilghost_centers):
+        center_x, center_y = pupilghost_centers[extname]
+    else:
+        # Don't know what center coordinate to use, abort
+        return
+
     #
     # Now we know we have to do something
     #
@@ -65,6 +81,9 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, pupil_hdu, scaling, 
         # Make sure to rotate opposite to the rotator angle since we rotate 
         # the correction and not the actual data
         template = pupil_hdu[right_ext].data
+        # Replace all NaNs with zeros
+        template[numpy.isnan(template)] = 0.
+
         if (math.fabs(rotator_angle) < 0.5):
             if (verbose): print "Rotator angle is small (%.2f), skipping rotation" % (rotator_angle)
             rotated = template
@@ -81,8 +100,6 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, pupil_hdu, scaling, 
         
     data_shape = input_hdu.data.shape
     
-    # Better: read the center coordinates from the pupil ghost template file
-    center_x, center_y = pupilghost_centers[extname]
 
     # Swap x/y since python does it too
     print "rot.shape=",rotated.shape
@@ -110,7 +127,8 @@ def subtract_pupilghost(input_hdu, pupil_hdu, scaling, verbose=True):
     # Now go through each of the HDUs in the data frame and correct the pupil ghost
     for i in range(1, len(input_hdu)):
         rotator_angle = input_hdu[0].header['ROTSTART']
-        subtract_pupilghost_extension(input_hdu[i], rotator_angle, pupil_hdu, scaling=scaling)
+        filter = input_hdu[0].header['FILTER']
+        subtract_pupilghost_extension(input_hdu[i], rotator_angle, filter, pupil_hdu, scaling=scaling)
 
     return input_hdu
 
