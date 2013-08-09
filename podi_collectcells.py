@@ -1338,7 +1338,7 @@ def set_default_options(options_in=None):
 
 
 
-def read_options_from_commandline(options):
+def read_options_from_commandline(options=None):
 
     if (options == None):
         options = set_default_options()
