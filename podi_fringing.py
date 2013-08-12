@@ -204,13 +204,13 @@ if __name__ == "__main__":
         for i in range(len(hdulist)):
             if (is_image_extension(hdulist[i].header)):
                 extname = hdulist[i].header['EXTNAME']
-                print extname
+                stdout_write("\rWorking on %s ..." % (extname))
                 regions = numpy.array(podi_fitskybackground.sample_background(hdulist[i].data, None, None, min_found=count, boxwidth=boxsize))
                 
                 median = numpy.median(regions[:,4])
                 std = numpy.std(regions[:,4])
 
-                histogram, binedges = numpy.histogram(regions[:,4], bins=50, range=(median-2*std,median+2*std))
+                histogram, binedges = numpy.histogram(regions[:,4], bins=500, range=(median-20*std,median+20*std))
                 nice_histogram = numpy.empty(shape=(histogram.shape[0], 3))
                 nice_histogram[:,0] = binedges[:-1]
                 nice_histogram[:,1] = binedges[1:]
@@ -224,7 +224,7 @@ if __name__ == "__main__":
                 print >>df, "\n\n\n\n\n\n\n"
 
                 validpixels = hdulist[i].data
-                fullframe, edges = numpy.histogram(validpixels, bins=50, range=(median-2*std,median+2*std))
+                fullframe, edges = numpy.histogram(validpixels, bins=500, range=(median-20*std,median+20*std))
                 nice_histogram[:,2] = fullframe[:]
                 numpy.savetxt(df, nice_histogram)
 
@@ -233,4 +233,34 @@ if __name__ == "__main__":
 
     if (cmdline_arg_isset("-correct")):
 
+        inputframe = get_clean_cmdline()[1]
+        template = get_clean_cmdline()[2]
+        scaling = int(get_clean_cmdline()[3])
+        output = get_clean_cmdline()[4]
+
+        inputhdu = pyfits.open(inputframe)
+        templatehdu = pyfits.open(template)
+
+        for i in range(len(inputhdu)):
+            if (not is_image_extension(inputhdu[i].header)):
+                continue
+
+            extname = inputhdu[i].header['EXTNAME']
+            stdout_write("\rWorking on %s ... " % (extname))
+
+            try:
+                fringemap = templatehdu[extname].data * scaling
+                inputhdu[i].data -= fringemap
+            except:
+                print "Problem with extension",extname
+                pass
+                continue
+
+        stdout_write(" writing ...")
+
+        inputhdu.writeto(output, clobber=True)
+        
+        stdout_write(" done!\n")
+
+            
         sys.exit(0)
