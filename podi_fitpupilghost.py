@@ -212,10 +212,14 @@ def load_frame(filename, pupilghost_centers, binfac, bpmdir):
         combined_rotated = hdu[1].data
         hdu.close()
     else:
-        combined_rotated = rotate_around_center(combined, rotator_angle)
+        #combined_rotated = rotate_around_center(combined, rotator_angle)
+        #combined_rotated = rotate_around_center(combined, rotator_angle, mask_nans=False, spline_order=1)
+        combined_rotated = rotate_around_center(combined, rotator_angle, mask_nans=True, spline_order=1)
         if (use_buffered_files):
             pyfits.HDUList([pyfits.PrimaryHDU(), pyfits.ImageHDU(data=combined_rotated)]).writeto(rotated_file, clobber=True)
             # pyfits.PrimaryHDU(data=combined_rotated).writeto(rotated_file, clobber=True)
+
+    return combined_rotated, None, None, rotator_angle
 
     data_rotated, radius, angle = get_radii_angles(combined_rotated, (combined_rotated.shape[0]/2, combined_rotated.shape[1]/2), binfac)
 
@@ -230,6 +234,7 @@ def load_frame(filename, pupilghost_centers, binfac, bpmdir):
 def subtract_background(data, radius, angle, radius_range, binfac):
 
     # Compute the radial bin size in binned pixels
+    print "subtracting background - binfac=",binfac
     r_inner, r_outer, dr_full = radius_range
     dr = dr_full/binfac
     r_inner /= binfac
@@ -319,8 +324,8 @@ def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
         stdout_write("\n\nWorking on file %s ...\n" % (filename))
         data, radius, angle, rotator_angle = load_frame(filename, pupilghost_centers, binfac, bpmdir)
 
-        #if (cmdline_arg_isset("-onlyprepfiles")):
-        #    continue
+        if (cmdline_arg_isset("-onlyprepfiles")):
+            continue
 
         bgsub_file = "pg_bgsub_%+04d.fits" % numpy.around(rotator_angle)
         if (use_buffered_files and os.path.isfile(bgsub_file)):
