@@ -91,6 +91,7 @@ otas_to_normalize_ff = {"odi_g": [22,23,24,32,42],
                         "823_v2": central_2x2,
                         "918R_v1": central_2x2,
                         "Us_solid": central_2x2,
+                        "unknown": central_2x2,
                         }	
 
 #
@@ -110,6 +111,7 @@ otas_for_photometry = {"odi_g": all_otas,
                        "s2_SII": central_3x3,
                        "823_v2": central_3x3,
                        "918R_v1": central_3x3,
+                       "unknown": central_2x2,
                        }	
 
 
@@ -132,6 +134,7 @@ sdss_equivalents = {"odi_g": 'g',
                     "823_v2": None,
                     "918R_v1": None,
                     "Us_solid": 'u',
+                    "unknown": None,
 		    }	
 
 cellmode_ids = {
@@ -139,6 +142,38 @@ cellmode_ids = {
     "V": 1,
     # Add other cellmodes and some numerical representation here
 }
+
+list_of_valid_filter_ids = {
+    "4": "odi_g",
+    "w104": "odi_g",
+    "w105": "odi_r",
+    "w103": "odi_i",
+    "w101": "odi_z",
+    "c6009": "CTIO_Ha",
+    "c6022": "sdss_u",
+    "c6014": "CTIO_OIII",
+    "k1053": "BATC_420",
+    "k1052": "BATC_390",
+    "clear": "OPEN",
+#    "4": "mosaic_u",
+#    "1": "s2_SII",
+    "k1047": "823_v2",
+    "k1028": "918R_v1",
+#    "1": "Us_solid",
+    }
+
+def get_valid_filter_name(hdr):
+
+    filter_id = hdr['FILTERID'].strip()
+    if (filter_id in list_of_valid_filter_ids):
+        filter_name = list_of_valid_filter_ids[filter_id]
+        return filter_name
+
+    return 'unknown'
+
+
+
+
 
 def get_cellmode(primhdr, cellhdr):
     

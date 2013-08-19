@@ -933,7 +933,7 @@ def collectcells(input, outputfile,
     # by the narrow-band filters.
     # 
     sky_samples_global = None #numpy.empty(0)
-    valid_ext = otas_for_photometry[ota_list[0].header['FILTER']]
+    valid_ext = otas_for_photometry[get_valid_filter_name(ota_list[0].header)]
     for ext in sky_samples:
         # print ext, valid_ext, int(ext[3:5])
         ota_number = int(ext[3:5])
