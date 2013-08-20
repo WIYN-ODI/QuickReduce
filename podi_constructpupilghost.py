@@ -39,7 +39,7 @@ def get_median_level(data, radii, ri, ro):
 
 
 
-def get_radii_angles(data_fullres, center, binfac):
+def get_radii_angles(data_fullres, center, binfac, verbose=False):
 
     #
     # Rebin the image 4x to speed up calculations (the pupil ghost 
@@ -52,7 +52,7 @@ def get_radii_angles(data_fullres, center, binfac):
     #
     # Convert x/y coordinates to polar coordinates
     #
-    stdout_write("   Computing radii ...\n")
+    if (verbose): stdout_write("   Computing radii ...\n")
     x, y = numpy.indices(data.shape)
     dx = x - center_x/binfac
     dy = y - center_y/binfac
@@ -150,6 +150,19 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
 
 
 def subtract_background(data, radius, angle, radius_range, binfac):
+    """
+    This routine takes the input in polar coordinates and fits a straight line
+    to the radial profile inside and outside of the allowed range. This is 
+    assumed to be the background level (in analogy to the algorithm used in the 
+    IRAF task mkpupil).
+
+    Input data:
+    - data (the actual intensity values for all pixels)
+    - radius (the r in the polar coordianates)
+    - angle (the phi in polar coordinates)
+    - radius range (r_inner, r_outer, d_radius)
+    - binfac (the binning used for the data)
+    """
 
     # Compute the radial bin size in binned pixels
     print "subtracting background - binfac=",binfac
@@ -231,123 +244,112 @@ def subtract_background(data, radius, angle, radius_range, binfac):
 
 
 
+def create_radial_pupilghost(filename, outputfile, radial_opts, verbose=True):
+    """
+    This function takes a full multi-extension pupil ghost, 
+    derives the azimuthal profile and writes it back to a new file.
+    This azimuthal profile can then be used to remove the pupilghost
+    from science with a range of rotator angles.
 
-def fit_radial_profile(data, radius, angle, bgsub, radius_range, binfac=1, verbose=False, show_plots=False,
-                       force_positive=False, zero_edges=False, save_profile=None):
+    Parameters are:
+    - filename of the full 2-d input pupil ghost
+    - name for the output file
+    """
     
+    hdulist = pyfits.open(filename)
 
-    #------------------------------------------------------------------------------
-    #
-    # Here we assume that all files have their background removed. 
-    # Then we continue with the radial profile.
-    #
-    #------------------------------------------------------------------------------
+    # open a text-file to hold the profile definition.
+    profile_txt = open(outputfile+'.dat', 'w')
 
-    r_inner, r_outer, dr_full = radius_range
-    dr = dr_full/binfac
-    r_inner /= binfac
-    r_outer /= binfac
+    # loop over all science exposures, skipping the primary header
+    for ext in range(1, len(hdulist)):
 
-    n_radii = int(math.ceil(r_outer / dr))
+        extname = hdulist[ext].header['EXTNAME']
+        data_fullres = hdulist[ext].data
+        center = (data_fullres.shape[0]/2, data_fullres.shape[1]/2)
+        (r_inner, r_outer, dr) = radial_opts
+        print radial_opts
 
-    stdout_write("\nComputing radial profile (ri=%d, ro=%d, n=%d, bin=%d)...\n" % (r_inner, r_outer, n_radii, binfac))
+        stdout_write("reading extension %d ..." % ext) #(hdulist[ext].header['EXTNAME']))
+        # to cut down on computing, bin the frame
+        binfac = 4
+        data_binned, radius_binned, angle_binned = get_radii_angles(data_fullres, center, binfac)
+        
+        # For the output we need the polar coordinates in the full resolution
+        dummy, radius_fullres, angle_fullres = get_radii_angles(data_fullres, center, 1)
 
-    #
-    # Next step: Fit the radial profile
-    #
-    pupil_radii = numpy.zeros(shape=(n_radii))
-    pupil_level = numpy.zeros(shape=(n_radii))
-    min_r, max_r = 10000, -10000
-    for i in range(n_radii):
+        # Now split the frame into a number of radial rings
+        # Use the binned data to keep computing time under control
+        r_inner /= binfac
+        r_outer /= binfac
+        dr /= binfac
 
-        ri = i * dr
-        ro = ri + dr
+        # Allocate an array to hold the data for the pupil ghost, i.e.
+        # all radii, average intensity levels, and results from the spline fit.
+        n_rings = int(math.ceil((r_outer - r_inner) / dr))
+        pupilghost_profile = numpy.zeros(shape=(n_rings,4))
 
-        # Only use rings within the pupil gost rings
-        if (ri < r_outer and ro > r_inner):
-            ri = numpy.max([ri, r_inner])
-            ro = numpy.min([ro, r_outer])
-            min_r = numpy.min([min_r, i])
-            max_r = numpy.max([max_r, i])
-        else:
-            continue
+        stdout_write(" computing profile ...")
+        for r in range(n_rings):
+            ri = r * dr + r_inner
+            ro = ri + dr
 
-        if (verbose): stdout_write("radius i=%4d" % (i))
-        median, count = get_median_level(bgsub, radius, ri, ro)
+            in_this_ring = (radius_binned >= ri) & (radius_binned < ro)
 
-        pupil_radii[i] = 0.5 * (ri + ro)
-        pupil_level[i] = median
-        if (verbose): stdout_write("   ri: %4d    ro: %4d    med: %.4f\n" % (ri, ro, median))
+            pupilghost_profile[r,0] = (ri+ro)/2 #math.sqrt((ri**2 + ro**2)/2)
+            pupilghost_profile[r,1] = numpy.median(data_binned[in_this_ring])
 
-    if (force_positive):
-        pupil_level[pupil_level < 0] = 0.
-    if (zero_edges):
-        pupil_level[min_r] = 0.
-        pupil_level[max_r] = 0.
+        # Make sure there are no pixels with negative values.
+        pupilghost_profile[:,2] = pupilghost_profile[:,1]
+        pupilghost_profile[:,2][pupilghost_profile[:,2] < 0] = 0.
 
-    if (save_profile != None):
-        out = open(save_profile, "w")
-        print >>out, "# Data: radius, median"
-        dummy = numpy.empty(shape=(pupil_radii.shape[0],2))
-        dummy[:,0] = pupil_radii[:]
-        dummy[:,1] = pupil_level[:]
-        #dummy = numpy.append(pupil_radii, pupil_level, axis=1)
-        numpy.savetxt(out, dummy)
+        #
+        # Now fit the profile with a 1-D spline
+        # limit the number of knots to 75, otherwise we'll run into a 
+        # weird bug in the spline fitting
+        #
+        n_knots = (r_outer-r_inner-2*dr)/dr-1
+        if (n_knots > 75): 
+            n_knots=75
+        radial_knots = numpy.linspace(r_inner+0.7*dr, r_outer-0.7*dr, n_knots)
+        if (verbose): print "radial knots=",radial_knots[0:5],"...",radial_knots[-5:]
 
-    #
-    # Now fit the profile with a 1-D spline
-    #
-    n_knots = (r_outer-r_inner-2*dr)/dr-1
-    if (n_knots > 75): n_knots=75
-    radial_knots = numpy.linspace(r_inner+0.7*dr, r_outer-0.7*dr, n_knots)
-    if (verbose): print "radial knots=",radial_knots[0:5],"...",radial_knots[-5:]
-    radial_profile = scipy.interpolate.LSQUnivariateSpline(pupil_radii[min_r:max_r+1], pupil_level[min_r:max_r+1], radial_knots, k=2)
-    
-    # In case of ValueError, this is what causes it (from scipy/intrpolate/interpolate.py): 
-    # if not alltrue(t[k+1:n-k]-t[k:n-k-1] > 0,axis=0):
-    #     raise ValueError('Interior knots t must satisfy '
-    #                      'Schoenberg-Whitney conditions')
+        stdout_write(" fitting ...")
+        radial_profile = scipy.interpolate.LSQUnivariateSpline(
+            pupilghost_profile[:,0], pupilghost_profile[:,2],
+            radial_knots, k=2)
+  
+        stdout_write(" computing output ...")
+        # Now that the fitting is done, compute the spline fit at the 
+        # original positions so we can compare things
+        pupilghost_profile[:,3] = radial_profile(pupilghost_profile[:,0])
 
-    if (save_profile != None):
-        print >>out, "\n\n\n\n\n\n\n\n"
+        print >>profile_txt, "#", extname
+        numpy.savetxt(profile_txt, pupilghost_profile)
+        print >>profile_txt, "\n\n\n\n\n"
 
-        print >>out, "# spline fit: radius, level"
-        smooth_radial_1d_x = numpy.linspace(r_inner, r_outer, 1300)
-        smooth_radial_1d_y = radial_profile(smooth_radial_1d_x)
-        dummy = numpy.empty(shape=(smooth_radial_1d_x.shape[0],2))
-        dummy[:,0] = smooth_radial_1d_x[:]
-        dummy[:,1] = smooth_radial_1d_y[:]
-        numpy.savetxt(out, dummy)
+        #
+        # Compute the 2-d radial profile
+        #
+        radius_fullres_asbinned = radius_fullres / binfac
+        radius_1d = radius_fullres_asbinned.ravel()
+        print "rad-1d",radius_1d.shape
 
-        out.close()
+        radial_pupilghost = radial_profile(radius_1d).reshape(radius_fullres.shape)
+        print "rad pg",radial_pupilghost.shape
 
+        # set all pixels outside the pupil ghost radial range to 0
+        radial_pupilghost[(radius_fullres_asbinned > r_outer) | (radius_fullres_asbinned < r_inner)] = 0
 
-    if (show_plots):
-        # create a smooth profile for plotting
-        smooth_radial_1d_x = numpy.linspace(r_inner, r_outer, 1300)
-        smooth_radial_1d_y = radial_profile(smooth_radial_1d_x)
-        knots_y = radial_profile(radial_knots)
-        plot.plot(pupil_radii, pupil_level, '.-', radial_knots, knots_y, 'o', smooth_radial_1d_x, smooth_radial_1d_y)
-        plot.show()
+        # and save the pupil ghost
+        hdulist[ext].data = radial_pupilghost
+        stdout_write(" done!\n")
 
-    #
-    # Compute the 2-d radial profile
-    #
-    radius_1d = radius.ravel()
-    pupil_radial_2d = radial_profile(radius.ravel()).reshape(radius.shape)
-    # set all pixels outside the pupil ghost radial range to 0
-    pupil_radial_2d[(radius > r_outer) | (radius < r_inner)] = 0
-    # and subtract the pupil ghost
-    
-    pupil_sub = bgsub - pupil_radial_2d
-
-    #if (write_intermediate):
-    pupil_sub_hdu = pyfits.PrimaryHDU(data = pupil_sub)
-    pupil_sub_hdu.writeto("all_pupilsub.fits", clobber=True)
-
-    return pupil_sub, radial_profile, pupil_radial_2d
-
-
+    # Now we are done with all profiles, write the results to the output file
+    clobberfile(outputfile)
+    stdout_write("writing output file ...")
+    hdulist.writeto(outputfile, clobber=True)
+    stdout_write(" done!\n")
 
 
 #################################
@@ -369,18 +371,26 @@ if __name__ == "__main__":
 """
 
     # Read in the input parameters
-    r_inner = float(cmdline_arg_set_or_default("-ri",  700))
-    r_outer = float(cmdline_arg_set_or_default("-ri", 4000))
-    dr = float(cmdline_arg_set_or_default("-dr", 20))
     binfac = int(cmdline_arg_set_or_default("-prebin", 1))
     bpmdir = cmdline_arg_set_or_default("-bpm", None)
 
-    if (cmdline_arg_isset("-azimuthal")):
+    if (cmdline_arg_isset("-radial")):
+        r_inner = float(cmdline_arg_set_or_default("-ri",  700))
+        r_outer = float(cmdline_arg_set_or_default("-ro", 4500))
+        dr = float(cmdline_arg_set_or_default("-dr", 20))
+
         filename = get_clean_cmdline()[1]
         outputfile = get_clean_cmdline()[2]
-        create_azimuthal_pupilghost(filename, outputfile)
+        radial_opts = (r_inner, r_outer, dr)
+
+        create_radial_pupilghost(filename, outputfile, radial_opts)
     else:
+        r_inner = float(cmdline_arg_set_or_default("-ri",  700))
+        r_outer = float(cmdline_arg_set_or_default("-ro", 4000))
+        dr = float(cmdline_arg_set_or_default("-dr", 20))
+
         filenames = get_clean_cmdline()[1:]
+        print filenames
 
         radius_range = (r_inner, r_outer, dr)
 
