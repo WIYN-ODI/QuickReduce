@@ -110,6 +110,8 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filter, pupil_hdu, s
     correction = rotated[by:ty, bx:tx]
     input_hdu.data -= (correction * scaling)
 
+    input_hdu.header.update("PGCENTER", "%d %d" % (center_x, center_y))
+
     if (verbose): print "all done, going home!"
     return input_hdu
 
