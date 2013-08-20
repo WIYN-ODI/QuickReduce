@@ -29,10 +29,10 @@ if __name__ == "__main__":
     for idx_img1 in range(1, len(hdu_1)):
         img1 = hdu_1[idx_img1]
         
-        fppos1 = img1.header['FPPOS']
+        fppos1 = img1.header['EXTNAME']
         stdout_write("\rComputing extension %s (%2d of %2d) ..." % (img1.header['EXTNAME'], idx_img1, len(hdu_1)-1))
         for img2 in hdu_2[1:]:
-            fppos2 = img2.header['FPPOS']
+            fppos2 = img2.header['EXTNAME']
             if (fppos2 == fppos1):
                 # This is the one
 
