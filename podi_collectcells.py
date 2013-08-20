@@ -58,6 +58,7 @@ import podi_persistency
 import podi_asyncfitswrite
 import podi_fitskybackground
 import podi_matchcatalogs
+import podi_matchpupilghost
 
 from astLib import astWCS
 
@@ -972,20 +973,23 @@ def collectcells(input, outputfile,
     #
     # Now that we have the global sky-level, subtract the 
     # contribution of the pupil ghost to the science frame.
+    # Different from the case of the calibration frames, use the radial
+    # profile here, and ignore rotation (not needed anyway) to speed things up.
     #
     if (options['pupilghost_dir'] != None):
         filter_level = get_filter_level(ota_list[0].header)
+        filter_name = get_valid_filter_name(ota_list[0].header)
         pg_template = "%s/pupilghost_radial___level_%d.fits" % (options['pupilghost_dir'], filter_level)
         stdout_write("looing for radial pupil ghost template %s...\n" % (pg_template))
         # If we have a template for this level
         if (os.path.isfile(pg_template)):
-            stdout_write("\n   Using pupilghost template %s ... " % (pg_template))
+            stdout_write("\n   Using pupilghost template %s, filter %s ... " % (pg_template, filter_name))
             pg_hdu = pyfits.open(pg_template)
-            scaling = podi_matchpupilghost.scaling_factors[filter]
+            scaling = podi_matchpupilghost.scaling_factors[filter_name]
 
             podi_matchpupilghost.subtract_pupilghost(ota_list, pg_hdu, scaling*sky_global_median, rotate=False)
-            flat_hdus[0].header.update("PUPLGOST", pg_template, "p.g. template")
-            flat_hdus[0].header.update("PUPLGFAC", scaling*sky_global_median, "pupilghost scaling")
+            ota_list[0].header.update("PUPLGOST", pg_template, "p.g. template")
+            ota_list[0].header.update("PUPLGFAC", scaling*sky_global_median, "pupilghost scaling")
             stdout_write(" done!\n")
 
     #
