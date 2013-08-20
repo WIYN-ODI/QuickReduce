@@ -18,6 +18,8 @@ from podi_plotting import *
 
 from astLib import astWCS
 
+import bottleneck
+
 boxwidth = 20
 
 
@@ -86,7 +88,8 @@ def sample_background(data, wcs, starcat, min_found=200, boxwidth=30, fit_region
         x1, x2 = box_center[tried,0]-boxwidth, box_center[tried,0]+boxwidth
         y1, y2 = box_center[tried,1]-boxwidth, box_center[tried,1]+boxwidth
 
-        cutout = data[y1:y2,x1:x2]
+        cutout = numpy.array(data[y1:y2,x1:x2], dtype=numpy.float32)
+        #cutout = data[y1:y2,x1:x2]
         if (not numpy.isfinite(numpy.min(cutout))):
             # Contains an illegal value
             tried += 1
@@ -107,7 +110,8 @@ def sample_background(data, wcs, starcat, min_found=200, boxwidth=30, fit_region
                 pass
             min_distance = dr_sorted[0]
 
-        sky_level = numpy.median(cutout)
+        #sky_level = numpy.median(cutout)
+        sky_level = bottleneck.nanmedian(cutout)
 
         ra, dec = 0., 0.
         if (wcs != None):
