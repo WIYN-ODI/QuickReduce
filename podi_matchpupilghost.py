@@ -135,7 +135,7 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filter, pupil_hdu, s
 
 
 
-def subtract_pupilghost(input_hdu, pupil_hdu, scaling, verbose=True):
+def subtract_pupilghost(input_hdu, pupil_hdu, scaling, rotate=True, verbose=True):
     """
     This is a wrapper around the subtract_pupilghost_extension routine,
     going through all the extensions that might have a pupil ghost.
@@ -147,7 +147,8 @@ def subtract_pupilghost(input_hdu, pupil_hdu, scaling, verbose=True):
     for i in range(1, len(input_hdu)):
         rotator_angle = input_hdu[0].header['ROTSTART']
         filter = input_hdu[0].header['FILTER']
-        subtract_pupilghost_extension(input_hdu[i], rotator_angle, filter, pupil_hdu, scaling=scaling)
+        subtract_pupilghost_extension(input_hdu[i], rotator_angle, filter, pupil_hdu, 
+                                      rotate=rotate, scaling=scaling, verbose=verbose)
 
     return input_hdu
 
