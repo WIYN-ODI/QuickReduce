@@ -42,6 +42,15 @@ from podi_imcombine import *
 from podi_makeflatfield import *
 import podi_matchpupilghost
 
+def strip_fits_extension_from_filename(filename):
+    #print filename[-5:]
+    #print filename[-8:]
+    if (filename[-5:] == ".fits"):
+        return filename[:-5]
+    elif (filename[-8:] == ".fits.fz"):
+        return filename[:-8]
+    return filename
+
 if __name__ == "__main__":
 
     verbose = cmdline_arg_isset("-verbose")
@@ -129,7 +138,7 @@ if __name__ == "__main__":
                 if (verbose): print "Collecting cells for bias",cur_bias
                 # First run collectcells
                 dummy, basename = os.path.split(cur_bias)
-                bias_outfile = "%s/bias.%s.fits" % (tmp_directory, basename)
+                bias_outfile = "%s/bias.%s.fits" % (tmp_directory, strip_fits_extension_from_filename(basename))
                 if (not os.path.isfile(bias_outfile) or cmdline_arg_isset("-redo")):
                     collectcells(cur_bias, bias_outfile,
                                  options=options,
@@ -160,7 +169,7 @@ if __name__ == "__main__":
                 if (verbose): print "Collecting cells for dark",cur_dark
                 # First run collectcells
                 dummy, basename = os.path.split(cur_dark)
-                dark_outfile = "%s/dark.%s.fits" % (tmp_directory, basename)
+                dark_outfile = "%s/dark.%s.fits" % (tmp_directory, strip_fits_extension_from_filename(basename))
                 if (not os.path.isfile(dark_outfile) or cmdline_arg_isset("-redo")):
                     collectcells(cur_dark, dark_outfile,
                                  options=options,
@@ -193,7 +202,7 @@ if __name__ == "__main__":
                     if (verbose): print "Collecting cells for flat",cur_flat
                     # First run collectcells
                     dummy, basename = os.path.split(cur_flat)
-                    flat_outfile = "%s/nflat.%s.%s.fits" % (tmp_directory, filter, basename)
+                    flat_outfile = "%s/nflat.%s.%s.fits" % (tmp_directory, filter, strip_fits_extension_from_filename(basename))
                     if (not os.path.isfile(flat_outfile) or cmdline_arg_isset("-redo")):
                         #wcs_solution = os.path.split(os.path.abspath(sys.argv[0]))[0]+"/wcs_distort2.fits"
                         #wcs_solution = cmdline_arg_set_or_default("-wcs", wcs_solution)
