@@ -486,7 +486,12 @@ def collect_reduce_ota(filename,
                 fitsfile = "%s/tmp.pid%d.%s_OTA%02d.fits" % (sitesetup.scratch_dir, process_id, obsid, ota)
                 catfile = "%s/tmp.pid%d.%s_OTA%02d.cat" % (sitesetup.scratch_dir, process_id, obsid, ota)
                 hdulist.writeto(fitsfile, clobber=True)
-                sexcmd = "sex -c /work/podi_devel/.config/wcsfix.sex -CATALOG_NAME %s %s >&/dev/null" % (catfile, fitsfile)
+                full_path = os.path.abspath(sys.argv[0])
+                basepath, dummy = os.path.split(full_path)
+                sex_config_file = "%s/.config/wcsfix.sex" % (basepath)
+                parameters_file = "%s/.config/wcsfix.sexparam" % (basepath)
+                sexcmd = "sex -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s >&/dev/null" % (
+                    sex_config_file, parameters_file, catfile, fitsfile)
                 if (options['verbose']): print sexcmd
                 os.system(sexcmd)
                 try:
