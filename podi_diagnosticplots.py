@@ -44,10 +44,11 @@ gain_correct_frames = False
 
 import matplotlib.lines
 
+from podi_definitions import *
 
 def wcsdiag_scatter(matched_cat, filename):
 
-    print "Creating some diagnostic plots"
+    stdout_write("Creating the WCS scatter plot ...")
     # Create some plots for WCS diagnosis
     fig = matplotlib.pyplot.figure()
     # matches_zeroed = matches - wcs_shift_refinement
@@ -82,9 +83,13 @@ def wcsdiag_scatter(matched_cat, filename):
         fig.savefig(png_wcsscatter)
 
     matplotlib.pyplot.close()
+    stdout_write(" done!\n")
 
 
 def wcsdiag_shift(matched_cat, filename):
+
+    stdout_write("Creating the WCS offset/shift plot ...")
+
     matches_zeroed = matched_cat
     good_matches = matches_zeroed[matches_zeroed[:,2] >= 0]
     d_ra  = good_matches[:,0] - good_matches[:,2]
@@ -142,8 +147,7 @@ def wcsdiag_shift(matched_cat, filename):
         fig.savefig(png_wcsdirection)
 
     matplotlib.pyplot.close()
-
-
+    stdout_write(" done!\n")
 
     return 0
 
