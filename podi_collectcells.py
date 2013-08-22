@@ -295,7 +295,7 @@ def collect_reduce_ota(filename,
 
         # If we are to do some bias subtraction:
         if (not options['bias_dir'] == None):
-            bias_filename = "%s/bias.fits" % (options['bias_dir'])
+            bias_filename = check_filename_directory(options['bias_dir'], "bias.fits")
             if (os.path.isfile(bias_filename)):
                 bias = pyfits.open(bias_filename)
 
@@ -321,7 +321,7 @@ def collect_reduce_ota(filename,
             # For now assume all detectors are switched on
             detectorglow = "yes"
 
-            dark_filename = "%s/dark_%s.fits" % (options['dark_dir'], detectorglow)
+            dark_filename = check_filename_directory(options['dark_dir'], "dark_%s.fits" % (detectorglow))
             if (os.path.isfile(dark_filename)):
                 dark = pyfits.open(dark_filename)
                 darktime = dark[0].header['EXPTIME']
@@ -341,7 +341,7 @@ def collect_reduce_ota(filename,
 
         # If the third parameter points to a directory with flat-fields
         if (not options['flat_dir'] == None):
-            flatfield_filename = "%s/flat_%s.fits" % (options['flat_dir'], filter_name)
+            flatfield_filename = check_filename_directory(options['flat_dir'], "flat_%s.fits" % (filter_name))
             if (os.path.isfile(flatfield_filename)):
                 flatfield = pyfits.open(flatfield_filename)
 
@@ -361,7 +361,7 @@ def collect_reduce_ota(filename,
         # If requested, subtract the fringing template
         #
         if (options['fringe_dir'] != None):
-            fringe_filename = "%s/fringes__%s.fits" % (options['fringe_dir'], filter_name)
+            fringe_filename = check_filename_directory(options['fringe_dir'], "fringes__%s.fits" % (filter_name))
             print "Removing fringes",fringe_filename
             if (os.path.isfile(fringe_filename)):
                 print "using fringe map",fringe_filename
@@ -1371,6 +1371,15 @@ def set_default_options(options_in=None):
     return options
 
 
+def check_filename_directory(given, default_filename):
+    if (given == None):
+        return None
+    elif (os.path.isfile(given)):
+        return given
+    elif (os.path.isdir(given)):
+        return "%s/%s" % (given, default_filename)
+
+    return None
 
 def read_options_from_commandline(options=None):
 
