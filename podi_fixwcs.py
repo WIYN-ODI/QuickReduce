@@ -627,7 +627,7 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
 
 
 
-def apply_wcs_shift(shift, hdr, fixrot_trans=None):
+def apply_wcs_shift(shift, hdr, fixrot_trans=None, verbose=False):
 
     hdr['CRVAL1'] += shift[0]
     hdr['CRVAL2'] += shift[1]
@@ -644,8 +644,9 @@ def apply_wcs_shift(shift, hdr, fixrot_trans=None):
         cr2 = hdr['CRVAL2']
         hdr['CRVAL1'] =  math.cos(angle)*cr1 + math.sin(angle)*cr2 + fixrot_trans[0]
         hdr['CRVAL2'] =  math.cos(angle)*cr2 - math.sin(angle)*cr1 + fixrot_trans[1] 
-        print "CR1/2 before=",cr1, cr2
-        print "CR1/2 after =",hdr['CRVAL1'],  hdr['CRVAL2']
+        if (verbose):
+            print "CR1/2 before=",cr1, cr2
+            print "CR1/2 after =",hdr['CRVAL1'],  hdr['CRVAL2']
 
         cd11 = hdr['CD1_1']
         cd12 = hdr['CD1_2']
