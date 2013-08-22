@@ -154,14 +154,14 @@ if __name__ == "__main__":
             for file in bias_to_stack:
                 clobberfile(file)
 
-    options['bias_dir'] = output_directory
-
     #
     # Now that we have the master bias frame, go ahead and reduce the darks
     #
     # For now set all darks to detector-glow "yes"
     dark_frame = "%s/dark_yes.fits" % (output_directory)
     if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "dark"): 
+        cmdline_opts = read_options_from_commandline()
+        options['bias_dir'] = output_directory if (cmdline_opts['bias_dir'] == None) else cmdline_opts['bias_dir']
         stdout_write("####################\n#\n# Creating dark-frame\n#\n####################\n")
         darks_to_stack = []
         if (not os.path.isfile(dark_frame) or cmdline_arg_isset("-redo")):
@@ -185,13 +185,13 @@ if __name__ == "__main__":
             for file in darks_to_stack:
                 clobberfile(file)
 
-    options['dark_dir'] = output_directory
-
-
     #
     # And finally, reduce the flats using the biases and darks.
     #
     if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "flat"): 
+        cmdline_opts = read_options_from_commandline()
+        options['bias_dir'] = output_directory if (cmdline_opts['bias_dir'] == None) else cmdline_opts['bias_dir']
+        options['dark_dir'] = output_directory if (cmdline_opts['dark_dir'] == None) else cmdline_opts['dark_dir']
         for cur_filter_id in range(len(filters)):
             filter = filters[cur_filter_id]
             flat_frame = "%s/flat_%s.fits" % (output_directory, filter)
@@ -249,6 +249,5 @@ if __name__ == "__main__":
             if (not cmdline_arg_isset("-keeptemps")):
                 for file in flats_to_stack:
                     clobberfile(file)
-
 
     stdout_write("\nAll done, yippie :-)\n\n")
