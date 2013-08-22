@@ -39,6 +39,7 @@ import scipy.stats
 
 import podi_matchcatalogs
 
+output_debug_catalogs = False
 
 def apply_transformation(p,x):
     x_ = x.copy()
@@ -85,7 +86,7 @@ def improve_match_and_rotation(fixwcs_ref_ra, fixwcs_ref_dec,
 
     for repeat in range(n_repeats):
         return_cat = podi_matchcatalogs.match_catalogs(ref_full, odi_full)
-        print "return_Cat=",return_cat
+        if (verbose): print "return_Cat=",return_cat
 
         # Now we should have almost matching catalogs, with the exception 
         # of the mismatch in rotation
@@ -93,9 +94,9 @@ def improve_match_and_rotation(fixwcs_ref_ra, fixwcs_ref_dec,
         good_matches = return_cat[:,2] > 0
         matched_cat = return_cat[good_matches]
 
-        print "left are ",matched_cat.shape,"good matches"
+        if (verbose): print "left are ",matched_cat.shape,"good matches"
 
-        print matched_cat[0:5,:]
+        if (verbose): print matched_cat[0:5,:]
 
         p_init = [0., 0., 0.]
         out = scipy.optimize.leastsq(errfunc, p_init,
@@ -108,11 +109,11 @@ def improve_match_and_rotation(fixwcs_ref_ra, fixwcs_ref_dec,
 
         p_total += p_final
 
-        print "best transformation:",p_final
+        if (verbose): print "best transformation:",p_final
         angle = math.degrees(p_final[2])
-        print "mismatched angle=",angle*60,"arcmin"
+        if (verbose): print "mismatched angle=",angle*60,"arcmin"
 
-        numpy.savetxt("matched.cat.%d" % (repeat), matched_cat)
+        if (output_debug_catalogs): numpy.savetxt("matched.cat.%d" % (repeat), matched_cat)
 
         # Now apply the new correction to the full array of stars
         odi_full[:,0:2] = apply_transformation(p_final, odi_full[:,0:2])
@@ -131,7 +132,7 @@ def improve_match_and_rotation(fixwcs_ref_ra, fixwcs_ref_dec,
     covar = out[1]
 
     print "final transformation:", p_final, "angle=", 60.*math.degrees(p_final[2])
-    print "straight sum of transformations: ", p_total
+    if (verbose): print "straight sum of transformations: ", p_total
 
     odi_corr = apply_transformation(p_total, odi_orig)
 
@@ -139,7 +140,7 @@ def improve_match_and_rotation(fixwcs_ref_ra, fixwcs_ref_dec,
     return_cat = podi_matchcatalogs.match_catalogs(ref_full, odi_corr) #, [0,360], [0,360])
     matched_cat = return_cat[return_cat[:,2]>=0]
 
-    numpy.savetxt("matched.out", matched_cat)
+    if (output_debug_catalogs): numpy.savetxt("matched.out", matched_cat)
 
 
     print "after some fiddling we can now match",matched_cat.shape,"stars"
