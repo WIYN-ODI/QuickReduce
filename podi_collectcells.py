@@ -417,17 +417,17 @@ def collect_reduce_ota(filename,
 
         coord_j2000 = ephem.Equatorial(hdu.header['RA'], hdu.header['DEC'], epoch=ephem.J2000)
         if (not options['target_coords'] == None):
+            if (options['verbose']): print "Overwriting target positions",options['target_coords']
             ra, dec = options['target_coords']
             coord_j2000 = ephem.Equatorial(ra, dec, epoch=ephem.J2000)
 
         # Write the CRVALs with the pointing information
         #print numpy.degrees(coord_j2000.ra), numpy.degrees(coord_j2000.dec)  
+        if (options['verbose']): print "\n\nAdjusting ra/dec:", coord_j2000.ra, coord_j2000.dec,"\n\n"
         hdu.header['CRVAL1'] = numpy.degrees(coord_j2000.ra)  
         hdu.header['CRVAL2'] = numpy.degrees(coord_j2000.dec) 
 
         # Compute total offsets as the sum from pointing and dither offset
-        offset_total = numpy.array(options['offset_pointing']) + numpy.array(options['offset_dither'])
-
         # Now add the pointing and dither offsets
         #print offset_total[0] / 3600. / numpy.cos(numpy.radians(hdu.header['CRVAL2']))
         #print hdu.header['CRVAL2'], numpy.cos(numpy.radians(hdu.header['CRVAL2']))
@@ -441,11 +441,18 @@ def collect_reduce_ota(filename,
         # should be included in RA/DEC already !!!
         # =========================================================
         #
-        if (options['offset_pointing'] != None):
-            #stdout_write("Applying user's WCS offset\n")
-            hdu.header['CRVAL1'] += options['offset_pointing'][0]
-            hdu.header['CRVAL2'] += options['offset_pointing'][1]
-            
+        if (options['offset_pointing'] != None or options['offset_dither'] != None):
+            offset_total = numpy.array([0,0])
+            if (options['offset_pointing'] != None):
+                offset_total += numpy.array(options['offset_pointing'])
+            if (options['offset_dither'] != None):
+                offset_total += numpy.array(options['offset_dither'])
+            if (options['verbose']): 
+                stdout_write("Adding user's WCS offset (ra: %f, dec: %f degrees)\n" % (offset_total[0], offset_total[1]))
+            hdu.header['CRVAL1'] += offset_total[0] 
+            hdu.header['CRVAL2'] += offset_total[1]
+
+
         # Now add the canned WCS solution
         if (options['wcs_distortion'] != None):
             #print "Adding header from WCS minifits (%s)" % (extname)
@@ -1107,7 +1114,7 @@ def collectcells(input, outputfile,
         # columns are: 0/1: ra/dec
         #              2/3: x/y
         odi_sourcecat_modified = fixwcs_odi_sourcecat.copy()
-        print "wcs-shift=",wcs_shift
+        if (verbose): print "wcs-shift=",wcs_shift
         odi_sourcecat_modified[:,0:2] += wcs_shift
 #        odi_sourcecat_modified[:,1] -= wcs_shift[1]
         odi_sourcecat_modified[:,0:2] = podi_fixwcs_rotation.apply_transformation(fixrot_trans, odi_sourcecat_modified[:,0:2])
@@ -1440,18 +1447,24 @@ Calibration data:
     # easier, since the pointing offsets stay constant across a dither pattern, while 
     # the dither offsets change.
     #
+    options['target_coords'] = None
+    options['offset_pointing'] = None
+    options['offset_dither'] = None
     # -target: overwrites the pointing information from the wcs header
-    _target_coords = cmdline_arg_set_or_default("-target", "0,0")
-    ra,dummy,dec = _target_coords.partition(",")
-    options['target_coords'] = (ra, dec)
+    if (cmdline_arg_isset("-target")):
+        _target_coords = cmdline_arg_set_or_default("-target", "0,0")
+        ra,dummy,dec = _target_coords.partition(",")
+        options['target_coords'] = (ra, dec)
     # -pointing: applies a given offset to the pointing position
-    _offset_pointing = cmdline_arg_set_or_default("-pointing", "0,0")
-    dx,dummy,dy = _offset_pointing.partition(",")
-    options['offset_pointing'] = [float(dx), float(dy)]
+    if (cmdline_arg_isset("-pointing")):
+        _offset_pointing = cmdline_arg_set_or_default("-pointing", "0,0")
+        dx,dummy,dy = _offset_pointing.partition(",")
+        options['offset_pointing'] = [float(dx), float(dy)]
     # -dither: identical to -pointing
-    _offset_dither = cmdline_arg_set_or_default("-dither", "0,0")
-    dx,dummy,dy = _offset_dither.partition(",")
-    options['offset_dither'] = [float(dx), float(dy)]
+    if (cmdline_arg_isset("-dither")):
+        _offset_dither = cmdline_arg_set_or_default("-dither", "0,0")
+        dx,dummy,dy = _offset_dither.partition(",")
+        options['offset_dither'] = [float(dx), float(dy)]
     #  .
     # /-\
     #  |   This section is likely outdated 
