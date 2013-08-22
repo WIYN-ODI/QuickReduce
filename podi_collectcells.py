@@ -1093,14 +1093,15 @@ def collectcells(input, outputfile,
                 wcs_shift_refinement[0]*3600., wcs_shift_refinement[1]*3600.))
 
         # Now pickle some data for further development
-        numpy.savetxt("numsave.fixwcs_ref_ra.txt", fixwcs_ref_ra)
-        numpy.savetxt("numsave.fixwcs_ref_dec.txt", fixwcs_ref_dec)
-        numpy.savetxt("numsave.fixwcs_odi_ra.txt", fixwcs_odi_ra)
-        numpy.savetxt("numsave.fixwcs_odi_dec.txt", fixwcs_odi_dec)
-        numpy.savetxt("numsave.fixwcs_odi_y.txt", fixwcs_odi_y)
-        numpy.savetxt("numsave.fixwcs_odi_x.txt", fixwcs_odi_x)
-        numpy.savetxt("numsave.wcs_shift_guess.txt", wcs_shift_guess)
-        numpy.savetxt("numsave.wcs_shift_refinement.txt", wcs_shift_refinement)
+        if (podi_fixwcs_rotation.output_debug_catalogs):
+            numpy.savetxt("numsave.fixwcs_ref_ra.txt", fixwcs_ref_ra)
+            numpy.savetxt("numsave.fixwcs_ref_dec.txt", fixwcs_ref_dec)
+            numpy.savetxt("numsave.fixwcs_odi_ra.txt", fixwcs_odi_ra)
+            numpy.savetxt("numsave.fixwcs_odi_dec.txt", fixwcs_odi_dec)
+            numpy.savetxt("numsave.fixwcs_odi_y.txt", fixwcs_odi_y)
+            numpy.savetxt("numsave.fixwcs_odi_x.txt", fixwcs_odi_x)
+            numpy.savetxt("numsave.wcs_shift_guess.txt", wcs_shift_guess)
+            numpy.savetxt("numsave.wcs_shift_refinement.txt", wcs_shift_refinement)
 
         fixrot_trans = podi_fixwcs_rotation.improve_match_and_rotation(
             fixwcs_ref_ra, fixwcs_ref_dec,
@@ -1130,7 +1131,7 @@ def collectcells(input, outputfile,
         #numpy.savetxt("odi+2mass.matched2", other)
 
         if (True):
-            print "Creating some diagnostic plots"
+            # print "Creating some diagnostic plots"
             import podi_diagnosticplots
             podi_diagnosticplots.wcsdiag_scatter(odi_2mass_matched, outputfile[:-5]+".wcs1.png")
             podi_diagnosticplots.wcsdiag_shift(odi_2mass_matched, outputfile[:-5]+".wcs2.png")
