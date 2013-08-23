@@ -87,13 +87,16 @@ def sample_background(data, wcs, starcat, min_found=200, boxwidth=30, fit_region
     found = 0
     tried = 0
     max_tried = 1.5*min_found
-    disable_skipnans = False
+
+    skip_nan_boxes = True
     if (box_center == None):
         box_center = numpy.zeros(shape=(max_tried,2))
         box_center[:,0] = numpy.random.randint(boxwidth, data.shape[0]-boxwidth, max_tried)
         box_center[:,1] = numpy.random.randint(boxwidth, data.shape[1]-boxwidth, max_tried)
     else:
-        disable_skipnans = True
+        min_found = max_tried = box_center.shape[0]
+        skip_nan_boxes = False
+
     # Unpack the x/y coordinates of all known stars/sources in this frame
     if (starcat != None):
         ota_x, ota_y = starcat
@@ -101,6 +104,7 @@ def sample_background(data, wcs, starcat, min_found=200, boxwidth=30, fit_region
     #
     # Now check the randomly selected regions
     #
+    print min_found, max_tried, len(fit_regions)
     while (found < min_found and tried < max_tried):
         #print box_center[tried,:]
 
@@ -109,13 +113,13 @@ def sample_background(data, wcs, starcat, min_found=200, boxwidth=30, fit_region
 
         cutout = numpy.array(data[y1:y2,x1:x2], dtype=numpy.float32)
         #cutout = data[y1:y2,x1:x2]
-        if (not numpy.isfinite(numpy.min(cutout)) and not disable_skipnans):
+        if (not numpy.isfinite(numpy.min(cutout)) and skip_nan_boxes):
             # Contains an illegal value
             tried += 1
             continue
 
         min_distance = 0
-        if (starcat != None and not disable_skipnans):
+        if (starcat != None and skip_nan_boxes):
             # Check if there's a star in or close to this box
             star_contaminated = False
             dx = box_center[tried,1] - ota_x
@@ -141,6 +145,8 @@ def sample_background(data, wcs, starcat, min_found=200, boxwidth=30, fit_region
 
         tried += 1
         found += 1
+
+    print "length=",len(fit_regions), tried, found
 
     return fit_regions
 
