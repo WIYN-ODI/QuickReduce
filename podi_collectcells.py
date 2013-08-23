@@ -727,10 +727,15 @@ def collectcells(input, outputfile,
     # This has to move in the near future to make things nice and tidy
     options["persistency"] = (options['persistency_dir'] != None)       
 
+
     #
     # Start assembling the new list of HDUs
     #
-    ota_list = [None] * (len(available_ota_coords)+1)
+    list_of_otas_to_collect = available_ota_coords
+    if (options['central_only']):
+        list_of_otas_to_collect = central_array_ota_coords
+
+    ota_list = [None] * (len(list_of_otas_to_collect)+1)
     # And add the primary HDU to make the fits file a valid one
     ota_list[0] = pyfits.PrimaryHDU()
     
@@ -747,8 +752,9 @@ def collectcells(input, outputfile,
     worker_args = (queue, return_queue, options)
 
     number_extensions = 0
-    for ota_id in range(len(available_ota_coords)):
-        ota_c_x, ota_c_y = available_ota_coords[ota_id]        
+
+    for ota_id in range(len(list_of_otas_to_collect)):
+        ota_c_x, ota_c_y = list_of_otas_to_collect[ota_id]        
         ota = ota_c_x * 10 + ota_c_y
 
         if (cmdline_arg_isset('-singleota')):
@@ -791,7 +797,7 @@ def collectcells(input, outputfile,
     reference_catalog = None
 
     fixwcs_odi_sourcecat = None
-    fixwcs_bestguess = numpy.ones(shape=(len(available_ota_coords),2)) * -1000
+    fixwcs_bestguess = numpy.ones(shape=(len(list_of_otas_to_collect),2)) * -1000
 
 
     ############################################################
@@ -804,7 +810,7 @@ def collectcells(input, outputfile,
     ############################################################
     global_number_matches = None
     sky_samples = {}
-    for i in range(len(available_ota_coords)):
+    for i in range(len(list_of_otas_to_collect)):
         #hdu, ota_id, wcsfix_data = return_queue.get()
         ota_id, data_products = return_queue.get()
 
@@ -1368,6 +1374,8 @@ def set_default_options(options_in=None):
 
     options['verbose'] = False
 
+    options['central_only'] = False
+
     return options
 
 
@@ -1479,6 +1487,8 @@ Calibration data:
     # /-\
     #  |   This section is likely outdated 
     #
+
+    options['central_only'] = cmdline_arg_isset("-centralonly")
 
     return options
 
