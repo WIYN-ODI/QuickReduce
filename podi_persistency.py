@@ -370,7 +370,8 @@ if __name__ == "__main__":
 
     
     if (cmdline_arg_isset('-newmap')):
-        outputfile = "persistency_map_00000000T000000.fits" #get_clean_cmdline()[2]
+        pers_dir = cmdline_arg_set_or_default("-persistency", "./")
+        outputfile = "%s/persistency_map_00000000T000000.fits" % (pers_dir)
         
         # If this flag is set, simply create a new persistency map
         create_new_persistency_map(None, write_fits=outputfile)
