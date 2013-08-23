@@ -783,7 +783,7 @@ def collectcells(input, outputfile,
 
     # Tell all workers to shut down when no more data is left to work on
     for i in range(len(processes)):
-        stdout_write("Sending quit command!\n")
+        if (verbose): stdout_write("Sending quit command!\n")
         queue.put((True,None,None))
 
     #
