@@ -773,11 +773,6 @@ def collectcells(input, outputfile,
         #print "Commanding work for extension",ota
         queue.put( (False, filename, ota_id+1) )
 
-    # Tell all workers to shut down when no more data is left to work on
-    for i in range(len(processes)):
-        stdout_write("Sending quit command!\n")
-        queue.put((True,None,None))
-
     # Create all processes to handle the actual reduction and combination
     #print "Creating",number_cpus,"worker processes"
     for i in range(number_cpus):
@@ -785,6 +780,11 @@ def collectcells(input, outputfile,
         p.start()
         processes.append(p)
         time.sleep(0.01)
+
+    # Tell all workers to shut down when no more data is left to work on
+    for i in range(len(processes)):
+        stdout_write("Sending quit command!\n")
+        queue.put((True,None,None))
 
     #
     # By now all workers have computed their HDUs or are busy doing so,
@@ -1410,7 +1410,7 @@ def read_options_from_commandline(options=None):
     options['bpm_dir']  = cmdline_arg_set_or_default("-bpm", options['bpm_dir'])
     if (options['bpm_dir'] == "auto"):
         full_path = os.path.abspath(sys.argv[0])
-        options['bpm_dir'], dummy = os.path.split()
+        options['bpm_dir'], dummy = os.path.split(full_path)
         
     if (options['verbose']):
         print """
