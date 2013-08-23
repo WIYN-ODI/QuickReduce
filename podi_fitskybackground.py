@@ -104,7 +104,6 @@ def sample_background(data, wcs, starcat, min_found=200, boxwidth=30, fit_region
     #
     # Now check the randomly selected regions
     #
-    print min_found, max_tried, len(fit_regions)
     while (found < min_found and tried < max_tried):
         #print box_center[tried,:]
 
@@ -145,8 +144,6 @@ def sample_background(data, wcs, starcat, min_found=200, boxwidth=30, fit_region
 
         tried += 1
         found += 1
-
-    print "length=",len(fit_regions), tried, found
 
     return fit_regions
 
