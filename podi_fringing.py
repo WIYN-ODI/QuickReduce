@@ -39,6 +39,7 @@ import ctypes
 from podi_definitions import *
 import podi_imcombine
 import podi_fitskybackground
+import time
 
 avg_sky_countrates = {
     "odi_i": 3.8,
@@ -46,6 +47,7 @@ avg_sky_countrates = {
     "823_v2": 0.1,
 }
 
+number_cpus = 4
 
 def make_fringing_template(input_filelist, outputfile, return_hdu=False, skymode='local'):
 
@@ -165,16 +167,152 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False, skymode
     return
 
 
-def match_subtract_fringing(datahdu, fringe):
+def compute_fringe_scale(datahdu, fringehdu):
 
-    if (not type(fringe) is pyfits.HDUList):
-        # The fringe variable is a filename
-        fringe_filename = fringe
-        fringe = pyfits.open(fringe_filename)
-        
+    extname = datahdu.header['EXTNAME']
+    print "\n\n\n",extname,"\n"
+    data = datahdu.data
+    fringe = fringehdu.data
+
+    # rebin data to cut down on processing time
+    binning = 8
+    data_binned = rebin_image(data, binning)
+    fringe_binned = rebin_image(fringe, binning)
+
+    # compute mean fringe amplitude
+    mean_fringe = bottleneck.nanmean(fringe_binned)
+    fringe_binned -= mean_fringe
+    print "mean fringe =",mean_fringe
+
+    skylevel = datahdu.header['SKY_MEDI']
+    skysub = data_binned - skylevel
+
+    def min_stat(scale, data, fringe):
+        return bottleneck.nanmean( numpy.fabs((skysub - scale*fringe)*fringe) )
+        #return bottleneck.nanmean( ((skysub - scale*fringe)*fringe)**2 )
+
+    initial_guess = 100
+    res = scipy.optimize.fmin(min_stat, initial_guess, 
+                              args=(skysub, fringe_binned),
+                              full_output=True)
+    print res
+    res_fits = [[res[0][0], res[1], res[2], res[3], res[4]]]
+
+    return res_fits
+
+def mpworker_fringe_scale(queue_jobs, queue_return): #datahdu, fringehdu):
+
+    while (True):
+        cmd_quit, data = queue_jobs.get()
+        if (cmd_quit):
+            break
+
+        # Read all the data for the job to do
+        # datahdu, fringehdu = data
+        data_filename, fringe_filename, extname = data
+
+        # Open both fits files and select the right extension
+        data_hdulist = pyfits.open(data_filename)
+        fringe_hdulist = pyfits.open(fringe_filename)
+        datahdu = data_hdulist[extname]
+        fringehdu = fringe_hdulist[extname]
+
+        # Do the calculation
+        res_fits = compute_fringe_scale(datahdu, fringehdu)
+
+        # close the files and hopefully free up some memory
+        data_hdulist.close()
+        fringe_hdulist.close()
+
+        # return the data to the main process
+        return_data = (res_fits)
+        queue_return.put(return_data)
+        queue_jobs.task_done()
 
     return
 
+
+def match_subtract_fringing(data_filename, fringe_filename, verbose=True, output=None):
+
+#    if (not type(fringe_hdulist) is pyfits.HDUList):
+#        # The fringe variable is a filename
+#        fringe_filename = fringe_hdulist
+    fringe_hdulist = pyfits.open(fringe_filename)
+    data_hdulist = pyfits.open(data_filename)
+        
+    if (verbose): stdout_write("Creating queues\n")
+    queue = multiprocessing.JoinableQueue()
+    return_queue = multiprocessing.Queue()
+
+    if (verbose): stdout_write("Handing out work\n")
+    all_results = None
+    number_extensions = 0
+    for ext in range(1, len(data_hdulist)):
+        if (type(data_hdulist[ext]) != pyfits.hdu.image.ImageHDU):
+            continue
+
+        # Load data for each extension/OTA
+        extname = data_hdulist[ext].header['EXTNAME']
+        print "Queuing work on",extname
+
+        cmd_data = (data_filename, fringe_filename, extname)
+        queue.put( (False, cmd_data) )
+
+        #queue.put( (False, (data_hdulist[extname], fringe_hdulist[extname]) ) )
+        number_extensions += 1
+
+    # Start all worker processes
+    if (verbose): stdout_write("Starting workers\n")
+    processes = []
+    for i in range(number_cpus):
+        worker_args = (queue, return_queue)
+        p = multiprocessing.Process(target=mpworker_fringe_scale, args=worker_args)
+        p.start()
+        processes.append(p)
+        time.sleep(0.01)
+
+    # Send one termination command to each worker
+    if (verbose): stdout_write("seinding quit commands\n")
+    for p in processes:
+        queue.put( (True, None) )
+
+    # Collect all results from all the workers
+    if (verbose): stdout_write("Collecting work\n")
+    all_results = None
+    for i in range(number_extensions):
+        res_fits = return_queue.get()
+        if (res_fits != None):
+            all_results = res_fits if (all_results == None) \
+                else numpy.append(all_results, numpy.array(res_fits), axis=0)
+
+    if (verbose): stdout_write("computing scaling\n")
+    print all_results[:, 0:3]
+
+    quality_sorted = numpy.sort(all_results[:,1])
+    use_for_median = all_results[:,1] < quality_sorted[5]
+        
+    median_scaling = numpy.median(all_results[:,0][use_for_median])
+    std_scaling = numpy.std(all_results[:,0][use_for_median])
+
+    if (verbose): stdout_write("doing reduction\n")
+
+    for ext in range(1, len(data_hdulist)):
+        if (type(data_hdulist[ext]) != pyfits.hdu.image.ImageHDU):
+            continue
+
+        extname = data_hdulist[ext].header['EXTNAME']
+        data_hdulist[ext].data -= (fringe_hdulist[extname].data * median_scaling)
+
+        data_hdulist[ext].header.update("FRNG_SCL", median_scaling, "fringe scaling")
+        data_hdulist[ext].header.update("FRNG_STD", std_scaling, "fringe scaling std.dev.")
+
+    if (output != None):
+        data_hdulist.writeto(output, clobber=True)
+        data_hdulist.close()
+        return median_scaling, std_scaling, None
+
+    print data_hdulist
+    return median_scaling, std_scaling, data_hdulist
 
 
 if __name__ == "__main__":
@@ -502,3 +640,18 @@ if __name__ == "__main__":
         #datahdu.writeto("corrected.fits", clobber=True)
 
         sys.exit(0)
+
+
+
+
+    if (cmdline_arg_isset("-matchsubtract")):
+        dataframe = get_clean_cmdline()[1]
+        fringemap = get_clean_cmdline()[2]
+        
+        #datahdu = pyfits.open(dataframe)
+        #fringehdu = pyfits.open(fringemap)
+        #match_subtract_fringing(datahdu, fringehdu)
+
+        datahdu = match_subtract_fringing(dataframe, fringemap, output="matchsubtract.fits")
+        
+        #datahdu.writeto("matchsubtract.out.fits", clobber=True)
