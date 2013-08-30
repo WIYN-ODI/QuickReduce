@@ -59,6 +59,7 @@ import podi_asyncfitswrite
 import podi_fitskybackground
 import podi_matchcatalogs
 import podi_matchpupilghost
+import podi_fringing
 
 from astLib import astWCS
 
@@ -75,6 +76,27 @@ if (sitesetup.number_cpus == "auto"):
         pass
 else:
     number_cpus = sitesetup.number_cpus
+
+
+
+
+def three_sigma_clip(input, ranges, nrep=3):
+
+    valid = (input > ranges[0]) & (input < ranges[1])
+                
+    for rep in range(nrep):
+        lsig = scipy.stats.scoreatpercentile(input[valid], 16)
+        hsig = scipy.stats.scoreatpercentile(input[valid], 84)
+        median = numpy.median(input[valid])
+        sigma = 0.5 * (hsig - lsig)
+
+        mingood = numpy.max([median - 3*sigma, ranges[0]])
+        maxgood = numpy.min([median + 3*sigma, ranges[1]])
+
+            #print median, sigma
+        valid = (input > mingood) & (input < maxgood)
+        
+    return input[valid]
 
 
 def collect_reduce_ota(filename,
@@ -357,33 +379,51 @@ def collect_reduce_ota(filename,
                 hdu.header.add_history("CC-FLAT: %s" % (os.path.abspath(flatfield_filename)))
                 del flatfield
 
-        #
-        # If requested, subtract the fringing template
-        #
-        if (options['fringe_dir'] != None):
-            fringe_filename = check_filename_directory(options['fringe_dir'], "fringes__%s.fits" % (filter_name))
-            print "Removing fringes",fringe_filename
-            if (os.path.isfile(fringe_filename)):
-                print "using fringe map",fringe_filename
-                fringe_hdu = pyfits.open(fringe_filename)
-                for ext in fringe_hdu[1:]:
-                    if (extname == ext.header['EXTNAME']):
-                        print "scaling for",extname,"=",exposure_time * fringe_hdu[0].header['SKYCNTRT']
-                        scaled_sky = ext.data * exposure_time * fringe_hdu[0].header['SKYCNTRT']
-                        merged -= scaled_sky
-                        break
-                fringe_hdu.close()
-                del fringe_hdu
-
         # Finally, apply bad pixel masks 
-        # Determine which region file we need
         if (not options['bpm_dir'] == None):
+            # Determine which region file we need
             region_file = "%s/bpm_%s.reg" % (options['bpm_dir'], fppos)
             if (os.path.isfile(region_file)):
                 # Apply the bad pixel regions to file, marking
                 # all bad pixels as NaNs
                 mask_broken_regions(merged, region_file)
                 hdu.header.add_history("CC-BPM: %s" % (os.path.abspath(region_file)))
+
+        #
+        # If requested, determine the optimal fringe scaling
+        #
+        fringe_scaling = None
+        fringe_scaling_median, fringe_scaling_std = -1, -1
+        if (options['fringe_dir'] != None):
+            fringe_filename = check_filename_directory(options['fringe_dir'], "fringes__%s.fits" % (filter_name))
+            fringe_vector_file = "%s/fringevectors__%s__OTA%02d.reg" % (options['fringe_vectors'], filter_name, ota)
+            # print fringe_filename
+            # print fringe_vector_file
+
+            # Do not determine fringe scaling if either or the input files does 
+            # not exist or any of the cells in this OTA is marked as video cell
+            if (os.path.isfile(fringe_filename)
+                and os.path.isfile(fringe_vector_file)
+                and hdu.header['CELLMODE'].find("V") < 0
+                ):
+                fringe_hdu = pyfits.open(fringe_filename)
+                for ext in fringe_hdu[1:]:
+                    if (extname == ext.header['EXTNAME']):
+                        #print "Working on fringe scaling for",extname
+                        fringe_scaling = podi_fringing.get_fringe_scaling(merged, ext.data, fringe_vector_file)
+                        if (not fringe_scaling == None):
+                            good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])
+                            fringe_scaling_median = numpy.median(good_scalings)
+                            fringe_scaling_std    = numpy.std(good_scalings)
+                        break
+                hdu.header.add_history("fringe map: %s" % fringe_filename)
+                hdu.header.add_history("fringe vector: %s" % fringe_vector_file)
+                fringe_hdu.close()
+            #print "FRNG_SCL", fringe_scaling_median
+            #print "FRNG_STD", fringe_scaling_std
+            hdu.header.update("FRNG_SCL", fringe_scaling_median)
+            hdu.header.update("FRNG_STD", fringe_scaling_std)
+            hdu.header.update("FRNG_OK", (fringe_scaling != None))
 
         # Insert the DETSEC header so IRAF understands where to put the extensions
         start_x = ota_c_x * 4096
@@ -508,7 +548,7 @@ def collect_reduce_ota(filename,
                         print "The Sextractor catalog is empty, ignoring this OTA"
                         source_cat = None
                     else:
-                        if (source_cat.shape[0] == 0):
+                        if (source_cat.shape[0] == 0 or source_cat.ndim < 2):
                             source_cat == None
                         else:
                             source_cat[:,12] = ota
@@ -522,7 +562,7 @@ def collect_reduce_ota(filename,
 
             fixwcs_data = None
             if (source_cat != None):
-                if (source_cat.shape[0] > 0):
+                if (source_cat.shape[0] > 0 and source_cat.ndim == 2):
                     odi_ra = source_cat[:,0]
                     odi_dec = source_cat[:,1]
                     odi_mag = -2.5 * numpy.log10(source_cat[:,6]) + 30
@@ -582,6 +622,7 @@ def collect_reduce_ota(filename,
     data_products['wcsdata'] = fixwcs_data
     data_products['sky-samples'] = sky_samples
     data_products['sky'] = (sky_level_median, sky_level_mean, sky_level_std)
+    data_products['fringe_scaling'] = fringe_scaling
 
     return data_products #hdu, fixwcs_data
     
@@ -822,6 +863,7 @@ def collectcells(input, outputfile,
     ############################################################
     global_number_matches = None
     sky_samples = {}
+    fringe_scaling = None
     for i in range(len(list_of_otas_to_collect)):
         #hdu, ota_id, wcsfix_data = return_queue.get()
         ota_id, data_products = return_queue.get()
@@ -881,6 +923,10 @@ def collectcells(input, outputfile,
             #print fixwcs_bestguess.shape, add_to_bestguess.shape
             #continue
             #fixwcs_bestguess = numpy.append(fixwcs_bestguess, add_to_bestguess, axis=0)
+
+        if (not data_products['fringe_scaling'] == None):
+            fringe_scaling = data_products['fringe_scaling'] if fringe_scaling == None else \
+                numpy.append(fringe_scaling, data_products['fringe_scaling'], axis=0)
 
     if (options['fixwcs'] and not options['update_persistency_only']):
         x = open("fixwcs.nmatches","w")
@@ -1254,6 +1300,36 @@ def collectcells(input, outputfile,
 
         numpy.savetxt("matched_cat.cat", odi_2mass_matched)
 
+    #
+    # If requested by user via command line:
+    # Execute the fringing correction
+    #
+    if (not options['fringe_dir'] == None and fringe_scaling.shape[0] > 0):
+        
+        # Determine the global scaling factor
+        good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])
+        fringe_scaling_median = numpy.median(good_scalings)
+        fringe_scaling_std    = numpy.std(good_scalings)
+
+        # and log the values in the primary header
+        ota_list[0].header.update("FRNG_SCL", fringe_scaling_median)
+        ota_list[0].header.update("FRNG_STD", fringe_scaling_std)
+
+        # Construct the name of the fringe map
+        filter_name = ota_list[0].header['FILTER']
+        fringe_filename = check_filename_directory(options['fringe_dir'], "fringes__%s.fits" % (filter_name))
+        # print fringe_filename
+        if (os.path.isfile(fringe_filename)):
+            fringe_hdulist = pyfits.open(fringe_filename)
+
+            # Now do the correction
+            for ext in range(1, len(ota_list)):
+                extname = ota_list[ext].header['EXTNAME']
+                if (type(ota_list[ext]) != pyfits.hdu.image.ImageHDU):
+                    continue
+                # print "subtracting",extname
+                ota_list[ext].data -= (fringe_hdulist[extname].data * fringe_scaling_median)
+
     #print "Waiting for a bit"
     #afw.wait()
     #print "done waiting, writing output file"
@@ -1363,11 +1439,18 @@ def set_default_options(options_in=None):
     if (options_in != None):
         options = options_in
 
+    # Get directory of the executable. This also serves as the 
+    # fall-back directory for some data
+    full_path = os.path.abspath(sys.argv[0])
+    options['exec_dir'], dummy = os.path.split(full_path)
+
     options['update_persistency_only'] = False
     options['persistency_dir'] = None
     options["persistency_map"] = None
 
     options['fringe_dir'] = None
+    options['fringe_vectors'] = "%s/.fringevectors/" % (options['exec_dir'])
+
     options['pupilghost_dir'] = None
 
     options['bias_dir'] = None
@@ -1421,8 +1504,7 @@ def read_options_from_commandline(options=None):
 
     options['bpm_dir']  = cmdline_arg_set_or_default("-bpm", options['bpm_dir'])
     if (options['bpm_dir'] == "auto"):
-        full_path = os.path.abspath(sys.argv[0])
-        options['bpm_dir'], dummy = os.path.split(full_path)
+        options['bpm_dir'] = options['exec_dir']
         
     if (options['verbose']):
         print """
@@ -1438,6 +1520,8 @@ Calibration data:
     options["update_persistency_only"] = cmdline_arg_isset("-update_persistency_only")
 
     options['fringe_dir'] = cmdline_arg_set_or_default('-fringe', None)
+    options['fringe_vectors'] = cmdline_arg_set_or_default("-fringevectors", options['fringe_vectors'])
+
     options['pupilghost_dir'] = cmdline_arg_set_or_default('-pupilghost', None)
 
     options['fixwcs'] = cmdline_arg_isset("-fixwcs")
