@@ -317,8 +317,28 @@ def match_subtract_fringing(data_filename, fringe_filename, verbose=True, output
 
 
 
-def get_fringe_scalings(data, fringe, region_file):
+def get_fringe_scaling(data, fringe, region_file):
+    """
+    This routine implements the technique for determining the optimal
+    fringe scaling outlined in Snodgrass & Carry 2013, ESO Messenger 152, 14.
 
+    In short, it determines the mean value in a number of regions selected
+    visually to represent dark- and bright spots in the fringe map. The 
+    difference between bright and dark represents the fringe amplitude. The 
+    same measurements are taken for the same regions in the data frame,
+    informing about the fringe amplitude in the data frame. The ratio between
+    the two amplitudes represents the required fringe scaling factor.
+
+    Input variables are:
+    - the data frame as 2-d numpy array
+    - the fringe map as 2-d numpy array
+    - the filename of a ds9 region file defining the regions
+
+    Output:
+    A vector of measurements, column 6 of which is the scaling factor for
+    each region.
+    """
+    
     if (not os.path.isfile(region_file)):
         return None
 
@@ -329,9 +349,7 @@ def get_fringe_scalings(data, fringe, region_file):
 
     data = numpy.array(data, dtype=numpy.float32)
     fringe = numpy.array(fringe, dtype=numpy.float32)
-
-
-    all_vectors = []
+_vectors = []
     for line in entries:
         #print line
         if (line.find("vector(") < 0):
@@ -742,7 +760,7 @@ if __name__ == "__main__":
             fringe = fringe_hdulist[extname].data
 
             region_file = "fringe__%s__%s.reg" % (filter_name, extname[0:5])
-            vecs = get_fringe_scalings(data, fringe, region_file) 
+            vecs = get_fringe_scaling(data, fringe, region_file) 
 
             if (not vecs == None):
                 all_vecs = vecs if all_vecs == None else numpy.append(all_vecs, vecs, axis=0)
