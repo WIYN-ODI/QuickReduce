@@ -559,12 +559,19 @@ def collect_reduce_ota(filename,
                                                                          starcat=starcat, 
                                                                          min_found=200, boxwidth=30))
 
-        sky_level_median = numpy.median(sky_samples[:,4])
-        sky_level_mean   = numpy.mean(sky_samples[:,4])
-        sky_level_std    = numpy.std(sky_samples[:,4])
-        hdu.header.update("SKY_MEDI", sky_level_median, "sky-level median")
-        hdu.header.update("SKY_MEAN", sky_level_mean, "sky-level mean")
-        hdu.header.update("SKY_STD", sky_level_std, "sky-level rms")
+        if (sky_samples.shape[0] <= 0): #not sky_samples.shape[1] > 4):
+            print "Something went wrong with the sky-calculation"
+            print "sky-samples =",sky_samples
+            print "sky-samples.shape =",sky_samples.shape
+            sky_level_median, sky_level_mean, sky_level_std = -1, -1, -1
+            sky_samples = None
+        else:
+            sky_level_median = numpy.median(sky_samples[:,4])
+            sky_level_mean   = numpy.mean(sky_samples[:,4])
+            sky_level_std    = numpy.std(sky_samples[:,4])
+            hdu.header.update("SKY_MEDI", sky_level_median, "sky-level median")
+            hdu.header.update("SKY_MEAN", sky_level_mean, "sky-level mean")
+            hdu.header.update("SKY_STD", sky_level_std, "sky-level rms")
 
     data_products['hdu'] = hdu
     data_products['wcsdata'] = fixwcs_data
