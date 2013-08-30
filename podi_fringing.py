@@ -315,6 +315,66 @@ def match_subtract_fringing(data_filename, fringe_filename, verbose=True, output
     return median_scaling, std_scaling, data_hdulist
 
 
+
+
+def get_fringe_scalings(data, fringe, region_file):
+
+    if (not os.path.isfile(region_file)):
+        return None
+
+    # Read the region file
+    regfile = open(region_file, "r")
+    entries = regfile.readlines()
+    regfile.close()
+
+    data = numpy.array(data, dtype=numpy.float32)
+    fringe = numpy.array(fringe, dtype=numpy.float32)
+
+
+    all_vectors = []
+    for line in entries:
+        #print line
+        if (line.find("vector(") < 0):
+            continue
+        start = line.find("vector(") + 7
+        end = line.find(")", start)
+        #print line[start:end]," --> ",
+        items = line[start:end].split(",")
+        #print items
+
+        origx = int(float(items[0]))
+        origy = int(float(items[1]))
+        length = float(items[2])
+        angle = float(items[3]) 
+
+        dx = length * math.cos(math.radians(angle))
+        dy = length * math.sin(math.radians(angle))
+
+        darkx, darky = origx, origy
+        lightx, lighty = int(origx+dx), int(origy+dy)
+
+        #print darkx, darky, lightx, lighty
+
+        boxwidth = 10
+        data_dark = bottleneck.nanmedian(data[darky-boxwidth:darky+boxwidth,darkx-boxwidth:darkx+boxwidth])
+        data_light = bottleneck.nanmedian(data[lighty-boxwidth:lighty+boxwidth,lightx-boxwidth:lightx+boxwidth])
+
+        fringe_dark = bottleneck.nanmedian(fringe[darky-boxwidth:darky+boxwidth,darkx-boxwidth:darkx+boxwidth])
+        fringe_light = bottleneck.nanmedian(fringe[lighty-boxwidth:lighty+boxwidth,lightx-boxwidth:lightx+boxwidth])
+
+        data_diff = data_light - data_dark
+        fringe_diff = fringe_light - fringe_dark
+        scaling = data_diff / fringe_diff
+        #print data_light, data_dark, fringe_light, fringe_dark, data_diff, fringe_diff, scaling
+
+        one_vector = [data_light, data_dark, fringe_light, fringe_dark, data_diff, fringe_diff, scaling]
+        all_vectors.append(one_vector)
+
+    vecs = numpy.array(all_vectors)
+
+    return vecs
+
+
 if __name__ == "__main__":
 
     if (cmdline_arg_isset("-singles")):
@@ -655,3 +715,62 @@ if __name__ == "__main__":
         datahdu = match_subtract_fringing(dataframe, fringemap, output="matchsubtract.fits")
         
         #datahdu.writeto("matchsubtract.out.fits", clobber=True)
+
+
+    if (cmdline_arg_isset("-esomethod")):
+        fringe_frame = get_clean_cmdline()[1]
+        data_frame = get_clean_cmdline()[2]
+        output_filename = get_clean_cmdline()[3]
+        
+        data_hdulist = pyfits.open(data_frame)
+        fringe_hdulist = pyfits.open(fringe_frame)
+
+        filter_name = data_hdulist[0].header['FILTER']
+        print "\nThis is filter",filter_name,"\n"
+
+        all_vecs = None
+        for ext in range(1, len(data_hdulist)):
+            if (type(data_hdulist[ext]) != pyfits.hdu.image.ImageHDU):
+                continue
+            if (not data_hdulist[ext].header['CELLMODE'].find("V") < 0):
+                # This is marked as a guide CCD and most likely useless
+                continue
+
+            extname = data_hdulist[ext].header['EXTNAME']
+
+            data = data_hdulist[extname].data
+            fringe = fringe_hdulist[extname].data
+
+            region_file = "fringe__%s__%s.reg" % (filter_name, extname[0:5])
+            vecs = get_fringe_scalings(data, fringe, region_file) 
+
+            if (not vecs == None):
+                all_vecs = vecs if all_vecs == None else numpy.append(all_vecs, vecs, axis=0)
+
+        scaling_factors = all_vecs[:,6]
+        valid = scaling_factors > 0
+                
+        median_scaling = numpy.median(scaling_factors[valid])
+        print "median scaling=",median_scaling
+
+        for rep in range(3):
+            lsig = scipy.stats.scoreatpercentile(scaling_factors[valid], 16)
+            hsig = scipy.stats.scoreatpercentile(scaling_factors[valid], 84)
+            median = numpy.median(scaling_factors[valid])
+            sigma = 0.5 * (hsig - lsig)
+            #print median, sigma
+            valid = (scaling_factors > median-3*sigma) & (scaling_factors < median+3*sigma)
+
+        #all_vecs[:,6][valid == False] *= -1.
+        #numpy.savetxt("all_vecs.dat", all_vecs)
+
+        final_scaling = numpy.median(scaling_factors[valid])
+        print "final scaling (OTA %s): %.3f" % (extname, final_scaling)
+
+        # Now do the correction
+        for ext in range(1, len(data_hdulist)):
+            if (type(data_hdulist[ext]) != pyfits.hdu.image.ImageHDU):
+                continue
+            data_hdulist[extname].data -= (fringe_hdulist[extname].data * final_scaling)
+
+        data_hdulist.writeto(output_filename, clobber=True)
