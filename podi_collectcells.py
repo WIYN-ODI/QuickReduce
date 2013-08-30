@@ -502,14 +502,19 @@ def collect_reduce_ota(filename,
                 if (options['verbose']): print sexcmd
                 os.system(sexcmd)
                 try:
-                    source_cat = numpy.loadtxt(catfile)
-                    if (source_cat.shape[0] == 0):
-                        source_cat == None
+                    try:
+                        source_cat = numpy.loadtxt(catfile)
+                    except IOError:
+                        print "The Sextractor catalog is empty, ignoring this OTA"
+                        source_cat = None
                     else:
-                        source_cat[:,12] = ota
-                        valid = (source_cat[:,11] != 3)
-                        if (verbose): print "source-cat:", source_cat.shape, numpy.sum(valid)
-                        source_cat = source_cat[valid]
+                        if (source_cat.shape[0] == 0):
+                            source_cat == None
+                        else:
+                            source_cat[:,12] = ota
+                            valid = (source_cat[:,11] != 3)
+                            if (verbose): print "source-cat:", source_cat.shape, numpy.sum(valid)
+                            source_cat = source_cat[valid]
                 except:
                     source_cat == None
                 clobberfile(fitsfile)
@@ -986,7 +991,7 @@ def collectcells(input, outputfile,
             if (ota_list[i].header['EXTNAME'] == ota_name):
                 not_a_guiding_ota = (ota_list[i].header['CELLMODE'].find("V") < 0)
                 break
-        if (ota_number in valid_ext and not_a_guiding_ota):
+        if (ota_number in valid_ext and not_a_guiding_ota and not sky_samples[ext] == None):
             if (sky_samples_global == None):
                 sky_samples_global = sky_samples[ext]
             else:
