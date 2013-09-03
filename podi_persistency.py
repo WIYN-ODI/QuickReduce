@@ -30,8 +30,248 @@ import pywcs
 from astLib import astWCS
 import jdcal
 
-from podi_definitions import *
+import time
+import multiprocessing
+import Queue
 
+from podi_definitions import *
+import podi_sitesetup as sitesetup
+
+
+
+if (sitesetup.number_cpus == "auto"):
+    try:
+        number_cpus = multiprocessing.cpu_count()
+        print "Yippie, found %d CPUs to use in parallel!" % (number_cpus)
+        if (number_cpus > sitesetup.max_cpu_count and sitesetup.max_cpu_count > 1):
+            number_cpus = sitesetup.max_cpu_count
+            print "... but using only %d of them!" % (number_cpus)
+    except:
+        pass
+else:
+    number_cpus = sitesetup.number_cpus
+
+
+def mp_create_saturation_catalog(queue_in, queue_ret, verbose=False):
+    """
+    This is a small helper routine for the process of creating the saturation catalogs.
+    It reads filenames from job queue, creates the arrays of pixel coordinates, and 
+    posts the results to a return queue. Actually creating the fits tables is then 
+    handled by the main process.
+    """
+
+    while (True):
+        filename = queue_in.get()
+
+        if (filename == None):
+            queue_in.task_done()
+            return
+
+        cat_name = create_saturation_catalog_ota(filename, None, verbose=verbose, return_numpy_catalog=True)
+
+        queue_ret.put( cat_name )
+
+        queue_in.task_done()
+
+    return
+
+
+
+def create_saturation_catalog(filename, output_dir, verbose=True, mp=False):
+
+    if (os.path.isfile(filename)):
+        # This is one of the OTA fits files
+        # extract the necessary information to generate the 
+        # names of all the other filenames
+        hdulist = pyfits.open(filename)
+        basename = hdulist[0].header['FILENAME'][:18]
+        hdulist.close()
+
+        # Split the input filename to extract the directory part
+        directory, dummy = os.path.split(filename)
+
+    elif (os.path.isdir(filename)):
+        # As a safety precaution, if the first parameter is the directory containing 
+        # the files, extract just the ID string to be used for this script
+        if (filename[-1] == "/"):
+            filename = filename[:-1]
+
+        basedir, basename = os.path.split(filename)
+        directory = filename
+
+    output_filename = "%s/%s.saturated.fits" % (output_dir, basename)
+    stdout_write("%s --> %s ...\n" % (filename, output_filename))
+
+    # Setup parallel processing
+    queue        = multiprocessing.JoinableQueue()
+    return_queue = multiprocessing.JoinableQueue()
+    #return_queue = multiprocessing.Queue()
+        
+    number_jobs_queued = 0
+    first_fits_file = None
+    ota_list = []
+
+    for (ota_x, ota_y) in available_ota_coords:
+        ota = ota_x * 10 + ota_y
+
+        filename = "%s/%s.%02d.fits" % (directory, basename, ota)
+        if (not os.path.isfile(filename)):
+            filename = "%s/%s.%02d.fits.fz" % (directory, basename, ota)
+            if (not os.path.isfile(filename)):
+                continue
+
+
+        queue.put( (filename) )
+        number_jobs_queued += 1
+
+        # Remember the very first fits file we find. This will serve as the primary HDU
+        if (first_fits_file == None): first_fits_file = filename
+       
+    # Now start all the workers
+    processes = []
+    for i in range(number_cpus):
+        p = multiprocessing.Process(target=mp_create_saturation_catalog, args=(queue, return_queue, False))
+        p.start()
+        processes.append(p)
+        time.sleep(0.01)
+
+    # Tell all workers to shut down when no more data is left to work on
+    for i in range(len(processes)):
+        if (verbose): stdout_write("Sending quit command!\n")
+        queue.put( (None) )
+
+    # Create a primary HDU from the first found fits-file
+    firsthdu = pyfits.open(first_fits_file)
+    ota_list.append(pyfits.PrimaryHDU(header=firsthdu[0].header))
+    firsthdu.close()
+    firsthdu = None
+
+    for i in range(number_jobs_queued):
+        if (verbose): print "reading return ",i
+
+        cat_name = return_queue.get()
+        if (cat_name != None):
+            final_cat, extension_name = cat_name
+
+            columns = [\
+                pyfits.Column(name='CELL_X', format='I', array=final_cat[:, 0]),
+                pyfits.Column(name='CELL_Y', format='I', array=final_cat[:, 1]),
+                pyfits.Column(name='X',      format='I', array=final_cat[:, 2]),
+                pyfits.Column(name='Y',      format='I', array=final_cat[:, 3])
+                ]
+            # Create the table extension
+            coldefs = pyfits.ColDefs(columns)
+            tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
+            tbhdu.update_ext_name(extension_name, comment="catalog of saturated pixels")
+
+            ota_list.append(tbhdu)
+            
+        return_queue.task_done()
+            
+    hdulist = pyfits.HDUList(ota_list)
+    output_filename = "%s/%s.saturated.fits" % (output_dir, basename)
+    clobberfile(output_filename)
+    hdulist.writeto(output_filename, clobber=True)
+
+    return
+
+
+
+def create_saturation_catalog_ota(filename, output_dir, verbose=True, return_numpy_catalog=False):
+
+    # Open filename
+    if (verbose):
+        stdout_write("Creating catalog of saturated pixels\n")
+        stdout_write("Input filename: %s\n" % (filename))
+
+    hdulist = pyfits.open(filename)
+
+    mjd = hdulist[0].header['MJD-OBS']
+    obsid = hdulist[0].header['OBSID']
+    ota = int(hdulist[0].header['FPPOS'][2:4])
+    datatype = hdulist[0].header['FILENAME'][0]
+
+    full_coords = numpy.zeros(shape=(0,4)) #, dtype=numpy.int16)
+    saturated_pixels_total = 0
+
+    for ext in range(1, len(hdulist)):
+        if (type(hdulist[ext]) != pyfits.hdu.image.ImageHDU):
+            continue
+
+        # Find all saturated pixels (values >= 65K)
+        data = hdulist[ext].data
+        saturated = (data >= 65535)
+
+        # Skip this cell if no pixels are saturated
+        number_saturated_pixels = numpy.sum(saturated)
+        if (number_saturated_pixels <= 0):
+            continue
+
+        saturated_pixels_total += number_saturated_pixels
+        
+        wn_cellx = hdulist[ext].header['WN_CELLX']
+        wn_celly = hdulist[ext].header['WN_CELLY']
+
+        if (verbose): print "number of saturated pixels in cell %d,%d: %d" % (wn_cellx, wn_celly, number_saturated_pixels)
+
+        # Do some book-keeping preparing for the masking
+        rows, cols = numpy.indices(data.shape)
+
+        saturated_rows = rows[saturated]
+        saturated_cols = cols[saturated]
+
+        #print saturated_rows.shape, saturated_cols.shape
+
+        coordinates = numpy.zeros(shape=(number_saturated_pixels,4))
+        coordinates[:,0] = wn_cellx
+        coordinates[:,1] = wn_celly
+        coordinates[:,2] = saturated_cols[:]
+        coordinates[:,3] = saturated_rows[:]
+
+        full_coords = numpy.append(full_coords, coordinates, axis=0) #coordinates if full_coords == None else 
+
+    final_cat = numpy.array(full_coords, dtype=numpy.dtype('int16'))
+
+    if (saturated_pixels_total <= 0):
+        return None
+
+    # Now define the columns for the table
+    columns = [\
+        pyfits.Column(name='CELL_X', format='I', array=final_cat[:, 0]),
+        pyfits.Column(name='CELL_Y', format='I', array=final_cat[:, 1]),
+        pyfits.Column(name='X',      format='I', array=final_cat[:, 2]),
+        pyfits.Column(name='Y',      format='I', array=final_cat[:, 3])
+        ]
+    # Create the table extension
+    coldefs = pyfits.ColDefs(columns)
+    tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
+    extension_name = "OTA%02d.SATPIX" % (ota)
+    tbhdu.update_ext_name(extension_name, comment="catalog of saturated pixels")
+
+    if (return_numpy_catalog):
+        return final_cat, extension_name
+
+    # Also copy the primary header into the new catalog
+    primhdu = pyfits.PrimaryHDU(header=hdulist[0].header)
+
+    # Create a HDUList for output
+    out_hdulist = pyfits.HDUList([primhdu, tbhdu])
+    
+    # And create the output file
+    output_filename = "%s/%s%s.%02d.saturated.fits" % (output_dir, datatype, obsid, ota)
+    stdout_write("Writing output: %s\n" % (output_filename))
+
+    clobberfile(output_filename)
+    out_hdulist.writeto(output_filename, clobber=True)
+
+    if (verbose):
+        print "some of the saturated pixels:\n",final_cat[0:10,:]
+
+    #numpy.savetxt("test", final_cat)
+    #print full_coords.shape
+        
+    return final_cat
+    
 
 
 def map_persistency_effects(hdulist, verbose=False):
@@ -383,6 +623,13 @@ if __name__ == "__main__":
         directory = get_clean_cmdline()[1]
         mjd = float(get_clean_cmdline()[2])
         find_latest_persistency_map(directory, mjd, verbose=True)
+        sys.exit(0)
+
+    if (cmdline_arg_isset('-makecat')):
+        output_dir = cmdline_arg_set_or_default('-persistency', '.')
+        verbose = cmdline_arg_isset("-verbose")
+        for filename in get_clean_cmdline()[1:]:
+            create_saturation_catalog(filename, output_dir=output_dir, verbose=verbose)
         sys.exit(0)
 
     inputfile = sys.argv[1]
