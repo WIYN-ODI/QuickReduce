@@ -273,6 +273,81 @@ def create_saturation_catalog_ota(filename, output_dir, verbose=True, return_num
     return final_cat
     
 
+def mask_saturation_defects(catfilename, ota, data):
+    """
+    Create a map, for the specified OTA, where are pixels affected by trailing are flagged.
+    """
+
+    # Open the catalog file
+    catlist = pyfits.open(catfilename)
+    extension_name  = "OTA%02d.SATPIX" % (ota)
+
+    print catfilename, ota, data.shape
+
+    try:
+        ota_cat = catlist[extension_name].data
+    except:
+        print "couldn't find catalog",extension_name
+        return data
+
+    # Now we have a valid catalog extension
+    # First of all, create a frame for the mask
+    mask = numpy.zeros(shape=data.shape)
+
+
+    cell_x = ota_cat.field('CELL_X')
+    cell_y = ota_cat.field('CELL_Y')
+    pixel_x = ota_cat.field('X')
+    pixel_y = ota_cat.field('Y')
+
+    # Combine the cell x/y coordinates 
+    cell_xy = cell_x * 10 + cell_y
+
+    unique_cells = set(cell_xy)
+
+    for cell in unique_cells:
+        print ota, cell
+
+        in_this_cell = (cell_xy == cell)
+        saturated_cols = pixel_x[in_this_cell]
+        saturated_rows = pixel_y[in_this_cell]
+
+        unique_cols = set(saturated_cols)
+
+        # extract the mask block for the current cell
+        cx, cy = int(math.floor(cell/10)), cell % 10
+        #print cx, cy
+
+        bx, tx, by, ty = cell2ota__get_target_region(cx,cy)
+        #print bx, tx, by, ty 
+
+        cell_mask = mask[by:ty, bx:tx]
+
+        row_ids, col_ids = numpy.indices((cell_mask.shape[0],1))
+
+        for col in unique_cols:
+
+            this_col_saturated = saturated_rows[saturated_cols == col]
+
+            ##print "working on col",col #saturated[col,:]
+            #this_col_saturated = row_ids[saturated[:,col]]
+            ##print "saturated in this col",this_col_saturated
+            min_y = numpy.min(this_col_saturated)
+            max_y = numpy.max(this_col_saturated)
+
+            cell_mask[min_y:, col] = 1
+
+        # Re-insert the cell mask into the larger mask
+        mask[by:ty, bx:tx] = cell_mask
+
+
+    # Now we have the full mask, mark all pixels as invalid
+    #print mask[0:10,0:10]
+    data[mask == 1] = numpy.NaN
+
+    return data
+
+        
 
 def map_persistency_effects(hdulist, verbose=False):
 
@@ -630,6 +705,21 @@ if __name__ == "__main__":
         verbose = cmdline_arg_isset("-verbose")
         for filename in get_clean_cmdline()[1:]:
             create_saturation_catalog(filename, output_dir=output_dir, verbose=verbose)
+        sys.exit(0)
+
+    if (cmdline_arg_isset('-masksattrails')):
+        input_file = get_clean_cmdline()[1]
+        catalog_file = get_clean_cmdline()[2]
+        output_file = get_clean_cmdline()[3]
+        
+        inputhdu = pyfits.open(input_file)
+        for i in range(1, len(inputhdu)):
+            if (not type(inputhdu[i]) == pyfits.hdu.image.ImageHDU):
+                continue
+            ota = int(inputhdu[i].header['EXTNAME'][3:5])
+            print ota
+            inputhdu[i].data = mask_saturation_defects(catalog_file, ota, inputhdu[i].data)
+        inputhdu.writeto(output_file, clobber=True)
         sys.exit(0)
 
     inputfile = sys.argv[1]
