@@ -273,16 +273,21 @@ def create_saturation_catalog_ota(filename, output_dir, verbose=True, return_num
     return final_cat
     
 
+
+
+
+
 def mask_saturation_defects(catfilename, ota, data):
     """
     Create a map, for the specified OTA, where are pixels affected by trailing are flagged.
+    These pixels are then set to NaN to hopefully be removed during stacking.
     """
 
     # Open the catalog file
     catlist = pyfits.open(catfilename)
     extension_name  = "OTA%02d.SATPIX" % (ota)
 
-    print catfilename, ota, data.shape
+    #print catfilename, ota, data.shape
 
     try:
         ota_cat = catlist[extension_name].data
@@ -306,7 +311,7 @@ def mask_saturation_defects(catfilename, ota, data):
     unique_cells = set(cell_xy)
 
     for cell in unique_cells:
-        print ota, cell
+        #print ota, cell
 
         in_this_cell = (cell_xy == cell)
         saturated_cols = pixel_x[in_this_cell]
@@ -326,6 +331,8 @@ def mask_saturation_defects(catfilename, ota, data):
         row_ids, col_ids = numpy.indices((cell_mask.shape[0],1))
 
         for col in unique_cols:
+            if (col >= cell_mask.shape[1]):
+                continue
 
             this_col_saturated = saturated_rows[saturated_cols == col]
 
@@ -347,7 +354,166 @@ def mask_saturation_defects(catfilename, ota, data):
 
     return data
 
+
+def get_list_of_saturation_tables(directory): 
+    """
+    Search the specified directory and create an inventory of available
+    saturation maps. For each file we store the filename and the MJD-OBS header 
+    value that we will later use to specify the amount of correct required.
+    """
+
+    # Get a list of all files in the specified directory
+    filelist = os.listdir(directory)
+
+    mjd_catalog_list = []
+    for filename in filelist:
+
+        # The file should contain the name "saturated.fits"
+        if (filename.find("saturated.fits") < 0):
+            # this does not look like a valid file
+            continue
+
+        full_filename = "%s/%s" % (directory, filename)
+
+        hdulist = pyfits.open(full_filename)
+        mjd = hdulist[0].header['MJD-OBS']
         
+        mjd_catalog_list.append( (mjd, full_filename) )
+
+        hdulist.close()
+
+    return mjd_catalog_list
+
+
+def select_from_saturation_tables(mjd_catalog_list, search_mjd, delta_mjd_range=[0,600]):
+    """
+    This routine filters the list of saturation maps to select only files within
+    the specified delta_mjd window. Intervals are given in second, and both the upper 
+    and lower limit are considered to be within the window.
+    """
+
+    close_mjd_files = []
+    for mjd, full_filename in mjd_catalog_list:
+
+        delta_mjd = (search_mjd - mjd) * 86400.
+        
+        if (delta_mjd >= delta_mjd_range[0] and delta_mjd <= delta_mjd_range[1]):
+            close_mjd_files.append( (mjd, full_filename) )
+
+    return close_mjd_files
+
+
+
+
+
+
+
+
+def correct_persistency_effects(ota, data, mjd, filelist):
+    """
+    Create a map, for the specified OTA, where are pixels affected by persistency are 
+    flagged with the MJD ob their last saturation. From this we can then derive the 
+    required correction.
+
+    The detailed prescription for the amplitude of the correction is still unknown, so 
+    for the time being all persistent pixels are simply masked out (set to NaN).
+    """
+
+    # First of all, create a frame for the mask
+    mask = numpy.zeros(shape=data.shape)
+
+    # extract all mjds
+    mjds = []
+    for cat_mjd, catfilename in filelist:
+        #print mjd, catfilename
+        mjds.append(mjd)
+
+    # Now sort the list of MJD's from smallest (earliest) to largest (latest)
+    mjd_sorting = numpy.argsort(numpy.array(mjds))
+
+    # And create a new filelist with MJDs sorted
+    mjd_sorted_filelist = []
+    for i in range(len(mjds)-1, -1, -1):
+        mjd_sorted_filelist.append(filelist[mjd_sorting[i]])
+        #print filelist[mjd_sorting[i]][0]
+
+    #print "\n"
+    #return
+
+    for cat_mjd, catfilename in mjd_sorted_filelist:
+
+        # Open the catalog file
+        catlist = pyfits.open(catfilename)
+        extension_name  = "OTA%02d.SATPIX" % (ota)
+        d_mjd = mjd - cat_mjd
+        
+        #print ota, catfilename, d_mjd, d_mjd*86400
+
+        try:
+            ota_cat = catlist[extension_name].data
+        except:
+            print "couldn't find catalog",extension_name
+            continue
+
+        # Now we have a valid catalog extension
+
+        cell_x = ota_cat.field('CELL_X')
+        cell_y = ota_cat.field('CELL_Y')
+        pixel_x = ota_cat.field('X')
+        pixel_y = ota_cat.field('Y')
+
+        # Combine the cell x/y coordinates 
+        cell_xy = cell_x * 10 + cell_y
+
+        unique_cells = set(cell_xy)
+
+        for cell in unique_cells:
+            #print ota, cell
+
+            in_this_cell = (cell_xy == cell)
+            saturated_cols = pixel_x[in_this_cell]
+            saturated_rows = pixel_y[in_this_cell]
+
+            unique_cols = set(saturated_cols)
+
+            # extract the mask block for the current cell
+            cx, cy = int(math.floor(cell/10)), cell % 10
+            #print cx, cy
+
+            bx, tx, by, ty = cell2ota__get_target_region(cx,cy)
+            #print bx, tx, by, ty 
+
+            cell_mask = mask[by:ty, bx:tx]
+
+            row_ids, col_ids = numpy.indices((cell_mask.shape[0],1))
+
+            for col in unique_cols:
+                if (col >= cell_mask.shape[1]):
+                    continue
+
+                this_col_saturated = saturated_rows[saturated_cols == col]
+                max_y = numpy.max(this_col_saturated)
+
+                cell_mask[:max_y, col] = cat_mjd
+
+            # Re-insert the cell mask into the larger mask
+            mask[by:ty, bx:tx] = cell_mask
+
+
+    # Now we have the full mask, mark all pixels as invalid
+    correction = mask > 0
+    data[correction] = numpy.NaN
+
+    return data
+
+
+
+
+
+
+
+
+
 
 def map_persistency_effects(hdulist, verbose=False):
 
@@ -721,6 +887,45 @@ if __name__ == "__main__":
             inputhdu[i].data = mask_saturation_defects(catalog_file, ota, inputhdu[i].data)
         inputhdu.writeto(output_file, clobber=True)
         sys.exit(0)
+
+    if (cmdline_arg_isset("-findclosemjds")):
+        input_file = get_clean_cmdline()[1]
+        catalog_dir = cmdline_arg_set_or_default('-persistency', '.')
+        inputhdu = pyfits.open(input_file)
+        mjd = inputhdu[0].header['MJD-OBS']
+        print input_file,":",mjd
+
+        filelist = get_list_of_saturation_tables(catalog_dir, mjd, [-1,600])
+        print filelist
+        sys.exit(0)
+
+    if (cmdline_arg_isset("-fixpersistency")):
+        input_file = get_clean_cmdline()[1]
+        output_file = get_clean_cmdline()[2]
+        catalog_dir = cmdline_arg_set_or_default('-persistency', '.')
+        inputhdu = pyfits.open(input_file)
+        mjd = inputhdu[0].header['MJD-OBS']
+        print input_file,":",mjd
+
+        full_filelist = get_list_of_saturation_tables(catalog_dir)
+        filelist = select_from_saturation_tables(full_filelist, mjd, [1,1800])
+
+        exact_file = select_from_saturation_tables(full_filelist, mjd, [0,0])
+        #print filelist
+
+        #inputhdu = pyfits.open(input_file)
+        for i in range(1, len(inputhdu)):
+            if (not type(inputhdu[i]) == pyfits.hdu.image.ImageHDU):
+                continue
+            ota = int(inputhdu[i].header['EXTNAME'][3:5])
+            print "working on ota",ota
+
+            inputhdu[i].data = mask_saturation_defects(exact_file[0][1], ota, inputhdu[i].data)
+            inputhdu[i].data = correct_persistency_effects(ota, inputhdu[i].data, mjd, filelist)      
+        print "Writing ", output_file
+        inputhdu.writeto(output_file, clobber=True)
+        sys.exit(0)
+
 
     inputfile = sys.argv[1]
     hdulist = pyfits.open(inputfile)
