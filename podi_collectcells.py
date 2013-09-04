@@ -400,10 +400,13 @@ def collect_reduce_ota(filename,
 
             # Get a list of all saturation catalogs
             full_filelist = podi_persistency.get_list_of_saturation_tables(options['persistency_dir'])
+            #print full_filelist
 
             # Search for the saturation map for this frame and, if found,
             # mask out all saturated pixels
             saturated_thisframe = podi_persistency.select_from_saturation_tables(full_filelist, mjd, None)
+            #print "this frame=",saturated_thisframe,mjd
+
             if (not saturated_thisframe == None):
                 merged = podi_persistency.mask_saturation_defects(saturated_thisframe, ota, merged)
             hdu.header.update("SATMASK", saturated_thisframe)
@@ -425,10 +428,11 @@ def collect_reduce_ota(filename,
         fringe_scaling = None
         fringe_scaling_median, fringe_scaling_std = -1, -1
         if (options['fringe_dir'] != None):
-            fringe_filename = check_filename_directory(options['fringe_dir'], "fringes__%s.fits" % (filter_name))
+            fringe_filename = check_filename_directory(options['fringe_dir'], "fringe__%s.fits" % (filter_name))
             fringe_vector_file = "%s/fringevectors__%s__OTA%02d.reg" % (options['fringe_vectors'], filter_name, ota)
-            # print fringe_filename
-            # print fringe_vector_file
+            if (options['verbose']):
+                print "fringe file:",fringe_filename, "    found:",os.path.isfile(fringe_filename)
+                print "fringe vector:",fringe_vector_file, "    found:",os.path.isfile(fringe_vector_file)
 
             # Do not determine fringe scaling if either or the input files does 
             # not exist or any of the cells in this OTA is marked as video cell
@@ -439,7 +443,7 @@ def collect_reduce_ota(filename,
                 fringe_hdu = pyfits.open(fringe_filename)
                 for ext in fringe_hdu[1:]:
                     if (extname == ext.header['EXTNAME']):
-                        #print "Working on fringe scaling for",extname
+                        if (options['verbose']): print "Working on fringe scaling for",extname
                         fringe_scaling = podi_fringing.get_fringe_scaling(merged, ext.data, fringe_vector_file)
                         if (not fringe_scaling == None):
                             good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])
@@ -490,10 +494,10 @@ def collect_reduce_ota(filename,
             if (options['verbose']): print "Overwriting target positions",options['target_coords']
             ra, dec = options['target_coords']
             coord_j2000 = ephem.Equatorial(ra, dec, epoch=ephem.J2000)
+            if (options['verbose']): print "\n\nAdjusting ra/dec:", coord_j2000.ra, coord_j2000.dec,"\n\n"
 
         # Write the CRVALs with the pointing information
         #print numpy.degrees(coord_j2000.ra), numpy.degrees(coord_j2000.dec)  
-        if (options['verbose']): print "\n\nAdjusting ra/dec:", coord_j2000.ra, coord_j2000.dec,"\n\n"
         hdu.header['CRVAL1'] = numpy.degrees(coord_j2000.ra)  
         hdu.header['CRVAL2'] = numpy.degrees(coord_j2000.dec) 
 
@@ -926,9 +930,9 @@ def collectcells(input, outputfile,
         hdu = data_products['hdu']
         wcsfix_data = data_products['wcsdata']
 
-        if ("persistency_map_updated" in data_products):
-            # We also received an updated persistency map
-            persistency[ota_id] = data_products["persistency_map_updated"]
+        #if ("persistency_map_updated" in data_products):
+        #    # We also received an updated persistency map
+        #    persistency[ota_id] = data_products["persistency_map_updated"]
 
         if (hdu == None):
             continue
@@ -980,6 +984,8 @@ def collectcells(input, outputfile,
             #fixwcs_bestguess = numpy.append(fixwcs_bestguess, add_to_bestguess, axis=0)
 
         if (not data_products['fringe_scaling'] == None):
+            #print data_products['fringe_scaling'].shape
+            #if (fringe_scaling != None): print fringe_scaling.shape
             fringe_scaling = data_products['fringe_scaling'] if fringe_scaling == None else \
                 numpy.append(fringe_scaling, data_products['fringe_scaling'], axis=0)
 
@@ -1111,7 +1117,7 @@ def collectcells(input, outputfile,
         filter_level = get_filter_level(ota_list[0].header)
         filter_name = get_valid_filter_name(ota_list[0].header)
         pg_template = "%s/pupilghost_radial___level_%d.fits" % (options['pupilghost_dir'], filter_level)
-        stdout_write("looing for radial pupil ghost template %s...\n" % (pg_template))
+        stdout_write("looking for radial pupil ghost template %s...\n" % (pg_template))
         # If we have a template for this level
         if (os.path.isfile(pg_template)):
             stdout_write("\n   Using pupilghost template %s, filter %s ... " % (pg_template, filter_name))
@@ -1359,7 +1365,7 @@ def collectcells(input, outputfile,
     # If requested by user via command line:
     # Execute the fringing correction
     #
-    if (not options['fringe_dir'] == None and fringe_scaling.shape[0] > 0):
+    if (not options['fringe_dir'] == None and not fringe_scaling == None): #.shape[0] > 0):
         
         # Determine the global scaling factor
         good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])
@@ -1538,7 +1544,7 @@ def check_filename_directory(given, default_filename):
     elif (os.path.isdir(given)):
         return "%s/%s" % (given, default_filename)
 
-    return None
+    return ""
 
 def read_options_from_commandline(options=None):
 
