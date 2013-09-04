@@ -292,7 +292,7 @@ def mask_saturation_defects(catfilename, ota, data):
     try:
         ota_cat = catlist[extension_name].data
     except:
-        print "couldn't find catalog",extension_name
+        #print "couldn't find catalog",extension_name
         return data
 
     # Now we have a valid catalog extension
@@ -355,7 +355,45 @@ def mask_saturation_defects(catfilename, ota, data):
     return data
 
 
-def get_list_of_saturation_tables(directory): 
+def load_saturation_table_list(indexfile, mjd_catalog_list):
+    """
+    Reads the simple index file with the list of available saturation tables
+    and their MJDs. This speed up processing.
+    """
+
+    # Make sure the file exists
+    if (not os.path.isfile(indexfile)):
+        return mjd_catalog_list
+
+    # Open the file, read its content, and add to the existing filelist
+    with open(indexfile, "r") as fh:
+        lines = fh.readlines()
+        for line in lines:
+            items = line.strip().split("-->")
+            abs_filename = items[0].strip()
+            mjd = float(items[1].strip())
+            #print items,"-->", abs_filename, mjd
+            
+            # only add the file to the catalog if it exists
+            if (os.path.isfile(abs_filename)):
+                mjd_catalog_list[abs_filename] = mjd
+
+    #print "read from file:\n",mjd_catalog_list,"\n\n"
+    return mjd_catalog_list
+
+def save_saturation_table_list(filename, mjd_catalog_list):
+    """
+    Write the catalog back to an index file so we can access it again
+    in the future without having to re-read the MJDs from each file.
+    """
+
+    with open(filename, "w") as fh:
+        for catfile, mjd in mjd_catalog_list.iteritems():
+            print >>fh, '%s --> %.12f' % (catfile, mjd)
+        fh.close()
+    return
+
+def get_list_of_saturation_tables(directory, mjd_catalog_list=None): 
     """
     Search the specified directory and create an inventory of available
     saturation maps. For each file we store the filename and the MJD-OBS header 
@@ -365,7 +403,12 @@ def get_list_of_saturation_tables(directory):
     # Get a list of all files in the specified directory
     filelist = os.listdir(directory)
 
-    mjd_catalog_list = []
+    if (mjd_catalog_list == None):
+        mjd_catalog_list = {}
+
+    indexfile = "%s/index.cat" % (directory)
+    mjd_catalog_list = load_saturation_table_list(indexfile, mjd_catalog_list)
+
     for filename in filelist:
 
         # The file should contain the name "saturated.fits"
@@ -374,14 +417,19 @@ def get_list_of_saturation_tables(directory):
             continue
 
         full_filename = "%s/%s" % (directory, filename)
+        abs_filename = os.path.abspath(full_filename)
 
-        hdulist = pyfits.open(full_filename)
-        mjd = hdulist[0].header['MJD-OBS']
+        if (not abs_filename in mjd_catalog_list):
+            hdulist = pyfits.open(full_filename)
+            mjd = hdulist[0].header['MJD-OBS']
+            # print "Adding file",abs_filename,":",mjd
         
-        mjd_catalog_list.append( (mjd, full_filename) )
+            mjd_catalog_list[abs_filename] = mjd
 
-        hdulist.close()
+            hdulist.close()
 
+    # At the end of the run, dump the list of files into the directory
+    save_saturation_table_list(indexfile, mjd_catalog_list)
     return mjd_catalog_list
 
 
@@ -392,13 +440,20 @@ def select_from_saturation_tables(mjd_catalog_list, search_mjd, delta_mjd_range=
     and lower limit are considered to be within the window.
     """
 
-    close_mjd_files = []
-    for mjd, full_filename in mjd_catalog_list:
+    close_mjd_files = {}
+    for full_filename, mjd in mjd_catalog_list.iteritems():
+
+        #mjd = mjd_catalog_list[full_filename]
 
         delta_mjd = (search_mjd - mjd) * 86400.
         
-        if (delta_mjd >= delta_mjd_range[0] and delta_mjd <= delta_mjd_range[1]):
-            close_mjd_files.append( (mjd, full_filename) )
+        if (delta_mjd_range == None):
+            if (delta_mjd > -1 and delta_mjd < 1):
+                return full_filename
+        else:
+            if (delta_mjd >= delta_mjd_range[0] and delta_mjd <= delta_mjd_range[1]):
+                close_mjd_files[full_filename] = mjd
+                #close_mjd_files.append( (mjd, full_filename) )
 
     return close_mjd_files
 
@@ -424,9 +479,11 @@ def correct_persistency_effects(ota, data, mjd, filelist):
 
     # extract all mjds
     mjds = []
-    for cat_mjd, catfilename in filelist:
+    catalog = []
+    for catfilename, cat_mjd in filelist.iteritems():
         #print mjd, catfilename
         mjds.append(mjd)
+        catalog.append( (cat_mjd, catfilename) )
 
     # Now sort the list of MJD's from smallest (earliest) to largest (latest)
     mjd_sorting = numpy.argsort(numpy.array(mjds))
@@ -434,7 +491,7 @@ def correct_persistency_effects(ota, data, mjd, filelist):
     # And create a new filelist with MJDs sorted
     mjd_sorted_filelist = []
     for i in range(len(mjds)-1, -1, -1):
-        mjd_sorted_filelist.append(filelist[mjd_sorting[i]])
+        mjd_sorted_filelist.append(catalog[mjd_sorting[i]])
         #print filelist[mjd_sorting[i]][0]
 
     #print "\n"
@@ -452,7 +509,7 @@ def correct_persistency_effects(ota, data, mjd, filelist):
         try:
             ota_cat = catlist[extension_name].data
         except:
-            print "couldn't find catalog",extension_name
+            #print "couldn't find catalog",extension_name
             continue
 
         # Now we have a valid catalog extension
@@ -895,8 +952,9 @@ if __name__ == "__main__":
         mjd = inputhdu[0].header['MJD-OBS']
         print input_file,":",mjd
 
-        filelist = get_list_of_saturation_tables(catalog_dir, mjd, [-1,600])
-        print filelist
+        full_filelist = get_list_of_saturation_tables(catalog_dir)
+        filelist = select_from_saturation_tables(full_filelist, mjd, [-1,600])
+        print "found closest:\n",filelist
         sys.exit(0)
 
     if (cmdline_arg_isset("-fixpersistency")):
@@ -910,8 +968,9 @@ if __name__ == "__main__":
         full_filelist = get_list_of_saturation_tables(catalog_dir)
         filelist = select_from_saturation_tables(full_filelist, mjd, [1,1800])
 
-        exact_file = select_from_saturation_tables(full_filelist, mjd, [0,0])
-        #print filelist
+        exact_filename = select_from_saturation_tables(full_filelist, mjd, None)
+        print "previous files:",filelist
+        print "this file:",exact_filename
 
         #inputhdu = pyfits.open(input_file)
         for i in range(1, len(inputhdu)):
@@ -920,7 +979,9 @@ if __name__ == "__main__":
             ota = int(inputhdu[i].header['EXTNAME'][3:5])
             print "working on ota",ota
 
-            inputhdu[i].data = mask_saturation_defects(exact_file[0][1], ota, inputhdu[i].data)
+            #exact_filename = exact_filelist.keys()[0]
+            #inputhdu[i].data = mask_saturation_defects(exact_file[0][1], ota, inputhdu[i].data)
+            inputhdu[i].data = mask_saturation_defects(exact_filename, ota, inputhdu[i].data)
             inputhdu[i].data = correct_persistency_effects(ota, inputhdu[i].data, mjd, filelist)      
         print "Writing ", output_file
         inputhdu.writeto(output_file, clobber=True)
