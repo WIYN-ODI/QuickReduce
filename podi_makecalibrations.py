@@ -189,10 +189,15 @@ if __name__ == "__main__":
     # And finally, reduce the flats using the biases and darks.
     #
     if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "flat"): 
+
         cmdline_opts = read_options_from_commandline()
         options['bias_dir'] = output_directory if (cmdline_opts['bias_dir'] == None) else cmdline_opts['bias_dir']
         options['dark_dir'] = output_directory if (cmdline_opts['dark_dir'] == None) else cmdline_opts['dark_dir']
         for cur_filter_id in range(len(filters)):
+            # Overwrite the pupil ghost correction so we don't do it twice
+            pupilghost_dir = options['pupilghost_dir']
+            options['pupilghost_dir'] = None
+
             filter = filters[cur_filter_id]
             flat_frame = "%s/flat_%s.fits" % (output_directory, filter)
             flats_to_stack = []
@@ -221,7 +226,14 @@ if __name__ == "__main__":
                 # Now apply the pupil ghost correction 
                 # Only do this if requested via keyword -pupilghost=(dirname)
                 #
-                if (options['pupilghost_dir'] != None):
+                if (not pupilghost_dir == None): #options['pupilghost_dir'] != None):
+                    # Also save a copy before the pupil ghost correction.
+                    print "Writing flat-field before pupil ghost correction ..."
+                    flat_hdus.writeto(flat_frame[:-5]+".prepg.fits", clobber=True)
+
+                    # Reset the pupil ghost option to enable it here
+                    options['pupilghost_dir'] = pupilghost_dir
+
                     stdout_write("Performing pupil ghost correction ...")
                     # Get level os active filter and determine what the template filename is
                     filter_level = get_filter_level(flat_hdus[0].header)
