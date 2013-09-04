@@ -150,7 +150,9 @@ def imcombine_data(datas, operation="nanmean"):
     # Allocate enough shared memory to load a single OTA from all files. The shared part is
     # important to make communication between the main and the slave processes possible.
     size_x, size_y = datas[0].shape[0], datas[0].shape[1]
-    shmem_buffer = multiprocessing.RawArray(ctypes.c_float, size_x*size_y*len(datas))
+    total_pixels = size_x*size_y*len(datas)
+    # print "total pixel count",total_pixels
+    shmem_buffer = multiprocessing.RawArray(ctypes.c_float, total_pixels) #size_x*size_y*len(datas))
 
     # Extract the shared memory buffer as numpy array to make things easier
     buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len(datas)))
@@ -160,10 +162,11 @@ def imcombine_data(datas, operation="nanmean"):
 
     # Now open all the other files, look for the right extension, and copy their image data to buffer
     for data_id in range(len(datas)):
+        # stdout_write("copying %d" % (data_id))
         buffer[:,:,data_id] = datas[data_id][:,:]
 
     sizes = (size_x, size_y, len(datas))
-    combined = imcombine_sharedmem_data(buffer, operation, sizes)
+    combined = imcombine_sharedmem_data(shmem_buffer, operation, sizes)
 
     del shmem_buffer
     return combined
