@@ -136,6 +136,7 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False, skymode
         # Create new ImageHDU
         # Insert the imcombine'd frame into the output HDU
         # Copy all headers from the reference HDU
+        # stdout_write(" creating HDU ...")
         hdu = pyfits.ImageHDU(header=ref_hdulist[cur_ext].header, data=combined)
 
         # Append the new HDU to the list of result HDUs
@@ -349,7 +350,8 @@ def get_fringe_scaling(data, fringe, region_file):
 
     data = numpy.array(data, dtype=numpy.float32)
     fringe = numpy.array(fringe, dtype=numpy.float32)
-_vectors = []
+
+    all_vectors = []
     for line in entries:
         #print line
         if (line.find("vector(") < 0):
