@@ -77,13 +77,20 @@ def mp_create_saturation_catalog(queue_in, queue_ret, verbose=False):
 
 
 
-def create_saturation_catalog(filename, output_dir, verbose=True, mp=False):
+def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo=False):
+
+    stdout_write(filename)
 
     if (os.path.isfile(filename)):
         # This is one of the OTA fits files
         # extract the necessary information to generate the 
         # names of all the other filenames
-        hdulist = pyfits.open(filename)
+        try:
+            hdulist = pyfits.open(filename)
+        except:
+            stdout_write("\rProblem opening file %s...\n" % (filename))
+            return
+
         basename = hdulist[0].header['FILENAME'][:18]
         hdulist.close()
 
@@ -100,7 +107,11 @@ def create_saturation_catalog(filename, output_dir, verbose=True, mp=False):
         directory = filename
 
     output_filename = "%s/%s.saturated.fits" % (output_dir, basename)
-    stdout_write("%s --> %s ...\n" % (filename, output_filename))
+    stdout_write(" --> %s ...\n" % (output_filename))
+
+    if (os.path.isfile(output_filename) and not redo):
+        print "File exists, skipping!"
+        return
 
     # Setup parallel processing
     queue        = multiprocessing.JoinableQueue()
@@ -184,7 +195,11 @@ def create_saturation_catalog_ota(filename, output_dir, verbose=True, return_num
         stdout_write("Creating catalog of saturated pixels\n")
         stdout_write("Input filename: %s\n" % (filename))
 
-    hdulist = pyfits.open(filename)
+    try:
+        hdulist = pyfits.open(filename)
+    except:
+        # Something bad happened
+        return None
 
     mjd = hdulist[0].header['MJD-OBS']
     obsid = hdulist[0].header['OBSID']
