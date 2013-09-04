@@ -474,6 +474,9 @@ def select_from_saturation_tables(mjd_catalog_list, search_mjd, delta_mjd_range=
                 close_mjd_files[full_filename] = mjd
                 #close_mjd_files.append( (mjd, full_filename) )
 
+    if (delta_mjd_range == None):
+        return None
+
     return close_mjd_files
 
 
