@@ -387,6 +387,10 @@ def save_saturation_table_list(filename, mjd_catalog_list):
     in the future without having to re-read the MJDs from each file.
     """
 
+    # Create the index filename if the input is only a directory
+    if (os.path.isdir(filename)):
+        filename = "%s/index.cat" % (filename)
+
     with open(filename, "w") as fh:
         for catfile, mjd in mjd_catalog_list.iteritems():
             print >>fh, '%s --> %.12f' % (catfile, mjd)
