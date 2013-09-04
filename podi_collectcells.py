@@ -858,16 +858,42 @@ def collectcells(input, outputfile,
 
     # Create all processes to handle the actual reduction and combination
     #print "Creating",number_cpus,"worker processes"
-    for i in range(number_cpus):
-        p = multiprocessing.Process(target=parallel_collect_reduce_ota, args=worker_args)
-        p.start()
-        processes.append(p)
-        time.sleep(0.01)
-
-    # Tell all workers to shut down when no more data is left to work on
-    for i in range(len(processes)):
+    if ('profile' in options and number_cpus == 1):
+        # 
+        # If profiling is activated, run one only one processor and in non-multiprocessing mode
+        #
+        # Tell all workers to shut down when no more data is left to work on
+        #for i in range(len(processes)):
         if (verbose): stdout_write("Sending quit command!\n")
         queue.put((True,None,None))
+
+        while (True):
+            print "Doing work single-processed"
+            cmd_quit, filename, ota_id = queue.get()
+            if (cmd_quit):
+                queue.task_done()
+                break
+
+            # Do the work
+            data_products = collect_reduce_ota(filename, options=options)
+
+            # Add the results to the return_queue so the master process can assemble the result file
+            # print "Adding results for OTA",ota_id,"to return queue"
+            # return_queue.put( (hdu, ota_id, wcsfix_data) )
+            return_queue.put( (ota_id, data_products) )
+            queue.task_done()
+    else:
+        for i in range(number_cpus):
+            p = multiprocessing.Process(target=parallel_collect_reduce_ota, args=worker_args)
+            p.start()
+            processes.append(p)
+            time.sleep(0.01)
+
+        # Tell all workers to shut down when no more data is left to work on
+        for i in range(len(processes)):
+            if (verbose): stdout_write("Sending quit command!\n")
+            queue.put((True,None,None))
+
 
     #
     # By now all workers have computed their HDUs or are busy doing so,
@@ -1643,6 +1669,7 @@ if __name__ == "__main__":
     # Collect all cells, perform reduction and write result file
     try:
         if (cmdline_arg_isset('-profile')):
+            options['profile'] = True
             import cProfile, pstats
             cProfile.run("""collectcells(input, outputfile,
                      options=options)""", "profiler")
