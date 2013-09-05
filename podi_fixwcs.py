@@ -61,13 +61,13 @@ IPP_DIR = "/Volumes/odifile/Catalogs/IPPRefCat/catdir.synth.grizy/"
 
 
 
-def count_matches(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1):
+def count_matches(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1, matching_radius_arcsec=3.6):
 
     ota_count = ota_x.shape[0]
     ref_count = ref_x.shape[0]
     # print "Using %d and %d stars in shift_align_wcs" % (ota_count, ref_count)
 
-    matching_radius = 3.6 * arcsec
+    matching_radius = matching_radius_arcsec * arcsec
     max_d2 = matching_radius * matching_radius
 
     if (verbose): print "Matching radius",matching_radius, max_d2
