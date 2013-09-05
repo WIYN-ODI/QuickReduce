@@ -1034,12 +1034,20 @@ def collectcells(input, outputfile,
         if (os.path.isfile(pg_template)):
             stdout_write("\n   Using pupilghost template %s, filter %s ... " % (pg_template, filter_name))
             pg_hdu = pyfits.open(pg_template)
-            scaling = podi_matchpupilghost.scaling_factors[filter_name]
 
-            podi_matchpupilghost.subtract_pupilghost(ota_list, pg_hdu, scaling*sky_global_median, rotate=False)
+            # Find the optimal scaling factor
+            scaling, scaling_std = podi_matchpupilghost.get_pupilghost_scaling(ota_list, pg_hdu)
+
+            # And subtract the scaled pupilghost templates.
+            podi_matchpupilghost.subtract_pupilghost(ota_list, pg_hdu, scaling, rotate=False)
+
             ota_list[0].header.update("PUPLGOST", pg_template, "p.g. template")
-            ota_list[0].header.update("PUPLGFAC", scaling*sky_global_median, "pupilghost scaling")
+            ota_list[0].header.update("PUPLGFAC", scaling, "pupilghost scaling")
+            bg_scaled = podi_matchpupilghost.scaling_factors[filter_name]*sky_global_median
+            ota_list[0].header.update("PUPLGFA2", bg_scaled, "analytical pupilghost scaling")
             stdout_write(" done!\n")
+
+            pg_hdu.close()
 
     #
     # Fix the WCS if requested
