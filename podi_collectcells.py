@@ -1094,40 +1094,18 @@ def collectcells(input, outputfile,
     if (options['fixwcs']):
         debuglog = outputfile+".wcsdebug"
         declination = ota_list[1].header['CRVAL2']
+        #
+        # Combine the most-matches shifts from all available OTAs, and
+        # determine a rough first shift position.
+        #
+        numpy.savetxt("number_matches", global_number_matches)
         best_guess, contrast, drxy = podi_fixwcs.optimize_shift(global_number_matches, 
                                                                 declination=declination,
                                                                 debuglogfile=debuglog)
         stdout_write("Found offset: %.2f', %.2f' (+/- %.1f''), contrast %.1f (%d)\n" % (
                 best_guess[0]*60., best_guess[1]*60., drxy[0]*3600*0.5, contrast, best_guess[2]))
 
-        wcs_shift_guess = best_guess[0:2]
-
-        #
-        # Combine the most-matches shifts from all available OTAs, 
-        # reject outliers to get a more robust result
-        #
-        # wcs_shift_guess = podi_fixwcs.get_overall_best_guess(fixwcs_bestguess)
-
-        #
-        # Now go back, match the ODI and reference catalogs and refine the solution
-        #
-        #print "\n\n\n\n\n",fixwcs_odi_x.shape, fixwcs_odi_ra.shape,"\n\n\n\n\n"
-        if (False):
-            wcs_shift_refinement, matched_cat, matches = \
-                podi_fixwcs.refine_wcs_shift(ref_x=fixwcs_ref_ra, ref_y=fixwcs_ref_dec, 
-                                             ota_x=fixwcs_odi_ra, ota_y=fixwcs_odi_dec, 
-                                             ota_px_x=fixwcs_odi_x, ota_px_y=fixwcs_odi_y,
-                                             best_guess=wcs_shift_guess, 
-                                             matching_radius=3, #arcsec
-                                             alignment_checkfile=None,
-                                             verbose=False)
-        else:
-            wcs_shift_refinement = numpy.array([0,0])
-
-        # Add the previous (best-guess) shift and the new refinement
-        wcs_shift = wcs_shift_guess + wcs_shift_refinement
-        stdout_write("Further refinement: %.2f'' %.2f''\n" % (
-                wcs_shift_refinement[0]*3600., wcs_shift_refinement[1]*3600.))
+        wcs_shift = best_guess[0:2]
 
         # Now pickle some data for further development
         if (podi_fixwcs_rotation.output_debug_catalogs):
@@ -1165,7 +1143,6 @@ def collectcells(input, outputfile,
         print "Found ",count," matched odi+2mass pairs"
 
         numpy.savetxt("odi+2mass.matched", odi_2mass_matched)
-        #numpy.savetxt("odi+2mass.matched2", other)
 
         if (True):
             # print "Creating some diagnostic plots"
@@ -1212,39 +1189,6 @@ def collectcells(input, outputfile,
                                         fixrot_trans)
 
             
-        if (False):
-            #
-            # Fix rotator misalignment 
-            #
-            p_optimized,old_new = podi_fixwcs.rotate_optimize(ota_list, fixwcs_extension, 
-                                                              matched_cat[:,2], matched_cat[:,3],
-                                                              fixwcs_odi_x, fixwcs_odi_y
-                                                              ) #matched_cat
-            print "Best-fit: Offset x/y=",p_optimized[0]*3600," / ",p_optimized[1]*3600, "   rotation",p_optimized[2]*60,"arcmin"
-            for extension in range(1, len(ota_list)):
-                if (ota_list[extension] == None): 
-                    continue                
-            podi_fixwcs.apply_fit_params(ota_list[extension].header, p_optimized)
-
-            matplotlib.pyplot.close()
-            fig = matplotlib.pyplot.figure()
-            matplotlib.pyplot.plot((old_new[:,0] - old_new[:,4])*3600., (old_new[:,1] - old_new[:,5])*3600., "b,", linewidth=0)
-            matplotlib.pyplot.title("WCS Scatter\n%s" % outputfile)
-            matplotlib.pyplot.xlabel("error RA ['']")
-            matplotlib.pyplot.ylabel("error DEC ['']")
-            matplotlib.pyplot.xlim((-3,3))
-            matplotlib.pyplot.ylim((-3,3))
-            matplotlib.pyplot.grid(True)
-            matplotlib.pyplot.axes().set_aspect('equal')
-            png_wcsscatter = outputfile[:-5]+".wcs3.png"
-            fig.savefig(png_wcsscatter)
-            #fig.savefig(png_wcsscatter[:-4]+".eps")
-            matplotlib.pyplot.close()
-
-            wcsfit = open("wcsfit.dump", "w")
-            numpy.savetxt(wcsfit, old_new)
-            wcsfit.close()
-
         #
         # Save the two catalogs to the output file
         #
