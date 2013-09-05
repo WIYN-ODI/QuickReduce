@@ -146,48 +146,9 @@ def collect_reduce_ota(filename,
         for c in cards:
             hdu.header.update(c.key, c.value, c.comment)
 
-        
-        # #
-        # # Check all frames for persistency effects. This needs to be done NOW as otherwise
-        # # cross-talk and overscan corrections affect pixels with saturated levels which 
-        # # might cause us to miss some of them.
-        # #
-        # if (options['persistency_dir'] != None):
-        #     persistency_mask_thisframe, persistency_mask_timeseries = podi_persistency.map_persistency_effects(hdulist)
-            
-        #     #
-        #     # Open the latest persistency map and prepare to use it
-        #     #
-        #     persistency_map_file = options["persistency_map"]
-        #     if (persistency_map_file == None):
-        #         stdout_write("Couldn't open/find persistency map!\n")
-        #         persistency_map = None
-        #     else:
-        #         persistency_hdu = pyfits.open(persistency_map_file)
-        #         pers_extname = "OTA%02d.PERS" % (ota)
-        #         persistency_map = persistency_hdu[pers_extname].data
-        # else:
-        #     #stdout_write("Ignoring persistency effects!\n")
-        #     pass
-
         # Also read the MJD for this frame. This will be needed later for the correction
         mjd = hdu.header['MJD-OBS']
-        #print "MJD of this frame =",mjd
 
-        # #
-        # # Create a new updated persistency map with saturation-affected in this 
-        # # frame being marked with the MJD of this frame
-        # #
-        # if (options['persistency_dir'] != None):
-        #     if (persistency_map != None and 'persistency' in options):
-        #         # print pers_extname,
-        #         persistency_map_after = podi_persistency.add_mask_to_map(persistency_mask_timeseries, mjd, persistency_map)
-        #         persistency_new_hdu = pyfits.ImageHDU(header=persistency_hdu[pers_extname].header,
-        #                                               data=persistency_map_after)
-        #         data_products['persistency_map_updated'] = persistency_new_hdu
-        #     if (options["update_persistency_only"]):
-        #         return data_products
-        
         # 
         # Perform cross-talk correction, using coefficients found in the 
         # podi_crosstalk package.
@@ -256,16 +217,6 @@ def collect_reduce_ota(filename,
                 # This means it either broken (id=-1) or in video-mode (id=1)
                 continue
 
-            # if (options['persistency_dir'] != None):
-            #     # Apply the persistency correction for the current frame
-            #     cellname = hdulist[cell].header['EXTNAME']
-            #     if (cellname in persistency_mask_thisframe):
-            #         # If we have corrections to be applied to this cell, set all problematic 
-            #         # pixels to NaN
-            #         # Change this once we have a better idea how to.
-            #         hdulist[cell].data = podi_persistency.apply_mask_to_data(persistency_mask_thisframe[cellname], hdulist[cell].data)
-            #         #hdulist[cell].data[persistency_mask_thisframe[cellname]] = numpy.NaN
-
             # Now overscan subtract and insert into large frame
             overscan_region = extract_region(hdulist[cell].data, '[500:530,1:494]')
             overscan_level = numpy.median(overscan_region)
@@ -283,19 +234,14 @@ def collect_reduce_ota(filename,
 
 
             #
-            # Now extract just the data section
+            # Now extract just the data section.
+            # Values are hard-coded as some of the DATASEC keywords are wrong
             #
-            datasec = hdulist[cell].data[0:494, 0:480] #by:ty,bx:tx]
+            datasec = hdulist[cell].data[0:494, 0:480] 
 
-            # #
-            # # Now apply the persistency correction before we trim down the frame
-            # #
-            # if (options['persistency_dir'] != None):
-            #     if (persistency_map != None and 'persistency' in options):
-            #         persistency_correction = podi_persistency.get_correction(persistency_map, (wm_cellx, wm_celly), mjd)
-            #         datasec -= persistency_correction
-
+            #
             # Insert the reduced data-section of this cell into the large OTA frame
+            #
             bx, tx, by, ty = cell2ota__get_target_region(wm_cellx, wm_celly) 
             merged[by:ty,bx:tx] = datasec
 
@@ -787,33 +733,9 @@ def collectcells(input, outputfile,
         print "\n"
         return
 
-    # #
-    # # Some book-keeping about persistency coming next (if requested)
-    # #
-    # if (options['persistency_dir'] != None):
-        
-    #     # Work out what the most recent persistency filename is
-    #     mjd = hdulist[0].header['MJD-OBS']
-    #     print "MJD of this frame=",mjd,podi_persistency.get_timestamp_from_mjd(mjd)
-    #     recent_persistency_map = podi_persistency.find_latest_persistency_map(options['persistency_dir'], mjd)
-
-    #     # Prepare the updated persistency map
-    #     persistency = [None] * (len(available_ota_coords)+1)
-    #     persistency[0] = pyfits.PrimaryHDU()
-    #     persistency[0].header.update("MJD", mjd)
-    #     persistency_output_filename = podi_persistency.persistency_map_filename(options['persistency_dir'], mjd)
-    #     print "persistency file written next:",persistency_output_filename
-
-    #     options["persistency_map"] = recent_persistency_map
-
     # We know enough about the current frame, so close the file
     hdulist.close()
     del hdulist
-
-    # # Update some options
-    # # This has to move in the near future to make things nice and tidy
-    # options["persistency"] = (options['persistency_dir'] != None)       
-
 
     #
     # Start assembling the new list of HDUs
@@ -826,7 +748,6 @@ def collectcells(input, outputfile,
     # And add the primary HDU to make the fits file a valid one
     ota_list[0] = pyfits.PrimaryHDU()
     
-
     #
     # Set up the parallel processing environment
     #
@@ -1013,27 +934,18 @@ def collectcells(input, outputfile,
     #
     # Now do some post-processing:
     # 1) Add or overwrite some headers with values from an external wcs minifits file
-    #    to improve the wcs accuracy.
+    #    to improve the wcs accuracy - remover - no done in parallel during cell collection.
     # 2) Move a couple of headers out of each individual extension and put it in the 
     #    primary extension instead (defined in headers_to_inherit, see podi_definitions)
     # 3) Delete a bunch of headers that are no longer necessary (defined in 
     #    headers_to_delete_from_otas, see podi_definitions)
-    # 4) Write the updated persistency map to file
-    # 5) compute the global sky level
+    # 4) Collect all WCS information and fix pointing and rotation errors. Create some
+    #    diagnostic plots
+    # 5) Write the updated persistency map to file - deleted, no longer required
+    # 6) compute the global sky level
+    # 7) Determine the best-fit pupil ghost scaling and remove the pupil ghost contribution
+    # 8) Compute global fringe scaling and remove scaled fringe template
     #
-
-    # # Write the updated persistency file 
-    # if (options['persistency_dir'] != None):
-    #     stdout_write("Writing new persistency map (%s) ..." % (persistency_output_filename))
-    #     pers_hdulist = pyfits.HDUList(persistency)
-    #     clobberfile(persistency_output_filename)
-    #     pers_hdulist.writeto(persistency_output_filename, clobber=True)
-    #     # afw.write(pers_hdulist, persistency_output_filename)
-    #     stdout_write(" done!\n")
-    #     if (options['update_persistency_only']):
-    #         stdout_write("Only updating the persistency map now, skipping rest of work!\n")
-    #         return 0
-
 
     # First step:
     # Delete all HDU entries that are set to None, indicating that there was something
