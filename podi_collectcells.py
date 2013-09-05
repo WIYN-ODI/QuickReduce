@@ -1122,7 +1122,7 @@ def collectcells(input, outputfile,
             fixwcs_ref_ra, fixwcs_ref_dec,
             fixwcs_odi_ra, fixwcs_odi_dec,
             wcs_shift,
-            matching_radius=2, n_repeats=3,
+            matching_radius=[5,2,2], n_repeats=3,
             verbose=False)
 
         # Now apply all shifts and rotations to the ODI source catalog.

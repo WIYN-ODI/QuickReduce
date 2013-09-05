@@ -53,6 +53,12 @@ def improve_match_and_rotation(fixwcs_ref_ra, fixwcs_ref_dec,
                                matching_radius=2, n_repeats=3,
                                verbose=False):
     
+    # 
+    if (n_repeats > 0 and numpy.array(matching_radius).ndim == 0):
+        matching_radii = numpy.ones(shape=(n_repeats)) * matching_radius
+    elif (numpy.array(matching_radius).ndim == 1):
+        matching_radii = numpy.array(matching_radius)
+
     # Apply the pre-defined correction
     fixwcs_odi_ra[:] += wcs_shift[0]
     fixwcs_odi_dec[:] += wcs_shift[1]
@@ -84,8 +90,11 @@ def improve_match_and_rotation(fixwcs_ref_ra, fixwcs_ref_dec,
 
     p_total = [0,0,0]
 
-    for repeat in range(n_repeats):
-        return_cat = podi_matchcatalogs.match_catalogs(ref_full, odi_full)
+    for repeat in range(matching_radii.shape[0]): #n_repeats):
+
+        return_cat = podi_matchcatalogs.match_catalogs(ref_full, odi_full, 
+                                                       matching_radius=matching_radii[repeat])
+
         if (verbose): print "return_Cat=",return_cat
 
         # Now we should have almost matching catalogs, with the exception 
@@ -137,7 +146,8 @@ def improve_match_and_rotation(fixwcs_ref_ra, fixwcs_ref_dec,
     odi_corr = apply_transformation(p_total, odi_orig)
 
     # and re-match the catalogs to see if now we can match more stars
-    return_cat = podi_matchcatalogs.match_catalogs(ref_full, odi_corr) #, [0,360], [0,360])
+    return_cat = podi_matchcatalogs.match_catalogs(ref_full, odi_corr, 
+                                                   matching_radius=matching_radii[-1])
     matched_cat = return_cat[return_cat[:,2]>=0]
 
     if (output_debug_catalogs): numpy.savetxt("matched.out", matched_cat)
