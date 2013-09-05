@@ -45,7 +45,8 @@ scaling_factors = {
     "odi_i": 0.15,
 }
 
-def subtract_pupilghost_extension(input_hdu, rotator_angle, filter, pupil_hdu, scaling, rotate=True, verbose=True):
+def subtract_pupilghost_extension(input_hdu, rotator_angle, filter, pupil_hdu, scaling, 
+                                  rotate=True, verbose=True, non_negative=True):
     """
     Contains all functionality to dexecute the actual pupil ghost removal. 
     The pupil ghost is roatted to match the rotation angle of the science 
@@ -118,7 +119,6 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filter, pupil_hdu, s
         
     data_shape = input_hdu.data.shape
     
-
     # Swap x/y since python does it too
     print "rot.shape=",rotated.shape
     bx = rotated.shape[0] / 2 - center_x
@@ -126,6 +126,10 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filter, pupil_hdu, s
     tx, ty = bx + data_shape[0], by + data_shape[1]
 
     correction = rotated[by:ty, bx:tx]
+
+    if (non_negative):
+        correction[correction < 0] = 0
+
     input_hdu.data -= (correction * scaling)
 
     input_hdu.header.update("PGCENTER", "%d %d" % (center_x, center_y))
