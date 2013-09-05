@@ -80,7 +80,7 @@ else:
 
 
 
-def three_sigma_clip(input, ranges, nrep=3):
+def three_sigma_clip(input, ranges=[-1e9,1e9], nrep=3):
 
     valid = (input > ranges[0]) & (input < ranges[1])
                 
