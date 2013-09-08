@@ -53,6 +53,20 @@ def strip_fits_extension_from_filename(filename):
 
 if __name__ == "__main__":
 
+    stdout_write("""\
+
+    **********************************************************************
+    * This is podi_makecalibrations                                      *
+    * (c) 2012-2013: Ralf Kotulla, kotulla@uwm.edu                       *
+    *                University of Wisconsin, Milwaukee                  *
+    *                                                                    *
+    * Please acknowledge the author when using any products generated    *
+    * with this tool. For comments, questions or ideas for improvement   *
+    * please send an email to kotulla@uwm.edu. Thank you!                *
+    **********************************************************************
+
+""")
+
     verbose = cmdline_arg_isset("-verbose")
 
     # Read the input file that has the list of files
@@ -142,7 +156,8 @@ if __name__ == "__main__":
                 if (not os.path.isfile(bias_outfile) or cmdline_arg_isset("-redo")):
                     collectcells(cur_bias, bias_outfile,
                                  options=options,
-                                 batchmode=False)
+                                 batchmode=False,
+                                 showsplash=False)
                 bias_to_stack.append(bias_outfile)
             #print bias_list
 
@@ -173,7 +188,7 @@ if __name__ == "__main__":
                 if (not os.path.isfile(dark_outfile) or cmdline_arg_isset("-redo")):
                     collectcells(cur_dark, dark_outfile,
                                  options=options,
-                                 batchmode=False)
+                                 batchmode=False, showsplash=False)
                 darks_to_stack.append(dark_outfile)
             #print darks_to_stack
 
@@ -213,7 +228,7 @@ if __name__ == "__main__":
                         #wcs_solution = cmdline_arg_set_or_default("-wcs", wcs_solution)
                         hdu_list = collectcells(cur_flat, flat_outfile,
                                                 options=options,
-                                                batchmode=True)
+                                                batchmode=True, showsplash=False)
                         normalize_flatfield(None, flat_outfile, binning_x=8, binning_y=8, repeats=3, batchmode_hdu=hdu_list)
                     flats_to_stack.append(flat_outfile)
                 #print flats_to_stack

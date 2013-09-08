@@ -198,8 +198,12 @@ def collect_reduce_ota(filename,
         merged = numpy.ones(shape=(size_x, size_y), dtype=numpy.float32)
         merged[:,:] = options['indef_pixelvalue']
         
+        if (options['bgmode']):
+            stdout_write("\r%s: Starting work on OTA %02d ...\n" % (obsid, ota))
+
         for cell in range(1,65):
-            stdout_write("\r%s:   OTA %02d, cell %s ..." % (obsid, ota, hdulist[cell].header['EXTNAME']))
+            if (not options['bgmode']):
+                stdout_write("\r%s:   OTA %02d, cell %s ..." % (obsid, ota, hdulist[cell].header['EXTNAME']))
             wm_cellx, wm_celly = hdulist[cell].header['WN_CELLX'], hdulist[cell].header['WN_CELLY']
 
             #
@@ -645,7 +649,23 @@ def parallel_collect_reduce_ota(queue, return_queue,
 def collectcells(input, outputfile,
                  batchmode=False,
                  verbose=False,
-                 options=None):
+                 options=None,
+                 showsplash=True):
+
+    if (showsplash):
+        stdout_write("""\
+
+    **********************************************************************
+    * This is podi_collectcells                                          *
+    * (c) 2012-2013: Ralf Kotulla, kotulla@uwm.edu                       *
+    *                University of Wisconsin, Milwaukee                  *
+    *                                                                    *
+    * Please acknowledge the author when using any products generated    *
+    * with this tool. For comments, questions or ideas for improvement   *
+    * please send an email to kotulla@uwm.edu. Thank you!                *
+    **********************************************************************
+
+""")
 
     # print "Received options:", options
     if (options == None): options = set_default_options()
@@ -1397,6 +1417,7 @@ def set_default_options(options_in=None):
 
     options['central_only'] = False
 
+    options['bgmode'] = False
     return options
 
 
@@ -1514,6 +1535,8 @@ Calibration data:
     #
 
     options['central_only'] = cmdline_arg_isset("-centralonly")
+
+    options['bgmode'] = cmdline_arg_isset("-bgmode")
 
     return options
 
