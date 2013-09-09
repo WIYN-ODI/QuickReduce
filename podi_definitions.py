@@ -1233,3 +1233,29 @@ def cell2ota__get_target_region(x, y):
     x2 = x1 + 480
 
     return x1, x2, y1, y2
+
+
+
+
+def three_sigma_clip(input, ranges=[-1e9,1e9], nrep=3, return_mask=False):
+
+    valid = (input > ranges[0]) & (input < ranges[1])
+                
+    for rep in range(nrep):
+        lsig = scipy.stats.scoreatpercentile(input[valid], 16)
+        hsig = scipy.stats.scoreatpercentile(input[valid], 84)
+        median = numpy.median(input[valid])
+        sigma = 0.5 * (hsig - lsig)
+
+        mingood = numpy.max([median - 3*sigma, ranges[0]])
+        maxgood = numpy.min([median + 3*sigma, ranges[1]])
+
+            #print median, sigma
+        valid = (input > mingood) & (input < maxgood)
+        
+    if (return_mask):
+        return input[valid], valid
+
+    return input[valid]
+
+

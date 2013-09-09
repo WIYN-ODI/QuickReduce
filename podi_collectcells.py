@@ -79,26 +79,6 @@ else:
 
 
 
-
-def three_sigma_clip(input, ranges=[-1e9,1e9], nrep=3):
-
-    valid = (input > ranges[0]) & (input < ranges[1])
-                
-    for rep in range(nrep):
-        lsig = scipy.stats.scoreatpercentile(input[valid], 16)
-        hsig = scipy.stats.scoreatpercentile(input[valid], 84)
-        median = numpy.median(input[valid])
-        sigma = 0.5 * (hsig - lsig)
-
-        mingood = numpy.max([median - 3*sigma, ranges[0]])
-        maxgood = numpy.min([median + 3*sigma, ranges[1]])
-
-            #print median, sigma
-        valid = (input > mingood) & (input < maxgood)
-        
-    return input[valid]
-
-
 def collect_reduce_ota(filename,
                        verbose=False,
                        options=None):
@@ -708,7 +688,6 @@ def collectcells(input, outputfile,
     hdulist = None
     for ota in all_otas:
         filename = "%s/%s.%02d.fits" % (directory, filebase, ota)
-        #print "trying ota","-->",filename
         if (not os.path.isfile(filename)):
             filename = "%s/%s.%02d.fits.fz" % (directory, filebase, ota)
         try:
