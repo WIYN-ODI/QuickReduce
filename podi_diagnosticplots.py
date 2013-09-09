@@ -33,7 +33,7 @@ import sys
 import os
 import pyfits
 import numpy
-
+import math
 
 import matplotlib
 import matplotlib.pyplot
@@ -150,6 +150,109 @@ def wcsdiag_shift(matched_cat, filename):
     stdout_write(" done!\n")
 
     return 0
+
+
+def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_filename,
+                         zp_median, zp_std, 
+                         sdss_filtername, odi_filtername,
+                         zp_upper1sigma=None, zp_lower1sigma=None,
+                         zp_distribfull=None, zp_distribclipped=None,
+                         title=None
+                         ):
+
+
+    stdout_write("Creating the photometric calibration plot ...")
+
+    fig, ax = matplotlib.pyplot.subplots()
+
+    zp_raw = sdss_mag - odi_mag
+
+    zp_clipped, clipped = three_sigma_clip(zp_raw, return_mask=True)
+
+    delta = 0.3 if zp_std < 0.3 else zp_std
+    close_to_median = (zp_raw > zp_median - 3 * delta) & (zp_raw < zp_median + 3 * delta)
+
+    zp_max, zp_min = zp_median+3*delta, zp_median-3*delta
+
+    # Determine the min and max sdss magnitudes
+    sdss_min = numpy.min(sdss_mag - sdss_magerr) - 1
+    sdss_max = numpy.max(sdss_mag + sdss_magerr)
+    # now round them to the nearest integer
+    sdss_minint = int(math.floor(sdss_min))
+    sdss_maxint = int(math.ceil(sdss_max))
+
+    # Prepare some helpers for horizontal lines
+    # There has to be a more elegant way to do this
+    x_values = numpy.linspace(sdss_minint, sdss_maxint, 10)
+    y_values = numpy.ones(shape=x_values.shape)
+
+    #
+    # Draw a grey-shaded region outlining the 1-sigma range
+    #
+    ax.barh(zp_median-zp_std, (sdss_maxint-sdss_minint), height=2*zp_std, 
+            left=sdss_minint, label=u"1 sigma range", 
+            color="#a0a0a0", edgecolor='#a0a0a0')
+
+
+    #
+    # Compute and plot a histogram showing the distribution of ZPs
+    #
+
+    # Prepare a histogram to illustrate the distribution of ZP values
+    binwidth = (0.2 * zp_std)
+    nbins = (zp_max - zp_min) / binwidth
+    count, edges = numpy.histogram(zp_raw, bins=nbins, range=[zp_min, zp_max], normed=True)
+    # Normalize histogram
+    count = count * (zp_std*math.sqrt(2*math.pi)) / numpy.sum(count) / binwidth
+
+    # also add a gaussian with the determined distribution overlayed on the histogram
+    gauss_y = numpy.linspace(zp_min, zp_max, 1000)
+    gauss_x = float(sdss_minint) + numpy.exp(-(gauss_y-zp_median)**2/(2*zp_std**2)) #/(zp_std*math.sqrt(2*math.pi))
+    #/(zp_std*math.sqrt(2*math.pi))*binwidth*numpy.sum(clipped)
+
+    ax.barh(edges[:-1], count*1.5, height=binwidth, left=sdss_minint, 
+                           edgecolor='green', color='green',
+                           label='distribution')
+
+    matplotlib.pyplot.plot(gauss_x, gauss_y, linewidth=1, ls='-', color='black')
+    #print gauss_y, gauss_x
+
+
+    #
+    # Plot the actual measurments and values deemed to be outliers
+    #
+    ax.plot(sdss_mag[clipped==False], zp_raw[clipped==False], "ro", fillstyle='none', label='outliers')
+    ax.plot(sdss_mag[clipped], zp_raw[clipped], "bo", linewidth=0, label='valid')
+
+    #
+    # Overplot a white line to illustrate the median value
+    #
+    matplotlib.pyplot.plot(x_values+1, y_values*zp_median, linewidth=1, ls='-', color='white')
+
+    ax.grid(True)
+    ax.legend(loc='upper left', borderaxespad=1)
+
+    #matplotlib.pyplot.plot(x_values+1, y_values*zp_median, linewidth=2, ls='-', color='blue')
+
+    if (title == None):
+        title_string = u"Photometric zeropoint: %.3f \u00b1 %.3f mag" % (zp_median, zp_std)
+    else:
+        title_string = u"%s\nPhotometric zeropoint: %.3f \u00b1 %.3f mag" % (title, zp_median, zp_std)
+
+    matplotlib.pyplot.title(title_string)
+    matplotlib.pyplot.xlabel("SDSS magnitude in %s" % (sdss_filtername), labelpad=7)
+    matplotlib.pyplot.ylabel("zeropoint (sdss [%s] - odi [%s])" % (sdss_filtername, odi_filtername), labelpad=20)
+    matplotlib.pyplot.xlim((sdss_minint, sdss_maxint))
+    matplotlib.pyplot.ylim((zp_min, zp_max))
+#    matplotlib.pyplot.axes().set_aspect('equal')
+
+    if (output_filename == None):
+        fig.show()
+    else:
+        fig.savefig(output_filename)
+
+    matplotlib.pyplot.close()
+    stdout_write(" done!\n")
 
 
 

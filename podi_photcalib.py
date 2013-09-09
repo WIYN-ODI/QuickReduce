@@ -87,15 +87,24 @@ def load_catalog_from_sdss(ra, dec, sdss_filter, verbose=False):
 
     #ra = 0
     
-    min_ra = ra - 0.6/math.cos(math.radians(dec))
-    max_ra = ra + 0.6/math.cos(math.radians(dec))
+    if (numpy.array(ra).ndim > 0):
+        min_ra = ra[0]
+        max_ra = ra[1]
+    else:
+        min_ra = ra - 0.6/math.cos(math.radians(dec))
+        max_ra = ra + 0.6/math.cos(math.radians(dec))
+        
     if (min_ra < 0):
         ra_query = "ra > %(min_ra)f or ra < %(max_ra)f" % {"min_ra": min_ra+360, "max_ra": max_ra,} 
     else:
         ra_query = "ra BETWEEN %(min_ra)f and %(max_ra)f" % {"min_ra": min_ra, "max_ra": max_ra,} 
         
-    min_dec = dec - 0.6
-    max_dec = dec + 0.6
+    if (numpy.array(dec).ndim > 0):
+        min_dec = dec[0]
+        max_dec = dec[1]
+    else:
+        min_dec = dec - 0.6
+        max_dec = dec + 0.6
 
     #
     # This query is taken from the SDSS website and selects stars with clean photometry
@@ -212,7 +221,7 @@ def photcalib(fitsfile, output_filename, calib_directory, overwrite_cat=None):
     # Figure out which SDSS to use for calibration
     filter = hdulist[0].header['FILTER']
     sdss_filter = sdss_equivalents[filter]
-
+    
     std_stars = numpy.array([])
     if (overwrite_cat != None):
         # Read this catalog instead of any of the default ones:
@@ -277,6 +286,130 @@ def photcalib(fitsfile, output_filename, calib_directory, overwrite_cat=None):
     results.close()
 
 
+
+
+
+
+def photcalib_new(catalogfile, output_filename, calib_directory=None, overwrite_cat=None):
+
+    # Figure out which SDSS to use for calibration
+    filter = "odi_r"
+    sdss_filter = sdss_equivalents[filter]
+    if (sdss_filter == None):
+        # This filter is not covered by SDSS, can't perform photometric calibration
+        return None
+
+    pc = sdss_photometric_column[sdss_filter]
+
+
+    source_cat = numpy.loadtxt(catalogfile)
+
+    # Eliminate all stars with flags
+    flags = source_cat[:,7]
+    no_flags_set = (flags == 0)
+
+    source_cat = source_cat[no_flags_set]
+
+    ra_min = numpy.min(source_cat[:,0])
+    ra_max = numpy.max(source_cat[:,0])
+                       
+    dec_min = numpy.min(source_cat[:,1])
+    dec_max = numpy.max(source_cat[:,1])
+                       
+    stdout_write("\nPreparing work ...\n\n")
+    
+
+    std_stars = numpy.array([])
+    if (overwrite_cat != None):
+        # Read this catalog instead of any of the default ones:
+        if (os.path.isfile(overwrite_cat)):
+            print "reading stdstars from file"
+            std_stars = numpy.loadtxt(overwrite_cat) #, delimiter=";")
+
+    if (std_stars.shape[0] <= 0):
+        if (calib_directory != None):
+            std_stars = load_catalog_from_stripe82cat(ra, dec, calib_directory, sdss_filter)
+            print std_stars.shape
+        if (std_stars.shape[0] <= 0):
+            if (calib_directory != None):
+                stdout_write("Couldn't find any stars in the Stripe82 Standard star catalog :(\n")
+
+            stdout_write("Trying to get one directly from SDSS, please wait!\n\n")
+            #std_stars = load_catalog_from_sdss(ra, dec, sdss_filter)
+            std_stars = load_catalog_from_sdss([ra_min, ra_max], [dec_min, dec_max], sdss_filter)
+
+            if (std_stars.shape[0] <= 0):
+                stdout_write("No stars not found - looks like this region isn't covered by SDSS - sorry!\n\n")
+                sys.exit(0)
+                return
+        
+            numpy.savetxt("stdstars", std_stars)
+
+#    dump = open("dump.cat", "w")
+#    for i in range(std_stars.shape[0]):
+#        print >>dump, std_stars[i,0], std_stars[i,1]
+#    print >>dump, "\n\n\n\n\n\n\n\n"
+#    for i in range(sex_cat.shape[0]):
+#        print >>dump, sex_cat[i,6], sex_cat[i,7]
+#    
+#    dump.close()
+
+    #
+    # Now go through each of the extension
+    # Improve: Change execution to parallel !!!
+    #
+    stdout_write("\nStarting work, results in %s ...\n\n" % output_filename)
+    results = open(output_filename, "w")
+
+    odi_sdss_matched = podi_matchcatalogs.match_catalogs(source_cat, std_stars)
+
+    if (odi_sdss_matched != None):
+        numpy.savetxt(results, odi_sdss_matched, delimiter=" ")
+
+    # Stars without match in SDSS have RA=-9999, let's sort them out
+    found_sdss_match = odi_sdss_matched[:,2] >= 0
+    
+    odi_sdss_matched = odi_sdss_matched[found_sdss_match]
+
+    odi_ra, odi_dec = odi_sdss_matched[:,0], odi_sdss_matched[:,1]
+    sdss_ra, sdss_dec = odi_sdss_matched[:,2], odi_sdss_matched[:,3]
+
+    # Use photometry for the 3'' aperture
+    odi_mag, odi_magerr = odi_sdss_matched[:,17], odi_sdss_matched[:,25]
+    sdss_mag = odi_sdss_matched[:,(source_cat.shape[1]+pc)]
+    sdss_magerr = odi_sdss_matched[:,(source_cat.shape[1]+pc+1)]
+
+    # Determine the zero point
+    zp = sdss_mag - odi_mag
+    zperr = numpy.hypot(sdss_magerr, odi_magerr)
+    import podi_collectcells
+    zp_clipped = podi_collectcells.three_sigma_clip(zp)
+    zp_median = numpy.median(zp_clipped)
+    zp_std = numpy.std(zp_clipped)
+    print "zeropoint (clipped)",zp_median," +/-", zp_std
+
+    zp_upper1sigma = scipy.stats.scoreatpercentile(zp_clipped, 84)
+    zp_lower1sigma = scipy.stats.scoreatpercentile(zp_clipped, 16)
+    print zp_lower1sigma, zp_upper1sigma, 0.5*(zp_upper1sigma-zp_lower1sigma)
+
+    zp_median_ = numpy.median(zp)
+    zp_std_ = numpy.std(zp)
+    print "zeropoint (un-clipped)",zp_median_," +/-", zp_std_
+
+    # Make plots
+
+    import podi_diagnosticplots
+    podi_diagnosticplots.photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr,
+                                              "photcalib.png",
+                                              zp_median, zp_std,
+                                              "r", "odi_r",
+                                              title="this is a test"
+                                              )
+
+                
+    results.close()
+
+
     
 if __name__ == "__main__":
 
@@ -288,6 +421,11 @@ if __name__ == "__main__":
             if (os.path.isfile(output_filename)):
                 continue
             photcalib(infile, output_filename, calibdir)
+
+    elif (cmdline_arg_isset("-new")):
+        catalogfile = get_clean_cmdline()[1]
+        output_filename = get_clean_cmdline()[2]
+        photcalib_new(catalogfile, output_filename, calib_directory=None, overwrite_cat="stdstars")
     else:
         fitsfile = get_clean_cmdline()[1]
         output_filename = get_clean_cmdline()[2]
