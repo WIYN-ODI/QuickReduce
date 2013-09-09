@@ -60,6 +60,7 @@ import podi_fitskybackground
 import podi_matchcatalogs
 import podi_matchpupilghost
 import podi_fringing
+import podi_photcalib
 
 from astLib import astWCS
 
@@ -1242,6 +1243,17 @@ def collectcells(input, outputfile,
 
         numpy.savetxt("matched_cat.cat", odi_2mass_matched)
 
+        zeropoint_median, zeropoint_std, odi_sdss_matched = 99., 99., None
+        if (options['photcalib']):
+            stdout_write("\n\n\nExecuting photcalib...\n\n\n")
+            filter_name = get_valid_filter_name(ota_list[0].header)
+            zeropoint_median, zeropoint_std, odi_sdss_matched = \
+                podi_photcalib.photcalib(global_source_cat, outputfile, filter_name, diagplots=True)
+
+        ota_list[0].header.update("PHOTZP", zeropoint_median, "photometric zeropoint")
+        ota_list[0].header.update("PHOTZPE", zeropoint_std, "zeropoint std.dev.")
+
+
     #
     # If requested by user via command line:
     # Execute the fringing correction
@@ -1435,6 +1447,9 @@ def set_default_options(options_in=None):
     options['central_only'] = False
 
     options['bgmode'] = False
+
+    options['photcalib'] = False
+
     return options
 
 
@@ -1554,6 +1569,8 @@ Calibration data:
     options['central_only'] = cmdline_arg_isset("-centralonly")
 
     options['bgmode'] = cmdline_arg_isset("-bgmode")
+
+    options['photcalib'] = cmdline_arg_isset("-photcalib")
 
     return options
 

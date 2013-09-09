@@ -182,7 +182,7 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
     return results
     
     
-def photcalib(fitsfile, output_filename, calib_directory, overwrite_cat=None):
+def photcalib_old(fitsfile, output_filename, calib_directory, overwrite_cat=None):
 
     tmp, dummy = os.path.split(sys.argv[0])
     dot_config_dir = tmp + "/.config/"
@@ -290,19 +290,16 @@ def photcalib(fitsfile, output_filename, calib_directory, overwrite_cat=None):
 
 
 
-def photcalib_new(catalogfile, output_filename, calib_directory=None, overwrite_cat=None):
+def photcalib(source_cat, output_filename, filtername, diagplots=True, calib_directory=None, overwrite_cat=None):
 
     # Figure out which SDSS to use for calibration
-    filter = "odi_r"
-    sdss_filter = sdss_equivalents[filter]
+    sdss_filter = sdss_equivalents[filtername]
     if (sdss_filter == None):
         # This filter is not covered by SDSS, can't perform photometric calibration
         return None
 
     pc = sdss_photometric_column[sdss_filter]
 
-
-    source_cat = numpy.loadtxt(catalogfile)
 
     # Eliminate all stars with flags
     flags = source_cat[:,7]
@@ -397,17 +394,22 @@ def photcalib_new(catalogfile, output_filename, calib_directory=None, overwrite_
     print "zeropoint (un-clipped)",zp_median_," +/-", zp_std_
 
     # Make plots
+    if (diagplots):
+        import podi_diagnosticplots
 
-    import podi_diagnosticplots
-    podi_diagnosticplots.photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr,
-                                              "photcalib.png",
-                                              zp_median, zp_std,
-                                              "r", "odi_r",
-                                              title="this is a test"
-                                              )
+        zp_calib_plot = output_filename[:-5]+".photZP.png"
+        podi_diagnosticplots.photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr,
+                                                  zp_calib_plot,
+                                                  zp_median, zp_std,
+                                                  "r", "odi_r",
+                                                  title="this is a test"
+                                                  )
 
                 
     results.close()
+
+    return zp_median, zp_std, odi_sdss_matched
+
 
 
     
@@ -424,8 +426,12 @@ if __name__ == "__main__":
 
     elif (cmdline_arg_isset("-new")):
         catalogfile = get_clean_cmdline()[1]
+        source_cat = numpy.loadtxt(catalogfile)
+
+        filtername = "odi_r"
+
         output_filename = get_clean_cmdline()[2]
-        photcalib_new(catalogfile, output_filename, calib_directory=None, overwrite_cat="stdstars")
+        photcalib(source_cat, output_filename, filtername, diagplots=True, calib_directory=None, overwrite_cat="stdstars")
     else:
         fitsfile = get_clean_cmdline()[1]
         output_filename = get_clean_cmdline()[2]
