@@ -37,6 +37,8 @@ import pyfits
 import subprocess
 import scipy
 import scipy.ndimage
+from bottleneck import nanmean, nanmedian
+
 
 ############
 #                  | | |
@@ -166,6 +168,13 @@ sdss_equivalents = {"odi_g": 'g',
                     "Us_solid": 'u',
                     "unknown": None,
 		    }	
+
+sdss_photometric_column = {"u":  2,
+                           "g":  4,
+                           "r":  6,
+                           "i":  8,
+                           "z": 10,
+                           }
 
 cellmode_ids = {
     "S": 0,
@@ -1029,7 +1038,17 @@ def rebin_image(data, binfac):
     else:
         container = data 
         
-    rebinned = numpy.reshape(container, (out_size_x, binfac, out_size_y, binfac)).mean(axis=-1).mean(axis=1)
+#    rebinned = numpy.reshape(container, (out_size_x, binfac, out_size_y, binfac)).mean(axis=-1).mean(axis=1)
+
+    rb1 = numpy.array(numpy.reshape(container, (out_size_x, binfac, out_size_y, binfac)), dtype=numpy.float32)
+    rb2 = nanmean(rb1, axis=-1)
+    rebinned = nanmean(rb2, axis=1)
+
+#    rb1 = numpy.array(numpy.reshape(container, (out_size_x, binfac, out_size_y, binfac)), dtype=numpy.float32)
+#    rb2 = nanmedian(rb1, axis=-1)
+#    rebinned = nanmedian(rb2, axis=1)
+
+#    #.nanmean(axis=-1).nanmean(axis=1)
 
     return rebinned
 
