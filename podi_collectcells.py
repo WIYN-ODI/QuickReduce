@@ -500,6 +500,7 @@ def collect_reduce_ota(filename,
         # NAXIS, NAXIS1, NAXIS2 are set correctly
         hdu.data = merged
 
+        source_cat = None
         if (options['fixwcs']):
             # Create source catalog
             
@@ -535,8 +536,9 @@ def collect_reduce_ota(filename,
                         if (source_cat.shape[0] == 0 or source_cat.ndim < 2):
                             source_cat == None
                         else:
-                            source_cat[:,12] = ota
-                            valid = (source_cat[:,11] != 3)
+                            source_cat[:,8] = ota
+                            flags = source_cat[:,7]
+                            valid = (flags != 3)
                             if (verbose): print "source-cat:", source_cat.shape, numpy.sum(valid)
                             source_cat = source_cat[valid]
                 except:
@@ -549,7 +551,7 @@ def collect_reduce_ota(filename,
                 if (source_cat.shape[0] > 0 and source_cat.ndim == 2):
                     odi_ra = source_cat[:,0]
                     odi_dec = source_cat[:,1]
-                    odi_mag = -2.5 * numpy.log10(source_cat[:,6]) + 30
+                    odi_mag = source_cat[:,14] #-2.5 * numpy.log10(source_cat[:,6]) + 30
 
                     # Read the reference catalog
                     center_ra, center_dec = center_coords(hdu.header)
@@ -607,6 +609,7 @@ def collect_reduce_ota(filename,
     data_products['sky-samples'] = sky_samples
     data_products['sky'] = (sky_level_median, sky_level_mean, sky_level_std)
     data_products['fringe_scaling'] = fringe_scaling
+    data_products['sourcecat'] = source_cat
 
     return data_products #hdu, fixwcs_data
     
@@ -864,6 +867,7 @@ def collectcells(input, outputfile,
     global_number_matches = None
     sky_samples = {}
     fringe_scaling = None
+    global_source_cat = None
     for i in range(len(list_of_otas_to_collect)):
         #hdu, ota_id, wcsfix_data = return_queue.get()
         ota_id, data_products = return_queue.get()
@@ -903,7 +907,7 @@ def collectcells(input, outputfile,
                 #print "source_cat[:,3]=",source_cat[:,3]
 
                 reference_catalog = reference_cat if (reference_catalog == None) else numpy.append(reference_catalog, reference_cat, axis=0)
-                fixwcs_odi_sourcecat = source_cat if (fixwcs_odi_sourcecat == None) else numpy.append(fixwcs_odi_sourcecat, source_cat, axis=0)
+                #RK fixwcs_odi_sourcecat = source_cat if (fixwcs_odi_sourcecat == None) else numpy.append(fixwcs_odi_sourcecat, source_cat, axis=0)
 
                 fixwcs_bestguess[i,:] = [dx, dy]
 
@@ -929,6 +933,9 @@ def collectcells(input, outputfile,
             #if (fringe_scaling != None): print fringe_scaling.shape
             fringe_scaling = data_products['fringe_scaling'] if fringe_scaling == None else \
                 numpy.append(fringe_scaling, data_products['fringe_scaling'], axis=0)
+
+        if (not data_products['sourcecat'] == None):
+            global_source_cat = data_products['sourcecat'] if (global_source_cat == None) else numpy.append(global_source_cat, data_products['sourcecat'], axis=0)
 
     if (options['fixwcs'] and not options['update_persistency_only']):
         x = open("fixwcs.nmatches","w")
@@ -1157,15 +1164,19 @@ def collectcells(input, outputfile,
         # catalog is fixwcs_odi_sourcecat
         # columns are: 0/1: ra/dec
         #              2/3: x/y
-        odi_sourcecat_modified = fixwcs_odi_sourcecat.copy()
-        if (verbose): print "wcs-shift=",wcs_shift
-        odi_sourcecat_modified[:,0:2] += wcs_shift
-#        odi_sourcecat_modified[:,1] -= wcs_shift[1]
-        odi_sourcecat_modified[:,0:2] = podi_fixwcs_rotation.apply_transformation(fixrot_trans, odi_sourcecat_modified[:,0:2])
+        #RK odi_sourcecat_modified = fixwcs_odi_sourcecat.copy()
+        #RK if (verbose): print "wcs-shift=",wcs_shift
+        #RK odi_sourcecat_modified[:,0:2] += wcs_shift
+#       #RK  odi_sourcecat_modified[:,1] -= wcs_shift[1]
+        #RK odi_sourcecat_modified[:,0:2] = podi_fixwcs_rotation.apply_transformation(fixrot_trans, odi_sourcecat_modified[:,0:2])
 
+        raw_radec = global_source_cat[:,0:2] + wcs_shift
+        global_source_cat[:,0:2] = podi_fixwcs_rotation.apply_transformation(fixrot_trans, raw_radec)
+        
         # Now we have the corrected catalog, match again with the full 2mass reference catalog
         # 2mass catalog in variable reference_catalog
-        odi_2mass_matched = podi_matchcatalogs.match_catalogs(reference_catalog[:,0:2], odi_sourcecat_modified)
+        #RK odi_2mass_matched = podi_matchcatalogs.match_catalogs(reference_catalog[:,0:2], odi_sourcecat_modified)
+        odi_2mass_matched = podi_matchcatalogs.match_catalogs(reference_catalog[:,0:2], global_source_cat)
 
         count = numpy.sum(odi_2mass_matched[:,2] > 0)
         print "Found ",count," matched odi+2mass pairs"
@@ -1180,7 +1191,8 @@ def collectcells(input, outputfile,
         
         source_cat_file = outputfile+".src.cat"
         file = open(source_cat_file, "w")
-        numpy.savetxt(file, fixwcs_odi_sourcecat)
+        #RK numpy.savetxt(file, fixwcs_odi_sourcecat)
+        numpy.savetxt(file, global_source_cat)
         file.close()
 
         reference_cat_file = outputfile+".2mass.cat"
@@ -1226,7 +1238,8 @@ def collectcells(input, outputfile,
 
         # Re-compute all ODI star positions from their pixel positions to match the new WCS solution.
         # Also return the catalog as TableHDU so we can add it to the output file
-        odi_cat_hdu, odi_source_catalog = odi_sources_to_tablehdu(ota_list, fixwcs_odi_sourcecat)
+        #RK odi_cat_hdu, odi_source_catalog = odi_sources_to_tablehdu(ota_list, fixwcs_odi_sourcecat)
+        odi_cat_hdu, odi_source_catalog = odi_sources_to_tablehdu(ota_list, global_source_cat)
         ota_list.append(odi_cat_hdu)
 
         print >>x, "\n\n\n\n\n"
@@ -1238,8 +1251,8 @@ def collectcells(input, outputfile,
         print >>x, "\n\n\n\n\n"
         numpy.savetxt(x, odi_2mass_matched)
 
-        print >>x, "\n\n\n\n\n"
-        numpy.savetxt(x, fixwcs_odi_sourcecat)
+        #print >>x, "\n\n\n\n\n"
+        #numpy.savetxt(x, fixwcs_odi_sourcecat)
 
         x.close()
 
@@ -1332,50 +1345,70 @@ def sexcat_to_tablehdu(fixwcs_ref_ra, fixwcs_ref_dec):
 
 def odi_sources_to_tablehdu(ota_list, fixwcs_odi_sourcecat):
 
-    # First of all update all Ra/Dec values
-    final_cat = None
-    for ext in range(1, len(ota_list)):
-        extname = ota_list[ext].header['EXTNAME']
-        if (extname[0:3] == "OTA" and extname[5:] == ".SCI"):
-            ota = int(ota_list[ext].header['EXTNAME'][3:5])
-            wcs = astWCS.WCS(ota_list[ext].header, mode="pyfits")
+    # # First of all update all Ra/Dec values
+    # final_cat = None
+    # for ext in range(1, len(ota_list)):
+    #     extname = ota_list[ext].header['EXTNAME']
+    #     if (extname[0:3] == "OTA" and extname[5:] == ".SCI"):
+    #         ota = int(ota_list[ext].header['EXTNAME'][3:5])
+    #         wcs = astWCS.WCS(ota_list[ext].header, mode="pyfits")
 
-            in_this_ota = fixwcs_odi_sourcecat[:,12] == ota
-            sources_ota = fixwcs_odi_sourcecat[in_this_ota]
+    #         in_this_ota = fixwcs_odi_sourcecat[:,12] == ota
+    #         sources_ota = fixwcs_odi_sourcecat[in_this_ota]
 
-            xy = sources_ota[:,2:4]
+    #         xy = sources_ota[:,2:4]
             
-            sources_ota[:,0:2] = odi2wcs(xy, wcs)
+    #         sources_ota[:,0:2] = odi2wcs(xy, wcs)
             
-            if (final_cat == None):
-                final_cat = sources_ota
-            else:
-                final_cat = numpy.append(final_cat, sources_ota, axis=0)
+    #         if (final_cat == None):
+    #             final_cat = sources_ota
+    #         else:
+    #             final_cat = numpy.append(final_cat, sources_ota, axis=0)
 
     # source_info = [ ra, dec, center_x, center_y, fwhm_x, fwhm_y, amplitude, peak, 
     #            bg_level, bg_variance, s_n, area, extension_id]
 
+    source_cat = fixwcs_odi_sourcecat
+
     columns = [\
-        pyfits.Column(name='Ra',                 format='E', array=final_cat[:, 0]),
-        pyfits.Column(name='Dec',                format='E', array=final_cat[:, 1]),
-        pyfits.Column(name='X',                  format='E', array=final_cat[:, 2]),
-        pyfits.Column(name='Y',                  format='E', array=final_cat[:, 3]),
-        pyfits.Column(name='FWHM_X',             format='E', array=final_cat[:, 4]),
-        pyfits.Column(name='FWHM_Y',             format='E', array=final_cat[:, 5]),
-        pyfits.Column(name='Amplitude',          format='E', array=final_cat[:, 6]),
-        pyfits.Column(name='Peak',               format='E', array=final_cat[:, 7]),
-        pyfits.Column(name='Background',         format='E', array=final_cat[:, 8]),
-        pyfits.Column(name='BackgroundNoise',    format='E', array=final_cat[:, 9]),
-        pyfits.Column(name='SignalToNoise',      format='E', array=final_cat[:,10]),
-        pyfits.Column(name='NSignificantPixels', format='E', array=final_cat[:,11]),
-        pyfits.Column(name='OTA',                format='E', array=final_cat[:,12]),
+        pyfits.Column(name='RA',             format='E', unit='degrees', array=source_cat[:, 0], disp='right ascension'),
+        pyfits.Column(name='DEC',            format='E', unit='degrees', array=source_cat[:, 1], disp='declination'),
+        pyfits.Column(name='X',              format='E', unit='pixel',   array=source_cat[:, 2], disp='center x'),
+        pyfits.Column(name='Y',              format='E', unit='pixel',   array=source_cat[:, 3], disp='center y'),
+        pyfits.Column(name='FWHM_IMAGE',     format='E', unit='pixel',   array=source_cat[:, 4], disp='FWHM in pixels'),
+        pyfits.Column(name='FWHM_WORLD',     format='E', unit='deg',     array=source_cat[:, 5], disp='FWHM in degrees'),
+        pyfits.Column(name='BACKGROUND',     format='E', unit='counts',  array=source_cat[:, 6], disp='background level'),
+        pyfits.Column(name='FLAGS',          format='E', unit='',        array=source_cat[:, 7], disp='SExtractor flags'),
+        pyfits.Column(name='OTA',            format='E', unit='',        array=source_cat[:, 8], disp='source OTA'),
+        pyfits.Column(name='MAG_D05',        format='E', unit='mag',     array=source_cat[:, 9], disp='0.5 arcsec, 5 pixels'),
+        pyfits.Column(name='MAGERR_D05',     format='E', unit='mag',     array=source_cat[:,17], disp=''),
+        pyfits.Column(name='MAG_D08',        format='E', unit='mag',     array=source_cat[:,10], disp='0.8 arcsec, 7 pixels'),
+        pyfits.Column(name='MAGERR_D08',     format='E', unit='mag',     array=source_cat[:,18], disp=''),
+        pyfits.Column(name='MAG_D10',        format='E', unit='mag',     array=source_cat[:,11], disp='1.0 arcsec, 9 pixels'),
+        pyfits.Column(name='MAGERR_D10',     format='E', unit='mag',     array=source_cat[:,19], disp=''),
+        pyfits.Column(name='MAG_D15',        format='E', unit='mag',     array=source_cat[:,12], disp='1.5 arcsec, 14 pixels'),
+        pyfits.Column(name='MAGERR_D15',     format='E', unit='mag',     array=source_cat[:,20], disp=''),
+        pyfits.Column(name='MAG_D20',        format='E', unit='mag',     array=source_cat[:,13], disp='2.0 arcsec, 18 pixels'),
+        pyfits.Column(name='MAGERR_D20',     format='E', unit='mag',     array=source_cat[:,21], disp=''),
+        pyfits.Column(name='MAG_D25',        format='E', unit='mag',     array=source_cat[:,14], disp='2.5 arcsec, 23 pixels'),
+        pyfits.Column(name='MAGERR_D25',     format='E', unit='mag',     array=source_cat[:,22], disp=''),
+        pyfits.Column(name='MAG_D30',        format='E', unit='mag',     array=source_cat[:,15], disp='3.0 arcsec, 27 pixels'),
+        pyfits.Column(name='MAGERR_D30',     format='E', unit='mag',     array=source_cat[:,23], disp=''),
+        pyfits.Column(name='MAG_D35',        format='E', unit='mag',     array=source_cat[:,16], disp='3.5 arcsec, 32 pixels'),
+        pyfits.Column(name='MAGERR_D35',     format='E', unit='mag',     array=source_cat[:,24], disp=''),
+        pyfits.Column(name='FLUX_MAX',       format='E', unit='counts',  array=source_cat[:,25], disp='max count rate'),
+        pyfits.Column(name='AWIN_IMAGE',     format='E', unit='pixel',   array=source_cat[:,26], disp='major semi-axis'),
+        pyfits.Column(name='BWIN_IMAGE',     format='E', unit='pixel',   array=source_cat[:,27], disp='minor semi-axis'),
+        pyfits.Column(name='THETAWIN_IMAGE', format='E', unit='degrees', array=source_cat[:,28], disp='position angle'),
+        pyfits.Column(name='ELONGATION',     format='E', unit='',        array=source_cat[:,29], disp='elongation'),
+        pyfits.Column(name='ELlPTICITY',     format='E', unit='',        array=source_cat[:,30], disp='ellipticity'),
         ]
 
     coldefs = pyfits.ColDefs(columns)
     tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
 
     tbhdu.update_ext_name("CAT.ODI", comment=None)
-    return tbhdu, final_cat
+    return tbhdu, source_cat
 
 
 def set_default_options(options_in=None):

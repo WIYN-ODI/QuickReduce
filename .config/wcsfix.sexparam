@@ -1,26 +1,36 @@
-ALPHA_J2000            Right ascension of barycenter (J2000)                      [deg]
-DELTA_J2000            Declination of barycenter (J2000)                          [deg]
-X_IMAGE_DBL            Object position along x (double precision)                 [pixel]
-Y_IMAGE_DBL            Object position along y (double precision)                 [pixel]
+ALPHAWIN_J2000            Right ascension of barycenter (J2000)                      [deg]
+DELTAWIN_J2000            Declination of barycenter (J2000)                          [deg]
+
+XWIN_IMAGE            Object position along x (double precision)                 [pixel]
+YWIN_IMAGE            Object position along y (double precision)                 [pixel]
 
 FWHM_IMAGE             FWHM assuming a gaussian core                              [pixel]
 FWHM_WORLD             FWHM assuming a gaussian core                              [pixel]
 
-FLUX_ISO               Peak flux above background                                 [count]
-FLUX_AUTO               Peak flux above background                                 [count]
+# FLUX_ISO               Peak flux above background                                 [count]
+# FLUX_AUTO               Peak flux above background                                 [count]
 BACKGROUND             Background at centroid position [count]
-MU_THRESHOLD 
+# MU_THRESHOLD 
 
 
-THRESHOLD              Detection threshold above background                       [count]
+# THRESHOLD              Detection threshold above background                       [count]
 
 #ISOAREA_IMAGE          Isophotal area above Analysis threshold                    [pixel**2]
+
 FLAGS                  Extraction flags                                          
 EXT_NUMBER             FITS extension number                                     
 
-MAG_APER(1) 
-MAGERR_APER(1)
+MAG_APER(8) 
+MAGERR_APER(8)
 
+FLUX_MAX               Peak flux above background [count]
+
+AWIN_IMAGE                Profile RMS along major axis                               [pixel]
+BWIN_IMAGE                Profile RMS along minor axis                               [pixel]
+THETA_IMAGE            Position angle (CCW/x)                                     [deg]
+
+ELONGATION             A_IMAGE/B_IMAGE                                           
+ELLIPTICITY            1 - B_IMAGE/A_IMAGE                                       
 
 
 #NUMBER                 Running object number                                     
@@ -63,7 +73,7 @@ MAGERR_APER(1)
 #PETRO_RADIUS           Petrosian apertures in units of A or B                    
 #BACKGROUND             Background at centroid position                            [count]
 #THRESHOLD              Detection threshold above background                       [count]
-#FLUX_MAX               Peak flux above background                                 [count]
+#
 #ISOAREA_IMAGE          Isophotal area above Analysis threshold                    [pixel**2]
 #ISOAREAF_IMAGE         Isophotal area (filtered) above Detection threshold        [pixel**2]
 #XMIN_IMAGE             Minimum x-coordinate among detected pixels                 [pixel]
