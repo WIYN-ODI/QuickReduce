@@ -708,13 +708,15 @@ def collectcells(input, outputfile,
     hdulist = None
     for ota in all_otas:
         filename = "%s/%s.%02d.fits" % (directory, filebase, ota)
+        #print "trying ota","-->",filename
         if (not os.path.isfile(filename)):
             filename = "%s/%s.%02d.fits.fz" % (directory, filebase, ota)
         try:
             hdulist = pyfits.open(filename)
             break
         except:
-            stdout_write("Problem opening an existing fits-file (%s), aborting!\n" % filename)
+            #stdout_write("Problem opening an existing fits-file (%s), aborting!\n" % filename)
+            pass
             continue
 
     if (hdulist == None):
@@ -784,6 +786,7 @@ def collectcells(input, outputfile,
 
     number_extensions = 0
 
+    list_of_otas_being_reduced = []
     for ota_id in range(len(list_of_otas_to_collect)):
         ota_c_x, ota_c_y = list_of_otas_to_collect[ota_id]        
         ota = ota_c_x * 10 + ota_c_y
@@ -802,6 +805,8 @@ def collectcells(input, outputfile,
                 continue
 
         #print "Commanding work for extension",ota
+        list_of_otas_being_reduced.append(list_of_otas_to_collect[ota_id])
+
         queue.put( (False, filename, ota_id+1) )
 
     # Create all processes to handle the actual reduction and combination
@@ -854,7 +859,7 @@ def collectcells(input, outputfile,
     reference_catalog = None
 
     fixwcs_odi_sourcecat = None
-    fixwcs_bestguess = numpy.ones(shape=(len(list_of_otas_to_collect),2)) * -1000
+    fixwcs_bestguess = numpy.ones(shape=(len(list_of_otas_being_reduced),2)) * -1000
 
     ############################################################
     #
@@ -868,7 +873,7 @@ def collectcells(input, outputfile,
     sky_samples = {}
     fringe_scaling = None
     global_source_cat = None
-    for i in range(len(list_of_otas_to_collect)):
+    for i in range(len(list_of_otas_being_reduced)):
         #hdu, ota_id, wcsfix_data = return_queue.get()
         ota_id, data_products = return_queue.get()
 
