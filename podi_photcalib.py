@@ -81,7 +81,7 @@ def load_catalog_from_stripe82cat(ra, dec, calib_directory, sdss_filter):
     return std_stars
 
 
-def load_catalog_from_sdss(ra, dec, sdss_filter, verbose=False):
+def load_catalog_from_sdss(ra, dec, sdss_filter, verbose=False, return_query=False, max_catsize=-1):
 
     #import sqlcl
 
@@ -148,12 +148,16 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
 
     answer = []
     for line in sdss:
+        if (max_catsize > 0 and len(answer) >= max_catsize):
+            break
         answer.append(line)
         if (((len(answer)-1)%10) == 0):
             stdout_write("\rFound %d stars so far ..." % (len(answer)-1))
     #answer = sdss.readlines()
     if (answer[0].strip() == "No objects have been found"):
-        return numpy.zeros(shape=(0,0))
+        if (return_query):
+            return numpy.zeros(shape=(0,12)), fsql #sql_query
+        return numpy.zeros(shape=(0,12))
     else:
         stdout_write("\rFound a total of %d stars in SDSS catalog\n" % (len(answer)-1))
         
@@ -179,6 +183,8 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
         #mag, mag_err =  float(items[2]), float(items[3])
         #results[i, :] = [ra, dec, mag, mag, mag_err, mag_err]
     
+    if (return_query):
+        return results, fsql #sql_query
     return results
     
     
