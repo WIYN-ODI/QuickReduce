@@ -88,7 +88,7 @@ if __name__ == "__main__":
     print r_min
     print outputfile[0:5]
 
-    for i in range(5): #len(outputfile)):
+    for i in range(len(outputfile)):
         directory, name = os.path.split(outputfile[i])
         stdout_write("\nNext: %s/%s ---> RA=%.3f-%.3f, DEC=%.3f...%.3f\n" % (
                 directory, name, r_min[i], r_max[i], d_min[i], d_max[i], ))
