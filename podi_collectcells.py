@@ -1258,7 +1258,8 @@ def collectcells(input, outputfile,
                 podi_photcalib.photcalib(global_source_cat, outputfile, filter_name, 
                                          exptime=exptime,
                                          diagplots=True,
-                                         plottitle=titlestring)
+                                         plottitle=titlestring,
+                                         otalist=ota_list)
 
         ota_list[0].header.update("PHOTZP", zeropoint_median, "phot. zeropoint corr for exptime")
         ota_list[0].header.update("PHOTZPE", zeropoint_std, "zeropoint std.dev.")
@@ -1300,6 +1301,10 @@ def collectcells(input, outputfile,
     #print "done waiting, writing output file"
     #print ota_list
     hdulist = pyfits.HDUList(ota_list)
+    for i in range(1, len(hdulist)):
+        if 'SIMPLE' in hdulist[i].header:
+            del hdulist[i].header['SIMPLE']
+    hdulist.verify()
 
     #print "hdulist=",hdulist
 
