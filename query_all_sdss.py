@@ -66,6 +66,7 @@ def run_query(sql_query):
 if __name__ == "__main__":
     
     basedir = sys.argv[1]
+    startat  = int(cmdline_arg_set_or_default("-startat", 0))
 
     # Load the SkyTable so we know in what files to look for the catalog"
     skytable_filename = "%s/SkyTable.fits" % (basedir)
@@ -88,7 +89,7 @@ if __name__ == "__main__":
     print r_min
     print outputfile[0:5]
 
-    for i in range(len(outputfile)):
+    for i in range(startat, len(outputfile)):
         directory, name = os.path.split(outputfile[i])
         stdout_write("\nNext: %s/%s ---> RA=%.3f-%.3f, DEC=%.3f...%.3f\n" % (
                 directory, name, r_min[i], r_max[i], d_min[i], d_max[i], ))
@@ -140,6 +141,10 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
         answer = run_query(count_entries)
         #print "___",answer,"___"
 
+        if (len(answer) > 2):
+            print ''.join(answer)
+            continue
+
         count = int(answer[1].strip())
         print "---> expecting %s stars as result" % (count)
         #print ''.join(answer)
@@ -153,7 +158,8 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
             sdss_cat = catalog
         else:
             sqlquery = "No results expected, did not query"
-            sdss_cat = numpy.zeros(shape=(12,0))
+            sdss_cat = numpy.zeros(shape=(0,12))
+            print "nothing expected..."
 
         # Create a catalog to hold the results:
         
