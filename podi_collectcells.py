@@ -729,6 +729,33 @@ def collectcells(input, outputfile,
 
         stdout_write("Replaced some keywords, new output filename: ---> %s\n" % (outputfile))
 
+    # We know enough about the current frame, so close the file
+    hdulist.close()
+    del hdulist
+
+    # Check if the output file contains a new directory. 
+    chk_directory, chk_filename = os.path.split(outputfile)
+    changed_outputfilename = False
+    if (chk_directory != ''):
+        # The output file does contain a directory
+        if (not os.path.isdir(chk_directory)):
+            # if the directory doesn't exist ey, create it
+            stdout_write("Output directory does not exist, creating it...\n")
+            os.mkdir(chk_directory)
+            changed_outputfilename = True
+    if (chk_filename == ''):
+        # This happens if the output is just a directory
+        stdout_write("Output filename is a directory, adding default filename (collectcells.fits)\n")
+        outputfile += "collectcells.fits"
+        changed_outputfilename = True
+    if (outputfile[-5:] != ".fits"):
+        # Output filenames have to end with .fits
+        stdout_write("no fits extension given to filename, adding .fits\n")
+        outputfile += ".fits"
+        changed_outputfilename = True
+    if (changed_outputfilename):
+        stdout_write("After revision, output filename now is %s\n" % (outputfile))
+
     if (os.path.isfile(outputfile) and not options['clobber']):
         print "#####################################################"
         print "#"
@@ -737,10 +764,6 @@ def collectcells(input, outputfile,
         print "#####################################################"
         print "\n"
         return
-
-    # We know enough about the current frame, so close the file
-    hdulist.close()
-    del hdulist
 
     #
     # Start assembling the new list of HDUs
