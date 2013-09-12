@@ -719,6 +719,11 @@ def collectcells(input, outputfile,
                 outputfile = outputfile[:start] + objectname  + outputfile[start+7:]
             elif (outputfile[start:start+6] == "%OBSID"):
                 outputfile = outputfile[:start] + header['OBSID'] + outputfile[start+6:]
+            elif (outputfile[start:start+7] == "%OBSSEQ"):
+                obsid = header['OBSID']
+                dot_position = obsid.find(".")
+                obs_sequence = obsid[:dot_position]
+                outputfile = outputfile[:start] + obs_sequence + outputfile[start+7:]
             elif (outputfile[start:start+8] == "%EXPTIME"):
                 outputfile = "%s%.1f%s" % (outputfile[:start], header['EXPTIME'], outputfile[start+8:])
             else:
