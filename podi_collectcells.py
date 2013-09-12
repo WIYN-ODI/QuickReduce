@@ -1247,11 +1247,18 @@ def collectcells(input, outputfile,
         if (options['photcalib']):
             stdout_write("\n\n\nExecuting photcalib...\n\n\n")
             exptime = ota_list[0].header['EXPTIME']
+            titlestring = "%s (target:%s -- filter: %s -- exptime: %ds)" % (
+                ota_list[0].header['OBSID'],
+                ota_list[0].header['OBJECT'],
+                ota_list[0].header['FILTER'],
+                int(ota_list[0].header['EXPTIME']),
+                )
             filter_name = get_valid_filter_name(ota_list[0].header)
             zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = \
                 podi_photcalib.photcalib(global_source_cat, outputfile, filter_name, 
                                          exptime=exptime,
-                                         diagplots=True)
+                                         diagplots=True,
+                                         plottitle=titlestring)
 
         ota_list[0].header.update("PHOTZP", zeropoint_median, "phot. zeropoint corr for exptime")
         ota_list[0].header.update("PHOTZPE", zeropoint_std, "zeropoint std.dev.")

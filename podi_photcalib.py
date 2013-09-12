@@ -296,7 +296,9 @@ def photcalib_old(fitsfile, output_filename, calib_directory, overwrite_cat=None
 
 
 
-def photcalib(source_cat, output_filename, filtername, exptime=1, diagplots=True, calib_directory=None, overwrite_cat=None):
+def photcalib(source_cat, output_filename, filtername, exptime=1, 
+              diagplots=True, calib_directory=None, overwrite_cat=None,
+              plottitle=None):
 
     # Figure out which SDSS to use for calibration
     sdss_filter = sdss_equivalents[filtername]
@@ -413,7 +415,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1, diagplots=True
                                                   zp_calib_plot,
                                                   zp_median, zp_std,
                                                   "r", "odi_r",
-                                                  title="this is a test"
+                                                  title=plottitle,
                                                   )
 
                 
