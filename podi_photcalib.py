@@ -296,7 +296,7 @@ def photcalib_old(fitsfile, output_filename, calib_directory, overwrite_cat=None
 
 
 
-def photcalib(source_cat, output_filename, filtername, diagplots=True, calib_directory=None, overwrite_cat=None):
+def photcalib(source_cat, output_filename, filtername, exptime=1, diagplots=True, calib_directory=None, overwrite_cat=None):
 
     # Figure out which SDSS to use for calibration
     sdss_filter = sdss_equivalents[filtername]
@@ -382,11 +382,14 @@ def photcalib(source_cat, output_filename, filtername, diagplots=True, calib_dir
     sdss_mag = odi_sdss_matched[:,(source_cat.shape[1]+pc)]
     sdss_magerr = odi_sdss_matched[:,(source_cat.shape[1]+pc+1)]
 
+    zp_correction_exptime = -2.5 * math.log10(exptime)
+    odi_mag -= zp_correction_exptime
+
     # Determine the zero point
-    zp = sdss_mag - odi_mag
+    zp = sdss_mag - odi_mag 
     zperr = numpy.hypot(sdss_magerr, odi_magerr)
-    import podi_collectcells
-    zp_clipped = podi_collectcells.three_sigma_clip(zp)
+    #import podi_collectcells
+    zp_clipped = three_sigma_clip(zp)
     zp_median = numpy.median(zp_clipped)
     zp_std = numpy.std(zp_clipped)
     print "zeropoint (clipped)",zp_median," +/-", zp_std
@@ -397,6 +400,8 @@ def photcalib(source_cat, output_filename, filtername, diagplots=True, calib_dir
 
     zp_median_ = numpy.median(zp)
     zp_std_ = numpy.std(zp)
+    zp_exptime = zp_median + zp_correction_exptime
+
     print "zeropoint (un-clipped)",zp_median_," +/-", zp_std_
 
     # Make plots
@@ -414,7 +419,7 @@ def photcalib(source_cat, output_filename, filtername, diagplots=True, calib_dir
                 
     results.close()
 
-    return zp_median, zp_std, odi_sdss_matched
+    return zp_median, zp_std, odi_sdss_matched, zp_exptime
 
 
 
@@ -437,7 +442,8 @@ if __name__ == "__main__":
         filtername = "odi_r"
 
         output_filename = get_clean_cmdline()[2]
-        photcalib(source_cat, output_filename, filtername, diagplots=True, calib_directory=None, overwrite_cat="stdstars")
+        photcalib(source_cat, output_filename, filtername, exptime=100,
+                  diagplots=True, calib_directory=None, overwrite_cat="stdstars")
     else:
         fitsfile = get_clean_cmdline()[1]
         output_filename = get_clean_cmdline()[2]
