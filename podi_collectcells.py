@@ -654,6 +654,12 @@ def collectcells(input, outputfile,
     # print "Received options:", options
     if (options == None): options = set_default_options()
 
+    if (options['verbose']):
+        stdout_write("\nThese are the options we are using:\n")
+        for opt_name, opt_value in options.iteritems():
+            stdout_write("   %30s: %s\n" % (opt_name, opt_value))
+        stdout_write("----- end options\n\n")
+
     # afw = podi_asyncfitswrite.async_fits_writer(1)
 
     if (os.path.isfile(input)):
