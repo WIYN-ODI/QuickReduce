@@ -166,13 +166,17 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
     fig, ax = matplotlib.pyplot.subplots()
 
     zp_raw = sdss_mag - odi_mag
+    zp_err = numpy.hypot(sdss_magerr, odi_magerr)
 
     zp_clipped, clipped = three_sigma_clip(zp_raw, return_mask=True)
 
     delta = 0.3 if zp_std < 0.3 else zp_std
     close_to_median = (zp_raw > zp_median - 3 * delta) & (zp_raw < zp_median + 3 * delta)
-
-    zp_max, zp_min = zp_median+3*delta, zp_median-3*delta
+    
+    
+    #zp_max, zp_min = zp_median+3*delta, zp_median-3*delta
+    zp_max = zp_median+5*zp_std+0.3
+    zp_min = zp_median-5*zp_std-0.3
 
     # Determine the min and max sdss magnitudes
     sdss_min = numpy.min(sdss_mag - sdss_magerr) - 1
@@ -221,8 +225,19 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
     #
     # Plot the actual measurments and values deemed to be outliers
     #
-    ax.plot(sdss_mag[clipped==False], zp_raw[clipped==False], "ro", fillstyle='none', label='outliers')
-    ax.plot(sdss_mag[clipped], zp_raw[clipped], "bo", linewidth=0, label='valid')
+    #xerr=sdss_magerr[clipped==False], fmt=
+#    ax.plot(sdss_mag[clipped==False], zp_raw[clipped==False], "ro", fillstyle='none', label='outliers')
+    ax.errorbar(sdss_mag[clipped==False], zp_raw[clipped==False], 
+                xerr=sdss_magerr[clipped==False], 
+                yerr=zp_err[clipped==False], 
+                capsize=0,
+                fmt="r+", fillstyle='none', label='outliers')
+    #ax.plot(sdss_mag[clipped], zp_raw[clipped], "bo", linewidth=0, label='valid')
+    ax.errorbar(sdss_mag[clipped], zp_raw[clipped], 
+                xerr=sdss_magerr[clipped], 
+                yerr=zp_err[clipped], 
+                capsize=0,
+                fmt="b+", linewidth=1, label='valid')
 
     #
     # Overplot a white line to illustrate the median value
