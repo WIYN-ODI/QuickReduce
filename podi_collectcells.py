@@ -1243,15 +1243,19 @@ def collectcells(input, outputfile,
 
         numpy.savetxt("matched_cat.cat", odi_2mass_matched)
 
-        zeropoint_median, zeropoint_std, odi_sdss_matched = 99., 99., None
+        zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = 99., 99., None, 99.
         if (options['photcalib']):
             stdout_write("\n\n\nExecuting photcalib...\n\n\n")
+            exptime = ota_list[0].header['EXPTIME']
             filter_name = get_valid_filter_name(ota_list[0].header)
-            zeropoint_median, zeropoint_std, odi_sdss_matched = \
-                podi_photcalib.photcalib(global_source_cat, outputfile, filter_name, diagplots=True)
+            zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = \
+                podi_photcalib.photcalib(global_source_cat, outputfile, filter_name, 
+                                         exptime=exptime,
+                                         diagplots=True)
 
-        ota_list[0].header.update("PHOTZP", zeropoint_median, "photometric zeropoint")
+        ota_list[0].header.update("PHOTZP", zeropoint_median, "phot. zeropoint corr for exptime")
         ota_list[0].header.update("PHOTZPE", zeropoint_std, "zeropoint std.dev.")
+        ota_list[0].header.update("PHOTZP_X", zeropoint_exptime, "phot zeropoint for this frame")
 
 
     #
