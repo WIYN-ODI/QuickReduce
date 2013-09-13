@@ -1317,7 +1317,7 @@ def collectcells(input, outputfile,
 
         # Construct the name of the fringe map
         filter_name = ota_list[0].header['FILTER']
-        fringe_filename = check_filename_directory(options['fringe_dir'], "fringes__%s.fits" % (filter_name))
+        fringe_filename = check_filename_directory(options['fringe_dir'], "fringe__%s.fits" % (filter_name))
         # print fringe_filename
         if (os.path.isfile(fringe_filename)):
             fringe_hdulist = pyfits.open(fringe_filename)
