@@ -139,19 +139,31 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3, exptime_ranges=[0.1,
                     for i in range(p.shape[0]):
                         y += p[i] * x**(i+1)
                     return y
-                def err_fct(p,x,y,err, fitrange):
+                def err_fct(p,x,y,err, fitrange_x, fitrange_y):
                     yfit = fit_fct(p,x)
-                    in_fit_range = (x >= fitrange[0]) & (x <= fitrange[1])
+                    in_fit_range = numpy.isfinite(x) & numpy.isfinite(y)
+                    if (not fitrange_x == None):
+                        in_fit_range = in_fit_range & (x >= fitrange_x[0]) & (x <= fitrange_x[1])
+                    if (not fitrange_y == None):
+                        in_fit_range = in_fit_range & (y >= fitrange_y[0]) & (y <= fitrange_y[1])
+                    if (err == None):
+                        return ((y-yfit))[in_fit_range]
                     return ((y-yfit)/err)[in_fit_range]
 
                 pinit = numpy.zeros(polyorder)
 
+                # fit = scipy.optimize.leastsq(err_fct, pinit,
+                #                              args=(exptime, medlevel, stdlevel, exptime_ranges), 
+                #                              full_output=1)
+
                 fit = scipy.optimize.leastsq(err_fct, pinit,
-                                             args=(exptime, medlevel, stdlevel, exptime_ranges), 
+                                             args=(medlevel, exptime, None, None, exptime_ranges), 
                                              full_output=1)
 
                 pfit = fit[0]
                 uncert = numpy.sqrt(numpy.diag(fit[1]))
+
+                print ota, cellx, celly, pfit, uncert
 
                 linear_factor = pfit[0]
 
@@ -247,14 +259,14 @@ def load_nonlinearity_correction_table(filename, search_ota):
 def compute_cell_nonlinearity_correction(data, cellx, celly, all_coeffs):
 
     coeffs = all_coeffs[cellx, celly, :]
-    print cellx, celly, coeffs
-    print numpy.mean(data)
+    #print cellx, celly, coeffs
+    #print numpy.mean(data)
     
     correction = numpy.zeros(data.shape)
     for i in range(coeffs.shape[0]):
         correction += coeffs[i] * data**(i+2)
 
-    print numpy.mean(correction)
+    #print numpy.mean(correction)
     return correction
 
 
