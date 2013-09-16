@@ -103,10 +103,12 @@ def create_nonlinearity_data(inputfiles):
 
 
 
-def create_nonlinearity_fits(data, outputfits, polyorder=3, exptime_ranges=[0.1,2.5]):
+def create_nonlinearity_fits(data, outputfits, polyorder=3, 
+                             exptime_range=[0.1,2.5], intensity_range=[100,59000],
+                             verbose=False):
 
     otas = set(data[:,0])
-    print otas
+    #print otas
 
     result_count = 0 
     result_ota = numpy.zeros(shape=(data.shape[0]), dtype=numpy.int)
@@ -157,13 +159,14 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3, exptime_ranges=[0.1,
                 #                              full_output=1)
 
                 fit = scipy.optimize.leastsq(err_fct, pinit,
-                                             args=(medlevel, exptime, None, None, exptime_ranges), 
+                                             args=(medlevel, exptime, None, intensity_range, exptime_range), 
                                              full_output=1)
 
                 pfit = fit[0]
                 uncert = numpy.sqrt(numpy.diag(fit[1]))
 
-                print ota, cellx, celly, pfit, uncert
+                if (verbose):
+                    print ota, cellx, celly, pfit, uncert
 
                 linear_factor = pfit[0]
 
@@ -182,8 +185,8 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3, exptime_ranges=[0.1,
     stdout_write(" done!\n")
 
     # Prepare all data to be written to a fits file
-    print result_coeffs[:10,:]
-    print result_coeffuncert[:10,:]
+    #print result_coeffs[:10,:]
+    #print result_coeffuncert[:10,:]
 
     if (outputfits == None):
         return
@@ -216,6 +219,7 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3, exptime_ranges=[0.1,
     primhdu.header.update("POLYORDR", polyorder)
 
     hdulist = pyfits.HDUList([primhdu, tbhdu])
+    clobberfile(outputfits)
     hdulist.writeto(outputfits, clobber=True)
     
     return 
@@ -275,9 +279,36 @@ if __name__ == "__main__":
 
     if (cmdline_arg_isset("-fit")):
         datafile = get_clean_cmdline()[1]
+        
+        outputfile = get_clean_cmdline()[2]
+
         data = numpy.loadtxt(datafile)
 
-        create_nonlinearity_fits(data, "nonlinfit.fits")
+        min_exptime = float(cmdline_arg_set_or_default("-mint",   0.0))
+        max_exptime = float(cmdline_arg_set_or_default("-maxt", 100.0))
+        
+        min_level = float(cmdline_arg_set_or_default("-minf",    10.0))
+        max_level = float(cmdline_arg_set_or_default("-maxf", 59000.0))
+
+        polyorder = int(cmdline_arg_set_or_default("-order", 3))
+
+        verbose = cmdline_arg_isset("-verbose")
+
+        stdout_write("""
+Creating all fits
+-----------------------------------------------------
+  Polynomial order: %d
+  Fit range exposure time [sec] = %.3f - %.3f
+  Fit range intensity [counts]  = %d - %d
+-----------------------------------------------------
+""" % (polyorder, min_exptime, max_exptime, min_level, max_level))
+
+        create_nonlinearity_fits(data, outputfile, polyorder=polyorder,
+                                 intensity_range=[min_level,max_level],
+                                 exptime_range=[min_exptime, max_exptime],
+                                 verbose=verbose
+                                 )
+        stdout_write("\n")
         sys.exit(0)
 
     if (cmdline_arg_isset("-load")):
