@@ -61,6 +61,7 @@ import podi_matchcatalogs
 import podi_matchpupilghost
 import podi_fringing
 import podi_photcalib
+import podi_nonlinearity
 
 from astLib import astWCS
 
@@ -182,6 +183,11 @@ def collect_reduce_ota(filename,
         if (options['bgmode']):
             stdout_write("\r%s: Starting work on OTA %02d ...\n" % (obsid, ota))
 
+        nonlin_data = None
+        if (not options['nonlinearity'] == None):
+            print "Using non-linearity coefficients from",options['nonlinearity']
+            nonlin_data = podi_nonlinearity.load_nonlinearity_correction_table(options['nonlinearity'], ota)
+
         for cell in range(1,65):
             if (not options['bgmode']):
                 stdout_write("\r%s:   OTA %02d, cell %s ..." % (obsid, ota, hdulist[cell].header['EXTNAME']))
@@ -202,27 +208,32 @@ def collect_reduce_ota(filename,
                 # This means it either broken (id=-1) or in video-mode (id=1)
                 continue
 
-            # Now overscan subtract and insert into large frame
-            overscan_region = extract_region(hdulist[cell].data, '[500:530,1:494]')
-            overscan_level = numpy.median(overscan_region)
-
-            hdulist[cell].data -= overscan_level
-
-            if (gain_correct_frames):
-            # Correct for the gain variations in each cell
-                try:
-                    gain = float(hdulist[cell].header['GAIN'])
-                    hdulist[cell].data *= gain
-                except:
-                    print "Couldn't find the GAIN header!"
-                    pass
-
-
             #
             # Now extract just the data section.
             # Values are hard-coded as some of the DATASEC keywords are wrong
             #
             datasec = hdulist[cell].data[0:494, 0:480] 
+
+            # Now overscan subtract and insert into large frame
+            overscan_region = extract_region(hdulist[cell].data, '[500:530,1:494]')
+            overscan_level = numpy.median(overscan_region)
+
+            datasex -= overscan_level
+
+            if (not options['nonlinearity'] == None):
+                nonlin_correction = podi_nonlinearity.compute_cell_nonlinearity_correction(
+                    datasec, wm_cellx, wm_celly, nonlin_data)
+                data += nonlin_correction
+
+            if (gain_correct_frames):
+            # Correct for the gain variations in each cell
+                try:
+                    gain = float(hdulist[cell].header['GAIN'])
+                    datasec *= gain
+                except:
+                    print "Couldn't find the GAIN header!"
+                    pass
+
 
             #
             # Insert the reduced data-section of this cell into the large OTA frame
@@ -1483,6 +1494,8 @@ def set_default_options(options_in=None):
     options['flat_dir'] = None
     options['bpm_dir']  = None
 
+    options['nonlinearity'] = None
+
     options['fixwcs'] = False
     options['wcs_distortion'] = None
 
@@ -1621,6 +1634,8 @@ Calibration data:
     options['bgmode'] = cmdline_arg_isset("-bgmode")
 
     options['photcalib'] = cmdline_arg_isset("-photcalib")
+
+    options['nonlinearity'] = cmdline_arg_set_or_default("-nonlinearity", None)
 
     return options
 
