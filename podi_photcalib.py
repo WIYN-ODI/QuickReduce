@@ -295,24 +295,6 @@ def photcalib_old(fitsfile, output_filename, calib_directory, overwrite_cat=None
 
 
 
-def derive_ota_outlines(otalist):
-
-    all_corners = []
-    for ext in range(len(otalist)):
-        if (type(otalist[ext]) == pyfits.hdu.image.ImageHDU):
-            
-            wcs = astWCS.WCS(otalist[ext].header, mode='pyfits')
-            
-            corner_coords = []
-            corner_coords.append(wcs.pix2wcs(                            0,                             0))
-            corner_coords.append(wcs.pix2wcs(otalist[ext].header['NAXIS1'],                             0))
-            corner_coords.append(wcs.pix2wcs(otalist[ext].header['NAXIS1'], otalist[ext].header['NAXIS2']))
-            corner_coords.append(wcs.pix2wcs(                            0, otalist[ext].header['NAXIS2']))
-
-            all_corners.append(corner_coords)
-
-    return all_corners
-
 def photcalib(source_cat, output_filename, filtername, exptime=1, 
               diagplots=True, calib_directory=None, overwrite_cat=None,
               plottitle=None, otalist=None,

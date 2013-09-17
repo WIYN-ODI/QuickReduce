@@ -1259,3 +1259,20 @@ def three_sigma_clip(input, ranges=[-1e9,1e9], nrep=3, return_mask=False):
     return input[valid]
 
 
+def derive_ota_outlines(otalist):
+
+    all_corners = []
+    for ext in range(len(otalist)):
+        if (type(otalist[ext]) == pyfits.hdu.image.ImageHDU):
+            
+            wcs = astWCS.WCS(otalist[ext].header, mode='pyfits')
+            
+            corner_coords = []
+            corner_coords.append(wcs.pix2wcs(                            0,                             0))
+            corner_coords.append(wcs.pix2wcs(otalist[ext].header['NAXIS1'],                             0))
+            corner_coords.append(wcs.pix2wcs(otalist[ext].header['NAXIS1'], otalist[ext].header['NAXIS2']))
+            corner_coords.append(wcs.pix2wcs(                            0, otalist[ext].header['NAXIS2']))
+
+            all_corners.append(corner_coords)
+
+    return all_corners
