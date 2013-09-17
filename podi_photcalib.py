@@ -37,6 +37,7 @@ import scipy
 import scipy.stats
 
 import podi_matchcatalogs
+import podi_sitesetup
 
 arcsec = 1./3600.
 number_bright_stars = 100
@@ -86,6 +87,7 @@ def load_catalog_from_sdss(ra, dec, sdss_filter, verbose=False, return_query=Fal
     #import sqlcl
 
     #ra = 0
+    #print "# Loading catalog from SDSS online..."
     
     if (numpy.array(ra).ndim > 0):
         min_ra = ra[0]
@@ -95,7 +97,9 @@ def load_catalog_from_sdss(ra, dec, sdss_filter, verbose=False, return_query=Fal
         max_ra = ra + 0.6/math.cos(math.radians(dec))
         
     if (min_ra < 0):
-        ra_query = "ra > %(min_ra)f or ra < %(max_ra)f" % {"min_ra": min_ra+360, "max_ra": max_ra,} 
+        ra_query = "( ra > %(min_ra)f or ra < %(max_ra)f )" % {"min_ra": min_ra+360, "max_ra": max_ra,} 
+    elif (max_ra > 360):
+        ra_query = "( ra > %(min_ra)f or ra < %(max_ra)f )" % {"min_ra": min_ra, "max_ra": max_ra-360.,} 
     else:
         ra_query = "ra BETWEEN %(min_ra)f and %(max_ra)f" % {"min_ra": min_ra, "max_ra": max_ra,} 
         
@@ -131,8 +135,10 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
        "ra_query": ra_query,
        }
 
-    # print sql_query
+    if (verbose): print sql_query
     
+    stdout_write("Downloading catalog from SDSS ...")
+
     # Taken from Tomas Budavari's sqlcl script
     # see http://skyserver.sdss3.org/dr8/en/help/download/sqlcl/default.asp 
     import urllib
@@ -152,14 +158,15 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
             break
         answer.append(line)
         if (((len(answer)-1)%10) == 0):
-            stdout_write("\rFound %d stars so far ..." % (len(answer)-1))
+            if (verbose): stdout_write("\rFound %d stars so far ..." % (len(answer)-1))
     #answer = sdss.readlines()
     if (answer[0].strip() == "No objects have been found"):
+        stdout_write(" nothing found\n")
         if (return_query):
             return numpy.zeros(shape=(0,12)), fsql #sql_query
         return numpy.zeros(shape=(0,12))
-    else:
-        stdout_write("\rFound a total of %d stars in SDSS catalog\n" % (len(answer)-1))
+
+    stdout_write(" found %d stars!\n" % (len(answer)-1))
         
     if (verbose):
         print "Returned from SDSS:"
@@ -172,7 +179,7 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
     del answer[0]
 
     
-    print "Found %d results" % (len(answer))
+    if (verbose): print "Found %d results" % (len(answer))
     results = numpy.zeros(shape=(len(answer),12))
     # Results are comma-separated, so split them up and save as numpy array
     for i in range(len(answer)):
@@ -293,6 +300,126 @@ def photcalib_old(fitsfile, output_filename, calib_directory, overwrite_cat=None
 
 
 
+def load_sdss_catalog_from_fits(sdss_ref_dir, ra_range, dec_range, verbose=True):
+
+    #print "# Loading catalog from SDSS offline fits catalog..."
+
+    # Load the SkyTable so we know in what files to look for the catalog"
+    skytable_filename = "%s/SkyTable.fits" % (sdss_ref_dir)
+    skytable_hdu = pyfits.open(skytable_filename)
+
+    skytable = skytable_hdu['SKY_REGION'].data
+    
+    # Select entries that match our list
+    if (verbose): print "# Searching for stars in sky with ra=%s, dec=%s" % (ra_range, dec_range)
+
+    min_dec = dec_range[0]
+    max_dec = dec_range[1]
+    min_ra = ra_range[0]
+    max_ra = ra_range[1]
+
+    if (verbose): print min_ra, max_ra, min_dec, max_dec
+
+    if (max_ra > 360.):
+        # This wraps around the high end, shift all ra values by -180
+        # Now all search RAs are ok and around the 180, next also move the catalog values
+        selected = skytable['R_MIN'] < 180
+        skytable['R_MAX'][selected] += 360
+        skytable['R_MIN'][selected] += 360
+    if (min_ra < 0):
+        # Wrap around at the low end
+        selected = skytable['R_MAX'] > 180
+        skytable['R_MAX'][selected] -= 360
+        skytable['R_MIN'][selected] -= 360
+
+    if (verbose): print "# Search radius: RA=%.1f ... %.1f   DEC=%.1f ... %.1f" % (min_ra, max_ra, min_dec, max_dec)
+    
+    needed_catalogs = (skytable['R_MAX'] > min_ra)  & (skytable['R_MIN'] < max_ra) & \
+                      (skytable['D_MAX'] > min_dec) & (skytable['D_MIN'] < max_dec)
+
+    if (verbose): print skytable[needed_catalogs]
+    
+    files_to_read = skytable['NAME'][needed_catalogs]
+
+    # Now we are with the skytable catalog, so close it
+    skytable_hdu.close()
+    del skytable
+
+    #
+    # Load all frames, one by one, and select all stars in the valid range.
+    # Then add them to the catalog with RAs and DECs
+    #
+    catalog_columns = ['RA', 'DEC',
+                       'MAG_U', 'MAGERR_U',
+                       'MAG_G', 'MAGERR_G',
+                       'MAG_R', 'MAGERR_R',
+                       'MAG_I', 'MAGERR_I',
+                       'MAG_Z', 'MAGERR_Z',
+                       ]
+
+    full_catalog = numpy.zeros(shape=(0,len(catalog_columns)))
+    for catalogname in files_to_read:
+
+        if (verbose): print "Reading 2mass catalog"
+        catalogfile = "%s/%s.fits" % (sdss_ref_dir, catalogname)
+        hdu_cat = pyfits.open(catalogfile)
+        if (hdu_cat[1].header['NAXIS2'] <= 0):
+            hdu_cat.close()
+            continue
+
+        # Read the RA and DEC values
+        cat_ra  = hdu_cat[1].data.field('RA')
+        cat_dec = hdu_cat[1].data.field('DEC')
+
+        # To select the right region, shift a temporary catalog
+        cat_ra_shifted = cat_ra
+        if (max_ra > 360.):
+            cat_ra_shifted[cat_ra < 180] += 360
+        elif (min_ra < 0):
+            cat_ra_shifted[cat_ra > 180] -= 360
+
+        in_search_range = (cat_ra_shifted > min_ra) & (cat_ra_shifted < max_ra ) & (cat_dec > min_dec) & (cat_dec < max_dec)
+
+        array_to_add = numpy.zeros(shape=(numpy.sum(in_search_range),len(catalog_columns)))
+        if (verbose): print catalogfile, numpy.sum(in_search_range)
+        for col in range(len(catalog_columns)):
+            array_to_add[:,col] = hdu_cat[1].data.field(catalog_columns[col])[in_search_range]
+
+        full_catalog = numpy.append(full_catalog, array_to_add, axis=0)
+        
+    if (verbose): print "# Read a total of %d stars from %d catalogs!" % (full_catalog.shape[0], len(files_to_read))
+    return full_catalog
+
+
+
+
+def query_sdss_catalog(ra_range, dec_range, sdss_filter, verbose=False):
+
+    #
+    # Get a photometric reference catalog one way or another
+    # 
+    std_stars = None
+
+    if (podi_sitesetup.sdss_ref_type == "stripe82"):
+        std_stars = numpy.zeros(shape=(0,0)) #load_catalog_from_stripe82cat(ra, dec, calib_directory, sdss_filter)
+        print std_stars.shape
+
+    elif (podi_sitesetup.sdss_ref_type == 'local'):
+        
+        std_stars = load_sdss_catalog_from_fits(podi_sitesetup.sdss_ref_dir, ra_range, dec_range,
+                                                verbose=verbose)
+        
+    elif (podi_sitesetup.sdss_ref_type == 'web'):
+        #stdout_write("Trying to get one directly from SDSS, please wait!\n\n")
+        #std_stars = load_catalog_from_sdss(ra, dec, sdss_filter)
+        std_stars = load_catalog_from_sdss(ra_range, dec_range, sdss_filter,
+                                           verbose=verbose)
+
+    #print "returning",std_stars.shape[0],"stars..."
+    return std_stars
+
+
+
 
 
 def photcalib(source_cat, output_filename, filtername, exptime=1, 
@@ -300,11 +427,13 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
               plottitle=None, otalist=None,
               options=None):
 
+    error_return_value = (99.9, 99.9, None, 99.9)
+
     # Figure out which SDSS to use for calibration
     sdss_filter = sdss_equivalents[filtername]
     if (sdss_filter == None):
         # This filter is not covered by SDSS, can't perform photometric calibration
-        return None
+        return error_return_value
 
     pc = sdss_photometric_column[sdss_filter]
 
@@ -317,47 +446,25 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
     ra_min = numpy.min(source_cat[:,0])
     ra_max = numpy.max(source_cat[:,0])
-                       
+    # Make sure we deal with RAs around 0 properly
+    if (math.fabs(ra_max - ra_min) > 180):
+        ra_min, ra_max = ra_max, ra_min+360.
+
     dec_min = numpy.min(source_cat[:,1])
     dec_max = numpy.max(source_cat[:,1])
-                       
+                 
+      
     stdout_write("\nPreparing work ...\n\n")
     
+    ra_range  = [ra_min, ra_max]
+    dec_range = [dec_min, dec_max]
 
-    std_stars = numpy.array([])
-    if (overwrite_cat != None):
-        # Read this catalog instead of any of the default ones:
-        if (os.path.isfile(overwrite_cat)):
-            print "reading stdstars from file"
-            std_stars = numpy.loadtxt(overwrite_cat) #, delimiter=";")
+    std_stars = query_sdss_catalog(ra_range, dec_range, sdss_filter)
 
     if (std_stars.shape[0] <= 0):
-        if (calib_directory != None):
-            std_stars = load_catalog_from_stripe82cat(ra, dec, calib_directory, sdss_filter)
-            print std_stars.shape
-        if (std_stars.shape[0] <= 0):
-            if (calib_directory != None):
-                stdout_write("Couldn't find any stars in the Stripe82 Standard star catalog :(\n")
+        stdout_write("No stars not found - looks like this region isn't covered by SDSS - sorry!\n\n")
+        return error_return_value
 
-            stdout_write("Trying to get one directly from SDSS, please wait!\n\n")
-            #std_stars = load_catalog_from_sdss(ra, dec, sdss_filter)
-            std_stars = load_catalog_from_sdss([ra_min, ra_max], [dec_min, dec_max], sdss_filter)
-
-            if (std_stars.shape[0] <= 0):
-                stdout_write("No stars not found - looks like this region isn't covered by SDSS - sorry!\n\n")
-                sys.exit(0)
-                return
-        
-            numpy.savetxt("stdstars", std_stars)
-
-#    dump = open("dump.cat", "w")
-#    for i in range(std_stars.shape[0]):
-#        print >>dump, std_stars[i,0], std_stars[i,1]
-#    print >>dump, "\n\n\n\n\n\n\n\n"
-#    for i in range(sex_cat.shape[0]):
-#        print >>dump, sex_cat[i,6], sex_cat[i,7]
-#    
-#    dump.close()
 
     #
     # Now go through each of the extension
@@ -472,6 +579,29 @@ if __name__ == "__main__":
                   diagplots=True, calib_directory=None, overwrite_cat="stdstars",
                   otalist=hdulist,
                   options=options)
+
+    elif (cmdline_arg_isset("-querysdss")):
+        ra_min = float(get_clean_cmdline()[1])
+        ra_max = float(get_clean_cmdline()[2])
+        dec_min = float(get_clean_cmdline()[3])
+        dec_max = float(get_clean_cmdline()[4])
+
+        ra_range = [ra_min, ra_max]
+        dec_range = [dec_min, dec_max]
+        catalog = query_sdss_catalog(ra_range, dec_range, "r", verbose=False)
+
+        if (not catalog == None):
+            #print catalog.shape
+            pass
+        else:
+            print "there was a problem..."
+
+        if (cmdline_arg_isset("-print")):
+            numpy.savetxt(sys.stdout, catalog)
+        else:
+            print "Found",catalog.shape[0],"results"
+        #print catalog
+
     else:
         fitsfile = get_clean_cmdline()[1]
         output_filename = get_clean_cmdline()[2]

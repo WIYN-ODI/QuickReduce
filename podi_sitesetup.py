@@ -26,6 +26,10 @@ from podi_definitions import *
 wcs_ref_dir = "/datax/2mass_fits/"
 wcs_ref_type = "2mass_nir"
 
+sdss_ref_type = 'local' # can also be 'web' or 'stripe82'
+sdss_ref_type = 'web'
+sdss_ref_dir = '/nas/wiyn/sdss_photcalib/'
+
 number_cpus = "auto"
 max_cpu_count = 6
 if (cmdline_arg_isset("-ncpus")):
