@@ -218,7 +218,7 @@ def collect_reduce_ota(filename,
             overscan_region = extract_region(hdulist[cell].data, '[500:530,1:494]')
             overscan_level = numpy.median(overscan_region)
 
-            datasex -= overscan_level
+            datasec -= overscan_level
 
             if (not options['nonlinearity'] == None):
                 nonlin_correction = podi_nonlinearity.compute_cell_nonlinearity_correction(
