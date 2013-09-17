@@ -46,7 +46,7 @@ import matplotlib.lines
 
 from podi_definitions import *
 
-def wcsdiag_scatter(matched_cat, filename):
+def wcsdiag_scatter(matched_cat, filename, options=None):
 
     stdout_write("Creating the WCS scatter plot ...")
     # Create some plots for WCS diagnosis
@@ -79,14 +79,18 @@ def wcsdiag_scatter(matched_cat, filename):
     if (filename == None):
         fig.show()
     else:
-        png_wcsscatter = filename
-        fig.savefig(png_wcsscatter)
+        if (not options == None):
+            for ext in options['plotformat']:
+                if (ext != ''):
+                    fig.savefig(filename+"."+ext)
+        else:
+            fig.savefig(filename+".png")
 
     matplotlib.pyplot.close()
     stdout_write(" done!\n")
 
 
-def wcsdiag_shift(matched_cat, filename):
+def wcsdiag_shift(matched_cat, filename, options=None, ota_outlines=None):
 
     stdout_write("Creating the WCS offset/shift plot ...")
 
@@ -95,7 +99,8 @@ def wcsdiag_shift(matched_cat, filename):
     d_ra  = good_matches[:,0] - good_matches[:,2]
     d_dec = good_matches[:,1] - good_matches[:,3]
 
-    fig = matplotlib.pyplot.figure()
+    fig, ax = matplotlib.pyplot.subplots()
+    
     #matched_zeroed = matched_cat
     #matched_zeroed[:,0:2] -= wcs_shift_refinement
     #matplotlib.pyplot.plot(matched_zeroed[:,0], matched_zeroed[:,1], ",", color=(1,1,1))
@@ -129,6 +134,10 @@ def wcsdiag_shift(matched_cat, filename):
                              angles='xy', scale_units='xy', scale=1, pivot='middle',
                              headwidth=0)
 
+    if (not ota_outlines == None):
+        corners = numpy.array(ota_outlines)
+        coll = matplotlib.collections.PolyCollection(corners,facecolor='none',edgecolor='#808080', linestyle='-')
+        ax.add_collection(coll)
 
     # add a line
     x,y = numpy.array([[arrow_x-arrow_length*vector_scaling, arrow_x+arrow_length*vector_scaling], [arrow_y, arrow_y]])
@@ -143,8 +152,12 @@ def wcsdiag_shift(matched_cat, filename):
     if (filename == None):
         fig.show()
     else:
-        png_wcsdirection = filename
-        fig.savefig(png_wcsdirection)
+        if (not options == None):
+            for ext in options['plotformat']:
+                if (ext != ''):
+                    fig.savefig(filename+"."+ext)
+        else:
+            fig.savefig(filename+".png")
 
     matplotlib.pyplot.close()
     stdout_write(" done!\n")
@@ -226,14 +239,12 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
     #
     # Plot the actual measurments and values deemed to be outliers
     #
-    #xerr=sdss_magerr[clipped==False], fmt=
-#    ax.plot(sdss_mag[clipped==False], zp_raw[clipped==False], "ro", fillstyle='none', label='outliers')
     ax.errorbar(sdss_mag[clipped==False], zp_raw[clipped==False], 
                 xerr=sdss_magerr[clipped==False], 
                 yerr=zp_err[clipped==False], 
                 capsize=0,
                 fmt="r+", fillstyle='none', label='outliers')
-    #ax.plot(sdss_mag[clipped], zp_raw[clipped], "bo", linewidth=0, label='valid')
+
     ax.errorbar(sdss_mag[clipped], zp_raw[clipped], 
                 xerr=sdss_magerr[clipped], 
                 yerr=zp_err[clipped], 
@@ -248,13 +259,14 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
     ax.grid(True)
     ax.legend(loc='upper left', borderaxespad=1)
 
-    #matplotlib.pyplot.plot(x_values+1, y_values*zp_median, linewidth=2, ls='-', color='blue')
+    photzp_text = u"ZP = %.3f \u00b1 %.3f mag" % (zp_median, zp_std)
+    ax.text(0.96, 0.05, photzp_text, fontsize=15,
+            horizontalalignment='right',
+            verticalalignment='bottom',
+            transform=ax.transAxes,
+            bbox=dict(facecolor='white', alpha=0.8, edgecolor='none', linewidth=0))
 
-    if (title == None):
-        title_string = u"Photometric zeropoint: %.3f \u00b1 %.3f mag" % (zp_median, zp_std)
-    else:
-        title_string = u"%s\nPhotometric zeropoint: %.3f \u00b1 %.3f mag" % (title, zp_median, zp_std)
-
+    title_string = title if (title != None) else ""
     matplotlib.pyplot.title(title_string)
     matplotlib.pyplot.xlabel("SDSS magnitude in %s" % (sdss_filtername), labelpad=7)
     matplotlib.pyplot.ylabel("zeropoint (sdss [%s] - odi [%s])" % (sdss_filtername, odi_filtername), labelpad=20)
@@ -331,11 +343,7 @@ def photocalib_zeropoint_perota(odi_mag, sdss_mag, ota, ra, dec, output_filename
         #matplotlib.pyplot.colorbar(sc, cm)
 
     if (not ota_outlines == None):
-        #for i in range(len(ota_outlines)):
-        #    print ota_outlines[i]
-
         corners = numpy.array(ota_outlines)
-        #print corners.shape
         coll = matplotlib.collections.PolyCollection(corners,facecolor='none',edgecolor='#808080', linestyle='-')
         ax.add_collection(coll)
 
@@ -443,10 +451,19 @@ def photocalib_zeropoint_perota(odi_mag, sdss_mag, ota, ra, dec, output_filename
 
     #matplotlib.pyplot.plot(x_values+1, y_values*zp_median, linewidth=2, ls='-', color='blue')
 
-    if (title == None):
-        title_string = u"Photometric zeropoint: %.3f \u00b1 %.3f mag" % (zp_median, zp_std)
-    else:
-        title_string = u"%s\nPhotometric zeropoint: %.3f \u00b1 %.3f mag" % (title, zp_median, zp_std)
+    # if (title == None):
+    #     title_string = u"Photometric zeropoint: %.3f \u00b1 %.3f mag" % (zp_median, zp_std)
+    # else:
+    #     title_string = u"%s\nPhotometric zeropoint: %.3f \u00b1 %.3f mag" % (title, zp_median, zp_std)
+    title_string = title
+
+    print "I'm here!"
+    photzp_text = u"ZP = %.3f \u00b1 %.3f mag" % (zp_median, zp_std)
+    ax.text(0.95, 0.95, photzp_text, 
+            horizontalalignment='right',
+            verticalalignment='bottom',
+            transform=ax.transAxes,
+            bbox=dict(facecolor='white', alpha=0.7))
 
     matplotlib.pyplot.title(title_string)
     matplotlib.pyplot.xlabel("SDSS magnitude in %s" % (sdss_filtername), labelpad=7)
@@ -472,6 +489,6 @@ if __name__ == "__main__":
     filename = "output"
 
 #    make_plots(matched_cat, filename)
-    wcsdiag_scatter(matched_cat, filename+".wcs1.png")
-    wcsdiag_shift(matched_cat, filename+".wcs2.png")
+    wcsdiag_scatter(matched_cat, filename+".wcs1")
+    wcsdiag_shift(matched_cat, filename+".wcs2")
 #    wcsdiag_shift(matched_cat, None)

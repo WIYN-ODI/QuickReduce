@@ -1213,11 +1213,14 @@ def collectcells(input, outputfile,
 
         numpy.savetxt("odi+2mass.matched", odi_2mass_matched)
 
+        ota_outlines = derive_ota_outlines(ota_list)
         if (True):
             # print "Creating some diagnostic plots"
             import podi_diagnosticplots
-            podi_diagnosticplots.wcsdiag_scatter(odi_2mass_matched, outputfile[:-5]+".wcs1.png")
-            podi_diagnosticplots.wcsdiag_shift(odi_2mass_matched, outputfile[:-5]+".wcs2.png")
+            podi_diagnosticplots.wcsdiag_scatter(odi_2mass_matched, outputfile[:-5]+".wcs1", 
+                                                 options=options)
+            podi_diagnosticplots.wcsdiag_shift(odi_2mass_matched, outputfile[:-5]+".wcs2", 
+                                                 options=options, ota_outlines=ota_outlines)
         
         source_cat_file = outputfile+".src.cat"
         file = open(source_cat_file, "w")
@@ -1292,9 +1295,9 @@ def collectcells(input, outputfile,
         if (options['photcalib']):
             stdout_write("\n\n\nExecuting photcalib...\n\n\n")
             exptime = ota_list[0].header['EXPTIME']
-            titlestring = "%s (target:%s -- filter: %s -- exptime: %ds)" % (
-                ota_list[0].header['OBSID'],
+            titlestring = "%s\n(obsid: %s - filter: %s- exptime: %ds)" % (
                 ota_list[0].header['OBJECT'],
+                ota_list[0].header['OBSID'],
                 ota_list[0].header['FILTER'],
                 int(ota_list[0].header['EXPTIME']),
                 )
@@ -1304,7 +1307,8 @@ def collectcells(input, outputfile,
                                          exptime=exptime,
                                          diagplots=True,
                                          plottitle=titlestring,
-                                         otalist=ota_list)
+                                         otalist=ota_list,
+                                         options=options)
 
         ota_list[0].header.update("PHOTZP", zeropoint_median, "phot. zeropoint corr for exptime")
         ota_list[0].header.update("PHOTZPE", zeropoint_std, "zeropoint std.dev.")
