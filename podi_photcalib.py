@@ -31,7 +31,7 @@ import pyfits
 #import date
 import datetime
 #import pywcs  
-#from astLib import astWCS
+from astLib import astWCS
 import pdb
 import scipy
 import scipy.stats
@@ -295,10 +295,28 @@ def photcalib_old(fitsfile, output_filename, calib_directory, overwrite_cat=None
 
 
 
+def derive_ota_outlines(otalist):
+
+    all_corners = []
+    for ext in range(len(otalist)):
+        if (type(otalist[ext]) == pyfits.hdu.image.ImageHDU):
+            
+            wcs = astWCS.WCS(otalist[ext].header, mode='pyfits')
+            
+            corner_coords = []
+            corner_coords.append(wcs.pix2wcs(                            0,                             0))
+            corner_coords.append(wcs.pix2wcs(otalist[ext].header['NAXIS1'],                             0))
+            corner_coords.append(wcs.pix2wcs(otalist[ext].header['NAXIS1'], otalist[ext].header['NAXIS2']))
+            corner_coords.append(wcs.pix2wcs(                            0, otalist[ext].header['NAXIS2']))
+
+            all_corners.append(corner_coords)
+
+    return all_corners
 
 def photcalib(source_cat, output_filename, filtername, exptime=1, 
               diagplots=True, calib_directory=None, overwrite_cat=None,
-              plottitle=None):
+              plottitle=None, otalist=None,
+              options=None):
 
     # Figure out which SDSS to use for calibration
     sdss_filter = sdss_equivalents[filtername]
@@ -410,15 +428,33 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     if (diagplots):
         import podi_diagnosticplots
 
-        zp_calib_plot = output_filename[:-5]+".photZP.png"
+        zp_calib_plot = output_filename[:-5]+".photZP"
         podi_diagnosticplots.photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr,
                                                   zp_calib_plot,
                                                   zp_median, zp_std,
-                                                  "r", "odi_r",
+                                                  sdss_filter, filtername, #"r", "odi_r",
                                                   title=plottitle,
+                                                  options=options,
                                                   )
 
-                
+        print odi_sdss_matched[0,:]
+
+        ota = odi_sdss_matched[:,10]
+        ra = odi_sdss_matched[:,0]
+        dec = odi_sdss_matched[:,1]
+        plotfilename = output_filename[:-5]+".photZP_OTA"
+
+        ota_outlines = None
+        if (otalist != None):
+            ota_outlines = derive_ota_outlines(otalist)
+
+        podi_diagnosticplots.photocalib_zeropoint_perota(odi_mag, sdss_mag, ota, ra, dec,
+                                                         output_filename=plotfilename,
+                                                         sdss_filtername=sdss_filter, odi_filtername=filtername,
+                                                         title=plottitle,
+                                                         ota_outlines=ota_outlines,
+                                                         options=options)
+
     results.close()
 
     return zp_median, zp_std, odi_sdss_matched, zp_exptime
@@ -428,7 +464,6 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     
 if __name__ == "__main__":
 
-    
     if (cmdline_arg_isset("-multi")):
         calibdir = get_cmdline_arg("-calib")
         for infile in get_clean_cmdline()[1:]:
@@ -438,14 +473,23 @@ if __name__ == "__main__":
             photcalib(infile, output_filename, calibdir)
 
     elif (cmdline_arg_isset("-new")):
-        catalogfile = get_clean_cmdline()[1]
+        fitsfile = get_clean_cmdline()[1]
+        hdulist = pyfits.open(fitsfile)
+        catalogfile = fitsfile+".src.cat"
         source_cat = numpy.loadtxt(catalogfile)
-
-        filtername = "odi_r"
+        
+        filtername = hdulist[0].header['FILTER']
+        print catalogfile,"-->",source_cat.shape
 
         output_filename = get_clean_cmdline()[2]
+
+        from podi_collectcells import read_options_from_commandline
+        options = read_options_from_commandline(None)
+
         photcalib(source_cat, output_filename, filtername, exptime=100,
-                  diagplots=True, calib_directory=None, overwrite_cat="stdstars")
+                  diagplots=True, calib_directory=None, overwrite_cat="stdstars",
+                  otalist=hdulist,
+                  options=options)
     else:
         fitsfile = get_clean_cmdline()[1]
         output_filename = get_clean_cmdline()[2]
