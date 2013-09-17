@@ -482,7 +482,85 @@ def photocalib_zeropoint_perota(odi_mag, sdss_mag, ota, ra, dec, output_filename
 
 
 
+def diagplot_psfsize_ota(ra, dec, fwhm, output_filename,
+                         title=None,
+                         ota_outlines=None,
+                         options=None,
+                         ):
+
+
+    stdout_write("Creating the PSF size as heatmap plot ...")
+    fig, ax = matplotlib.pyplot.subplots()
+    
+    fwhm_scale_arcsec = 3600.0 * 0.11
+
+    fwhm *= fwhm_scale_arcsec
+    fwhm_min = scipy.stats.scoreatpercentile(fwhm,  5)
+    fwhm_max = scipy.stats.scoreatpercentile(fwhm, 95)
+    fwhm_clipped, clipmask = three_sigma_clip(fwhm, return_mask=True)
+
+    sc = matplotlib.pyplot.scatter(ra, dec, c=fwhm, alpha=0.75, 
+                                   vmin=fwhm_min, vmax=fwhm_max, edgecolor='none',
+                                   s=9, cmap=matplotlib.pyplot.cm.get_cmap('spectral'))
+
+    if (not ota_outlines == None):
+        corners = numpy.array(ota_outlines)
+        coll = matplotlib.collections.PolyCollection(corners,facecolor='none',edgecolor='#808080', linestyle='-', linewidth=0.5)
+        ax.add_collection(coll)
+
+    ax.set_xlabel("RA [degrees]")
+    ax.set_ylabel("DEC [degrees]")
+    ax.autoscale_view()
+
+    colorbar = matplotlib.pyplot.colorbar(cmap=matplotlib.pyplot.cm.get_cmap('spectral'))
+    colorbar.set_label("FWHM [arcsec]")
+
+    if (output_filename == None):
+        fig.show()
+    else:
+        if (not options == None):
+            for ext in options['plotformat']:
+                if (ext != ''):
+                    fig.savefig(output_filename+"."+ext)
+        else:
+            fig.savefig(output_filename+".png")
+
+    matplotlib.pyplot.close()
+    stdout_write(" done!\n")
+
+    return
+
+
+
 if __name__ == "__main__":
+
+    if (cmdline_arg_isset("-psfplot")):
+        fitsfile = get_clean_cmdline()[1]
+        hdulist = pyfits.open(fitsfile)
+        catalogfile = fitsfile+".src.cat"
+        source_cat = numpy.loadtxt(catalogfile)
+
+        from podi_collectcells import read_options_from_commandline
+        options = read_options_from_commandline(None)
+
+        flags = source_cat[:,7]
+        valid_flags = flags == 0
+
+        ra = source_cat[:,0][valid_flags]
+        dec = source_cat[:,1][valid_flags]
+        fwhm = source_cat[:,5][valid_flags]
+
+        print fwhm
+
+        ota_outlines = derive_ota_outlines(hdulist)
+
+        output_filename = fitsfile[:-5]+".seeing"
+        diagplot_psfsize_ota(ra, dec, fwhm, output_filename,
+                         title="PSF size",
+                         ota_outlines=ota_outlines,
+                         options=options,
+                         )
+        sys.exit(0)
 
     matched_cat = numpy.loadtxt("odi+2mass.matched")
 
@@ -492,3 +570,6 @@ if __name__ == "__main__":
     wcsdiag_scatter(matched_cat, filename+".wcs1")
     wcsdiag_shift(matched_cat, filename+".wcs2")
 #    wcsdiag_shift(matched_cat, None)
+
+
+    

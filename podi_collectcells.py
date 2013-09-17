@@ -1213,15 +1213,41 @@ def collectcells(input, outputfile,
 
         numpy.savetxt("odi+2mass.matched", odi_2mass_matched)
 
+        #
+        # Apply all WCS shifts to the WCS information in the ouput file header
+        #
+        #print "\n\n\n\nbefore any shifts =",ota_list[1].header['CRVAL1'], ota_list[1].header['CRVAL2'],"\n\n\n"
+        for extension in range(1, len(ota_list)):
+            if (ota_list[extension] == None):
+                continue
+            podi_fixwcs.apply_wcs_shift(wcs_shift, ota_list[extension].header,
+                                        fixrot_trans)
+
         ota_outlines = derive_ota_outlines(ota_list)
         if (True):
             # print "Creating some diagnostic plots"
+            diagnostic_plot_title = "%s\n(obsid: %s - filter: %s- exptime: %ds)" % (
+                ota_list[0].header['OBJECT'],
+                ota_list[0].header['OBSID'],
+                ota_list[0].header['FILTER'],
+                int(ota_list[0].header['EXPTIME']),
+                )
+
             import podi_diagnosticplots
             podi_diagnosticplots.wcsdiag_scatter(odi_2mass_matched, outputfile[:-5]+".wcs1", 
                                                  options=options)
             podi_diagnosticplots.wcsdiag_shift(odi_2mass_matched, outputfile[:-5]+".wcs2", 
                                                  options=options, ota_outlines=ota_outlines)
         
+            flags = global_source_cat[:,7]
+            valid_flags = flags == 0
+            ra = global_source_cat[:,0][valid_flags]
+            dec= global_source_cat[:,1][valid_flags]
+            fwhm = global_source_cat[:,5][valid_flags]
+            podi_diagnosticplots.diagplot_psfsize_ota(ra, dec, fwhm, outputfile[:-5]+".seeing",
+                         title=diagnostic_plot_title,
+                         ota_outlines=ota_outlines, options=options)
+
         source_cat_file = outputfile+".src.cat"
         file = open(source_cat_file, "w")
         #RK numpy.savetxt(file, fixwcs_odi_sourcecat)
@@ -1250,16 +1276,6 @@ def collectcells(input, outputfile,
         dummy[:,1] = fixwcs_odi_dec[:]
         numpy.savetxt(x, dummy)
 
-
-        #
-        # Apply all WCS shifts to the WCS information in the ouput file header
-        #
-        #print "\n\n\n\nbefore any shifts =",ota_list[1].header['CRVAL1'], ota_list[1].header['CRVAL2'],"\n\n\n"
-        for extension in range(1, len(ota_list)):
-            if (ota_list[extension] == None):
-                continue
-            podi_fixwcs.apply_wcs_shift(wcs_shift, ota_list[extension].header,
-                                        fixrot_trans)
 
             
         #
