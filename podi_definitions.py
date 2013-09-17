@@ -309,7 +309,7 @@ def get_cmdline_arg(arg):
 def get_clean_cmdline():
     list = []
     for cur in sys.argv:
-        if (cur[0] != "-"):
+        if (cur[0] != "-" or cur[1].isdigit()):
             list.append(cur)
     return list
 
