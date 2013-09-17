@@ -1260,6 +1260,7 @@ def three_sigma_clip(input, ranges=[-1e9,1e9], nrep=3, return_mask=False):
 
 
 def derive_ota_outlines(otalist):
+    from astLib import astWCS
 
     all_corners = []
     for ext in range(len(otalist)):
