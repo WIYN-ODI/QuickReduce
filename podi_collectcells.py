@@ -1513,6 +1513,8 @@ def set_default_options(options_in=None):
 
     options['photcalib'] = False
 
+    options['plotformat'] = ['png']
+
     return options
 
 
@@ -1636,6 +1638,13 @@ Calibration data:
     options['photcalib'] = cmdline_arg_isset("-photcalib")
 
     options['nonlinearity'] = cmdline_arg_set_or_default("-nonlinearity", None)
+
+    if (cmdline_arg_isset('-plotformat')):
+        inputstr = cmdline_arg_set_or_default("-plotformat", "png")
+        options['plotformat'] = inputstr.split(",")
+        print "writing plots as ",options['plotformat']
+        
+
 
     return options
 
