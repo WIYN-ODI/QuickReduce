@@ -223,7 +223,7 @@ def collect_reduce_ota(filename,
             if (not options['nonlinearity'] == None):
                 nonlin_correction = podi_nonlinearity.compute_cell_nonlinearity_correction(
                     datasec, wm_cellx, wm_celly, nonlin_data)
-                data += nonlin_correction
+                datasec += nonlin_correction
 
             if (gain_correct_frames):
             # Correct for the gain variations in each cell
