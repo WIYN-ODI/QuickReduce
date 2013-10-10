@@ -63,9 +63,18 @@ def create_nonlinearity_data(inputfiles):
 
     for filename in inputfiles:
 
-        hdulist = pyfits.open(filename)
-        exptime = hdulist[0].header['EXPTIME']
-        expmeas = hdulist[0].header['EXPMEAS']
+        try:
+            hdulist = pyfits.open(filename)
+            exptime = hdulist[0].header['EXPTIME']
+            expmeas = hdulist[0].header['EXPMEAS']
+            print "Working on",filename, "exptime=",exptime
+        except:
+            print "#####"
+            print "#####"
+            print "Error opening file",filename
+            print "#####"
+            print "#####"
+            continue
 
         for ext in range(1, len(hdulist)):
             if (not type(hdulist[ext]) == pyfits.hdu.image.ImageHDU):
@@ -93,11 +102,20 @@ def create_nonlinearity_data(inputfiles):
                     #print exptime, extname, ota, cellx, celly, median_int
 
                     thiscell = [ota, otax, otay, cellx, celly, exptime, expmeas, median_int, mean_int, std_int]
-                    print thiscell
+                    # if (ext == 1 and cellx == 0 and celly == 0):
+                    #     print thiscell,
+                    # else:
+                    #     stdout_write(".")
 
+                    stdout_write("\rOTA %02d, cell %d,%d: median=%6.0f, avg=%6.0f, std=%6.0f" % (
+                                 ota, cellx, celly, median_int, mean_int, std_int) )
+                        
                     all_data.append(thiscell)
 
         hdulist.close()
+
+        numpy.savetxt("alldata.tmp", all_data)
+        stdout_write("\n\n")
 
     return all_data
 
@@ -182,6 +200,7 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
                 
                 result_count += 1
 
+    print "completed",result_count,"fits"
     stdout_write(" done!\n")
 
     # Prepare all data to be written to a fits file
@@ -192,22 +211,22 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
         return
 
     columns = [\
-        pyfits.Column(name='OTA',    format='B', array=result_ota[:], disp='ota'),
-        pyfits.Column(name='CELLX',  format='B', array=result_cellx[:], disp='cell-x'),
-        pyfits.Column(name='CELLY',  format='B', array=result_celly[:], disp='cell-y'),
+        pyfits.Column(name='OTA',    format='B', array=result_ota[:result_count], disp='ota'),
+        pyfits.Column(name='CELLX',  format='B', array=result_cellx[:result_count], disp='cell-x'),
+        pyfits.Column(name='CELLY',  format='B', array=result_celly[:result_count], disp='cell-y'),
         ]
 
     for i in range(polyorder-1):
         col = pyfits.Column(name="COEFF_X**%d" % (i+2), 
                             format='E',
-                            array=result_coeffs[:,i],
+                            array=result_coeffs[:result_count,i],
                             disp="polynomial coeff x^%d" % (i+2)
                             )
         columns.append(col)
     for i in range(polyorder-1):
         col = pyfits.Column(name="UNCERT_COEFF_X**%d" % (i+2), 
                             format='E',
-                            array=result_coeffuncert[:,i],
+                            array=result_coeffuncert[:result_count,i],
                             disp="uncertainty of polynomial coeff x^%d" % (i+2)
                             )
         columns.append(col)
@@ -318,7 +337,7 @@ Creating all fits
         print coeffs
         sys.exit(0)
 
-    if (cmdline_arg_isset("-correct")):
+    if (cmdline_arg_isset("-correctraw")):
         infile = get_clean_cmdline()[1]
         hdulist = pyfits.open(infile)
         ota = int(hdulist[0].header['FPPOS'][2:4])
@@ -337,6 +356,40 @@ Creating all fits
             #data += correction
             hdulist[i].data = data
 
+        stdout_write(" writing ...")
+        outfile = get_clean_cmdline()[3]
+        hdulist.writeto(outfile, clobber=True)
+
+        stdout_write(" done!\n\n")
+        sys.exit(0)
+
+    if (cmdline_arg_isset("-correct")):
+        infile = get_clean_cmdline()[1]
+        hdulist = pyfits.open(infile)
+
+        catfile = get_clean_cmdline()[2]
+        
+        for ext in range(1, len(hdulist)):
+            ota = int(hdulist[ext].header['EXTNAME'][3:5])
+            ota_coeffs = load_nonlinearity_correction_table(catfile, ota)
+
+            data = hdulist[ext].data
+            for cx in range(0,8):
+                for cy in range(0,8):
+
+                    stdout_write("\rcorrecting ota %02d, cell %d,%d ..." % (ota, cx, cy))
+                    x1, x2, y1, y2 = cell2ota__get_target_region(cx, cy)
+
+                    data[y1:y2, x1:x2] += compute_cell_nonlinearity_correction(data[y1:y2, x1:x2], cx, cy, ota_coeffs)
+                    # data -= overscan_level
+                    # cellx = hdulist[i].header['WN_CELLX']
+                    # celly = hdulist[i].header['WN_CELLY']
+                    # correction = compute_cell_nonlinearity_correction(data, cellx, celly, ota_coeffs)
+
+                    #data += correction
+                    # hdulist[i].data = data
+                    
+            hdulist[ext].data = data
         stdout_write(" writing ...")
         outfile = get_clean_cmdline()[3]
         hdulist.writeto(outfile, clobber=True)
