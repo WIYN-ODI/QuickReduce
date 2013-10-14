@@ -121,6 +121,35 @@ def create_nonlinearity_data(inputfiles):
 
 
 
+
+def fit_nonlinearity_sequence(pinit, args):
+
+    def fit_fct(p, x):
+        y = numpy.zeros(x.shape)
+        for i in range(p.shape[0]):
+            y += p[i] * x**(i+1)
+        return y
+    def err_fct(p,x,y,err, fitrange_x, fitrange_y):
+        yfit = fit_fct(p,x)
+        in_fit_range = numpy.isfinite(x) & numpy.isfinite(y)
+        if (not fitrange_x == None):
+            in_fit_range = in_fit_range & (x >= fitrange_x[0]) & (x <= fitrange_x[1])
+        if (not fitrange_y == None):
+            in_fit_range = in_fit_range & (y >= fitrange_y[0]) & (y <= fitrange_y[1])
+        if (err == None):
+            return ((y-yfit))[in_fit_range]
+        return ((y-yfit)/err)[in_fit_range]
+
+    # (medlevel, exptime, None, intensity_range, exptime_range) = args
+
+    fit = scipy.optimize.leastsq(err_fct, pinit, args=args, full_output=1)
+
+    pfit = fit[0]
+    uncert = numpy.sqrt(numpy.diag(fit[1]))
+
+    return pfit, uncert
+
+                          
 def create_nonlinearity_fits(data, outputfits, polyorder=3, 
                              exptime_range=[0.1,2.5], intensity_range=[100,59000],
                              verbose=False):
@@ -154,34 +183,22 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
                 medlevel = subset[:,7][not_nans]
                 stdlevel = subset[:,9][not_nans]
 
-                def fit_fct(p, x):
-                    y = numpy.zeros(x.shape)
-                    for i in range(p.shape[0]):
-                        y += p[i] * x**(i+1)
-                    return y
-                def err_fct(p,x,y,err, fitrange_x, fitrange_y):
-                    yfit = fit_fct(p,x)
-                    in_fit_range = numpy.isfinite(x) & numpy.isfinite(y)
-                    if (not fitrange_x == None):
-                        in_fit_range = in_fit_range & (x >= fitrange_x[0]) & (x <= fitrange_x[1])
-                    if (not fitrange_y == None):
-                        in_fit_range = in_fit_range & (y >= fitrange_y[0]) & (y <= fitrange_y[1])
-                    if (err == None):
-                        return ((y-yfit))[in_fit_range]
-                    return ((y-yfit)/err)[in_fit_range]
-
                 pinit = numpy.zeros(polyorder)
 
                 # fit = scipy.optimize.leastsq(err_fct, pinit,
                 #                              args=(exptime, medlevel, stdlevel, exptime_ranges), 
                 #                              full_output=1)
 
-                fit = scipy.optimize.leastsq(err_fct, pinit,
-                                             args=(medlevel, exptime, None, intensity_range, exptime_range), 
-                                             full_output=1)
+                # fit = scipy.optimize.leastsq(err_fct, pinit,
+                #                              args=(medlevel, exptime, None, intensity_range, exptime_range), 
+                #                              full_output=1)
 
-                pfit = fit[0]
-                uncert = numpy.sqrt(numpy.diag(fit[1]))
+                # pfit = fit[0]
+                # uncert = numpy.sqrt(numpy.diag(fit[1]))
+                args = (medlevel, exptime, None, intensity_range, exptime_range)
+                pfit, uncert = fit_nonlinearity_sequence(pinit, args)
+
+
 
                 if (verbose):
                     print ota, cellx, celly, pfit, uncert
@@ -293,6 +310,105 @@ def compute_cell_nonlinearity_correction(data, cellx, celly, all_coeffs):
     return correction
 
 
+def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
+
+    import podi_plotting
+
+    this_cell = (data[:,0] == ota) & (data[:,3] == cellx) & (data[:,4] == celly)
+    subset = data[this_cell]
+
+    # Determine the min and max exposure times
+    exptime_min = 0
+    exptime_max = 1.05 * numpy.max(subset[:,6])
+    flux_min = 0
+    flux_max = 70000
+
+    medlevel = subset[:,8]
+    exptimes = subset[:,6]
+    #print medlevel
+
+    fluxscaling = 1000
+
+    # Load the fit parameters
+    fittable = load_nonlinearity_correction_table(fitfile, ota)
+
+    fig = matplotlib.pyplot.figure()
+    left = 0.1
+    width = 0.87
+
+    ax1 = fig.add_axes([left, 0.3,width,0.64])
+    ax2 = fig.add_axes([left, 0.1,width,0.2])
+
+    ax1.set_xlim([flux_min, flux_max/fluxscaling])
+    ax2.set_xlim([flux_min, flux_max/fluxscaling])
+    ax1.set_ylim([exptime_min, exptime_max])
+
+    ax1.scatter(medlevel/fluxscaling, exptimes, label="data")
+
+    fit_x = numpy.linspace(flux_min, flux_max, 1000)
+    delta_fit_y = compute_cell_nonlinearity_correction(fit_x, cellx, celly, fittable)
+    fit_y = fit_x + delta_fit_y
+
+    intensity_range = [0, 63000]
+    exptime_range = [0, 1e9]
+    args = (medlevel, exptimes, None, intensity_range, exptime_range)
+    #print args
+
+
+    def evaluate_poly(x, pol):
+        y = numpy.zeros(x.shape)
+        for i in range(pol.shape[0]):
+            y += x**(i+1) * pol[i]
+        return y
+
+    colors = ('red', 'green', 'blue', 'grey')
+    poly_fits = [None] * 3 #len(colors)
+
+    error_range = [-0.6, 0.6]
+
+    ax1.set_title("OTA %02d, cell %1d,%1d" % (ota, cellx, celly))
+    for i in range(len(poly_fits)):
+    
+        fit, error = fit_nonlinearity_sequence(numpy.zeros(shape=(i+1)), args)
+        poly_fits[i] = fit
+                          
+        label = "fit-order: %d" % (i+1)
+        ax1.plot(fit_x/fluxscaling, evaluate_poly(fit_x, fit), label=label, c=colors[i])
+        
+        timediff = exptimes - evaluate_poly(medlevel, fit)
+        within_errors = (timediff < error_range[1]) & (timediff > error_range[0])
+
+        ax2.scatter(medlevel[within_errors]/fluxscaling, timediff[within_errors], c=colors[i])
+        above = timediff > error_range[1]
+        if (numpy.sum(above) > 0):
+            med_above = medlevel[above]
+            y_values = numpy.ones(shape=med_above.shape) * error_range[1]
+            ax2.scatter(med_above/fluxscaling, y_values, c=colors[i], marker="^")
+        below = timediff < error_range[0]
+        if (numpy.sum(below) > 0):
+            med_below = medlevel[below]
+            y_values = numpy.ones(shape=med_below.shape) * error_range[0]
+            ax2.scatter(med_below/fluxscaling, y_values, c=colors[i], marker="v")
+
+        print "Order",i+1,":", fit
+
+        if (i==2):
+#            ax1.set_label()
+            fig.text(0.93, 0.36, '3rd-order polynomial fit:\ny = x + %.4e*x^2 + %.4e*x^3' % (fit[1]/fit[0], fit[2]/fit[0]), 
+                     horizontalalignment='right', verticalalignment='bottom')
+
+    ax1.legend(loc='upper left', borderaxespad=1)
+    ax1.get_xaxis().set_ticklabels([]) #set_visible(False)
+    ax1.set_ylabel("exposure time t_exp (~ true flux)")
+    
+    ax2.set_ylabel("delta t_exp")
+    ax2.set_xlabel("observed flux level (x1000 cts)")
+    ax2.set_ylim([-0.77,0.77])
+    fig.savefig(outputfile)
+
+    return
+
+
 if __name__ == "__main__":
 
 
@@ -396,6 +512,19 @@ Creating all fits
 
         stdout_write(" done!\n\n")
         sys.exit(0)
+
+    if (cmdline_arg_isset("-plotdatafit")):
+        datafile = get_clean_cmdline()[1]
+        ota = int(get_clean_cmdline()[2])
+        cellx = int(get_clean_cmdline()[3])
+        celly = int(get_clean_cmdline()[4])
+        fitfile = get_clean_cmdline()[5]
+        outputfile = get_clean_cmdline()[6]
+
+        data = numpy.loadtxt(datafile)
+        create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile)
+        sys.exit(0)
+
 
     # Read the input directory that contains the individual OTA files
     inputfiles = get_clean_cmdline()[1:]
