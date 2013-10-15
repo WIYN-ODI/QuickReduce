@@ -293,51 +293,60 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
     stdout_write(" done!\n")
 
 
-def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
-                                sdss_filtername, odi_filtername,
-                                title=None,
-                                ota_outlines=None,
-                                options=None,
-                                ):
 
 
-    stdout_write("Creating the photometric calibration per OTA plot ...")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#####################################################################################
+#
+#
+# Following are the routines to create the zeropoint maps
+#
+#
+#####################################################################################
+
+
+
+
+
+def plot_zeropoint_map(ra, dec, zp, ota_outlines, output_filename, options, zp_range):
+
     fig, ax = matplotlib.pyplot.subplots()
+    zp_min, zp_max = zp_range
 
-    zp_raw = sdss_mag - odi_mag
-    zp_min = scipy.stats.scoreatpercentile(zp_raw,  5)
-    zp_max = scipy.stats.scoreatpercentile(zp_raw, 95)
+    if (ra.shape[0] < 5):
+        zp_clipped = zp
+        clipped = numpy.isfinite(zp)
+    else:
+        zp_clipped, clipped = three_sigma_clip(zp, return_mask=True)
 
-    list_of_otas = set(ota)
+    zp_median_ota = numpy.median(zp_clipped)
+    zp_std_ota = numpy.std(zp_clipped)
 
-    zp_mins = []
-    zp_maxs = []
+    #print ra_ota
+    #print zp_ota
 
-    for this_ota in list_of_otas:
-        #print this_ota
-
-        in_this_ota = ota == this_ota
-        zp_ota = zp_raw[in_this_ota]
-        ra_ota = ra[in_this_ota]
-        dec_ota = dec[in_this_ota]
-
-        if (numpy.sum(in_this_ota) <= 0):
-            continue
-        if (numpy.sum(in_this_ota) < 5):
-            zp_clipped = zp_ota
-            clipped = numpy.isfinite(zp_ota)
-        else:
-            zp_clipped, clipped = three_sigma_clip(zp_ota, return_mask=True)
-
-        zp_median_ota = numpy.median(zp_clipped)
-        zp_std_ota = numpy.std(zp_clipped)
-
-        #print ra_ota
-        #print zp_ota
-
-        sc = matplotlib.pyplot.scatter(ra_ota, dec_ota, c=zp_ota, alpha=0.75, 
-                                       vmin=zp_min, vmax=zp_max, edgecolor='none',
-                                       s=9, cmap=matplotlib.pyplot.cm.get_cmap('spectral'))
+    sc = matplotlib.pyplot.scatter(ra, dec, c=zp, alpha=0.75, 
+                                   vmin=zp_min, vmax=zp_max, edgecolor='none',
+                                   s=9, cmap=matplotlib.pyplot.cm.get_cmap('spectral'))
         #matplotlib.pyplot.colorbar(sc, cm)
 
     if (not ota_outlines == None):
@@ -359,10 +368,49 @@ def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
             for ext in options['plotformat']:
                 if (ext != ''):
                     fig.savefig(output_filename+"."+ext)
+                    print "saving plot to",output_filename+"."+ext
         else:
             fig.savefig(output_filename+".png")
 
     matplotlib.pyplot.close()
+    return
+
+
+def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
+                             sdss_filtername, odi_filtername,
+                             title=None,
+                             ota_outlines=None,
+                             options=None,
+                             also_plot_singleOTAs=True
+                             ):
+
+
+    stdout_write("Creating the photometric calibration per OTA plot ...")
+
+    zp_raw = sdss_mag - odi_mag
+    zp_min = scipy.stats.scoreatpercentile(zp_raw,  5)
+    zp_max = scipy.stats.scoreatpercentile(zp_raw, 95)
+
+    # Create one plot for the full focal plane, using boxes to outlines OTAs
+    zp_range = (zp_min, zp_max)
+    plot_zeropoint_map(ra, dec, zp_raw, ota_outlines, output_filename, options, zp_range)
+    print ota_outlines
+
+    # If requested, do the same for the individual OTAs
+    if (also_plot_singleOTAs):
+        list_of_otas = all_otas
+        print list_of_otas
+
+        for this_ota in list_of_otas:
+
+            in_this_ota = ota == this_ota
+            zp_ota = zp_raw[in_this_ota]
+            ra_ota = ra[in_this_ota]
+            dec_ota = dec[in_this_ota]
+
+            ota_plotfile = "%s_OTA%02d" % (output_filename, this_ota)
+            plot_zeropoint_map(ra_ota, dec_ota, zp_ota, None, ota_plotfile, options, zp_range)
+    
     stdout_write(" done!\n")
 
     return
@@ -454,19 +502,22 @@ if __name__ == "__main__":
         fitsfile = get_clean_cmdline()[1]
         hdulist = pyfits.open(fitsfile)
         filtername = hdulist[0].header['FILTER']
+        print filtername
 
         from podi_collectcells import read_options_from_commandline
         options = read_options_from_commandline(None)
 
+        ota_outlines = derive_ota_outlines(hdulist)
+
         import podi_photcalib
         source_cat = numpy.loadtxt(fitsfile+".src.cat")
-        podi_photcalib.photcalib(source_cat, "test.png",
+        podi_photcalib.photcalib(source_cat, "test.fits",
                                  filtername, exptime=1,
                                  diagplots=True,
                                  calib_directory=None,
                                  overwrite_cat=None,
                                  plottitle="standalone",
-                                 otalist=None,
+                                 otalist=ota_outlines,
                                  options=options)
 
         sys.exit(0)

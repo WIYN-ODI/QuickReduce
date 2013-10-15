@@ -541,18 +541,19 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         ota = odi_sdss_matched[:,10]
         ra = odi_sdss_matched[:,0]
         dec = odi_sdss_matched[:,1]
-        plotfilename = output_filename[:-5]+".photZP_OTA"
+        plotfilename = output_filename[:-5]+".photZP_map"
 
         ota_outlines = None
         if (otalist != None):
             ota_outlines = derive_ota_outlines(otalist)
 
         podi_diagnosticplots.photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec,
-                                                         output_filename=plotfilename,
-                                                         sdss_filtername=sdss_filter, odi_filtername=filtername,
-                                                         title=plottitle,
-                                                         ota_outlines=ota_outlines,
-                                                         options=options)
+                                                      output_filename=plotfilename,
+                                                      sdss_filtername=sdss_filter, odi_filtername=filtername,
+                                                      title=plottitle,
+                                                      ota_outlines=ota_outlines,
+                                                      options=options,
+                                                      also_plot_singleOTAs=True)
 
     results.close()
 
