@@ -285,6 +285,7 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
             for ext in options['plotformat']:
                 if (ext != ''):
                     fig.savefig(output_filename+"."+ext)
+                    print "plot saved as ",output_filename+"."+ext
         else:
             fig.savefig(output_filename+".png")
 
@@ -292,7 +293,7 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
     stdout_write(" done!\n")
 
 
-def photocalib_zeropoint_perota(odi_mag, sdss_mag, ota, ra, dec, output_filename,
+def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
                                 sdss_filtername, odi_filtername,
                                 title=None,
                                 ota_outlines=None,
@@ -448,6 +449,32 @@ if __name__ == "__main__":
                          options=options,
                          )
         sys.exit(0)
+
+    if (cmdline_arg_isset("-zeropoint_map")):
+        fitsfile = get_clean_cmdline()[1]
+        hdulist = pyfits.open(fitsfile)
+        filtername = hdulist[0].header['FILTER']
+
+        from podi_collectcells import read_options_from_commandline
+        options = read_options_from_commandline(None)
+
+        import podi_photcalib
+        source_cat = numpy.loadtxt(fitsfile+".src.cat")
+        podi_photcalib.photcalib(source_cat, "test.png",
+                                 filtername, exptime=1,
+                                 diagplots=True,
+                                 calib_directory=None,
+                                 overwrite_cat=None,
+                                 plottitle="standalone",
+                                 otalist=None,
+                                 options=options)
+
+        sys.exit(0)
+
+
+   
+
+
 
     matched_cat = numpy.loadtxt("odi+2mass.matched")
 
