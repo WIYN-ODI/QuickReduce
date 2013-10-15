@@ -498,18 +498,28 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     zp = sdss_mag - odi_mag 
     zperr = numpy.hypot(sdss_magerr, odi_magerr)
     #import podi_collectcells
-    zp_clipped = three_sigma_clip(zp)
-    zp_median = numpy.median(zp_clipped)
-    zp_std = numpy.std(zp_clipped)
-    print "zeropoint (clipped)",zp_median," +/-", zp_std
+    if (zp.shape[0] <= 0):
+        zp_median = 99
+        zp_std = 1
+        zp_exptime = 99
+        diagplots = False
+    else:
+        if (zp.shape[0] <=5):
+            zp_clipped = zp
+        else:
+            zp_clipped = three_sigma_clip(zp)
 
-    zp_upper1sigma = scipy.stats.scoreatpercentile(zp_clipped, 84)
-    zp_lower1sigma = scipy.stats.scoreatpercentile(zp_clipped, 16)
-    print zp_lower1sigma, zp_upper1sigma, 0.5*(zp_upper1sigma-zp_lower1sigma)
+        zp_upper1sigma = scipy.stats.scoreatpercentile(zp_clipped, 84)
+        zp_lower1sigma = scipy.stats.scoreatpercentile(zp_clipped, 16)
+        print zp_lower1sigma, zp_upper1sigma, 0.5*(zp_upper1sigma-zp_lower1sigma)
 
-    zp_median_ = numpy.median(zp)
-    zp_std_ = numpy.std(zp)
-    zp_exptime = zp_median + zp_correction_exptime
+        zp_median = numpy.median(zp_clipped)
+        zp_std = numpy.std(zp_clipped)
+        print "zeropoint (clipped)",zp_median," +/-", zp_std
+
+        zp_median_ = numpy.median(zp)
+        zp_std_ = numpy.std(zp)
+        zp_exptime = zp_median + zp_correction_exptime
 
     print "zeropoint (un-clipped)",zp_median_," +/-", zp_std_
 
@@ -537,7 +547,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         if (otalist != None):
             ota_outlines = derive_ota_outlines(otalist)
 
-        podi_diagnosticplots.photocalib_zeropoint_perota(odi_mag, sdss_mag, ota, ra, dec,
+        podi_diagnosticplots.photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec,
                                                          output_filename=plotfilename,
                                                          sdss_filtername=sdss_filter, odi_filtername=filtername,
                                                          title=plottitle,
