@@ -296,18 +296,15 @@ def load_nonlinearity_correction_table(filename, search_ota):
     return nonlinearity_coeffs
 
 
-def compute_cell_nonlinearity_correction(data, cellx, celly, all_coeffs):
-
-    coeffs = all_coeffs[cellx, celly, :]
-    #print cellx, celly, coeffs
-    #print numpy.mean(data)
-    
+def compute_nonlinearity_correction(data, coeffs):
     correction = numpy.zeros(data.shape)
     for i in range(coeffs.shape[0]):
         correction += coeffs[i] * data**(i+2)
-
-    #print numpy.mean(correction)
     return correction
+   
+def compute_cell_nonlinearity_correction(data, cellx, celly, all_coeffs):
+    coeffs = all_coeffs[cellx, celly, :]
+    return compute_nonlinearity_correction(data, coeffs)
 
 
 def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
@@ -397,6 +394,12 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
             fig.text(0.93, 0.36, '3rd-order polynomial fit:\ny = x + %.4e*x^2 + %.4e*x^3' % (fit[1]/fit[0], fit[2]/fit[0]), 
                      horizontalalignment='right', verticalalignment='bottom')
 
+    # Set maximum exposure time
+    max_exptime_fit = 70000 * poly_fits[0][0]
+    max_exptime_plot = numpy.max([max_exptime_fit, numpy.max(exptimes)])
+    ax1.set_ylim([exptime_min, max_exptime_plot])
+
+
     ax1.legend(loc='upper left', borderaxespad=1)
     ax1.get_xaxis().set_ticklabels([]) #set_visible(False)
     ax1.set_ylabel("exposure time t_exp (~ true flux)")
@@ -404,6 +407,109 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
     ax2.set_ylabel("delta t_exp")
     ax2.set_xlabel("observed flux level (x1000 cts)")
     ax2.set_ylim([-0.77,0.77])
+    fig.savefig(outputfile)
+
+    return
+
+
+
+
+def create_nonlinearity_map(fitfile, outputfile, fluxlevel, minmax):
+
+    import podi_plotting
+
+    # Load the catalog file
+    hdulist = pyfits.open(fitfile)
+
+    # Determine what the fittting order was
+    polyorder = hdulist[0].header['POLYORDR']
+
+    # Create an array holding all coefficients
+    nonlinearity_coeffs = numpy.zeros(shape=(polyorder-1))
+
+    # Now load the full catalog and sort the coefficients 
+    # into the coefficient matrix
+    ota = hdulist[1].data.field('OTA')
+    cellx = hdulist[1].data.field('CELLX')
+    celly = hdulist[1].data.field('CELLY')
+
+    #print ota
+
+    all_coeffs = numpy.zeros(shape=(ota.shape[0],polyorder-1))
+    for order in range(polyorder-1):
+        columnname = "COEFF_X**%d" % (order+2)
+        all_coeffs[:,order] = hdulist[1].data.field(columnname)[:]
+
+
+    cellsize = 0.12
+    # Now loop over all OTAs and all cells and compute the corners of the cells
+
+    all_corners = []
+    all_intensity = []
+
+    data = numpy.array([fluxlevel])
+    for cell in (range(ota.shape[0])):
+        _ota_x = int(math.floor(ota[cell] / 10))
+        _ota_y = int(math.fmod(ota[cell], 10))
+
+        x1 = _ota_x + cellx[cell] * cellsize
+        y1 = _ota_y + (7-celly[cell]) * cellsize
+
+        corners = [[x1,y1], [x1+cellsize,y1], [x1+cellsize,y1+cellsize], [x1, y1+cellsize]]
+        all_corners.append(corners)
+
+        intensity = compute_nonlinearity_correction(data, all_coeffs[cell])[0] / fluxlevel
+        #print ota[cell], _ota_x, _ota_y, cellx[cell], celly[cell], x1, y1, intensity
+        all_intensity.append(intensity)
+
+        #poly = Polygon(corners,facecolor='blue',edgecolor='none')
+        #plt.gca().add_patch(poly)
+
+    #print all_corners
+    #print all_intensity
+
+    fig, ax = matplotlib.pyplot.subplots()
+
+    #cbar = matplotlib.pyplot.colorbar()
+    #cbar.solids.set_edgecolor("face")
+    #cbar.draw()
+
+    cmap = matplotlib.pyplot.cm.get_cmap('spectral')
+
+    #ax = fig.add_axes([0, 0, 1., 1.])
+    corners = numpy.array(all_corners)
+    
+    ax.set_xlim([0,8])
+    ax.set_ylim([0,8])
+    
+    #converter = matplotlib.colors.ColorConverter
+    #colorvalues = cmap.to_rgb(all_intensity)
+    #colorvalues = cmap(0.1)
+    #colorvalues = [cm.jet(x) for x in np.random.rand(20)]
+    #colorvalues = [matplotlib.pyplot.cm.jet(x) for x in all_intensity]
+    
+    nl_min = numpy.min(all_intensity) if minmax[0] == None else float(minmax[0])
+    nl_max = numpy.max(all_intensity) if minmax[1] == None else float(minmax[1])
+    
+        
+    colorvalues = cmap((numpy.array(all_intensity)-nl_min)/(nl_max-nl_min)) #[matplotlib.pyplot.cm.jet(x) for x in all_intensity]
+
+    
+    coll = matplotlib.collections.PolyCollection(corners, #facecolor='#505050', #
+                                                 facecolor=colorvalues,
+                                                 edgecolor='black', linestyle='-', linewidth=0.2,
+                                                 cmap=matplotlib.pyplot.cm.get_cmap('spectral'),
+                                                 )
+    
+    img = matplotlib.pyplot.imshow([[1e9],[1e9]], vmin=nl_min, vmax=nl_max, cmap=cmap, extent=(0,0,0,0), origin='lower')
+    #colorbar = matplotlib.pyplot.colorbar(cmap=cmap)
+    fig.colorbar(img) #, text="non-linearity")
+    ax.set_title("Non-linearity @ %d counts" % (int(fluxlevel)))
+
+    ax.set_xlim(-0.1,8.1)
+    ax.set_ylim(-0.1,8.1)
+    ax.add_collection(coll)
+    #colorbar = matplotlib.pyplot.colorbar(cmap=cmap)
     fig.savefig(outputfile)
 
     return
@@ -525,7 +631,17 @@ Creating all fits
         create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile)
         sys.exit(0)
 
+    if (cmdline_arg_isset("-nonlinmap")):
+        fitfile = get_clean_cmdline()[1]
+        outputfile = get_clean_cmdline()[2]
+        fluxlevel = float(get_clean_cmdline()[3])
+        min_value = cmdline_arg_set_or_default("-min", None)
+        max_value = cmdline_arg_set_or_default("-max", None)
+        minmax = [min_value, max_value]
+        create_nonlinearity_map(fitfile, outputfile, fluxlevel, minmax)
+        sys.exit(0)
 
+ 
     # Read the input directory that contains the individual OTA files
     inputfiles = get_clean_cmdline()[1:]
     all_data = create_nonlinearity_data(inputfiles)
