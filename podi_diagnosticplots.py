@@ -323,10 +323,6 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
 #
 #####################################################################################
 
-
-
-
-
 def plot_zeropoint_map(ra, dec, zp, ota_outlines, output_filename, options, zp_range):
 
     fig, ax = matplotlib.pyplot.subplots()
@@ -418,22 +414,32 @@ def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
 
 
 
-def diagplot_psfsize_ota(ra, dec, fwhm, output_filename,
-                         title=None,
-                         ota_outlines=None,
-                         options=None,
-                         ):
 
 
-    stdout_write("Creating the PSF size as heatmap plot ...")
+
+
+
+
+#####################################################################################
+#
+#
+# Following are the routines to create the PSF size maps
+# These plots show the psf size for each source color-coded at its 
+# position in the field of view
+#
+#
+#####################################################################################
+
+def plot_psfsize_map(ra, dec, fwhm, output_filename, 
+                     fwhm_range,
+                     title=None,
+                     ota_outlines=None,
+                     options=None,
+                     ):
+                       
     fig, ax = matplotlib.pyplot.subplots()
-    
-    fwhm_scale_arcsec = 3600.0 * 0.11
 
-    fwhm *= fwhm_scale_arcsec
-    fwhm_min = scipy.stats.scoreatpercentile(fwhm,  5)
-    fwhm_max = scipy.stats.scoreatpercentile(fwhm, 95)
-    fwhm_clipped, clipmask = three_sigma_clip(fwhm, return_mask=True)
+    fwhm_min, fwhm_max = fwhm_range
 
     sc = matplotlib.pyplot.scatter(ra, dec, c=fwhm, alpha=0.75, 
                                    vmin=fwhm_min, vmax=fwhm_max, edgecolor='none',
@@ -441,7 +447,8 @@ def diagplot_psfsize_ota(ra, dec, fwhm, output_filename,
 
     if (not ota_outlines == None):
         corners = numpy.array(ota_outlines)
-        coll = matplotlib.collections.PolyCollection(corners,facecolor='none',edgecolor='#808080', linestyle='-', linewidth=0.5)
+        coll = matplotlib.collections.PolyCollection(corners,facecolor='none',edgecolor='#808080', 
+                                                     linestyle='-', linewidth=0.5)
         ax.add_collection(coll)
 
     ax.set_xlabel("RA [degrees]")
@@ -458,10 +465,61 @@ def diagplot_psfsize_ota(ra, dec, fwhm, output_filename,
             for ext in options['plotformat']:
                 if (ext != ''):
                     fig.savefig(output_filename+"."+ext)
+                    print "saving plot to",output_filename+"."+ext
         else:
             fig.savefig(output_filename+".png")
 
     matplotlib.pyplot.close()
+  
+
+  
+def diagplot_psfsize_ota(ra, dec, fwhm, ota, output_filename,
+                         title=None,
+                         ota_outlines=None,
+                         options=None,
+                         also_plot_singleOTAs=True,
+                         ):
+
+
+    stdout_write("Creating the PSF size as heatmap plot ...")
+    fwhm_scale_arcsec = 3600.0 * 0.11
+
+    fwhm *= fwhm_scale_arcsec
+    fwhm_min = scipy.stats.scoreatpercentile(fwhm,  5)
+    fwhm_max = scipy.stats.scoreatpercentile(fwhm, 95)
+    fwhm_clipped, clipmask = three_sigma_clip(fwhm, return_mask=True)
+
+    fwhm_range = (fwhm_min, fwhm_max)
+
+    # Create one plot for the full focal plane, using boxes to outlines OTAs
+    plot_psfsize_map(ra, dec, fwhm, output_filename, 
+                     fwhm_range=fwhm_range,
+                     title=title,
+                     ota_outlines=ota_outlines,
+                     options=options)
+
+    print ota_outlines
+
+    # If requested, do the same for the individual OTAs
+    if (also_plot_singleOTAs):
+        list_of_otas = all_otas
+        print list_of_otas
+
+        for this_ota in list_of_otas:
+
+            in_this_ota = (ota == this_ota)
+            fwhm_ota = fwhm[in_this_ota]
+            ra_ota = ra[in_this_ota]
+            dec_ota = dec[in_this_ota]
+
+            ota_plotfile = "%s_OTA%02d" % (output_filename, this_ota)
+            plot_psfsize_map(ra_ota, dec_ota, fwhm_ota, 
+                             output_filename=ota_plotfile, 
+                             fwhm_range=fwhm_range,
+                             title=title,
+                             ota_outlines=None,
+                             options=options)
+
     stdout_write(" done!\n")
 
     return
@@ -485,17 +543,19 @@ if __name__ == "__main__":
         ra = source_cat[:,0][valid_flags]
         dec = source_cat[:,1][valid_flags]
         fwhm = source_cat[:,5][valid_flags]
-
+        ota = source_cat[:,8][valid_flags]
         print fwhm
 
         ota_outlines = derive_ota_outlines(hdulist)
 
         output_filename = fitsfile[:-5]+".seeing"
-        diagplot_psfsize_ota(ra, dec, fwhm, output_filename,
-                         title="PSF size",
-                         ota_outlines=ota_outlines,
-                         options=options,
-                         )
+        output_filename = "test.seeing"
+        diagplot_psfsize_ota(ra, dec, fwhm, ota, output_filename,
+                             title="PSF size",
+                             ota_outlines=ota_outlines,
+                             options=options,
+                             also_plot_singleOTAs=True
+                             )
         sys.exit(0)
 
     if (cmdline_arg_isset("-zeropoint_map")):
