@@ -473,7 +473,7 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
   
 
   
-def diagplot_psfsize_ota(ra, dec, fwhm, ota, output_filename,
+def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
                          title=None,
                          ota_outlines=None,
                          options=None,
@@ -550,7 +550,7 @@ if __name__ == "__main__":
 
         output_filename = fitsfile[:-5]+".seeing"
         output_filename = "test.seeing"
-        diagplot_psfsize_ota(ra, dec, fwhm, ota, output_filename,
+        diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
                              title="PSF size",
                              ota_outlines=ota_outlines,
                              options=options,
