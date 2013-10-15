@@ -678,7 +678,8 @@ def collectcells(input, outputfile,
         # In that case, extract the FILENAME header and convert it into 
         # the filebase we need to construct the filenames of all OTA fits files.
         hdulist = pyfits.open(input)
-        filebase = hdulist[0].header['FILENAME'][:18]
+
+        filebase = hdulist[0].header['FILENAME'][:-8]
         hdulist.close()
         del hdulist
 
@@ -717,7 +718,7 @@ def collectcells(input, outputfile,
             continue
 
     if (hdulist == None):
-        print "Something is wrong here, can't find/open any of the files..."
+        stdout_write("Something is wrong here, can't find/open any of the files...")
         return -1
 
     if (outputfile.find("%") >= 0):
