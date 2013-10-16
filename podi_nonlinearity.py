@@ -107,8 +107,9 @@ def create_nonlinearity_data(inputfiles):
                     # else:
                     #     stdout_write(".")
 
-                    stdout_write("\rOTA %02d, cell %d,%d: median=%6.0f, avg=%6.0f, std=%6.0f" % (
-                                 ota, cellx, celly, median_int, mean_int, std_int) )
+                    if (not numpy.isnan(median_int)):
+                        stdout_write("\rOTA %02d, cell %d,%d: median=%6.0f, avg=%6.0f, std=%6.0f" % (
+                                ota, cellx, celly, median_int, mean_int, std_int) )
                         
                     all_data.append(thiscell)
 
@@ -414,7 +415,7 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
 
 
 
-def create_nonlinearity_map(fitfile, outputfile, fluxlevel, minmax):
+def create_nonlinearity_map(fitfile, outputfile, fluxlevel, minmax, labels=True):
 
     import podi_plotting
 
@@ -447,6 +448,8 @@ def create_nonlinearity_map(fitfile, outputfile, fluxlevel, minmax):
     all_corners = []
     all_intensity = []
 
+    fig, ax = matplotlib.pyplot.subplots()
+
     data = numpy.array([fluxlevel])
     for cell in (range(ota.shape[0])):
         _ota_x = int(math.floor(ota[cell] / 10))
@@ -465,10 +468,16 @@ def create_nonlinearity_map(fitfile, outputfile, fluxlevel, minmax):
         #poly = Polygon(corners,facecolor='blue',edgecolor='none')
         #plt.gca().add_patch(poly)
 
+        if (labels):
+            intensity_text = "%.1f" % (math.fabs(intensity)*100)
+            label_x = x1 + 0.5 * cellsize
+            label_y = y1 + 0.5 * cellsize
+            ax.text(label_x, label_y, intensity_text, fontsize=2,
+                    horizontalalignment='center',
+                    verticalalignment='center')
+
     #print all_corners
     #print all_intensity
-
-    fig, ax = matplotlib.pyplot.subplots()
 
     #cbar = matplotlib.pyplot.colorbar()
     #cbar.solids.set_edgecolor("face")
@@ -488,8 +497,8 @@ def create_nonlinearity_map(fitfile, outputfile, fluxlevel, minmax):
     #colorvalues = [cm.jet(x) for x in np.random.rand(20)]
     #colorvalues = [matplotlib.pyplot.cm.jet(x) for x in all_intensity]
     
-    nl_min = numpy.min(all_intensity) if minmax[0] == None else float(minmax[0])
-    nl_max = numpy.max(all_intensity) if minmax[1] == None else float(minmax[1])
+    nl_min = numpy.min(all_intensity[numpy.isfinite(all_intensity)]) if minmax[0] == None else float(minmax[0])
+    nl_max = numpy.max(all_intensity[numpy.isfinite(all_intensity)]) if minmax[1] == None else float(minmax[1])
     
         
     colorvalues = cmap((numpy.array(all_intensity)-nl_min)/(nl_max-nl_min)) #[matplotlib.pyplot.cm.jet(x) for x in all_intensity]
@@ -510,6 +519,86 @@ def create_nonlinearity_map(fitfile, outputfile, fluxlevel, minmax):
     ax.set_ylim(-0.1,8.1)
     ax.add_collection(coll)
     #colorbar = matplotlib.pyplot.colorbar(cmap=cmap)
+    fig.savefig(outputfile)
+
+    return
+
+
+
+
+def plot_cellbycell_map(fitfile, outputfile, minmax, labels=True, fontsize=2):
+
+    import podi_plotting
+
+    # Load the catalog file
+    hdulist = pyfits.open(fitfile)
+
+    cellsize = 0.12
+    all_corners = []
+    all_intensity = []
+    # Now loop over all OTAs and all cells and compute the corners of the cells
+
+    fig, ax = matplotlib.pyplot.subplots()
+
+    for ext in range(1, len(hdulist)):
+        for cellx in range(8):
+            for celly in range(8):
+
+                _ota_x = int(hdulist[ext].header['EXTNAME'][3])
+                _ota_y = int(hdulist[ext].header['EXTNAME'][4])
+                stdout_write("\rMeasuring OTA %d%d, cell %d,%d..." % (_ota_x, _ota_y, cellx, celly))
+
+                x1 = _ota_x + cellx * cellsize
+                y1 = _ota_y + (7-celly) * cellsize
+
+
+                corners = [[x1,y1], [x1+cellsize,y1], [x1+cellsize,y1+cellsize], [x1, y1+cellsize]]
+                all_corners.append(corners)
+
+                cell_area = cell2ota__get_target_region(cellx, celly)
+                cx1, cx2, cy1, cy2 = cell_area
+                cell_data = hdulist[ext].data[cy1:cy2, cx1:cx2]
+
+                cell_center = cell_data[bordersize:-bordersize,bordersize:-bordersize]
+
+                intensity = numpy.median(cell_center)
+                all_intensity.append(intensity)
+
+                if (labels):
+                    stdout_write(" %7.3f" % (intensity))
+                    intensity_text = "%.2f" % (intensity)
+                    label_x = x1 + 0.5 * cellsize
+                    label_y = y1 + 0.5 * cellsize
+                    ax.text(label_x, label_y, intensity_text, fontsize=1,
+                            horizontalalignment='center',
+                            color='white',
+                            verticalalignment='center', zorder=99)
+
+    cmap = matplotlib.pyplot.cm.get_cmap('spectral')
+
+    corners = numpy.array(all_corners)
+    
+    ax.set_xlim([0,8])
+    ax.set_ylim([0,8])
+    
+    nl_min = numpy.min(all_intensity[numpy.isfinite(all_intensity)]) if minmax[0] == None else float(minmax[0])
+    nl_max = numpy.max(all_intensity[numpy.isfinite(all_intensity)]) if minmax[1] == None else float(minmax[1])
+    
+    colorvalues = cmap((numpy.array(all_intensity)-nl_min)/(nl_max-nl_min))
+
+    coll = matplotlib.collections.PolyCollection(corners, #facecolor='#505050', #
+                                                 facecolor=colorvalues,
+                                                 edgecolor='black', linestyle='-', linewidth=0.2,
+                                                 cmap=matplotlib.pyplot.cm.get_cmap('spectral'),
+                                                 )
+    
+    img = matplotlib.pyplot.imshow([[1e9],[1e9]], vmin=nl_min, vmax=nl_max, cmap=cmap, extent=(0,0,0,0), origin='lower')
+    fig.colorbar(img) 
+    ax.set_title("Cell median intensity level")
+
+    ax.set_xlim(-0.1,8.1)
+    ax.set_ylim(-0.1,8.1)
+    ax.add_collection(coll)
     fig.savefig(outputfile)
 
     return
@@ -638,7 +727,19 @@ Creating all fits
         min_value = cmdline_arg_set_or_default("-min", None)
         max_value = cmdline_arg_set_or_default("-max", None)
         minmax = [min_value, max_value]
-        create_nonlinearity_map(fitfile, outputfile, fluxlevel, minmax)
+        labels = cmdline_arg_isset("-labels")
+        create_nonlinearity_map(fitfile, outputfile, fluxlevel, minmax, labels=labels)
+        sys.exit(0)
+
+    if (cmdline_arg_isset("-cellbycellmap")):
+        fitfile = get_clean_cmdline()[1]
+        outputfile = get_clean_cmdline()[2]
+        min_value = cmdline_arg_set_or_default("-min", None)
+        max_value = cmdline_arg_set_or_default("-max", None)
+        fontsize = float(cmdline_arg_set_or_default("-fontsize", 2))
+        minmax = [min_value, max_value]
+        labels = True #cmdline_arg_isset("-labels")
+        plot_cellbycell_map(fitfile, outputfile, minmax, labels=labels, fontsize=fontsize)
         sys.exit(0)
 
  
