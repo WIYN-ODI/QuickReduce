@@ -46,7 +46,9 @@ import matplotlib.lines
 
 from podi_definitions import *
 
-def wcsdiag_scatter(matched_cat, filename, options=None):
+def wcsdiag_scatter(matched_cat, filename, options=None, ota_wcs_stats=None,
+                    also_plot_singleOTAs=True
+                    ):
 
     stdout_write("Creating the WCS scatter plot ...")
     # Create some plots for WCS diagnosis
@@ -90,7 +92,10 @@ def wcsdiag_scatter(matched_cat, filename, options=None):
     stdout_write(" done!\n")
 
 
-def wcsdiag_shift(matched_cat, filename, options=None, ota_outlines=None):
+def wcsdiag_shift(matched_cat, filename, options=None, ota_outlines=None, 
+                  ota_wcs_stats=None,
+                  also_plot_singleOTAs=True
+                  ):
 
     stdout_write("Creating the WCS offset/shift plot ...")
 

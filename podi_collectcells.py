@@ -1218,11 +1218,22 @@ def collectcells(input, outputfile,
         # Apply all WCS shifts to the WCS information in the ouput file header
         #
         #print "\n\n\n\nbefore any shifts =",ota_list[1].header['CRVAL1'], ota_list[1].header['CRVAL2'],"\n\n\n"
+        ota_wcs_stats = {}
         for extension in range(1, len(ota_list)):
             if (ota_list[extension] == None):
                 continue
             podi_fixwcs.apply_wcs_shift(wcs_shift, ota_list[extension].header,
                                         fixrot_trans)
+
+            # Compute the typical RMS of the alignment
+            ota = int(ota_list[extension].header['EXTNAME'][3:5])
+            results = podi_fixwcs.compute_wcs_quality(odi_2mass_matched, ota, ota_list[extension].header)
+            print results
+            ota_wcs_stats[ota_list[extension].header['EXTNAME']] = results
+        results = podi_fixwcs.compute_wcs_quality(odi_2mass_matched, None, ota_list[0].header)
+        print results
+        ota_wcs_stats['full'] = results
+
 
         ota_outlines = derive_ota_outlines(ota_list)
         if (True):
@@ -1236,9 +1247,11 @@ def collectcells(input, outputfile,
 
             import podi_diagnosticplots
             podi_diagnosticplots.wcsdiag_scatter(odi_2mass_matched, outputfile[:-5]+".wcs1", 
-                                                 options=options)
+                                                 options=options,
+                                                 ota_wcs_stats=ota_wcs_stats)
             podi_diagnosticplots.wcsdiag_shift(odi_2mass_matched, outputfile[:-5]+".wcs2", 
-                                                 options=options, ota_outlines=ota_outlines)
+                                                 options=options,
+                                                 ota_wcs_stats=ota_wcs_stats, ota_outlines=ota_outlines)
         
             flags = global_source_cat[:,7]
             valid_flags = flags == 0
