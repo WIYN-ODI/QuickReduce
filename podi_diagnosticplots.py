@@ -154,14 +154,8 @@ def wcsdiag_scatter(matched_cat, filename, options=None, ota_wcs_stats=None,
         extension_list = options['plotformat']
 
     # Create one plot for the full focalplane
-    ota_global_stats = None 
+    ota_global_stats = None if ota_wcs_stats == None else ota_wcs_stats['full']
     title = "WCS Scatter - full focal plane"
-    if (not ota_wcs_stats == None):
-        ota_global_stats = ota_wcs_stats['full']
-        title = "All OTA -- d(Ra/Dec)=%.2f/%.2f  rms(Ra/Dec/comb)=%.2f/%.2f/%.2f" % (
-            ota_global_stats['MEDIAN-RA'], ota_global_stats['MEDIAN-DEC'],
-            ota_global_stats['RMS-RA'], ota_global_stats['RMS-DEC'], ota_global_stats['RMS']
-            )
     plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list, 
                          title=title,
                          ota_stats=None, ota_global_stats=ota_global_stats)
@@ -173,15 +167,8 @@ def wcsdiag_scatter(matched_cat, filename, options=None, ota_wcs_stats=None,
             in_this_ota = (ota == this_ota)
 
             extname = "OTA%02d.SCI" % (this_ota)
-            ota_stats = None 
+            ota_stats = None if ota_wcs_stats == None else ota_wcs_stats[extname]
             title = "WSC Scatter - OTA %02d" % (this_ota)
-            if (not ota_wcs_stats == None):
-                ota_stats = ota_wcs_stats[extname]
-                title = "OTA %02d-- d(Ra/Dec)=%.2f/%.2f  rms(Ra/Dec/comb)=%.2f/%.2f/%.2f" % (
-                    this_ota,
-                    ota_stats['MEDIAN-RA'], ota_stats['MEDIAN-DEC'],
-                    ota_stats['RMS-RA'], ota_stats['RMS-DEC'], ota_stats['RMS']
-                    )
                 
             ota_stats = None if ota_wcs_stats == None else ota_wcs_stats[extname]
             print extname, ota_stats
