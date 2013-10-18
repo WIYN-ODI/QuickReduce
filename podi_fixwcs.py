@@ -59,6 +59,41 @@ use_usno = False
 use_sextractor = False
 IPP_DIR = "/Volumes/odifile/Catalogs/IPPRefCat/catdir.synth.grizy/"
 
+def compute_wcs_quality(odi_2mass_matched, ota, hdr=None):
+
+    valid_match = odi_2mass_matched[:,2] >= 0
+    odi_2mass_matched = odi_2mass_matched[valid_match]
+
+    d_dec = (odi_2mass_matched[:,1] - odi_2mass_matched[:,3])
+    d_ra  = ((odi_2mass_matched[:,0] - odi_2mass_matched[:,2]) 
+             * numpy.cos(numpy.radians(odi_2mass_matched[:,1])))
+    if (not ota == None):
+        in_this_ota = odi_2mass_matched[:,10] == ota
+        d_ra = d_ra[in_this_ota]
+        d_dec = d_dec[in_this_ota]
+
+    numpy.savetxt("wcsquality.test", odi_2mass_matched)
+    d_total = numpy.hypot(d_ra, d_dec)
+    wcs_scatter = numpy.median(d_total)
+    wcs_scatter2 = numpy.std(d_total)
+    wcs_mean_dra = numpy.median(d_ra)
+    wcs_mean_ddec = numpy.median(d_dec)
+    rms_dra = numpy.sqrt(numpy.mean(d_ra**2)) * 3600.
+    rms_ddec = numpy.sqrt(numpy.mean(d_dec**2)) * 3600.
+    print "WCS quality:", ota, wcs_mean_dra*3600., wcs_mean_ddec*3600., wcs_scatter*3600., wcs_scatter2*3600., rms_dra, rms_ddec
+
+    results = {}
+    results['RMS-RA'] = rms_dra
+    results['RMS-DEC'] = rms_ddec
+    results['RMS'] = numpy.hypot(rms_dra, rms_ddec)
+
+    if (not hdr == None):
+        hdr.update("WCS_RMSA", results['RMS-RA'], "RA r.m.s. of WCS matching [arcsec]")
+        hdr.update("WCS_RMSD", results['RMS-DEC'], "DEC r.m.s. of WCS matching [arcsec]")
+        hdr.update("WCS_RMS", results['RMS'], "r.m.s. of WCS matching [arcsec]")
+ 
+    return results
+
 
 
 def count_matches(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1, matching_radius_arcsec=3.6):
