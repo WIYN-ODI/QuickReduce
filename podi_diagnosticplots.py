@@ -46,50 +46,180 @@ import matplotlib.lines
 
 from podi_definitions import *
 
-def wcsdiag_scatter(matched_cat, filename, options=None, ota_wcs_stats=None,
-                    also_plot_singleOTAs=True
-                    ):
 
-    stdout_write("Creating the WCS scatter plot ...")
-    # Create some plots for WCS diagnosis
-    fig = matplotlib.pyplot.figure()
-    # matches_zeroed = matches - wcs_shift_refinement
-    matches_zeroed = matched_cat
 
-    good_matches = matches_zeroed[matches_zeroed[:,2] >= 0]
-    d_ra  = good_matches[:,0] - good_matches[:,2]
-    d_dec = good_matches[:,1] - good_matches[:,3]
+#####################################################################################
+#
+#
+# Stand-alone routines are below.
+#
+#
+#####################################################################################
+
+
+
+def plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list, 
+                         title="WCS Scatter",
+                         ota_stats = None, ota_global_stats = None):
+
+    #fig = matplotlib.pyplot.figure()
+    fig, ax = matplotlib.pyplot.subplots()
 
     count, xedges, yedges = numpy.histogram2d(d_ra*3600., d_dec*3600.,
                                               bins=[60,60], range=[[-3,3], [-3,3]])
-    img = matplotlib.pyplot.imshow(count.T, 
+    img = ax.imshow(count.T, 
                                    extent=(xedges[0],xedges[-1],yedges[0],yedges[-1]), 
                                    origin='lower', 
                                    cmap=cmap_bluewhite)
     # interpolation='nearest', 
     fig.colorbar(img)
 
-    matplotlib.pyplot.plot(d_ra*3600., d_dec*3600., "b,", linewidth=0)
-    matplotlib.pyplot.title("WCS Scatter")
-    matplotlib.pyplot.xlabel("error RA ['']")
-    matplotlib.pyplot.ylabel("error DEC ['']")
-    matplotlib.pyplot.xlim((-3,3))
-    matplotlib.pyplot.ylim((-3,3))
-    matplotlib.pyplot.grid(True)
-    matplotlib.pyplot.axes().set_aspect('equal')
+    if (not ota_global_stats == None):
+        x = ota_global_stats['MEDIAN-RA']
+        y = ota_global_stats['MEDIAN-DEC']
+        width = ota_global_stats['RMS-RA']
+        height = ota_global_stats['RMS-DEC']
+        ellipse = matplotlib.patches.Ellipse(xy=(x,y), width=width, height=height, 
+                                            edgecolor='r', fc='None', lw=2)
+        ax.add_patch(ellipse)
+
+        global_text = """\
+Overall WCS:
+offset: %+0.3f'' / %+0.3f''
+R.M.S. %0.3f'' / %.3f''
+%.3f'' (combined)""" % (ota_global_stats['MEDIAN-RA'], ota_global_stats['MEDIAN-DEC'],
+            ota_global_stats['RMS-RA'], ota_global_stats['RMS-DEC'], ota_global_stats['RMS'])
+        ax.text(2.9, -2.9, global_text,
+        horizontalalignment='right',
+        verticalalignment='bottom',
+                 fontsize=10, backgroundcolor='white')
+
+    if (not ota_stats == None):
+        x = ota_stats['MEDIAN-RA']
+        y = ota_stats['MEDIAN-DEC']
+        width = ota_stats['RMS-RA']
+        height = ota_stats['RMS-DEC']
+        ellipse = matplotlib.patches.Ellipse(xy=(x,y), width=width, height=height, 
+                                            edgecolor='b', fc='None', lw=2)
+        ax.add_patch(ellipse)
+
+        local_text = """\
+This OTA:
+offset: %+0.3f'' / %+0.3f (DEC)
+R.M.S. %0.3f / %.3f (DEC) 
+%.3f'' (combined)""" % (ota_stats['MEDIAN-RA'], ota_stats['MEDIAN-DEC'],
+            ota_stats['RMS-RA'], ota_stats['RMS-DEC'], ota_stats['RMS'])
+        ax.text(-2.9, -2.9, local_text,
+                 horizontalalignment='left',
+                 verticalalignment='bottom',
+                 fontsize=10, backgroundcolor='white')
+
+
+    ax.plot(d_ra*3600., d_dec*3600., "b,", linewidth=0)
+    ax.set_title(title)
+    ax.set_xlabel("error RA ['']")
+    ax.set_ylabel("error DEC ['']")
+    ax.set_xlim((-3,3))
+    ax.set_ylim((-3,3))
+    ax.grid(True)
+    ax.set_aspect('equal')
 
     if (filename == None):
         fig.show()
     else:
-        if (not options == None):
-            for ext in options['plotformat']:
-                if (ext != ''):
-                    fig.savefig(filename+"."+ext)
-        else:
-            fig.savefig(filename+".png")
+        for ext in extension_list:
+            fig.savefig(filename+"."+ext)
 
     matplotlib.pyplot.close()
+
+    return
+
+
+def wcsdiag_scatter(matched_cat, filename, options=None, ota_wcs_stats=None,
+                    also_plot_singleOTAs=True
+                    ):
+
+    stdout_write("Creating the WCS scatter plot ...")
+
+    matches_zeroed = matched_cat
+    good_matches = matches_zeroed[matches_zeroed[:,2] >= 0]
+    d_ra  = good_matches[:,0] - good_matches[:,2]
+    d_dec = good_matches[:,1] - good_matches[:,3]
+    ota = good_matches[:,10]
+    print ota
+
+    if (options == None):
+        extension_list = ('png')
+    else:
+        extension_list = options['plotformat']
+
+    # Create one plot for the full focalplane
+    ota_global_stats = None 
+    title = "WCS Scatter - full focal plane"
+    if (not ota_wcs_stats == None):
+        ota_global_stats = ota_wcs_stats['full']
+        title = "All OTA -- d(Ra/Dec)=%.2f/%.2f  rms(Ra/Dec/comb)=%.2f/%.2f/%.2f" % (
+            ota_global_stats['MEDIAN-RA'], ota_global_stats['MEDIAN-DEC'],
+            ota_global_stats['RMS-RA'], ota_global_stats['RMS-DEC'], ota_global_stats['RMS']
+            )
+    plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list, 
+                         title=title,
+                         ota_stats=None, ota_global_stats=ota_global_stats)
+
+    # Now break down the plots by OTA
+    if (also_plot_singleOTAs):
+        list_of_otas = all_otas
+        for this_ota in list_of_otas:
+            in_this_ota = (ota == this_ota)
+
+            extname = "OTA%02d.SCI" % (this_ota)
+            ota_stats = None 
+            title = "WSC Scatter - OTA %02d" % (this_ota)
+            if (not ota_wcs_stats == None):
+                ota_stats = ota_wcs_stats[extname]
+                title = "OTA %02d-- d(Ra/Dec)=%.2f/%.2f  rms(Ra/Dec/comb)=%.2f/%.2f/%.2f" % (
+                    this_ota,
+                    ota_stats['MEDIAN-RA'], ota_stats['MEDIAN-DEC'],
+                    ota_stats['RMS-RA'], ota_stats['RMS-DEC'], ota_stats['RMS']
+                    )
+                
+            ota_stats = None if ota_wcs_stats == None else ota_wcs_stats[extname]
+            print extname, ota_stats
+
+            ota_plotfile = "%s_OTA%02d" % (filename, this_ota)
+            plot_wcsdiag_scatter(d_ra[in_this_ota], d_dec[in_this_ota], ota_plotfile, extension_list,
+                                 title=title,
+                                 ota_stats=ota_stats, ota_global_stats=ota_global_stats)
+
+    # Create some plots for WCS diagnosis
     stdout_write(" done!\n")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#####################################################################################
+#
+#
+# Stand-alone routines are below.
+#
+#
+#####################################################################################
 
 
 def wcsdiag_shift(matched_cat, filename, options=None, ota_outlines=None, 
@@ -528,6 +658,20 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
     stdout_write(" done!\n")
 
     return
+
+
+
+
+
+#####################################################################################
+#
+#
+# Stand-alone routines are below.
+#
+#
+#####################################################################################
+
+
 
 
 

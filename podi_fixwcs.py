@@ -76,8 +76,8 @@ def compute_wcs_quality(odi_2mass_matched, ota, hdr=None):
     d_total = numpy.hypot(d_ra, d_dec)
     wcs_scatter = numpy.median(d_total)
     wcs_scatter2 = numpy.std(d_total)
-    wcs_mean_dra = numpy.median(d_ra)
-    wcs_mean_ddec = numpy.median(d_dec)
+    wcs_mean_dra = numpy.median(d_ra) * 3600.
+    wcs_mean_ddec = numpy.median(d_dec) * 3600.
     rms_dra = numpy.sqrt(numpy.mean(d_ra**2)) * 3600.
     rms_ddec = numpy.sqrt(numpy.mean(d_dec**2)) * 3600.
     print "WCS quality:", ota, wcs_mean_dra*3600., wcs_mean_ddec*3600., wcs_scatter*3600., wcs_scatter2*3600., rms_dra, rms_ddec
@@ -86,11 +86,15 @@ def compute_wcs_quality(odi_2mass_matched, ota, hdr=None):
     results['RMS-RA'] = rms_dra
     results['RMS-DEC'] = rms_ddec
     results['RMS'] = numpy.hypot(rms_dra, rms_ddec)
+    results['MEDIAN-RA'] = wcs_mean_dra
+    results['MEDIAN-DEC'] = wcs_mean_ddec
 
     if (not hdr == None):
         hdr.update("WCS_RMSA", results['RMS-RA'], "RA r.m.s. of WCS matching [arcsec]")
         hdr.update("WCS_RMSD", results['RMS-DEC'], "DEC r.m.s. of WCS matching [arcsec]")
-        hdr.update("WCS_RMS", results['RMS'], "r.m.s. of WCS matching [arcsec]")
+        hdr.update("WCS_RMS",  results['RMS'], "r.m.s. of WCS matching [arcsec]")
+        hdr.update("WCS_ERRA", results['MEDIAN-RA'], "RA median error WCS matching [arcsec]")
+        hdr.update("WCS_ERRD", results['MEDIAN-DEC'], "DEC median error of WCS matching [arcsec]")
  
     return results
 
