@@ -1245,9 +1245,12 @@ def collectcells(input, outputfile,
             ra = global_source_cat[:,0][valid_flags]
             dec= global_source_cat[:,1][valid_flags]
             fwhm = global_source_cat[:,5][valid_flags]
-            podi_diagnosticplots.diagplot_psfsize_ota(ra, dec, fwhm, outputfile[:-5]+".seeing",
-                         title=diagnostic_plot_title,
-                         ota_outlines=ota_outlines, options=options)
+            ota = global_source_cat[:,8][valid_flags]
+            podi_diagnosticplots.diagplot_psfsize_map(ra, dec, fwhm, ota, 
+                                                      output_filename=outputfile[:-5]+".seeing",
+                                                      title=diagnostic_plot_title,
+                                                      ota_outlines=ota_outlines, 
+                                                      options=options)
 
         source_cat_file = outputfile+".src.cat"
         file = open(source_cat_file, "w")
