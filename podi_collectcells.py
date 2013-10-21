@@ -803,7 +803,8 @@ def collectcells(input, outputfile,
     ota_list[0].header.update("PLVERSIO", pipeline_version, "pipeline version")
     ota_list[0].header.update("PLAUTHOR", "Ralf Kotulla", "pipeline author")
     ota_list[0].header.update("PLEMAIL", "kotulla@uwm.edu", "contact email")
-
+    for key, value in options['additional_fits_headers'].iteritems():
+        ota_list[0].header.update(key, value, "user-added keyword")
     
     #
     # Set up the parallel processing environment
@@ -1563,6 +1564,8 @@ def set_default_options(options_in=None):
     options['plotformat'] = ['png']
     options['otalevelplots'] = True
 
+    options['additional_fits_headers'] = {}
+
     return options
 
 
@@ -1693,6 +1696,15 @@ Calibration data:
         print "writing plots as ",options['plotformat']
         
     options['otalevelplots'] = not cmdline_arg_isset("-nootalevelplots")
+
+    # Now loop over all headers again and isolate the -addfitskey entries
+    for entry in sys.argv[1:]:
+        if (entry[:11] == "-addfitskey"):
+            key_value = entry[12:]
+            key, value = key_value.split(',', 2)
+            print "Adding fits keyword %s = %s" % (key, value) 
+
+            options['additional_fits_headers'][key] = value
 
     return options
 
