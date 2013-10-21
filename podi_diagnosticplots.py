@@ -162,8 +162,12 @@ def wcsdiag_scatter(matched_cat, filename, options=None, ota_wcs_stats=None,
 
     # Now break down the plots by OTA
     if (also_plot_singleOTAs):
-        list_of_otas = all_otas
-        for this_ota in list_of_otas:
+        list_of_otas = available_ota_coords
+        if (options['central_only']):
+            list_of_otas = central_array_ota_coords
+
+        for (otax, otay) in list_of_otas:
+            this_ota = otax * 10 + otay
             in_this_ota = (ota == this_ota)
 
             extname = "OTA%02d.SCI" % (this_ota)
@@ -304,8 +308,12 @@ def wcsdiag_shift(matched_cat, filename, options=None, ota_outlines=None,
 
     # Now break down the plots by OTA
     if (also_plot_singleOTAs):
-        list_of_otas = all_otas
-        for this_ota in list_of_otas:
+        list_of_otas = available_ota_coords
+        if (options['central_only']):
+            list_of_otas = central_array_ota_coords
+
+        for (otax, otay) in list_of_otas:
+            this_ota = otax * 10 + otay
             in_this_ota = (ota == this_ota)
 
             extname = "OTA%02d.SCI" % (this_ota)
@@ -413,6 +421,7 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
                          zp_distribfull=None, zp_distribclipped=None,
                          title=None,
                          options=None,
+                         also_plot_singleOTAs=False,
                          ):
 
 
@@ -635,11 +644,12 @@ def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
 
     # If requested, do the same for the individual OTAs
     if (also_plot_singleOTAs):
-        list_of_otas = all_otas
-        print list_of_otas
+        list_of_otas = available_ota_coords
+        if (options['central_only']):
+            list_of_otas = central_array_ota_coords
 
-        for this_ota in list_of_otas:
-
+        for (otax, otay) in list_of_otas:
+            this_ota = otax * 10 + otay
             in_this_ota = ota == this_ota
             zp_ota = zp_raw[in_this_ota]
             ra_ota = ra[in_this_ota]
@@ -743,10 +753,12 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
 
     # If requested, do the same for the individual OTAs
     if (also_plot_singleOTAs):
-        list_of_otas = all_otas
-        print list_of_otas
+        list_of_otas = available_ota_coords
+        if (options['central_only']):
+            list_of_otas = central_array_ota_coords
 
-        for this_ota in list_of_otas:
+        for (otax, otay) in list_of_otas:
+            this_ota = otax * 10 + otay
 
             in_this_ota = (ota == this_ota)
             fwhm_ota = fwhm[in_this_ota]
