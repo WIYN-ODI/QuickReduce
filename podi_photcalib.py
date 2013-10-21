@@ -534,7 +534,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                                                   sdss_filter, filtername, #"r", "odi_r",
                                                   title=plottitle,
                                                   options=options,
-                                                  )
+                                                  also_plot_singleOTAs=options['otalevelplots'])
 
         print odi_sdss_matched[0,:]
 
@@ -553,7 +553,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                                                       title=plottitle,
                                                       ota_outlines=ota_outlines,
                                                       options=options,
-                                                      also_plot_singleOTAs=True)
+                                                      also_plot_singleOTAs=options['otalevelplots'])
 
     results.close()
 

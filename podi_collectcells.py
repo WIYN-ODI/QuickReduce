@@ -1248,10 +1248,13 @@ def collectcells(input, outputfile,
             import podi_diagnosticplots
             podi_diagnosticplots.wcsdiag_scatter(odi_2mass_matched, outputfile[:-5]+".wcs1", 
                                                  options=options,
-                                                 ota_wcs_stats=ota_wcs_stats)
+                                                 ota_wcs_stats=ota_wcs_stats,
+                                                 also_plot_singleOTAs=options['otalevelplots'])
             podi_diagnosticplots.wcsdiag_shift(odi_2mass_matched, outputfile[:-5]+".wcs2", 
-                                                 options=options,
-                                                 ota_wcs_stats=ota_wcs_stats, ota_outlines=ota_outlines)
+                                               options=options,
+                                               ota_wcs_stats=ota_wcs_stats,
+                                               ota_outlines=ota_outlines,
+                                               also_plot_singleOTAs=options['otalevelplots'])
         
             flags = global_source_cat[:,7]
             valid_flags = flags == 0
@@ -1263,7 +1266,8 @@ def collectcells(input, outputfile,
                                                       output_filename=outputfile[:-5]+".seeing",
                                                       title=diagnostic_plot_title,
                                                       ota_outlines=ota_outlines, 
-                                                      options=options)
+                                                      options=options,
+                                                      also_plot_singleOTAs=options['otalevelplots'])
 
         source_cat_file = outputfile+".src.cat"
         file = open(source_cat_file, "w")
@@ -1551,6 +1555,7 @@ def set_default_options(options_in=None):
     options['photcalib'] = False
 
     options['plotformat'] = ['png']
+    options['otalevelplots'] = True
 
     return options
 
@@ -1681,7 +1686,7 @@ Calibration data:
         options['plotformat'] = inputstr.split(",")
         print "writing plots as ",options['plotformat']
         
-
+    options['otalevelplots'] = not cmdline_arg_isset("-nootalevelplots")
 
     return options
 
