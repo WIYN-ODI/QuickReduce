@@ -226,16 +226,21 @@ def plot_wcsdiag_shift(matched_cat, filename, extension_list=('png'),
     decmin, decmax = numpy.min(matched_cat[:,1]), numpy.max(matched_cat[:,1])
 
     dimension = numpy.min([ramax-ramin, decmax-decmin])
-    vector_scaling = 2 * dimension/100 * 3600. # size of 1 arcsec in percent of screen size
+    vector_scaling = 10 * dimension/100 * 3600. # size of 1 arcsec in percent of screen size
 
     ax.plot(matched_cat[:,0], matched_cat[:,1],
             color='red', marker='o', linestyle='None',
             markeredgecolor='none', markersize=4, 
             )
-    ax.quiver(matched_cat[:,0], matched_cat[:,1], 
-              d_ra*vector_scaling, d_dec*vector_scaling,
-              linewidth=0, angles='xy', scale_units='xy', scale=1, pivot='tail', zorder=99)
+    Q = ax.quiver(matched_cat[:,0], matched_cat[:,1], 
+                  d_ra*vector_scaling, d_dec*vector_scaling,
+                  linewidth=0, edgecolor='red',
+                  angles='xy', scale_units='xy', pivot='tail', zorder=99, 
+                  scale=1,
+                  headwidth=2, headlength=2, headaxislength=1.8,
+                  )
     # Determine min and max values
+
     ax.set_title("WCS misalignment")
     ax.set_xlim((ramin-0.02, ramax+0.02))
     ax.set_ylim((decmin-0.02, decmax+0.02))
@@ -243,13 +248,23 @@ def plot_wcsdiag_shift(matched_cat, filename, extension_list=('png'),
     ax.set_ylabel("DEC [degrees]")
 
     # draw some arrow to mark how long the other arrows are
-    arrow_x = ramin  + 0.05 * (ramax - ramin)
-    arrow_y = decmax - 0.05 * (decmax - decmin)
+    #arrow_x = ramin  + 0.05 * (ramax - ramin)
+    #arrow_y = decmax - 0.05 * (decmax - decmin)
     arrow_length = 1 / 3600. # arcsec
     # ax.plot(arrow_x, arrow_y, "ro")
     # ax.quiver(arrow_x, arrow_y, arrow_length*vector_scaling, 0, linewidth=0,
     #           angles='xy', scale_units='xy', scale=1, pivot='middle',
     #           headwidth=0)
+
+    print "Adding quiverkey at pos"#, arrow_x, arrow_y
+    # qk = ax.quiverkey(Q, arrow_x, arrow_y, arrow_length, 
+    #                   label="1''", labelpos='S',
+    #                   coordinates='data'
+    #                   )
+    qk = ax.quiverkey(Q, 0.05, 0.95, arrow_length*vector_scaling, 
+                      label="1''", labelpos='S',
+                      coordinates='axes'
+                      )
 
     # ax.quiver(arrow_x, arrow_y, arrow_length*vector_scaling, 0, linewidth=0,
     #           angles='xy', scale_units='xy', scale=1, pivot='middle',
@@ -261,12 +276,12 @@ def plot_wcsdiag_shift(matched_cat, filename, extension_list=('png'),
         ax.add_collection(coll)
 
     # add a line
-    x,y = numpy.array([[arrow_x-arrow_length*vector_scaling, arrow_x+arrow_length*vector_scaling], [arrow_y, arrow_y]])
-    ax.plot(x,y, linewidth=3, color='black')
+    # x,y = numpy.array([[arrow_x-arrow_length*vector_scaling, arrow_x+arrow_length*vector_scaling], [arrow_y, arrow_y]])
+    # ax.plot(x,y, linewidth=3, color='black')
 
     # add label saying "2''"
-    ax.text(arrow_x, arrow_y-2*vector_scaling/3600., "%d''" % (2*arrow_length*3600), 
-                           horizontalalignment='center')
+    # ax.text(arrow_x, arrow_y-2*vector_scaling/3600., "%d''" % (2*arrow_length*3600), 
+    #                        horizontalalignment='center')
 
     if (filename == None):
         fig.show()
