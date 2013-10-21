@@ -332,6 +332,24 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
         if (verbose): stdout_write(" done\n")
 
     #
+    # At this point, add a fits table listing all filenames that went into this combination
+    #
+    filenames_only = []
+    for file in filelist:
+        dirname, filename = os.path.split(file)
+        filenames_only.append(filename)
+
+    out_hdulist[0].header.update("NCOMBINE", len(filenames_only), "number of combined files")
+
+    columns = [
+        pyfits.Column(name='filename', format="A100", array=filenames_only),
+        ]
+    coldefs = pyfits.ColDefs(columns)
+    tablehdu = pyfits.new_table(coldefs, tbtype="BinTableHDU")
+    tablehdu.header.update("EXTNAME", "FILELIST")
+    out_hdulist.append(tablehdu)
+
+    #
     # All work done now, prepare to return the data or write it to disk
     #
     out_hdu = pyfits.HDUList(out_hdulist)
