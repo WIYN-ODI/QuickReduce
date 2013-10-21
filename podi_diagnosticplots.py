@@ -51,7 +51,7 @@ from podi_definitions import *
 #####################################################################################
 #
 #
-# Stand-alone routines are below.
+# This creates the WCS scatter plots
 #
 #
 #####################################################################################
@@ -203,10 +203,78 @@ def wcsdiag_scatter(matched_cat, filename, options=None, ota_wcs_stats=None,
 #####################################################################################
 #
 #
-# Stand-alone routines are below.
+# WCS shift vector plots
 #
 #
 #####################################################################################
+
+
+def plot_wcsdiag_shift(matched_cat, filename, extension_list=('png'), 
+                       ota_outlines=None, 
+                       title=None,
+                       ):
+
+    fig, ax = matplotlib.pyplot.subplots()
+    
+    d_ra  = matched_cat[:,0] - matched_cat[:,2]
+    d_dec = matched_cat[:,1] - matched_cat[:,3]
+    ramin, ramax = numpy.min(matched_cat[:,0]), numpy.max(matched_cat[:,0])
+    decmin, decmax = numpy.min(matched_cat[:,1]), numpy.max(matched_cat[:,1])
+
+    dimension = numpy.min([ramax-ramin, decmax-decmin])
+    vector_scaling = 2 * dimension/100 * 3600. # size of 1 arcsec in percent of screen size
+
+    ax.plot(matched_cat[:,0], matched_cat[:,1],
+            color='red', marker='o', linestyle='None',
+            markeredgecolor='none', markersize=4, 
+            )
+    ax.quiver(matched_cat[:,0], matched_cat[:,1], 
+              d_ra*vector_scaling, d_dec*vector_scaling,
+              linewidth=0, angles='xy', scale_units='xy', scale=1, pivot='tail', zorder=99)
+    # Determine min and max values
+    ax.set_title("WCS misalignment")
+    ax.set_xlim((ramin-0.02, ramax+0.02))
+    ax.set_ylim((decmin-0.02, decmax+0.02))
+    ax.set_xlabel("RA [degrees]")
+    ax.set_ylabel("DEC [degrees]")
+
+    # draw some arrow to mark how long the other arrows are
+    arrow_x = ramin  + 0.05 * (ramax - ramin)
+    arrow_y = decmax - 0.05 * (decmax - decmin)
+    arrow_length = 1 / 3600. # arcsec
+    # ax.plot(arrow_x, arrow_y, "ro")
+    # ax.quiver(arrow_x, arrow_y, arrow_length*vector_scaling, 0, linewidth=0,
+    #           angles='xy', scale_units='xy', scale=1, pivot='middle',
+    #           headwidth=0)
+
+    # ax.quiver(arrow_x, arrow_y, arrow_length*vector_scaling, 0, linewidth=0,
+    #           angles='xy', scale_units='xy', scale=1, pivot='middle',
+    #           headwidth=0)
+
+    if (not ota_outlines == None):
+        corners = numpy.array(ota_outlines)
+        coll = matplotlib.collections.PolyCollection(corners,facecolor='none',edgecolor='#808080', linestyle='-')
+        ax.add_collection(coll)
+
+    # add a line
+    x,y = numpy.array([[arrow_x-arrow_length*vector_scaling, arrow_x+arrow_length*vector_scaling], [arrow_y, arrow_y]])
+    ax.plot(x,y, linewidth=3, color='black')
+
+    # add label saying "2''"
+    ax.text(arrow_x, arrow_y-2*vector_scaling/3600., "%d''" % (2*arrow_length*3600), 
+                           horizontalalignment='center')
+
+    if (filename == None):
+        fig.show()
+    else:
+        for ext in extension_list:
+            fig.savefig(filename+"."+ext)
+
+    matplotlib.pyplot.close()
+    stdout_write(" done!\n")
+
+    return
+
 
 
 def wcsdiag_shift(matched_cat, filename, options=None, ota_outlines=None, 
@@ -220,71 +288,122 @@ def wcsdiag_shift(matched_cat, filename, options=None, ota_outlines=None,
     good_matches = matches_zeroed[matches_zeroed[:,2] >= 0]
     d_ra  = good_matches[:,0] - good_matches[:,2]
     d_dec = good_matches[:,1] - good_matches[:,3]
-
-    fig, ax = matplotlib.pyplot.subplots()
+    ota = good_matches[:,10]
     
-    #matched_zeroed = matched_cat
-    #matched_zeroed[:,0:2] -= wcs_shift_refinement
-    #matplotlib.pyplot.plot(matched_zeroed[:,0], matched_zeroed[:,1], ",", color=(1,1,1))
-    #matching_radius_arcsec = 3. / 3600.
-    #valid = (numpy.fabs(matched_zeroed[:,0]-matched_zeroed[:,2]) < matching_radius_arcsec) & \
-    #    (numpy.fabs(matched_zeroed[:,1]-matched_zeroed[:,3]) < matching_radius_arcsec)
-    #matched_zeroed = matched_zeroed[valid]
-    
-    ramin, ramax = numpy.min(matches_zeroed[:,0]), numpy.max(matches_zeroed[:,0])
-    decmin, decmax = numpy.min(matches_zeroed[:,1]), numpy.max(matches_zeroed[:,1])
-
-    dimension = numpy.min([ramax-ramin, decmax-decmin])
-    vector_scaling = 2 * dimension/100 * 3600. # size of 1 arcsec in percent of screen size
-    #vector_scaling = 0.02 * 3600.
-    matplotlib.pyplot.quiver(good_matches[:,0], good_matches[:,1], 
-                             d_ra*vector_scaling, d_dec*vector_scaling,
-                             linewidth=0, angles='xy', scale_units='xy', scale=1, pivot='middle')
-    # Determine min and max values
-    #ramin, ramax = numpy.min(good_matches[:,0]), numpy.max(good_matches[:,0])
-    #decmin, decmax = numpy.min(good_matches[:,1]), numpy.max(good_matches[:,1])
-    matplotlib.pyplot.title("WCS misalignment")
-    matplotlib.pyplot.xlim((ramin-0.02, ramax+0.02))
-    matplotlib.pyplot.ylim((decmin-0.02, decmax+0.02))
-    matplotlib.pyplot.xlabel("RA [degrees]")
-    matplotlib.pyplot.ylabel("DEC [degrees]")
-    # draw some arrow to mark how long the other arrows are
-    arrow_x = ramin  + 0.05 * (ramax - ramin)
-    arrow_y = decmax - 0.05 * (decmax - decmin)
-    arrow_length = 1 / 3600. # arcsec
-    matplotlib.pyplot.quiver(arrow_x, arrow_y, arrow_length*vector_scaling, 0, linewidth=0,
-                             angles='xy', scale_units='xy', scale=1, pivot='middle',
-                             headwidth=0)
-
-    if (not ota_outlines == None):
-        corners = numpy.array(ota_outlines)
-        coll = matplotlib.collections.PolyCollection(corners,facecolor='none',edgecolor='#808080', linestyle='-')
-        ax.add_collection(coll)
-
-    # add a line
-    x,y = numpy.array([[arrow_x-arrow_length*vector_scaling, arrow_x+arrow_length*vector_scaling], [arrow_y, arrow_y]])
-    matplotlib.pyplot.plot(x,y, linewidth=3, color='black')
-
-    # add label saying "2''"
-    matplotlib.pyplot.text(arrow_x, arrow_y-2*vector_scaling/3600., "%d''" % (2*arrow_length*3600), 
-                           horizontalalignment='center')
-#    matplotlib.pyplot.text(arrow_x, arrow_y, "%d''" % (2*arrow_length*3600), 
-#                           horizontalalignment='center', verticalalignment='top')
-
-    if (filename == None):
-        fig.show()
+    if (options == None):
+        extension_list = ('png')
     else:
-        if (not options == None):
-            for ext in options['plotformat']:
-                if (ext != ''):
-                    fig.savefig(filename+"."+ext)
-        else:
-            fig.savefig(filename+".png")
+        extension_list = options['plotformat']
 
-    matplotlib.pyplot.close()
-    stdout_write(" done!\n")
+    # Create one plot for the full focalplane
+    title = "WCS Scatter - full focal plane"
+    plot_wcsdiag_shift(good_matches, filename, extension_list, 
+                       ota_outlines=None,
+                       title=title,
+                       )
+
+    # Now break down the plots by OTA
+    if (also_plot_singleOTAs):
+        list_of_otas = all_otas
+        for this_ota in list_of_otas:
+            in_this_ota = (ota == this_ota)
+
+            extname = "OTA%02d.SCI" % (this_ota)
+            title = "WSC Scatter - OTA %02d" % (this_ota)
+                
+            ota_plotfile = "%s_OTA%02d" % (filename, this_ota)
+            plot_wcsdiag_shift(good_matches[in_this_ota], 
+                               filename=ota_plotfile, 
+                               extension_list=extension_list, 
+                               ota_outlines=None,
+                               title=title,
+                               )
+
+#     fig, ax = matplotlib.pyplot.subplots()
+    
+#     #matched_zeroed = matched_cat
+#     #matched_zeroed[:,0:2] -= wcs_shift_refinement
+#     #matplotlib.pyplot.plot(matched_zeroed[:,0], matched_zeroed[:,1], ",", color=(1,1,1))
+#     #matching_radius_arcsec = 3. / 3600.
+#     #valid = (numpy.fabs(matched_zeroed[:,0]-matched_zeroed[:,2]) < matching_radius_arcsec) & \
+#     #    (numpy.fabs(matched_zeroed[:,1]-matched_zeroed[:,3]) < matching_radius_arcsec)
+#     #matched_zeroed = matched_zeroed[valid]
+    
+#     ramin, ramax = numpy.min(matches_zeroed[:,0]), numpy.max(matches_zeroed[:,0])
+#     decmin, decmax = numpy.min(matches_zeroed[:,1]), numpy.max(matches_zeroed[:,1])
+
+#     dimension = numpy.min([ramax-ramin, decmax-decmin])
+#     vector_scaling = 2 * dimension/100 * 3600. # size of 1 arcsec in percent of screen size
+#     #vector_scaling = 0.02 * 3600.
+#     matplotlib.pyplot.quiver(good_matches[:,0], good_matches[:,1], 
+#                              d_ra*vector_scaling, d_dec*vector_scaling,
+#                              linewidth=0, angles='xy', scale_units='xy', scale=1, pivot='middle')
+#     # Determine min and max values
+#     #ramin, ramax = numpy.min(good_matches[:,0]), numpy.max(good_matches[:,0])
+#     #decmin, decmax = numpy.min(good_matches[:,1]), numpy.max(good_matches[:,1])
+#     matplotlib.pyplot.title("WCS misalignment")
+#     matplotlib.pyplot.xlim((ramin-0.02, ramax+0.02))
+#     matplotlib.pyplot.ylim((decmin-0.02, decmax+0.02))
+#     matplotlib.pyplot.xlabel("RA [degrees]")
+#     matplotlib.pyplot.ylabel("DEC [degrees]")
+#     # draw some arrow to mark how long the other arrows are
+#     arrow_x = ramin  + 0.05 * (ramax - ramin)
+#     arrow_y = decmax - 0.05 * (decmax - decmin)
+#     arrow_length = 1 / 3600. # arcsec
+#     matplotlib.pyplot.quiver(arrow_x, arrow_y, arrow_length*vector_scaling, 0, linewidth=0,
+#                              angles='xy', scale_units='xy', scale=1, pivot='middle',
+#                              headwidth=0)
+
+#     if (not ota_outlines == None):
+#         corners = numpy.array(ota_outlines)
+#         coll = matplotlib.collections.PolyCollection(corners,facecolor='none',edgecolor='#808080', linestyle='-')
+#         ax.add_collection(coll)
+
+#     # add a line
+#     x,y = numpy.array([[arrow_x-arrow_length*vector_scaling, arrow_x+arrow_length*vector_scaling], [arrow_y, arrow_y]])
+#     matplotlib.pyplot.plot(x,y, linewidth=3, color='black')
+
+#     # add label saying "2''"
+#     matplotlib.pyplot.text(arrow_x, arrow_y-2*vector_scaling/3600., "%d''" % (2*arrow_length*3600), 
+#                            horizontalalignment='center')
+# #    matplotlib.pyplot.text(arrow_x, arrow_y, "%d''" % (2*arrow_length*3600), 
+# #                           horizontalalignment='center', verticalalignment='top')
+
+#     if (filename == None):
+#         fig.show()
+#     else:
+#         if (not options == None):
+#             for ext in options['plotformat']:
+#                 if (ext != ''):
+#                     fig.savefig(filename+"."+ext)
+#         else:
+#             fig.savefig(filename+".png")
+
+#     matplotlib.pyplot.close()
+#     stdout_write(" done!\n")
 
     return 0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_filename,
