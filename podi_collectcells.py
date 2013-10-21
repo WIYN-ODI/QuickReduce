@@ -798,6 +798,12 @@ def collectcells(input, outputfile,
     ota_list = [None] * (len(list_of_otas_to_collect)+1)
     # And add the primary HDU to make the fits file a valid one
     ota_list[0] = pyfits.PrimaryHDU()
+    ota_list[0].header.update("PLVER", pipeline_plver, "name and version")
+    ota_list[0].header.update("PLNAME", pipeline_name, "pipeline name")
+    ota_list[0].header.update("PLVERSIO", pipeline_version, "pipeline version")
+    ota_list[0].header.update("PLAUTHOR", "Ralf Kotulla", "pipeline author")
+    ota_list[0].header.update("PLEMAIL", "kotulla@uwm.edu", "contact email")
+
     
     #
     # Set up the parallel processing environment

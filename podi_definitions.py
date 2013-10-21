@@ -39,6 +39,16 @@ import scipy
 import scipy.ndimage
 from bottleneck import nanmean, nanmedian
 
+#
+# Update this variable below when changing versions
+#
+pipeline_plver = "QuickReduce Version 0.9"
+pipeline_name = "QuickReduce"
+pipeline_version = "0.9"
+#
+#
+#
+
 
 ############
 #                  | | |
