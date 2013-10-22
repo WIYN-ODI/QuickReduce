@@ -81,6 +81,7 @@ else:
 
 
 
+
 def collect_reduce_ota(filename,
                        verbose=False,
                        options=None):
@@ -1251,11 +1252,15 @@ def collectcells(input, outputfile,
                 )
 
             import podi_diagnosticplots
-            podi_diagnosticplots.wcsdiag_scatter(odi_2mass_matched, outputfile[:-5]+".wcs1", 
+            plotfilename = create_qa_filename(outputfile, "wcs1", options)
+            podi_diagnosticplots.wcsdiag_scatter(odi_2mass_matched, 
+                                                 plotfilename, # outputfile[:-5]+".wcs1", 
                                                  options=options,
                                                  ota_wcs_stats=ota_wcs_stats,
                                                  also_plot_singleOTAs=options['otalevelplots'])
-            podi_diagnosticplots.wcsdiag_shift(odi_2mass_matched, outputfile[:-5]+".wcs2", 
+            plotfilename = create_qa_filename(outputfile, "wcs2", options)
+            podi_diagnosticplots.wcsdiag_shift(odi_2mass_matched, 
+                                               plotfilename, #outputfile[:-5]+".wcs2", 
                                                options=options,
                                                ota_wcs_stats=ota_wcs_stats,
                                                ota_outlines=ota_outlines,
@@ -1267,8 +1272,9 @@ def collectcells(input, outputfile,
             dec= global_source_cat[:,1][valid_flags]
             fwhm = global_source_cat[:,5][valid_flags]
             ota = global_source_cat[:,8][valid_flags]
+            plotfilename = create_qa_filename(outputfile, "seeing", options)
             podi_diagnosticplots.diagplot_psfsize_map(ra, dec, fwhm, ota, 
-                                                      output_filename=outputfile[:-5]+".seeing",
+                                                      output_filename=plotfilename, #outputfile[:-5]+".seeing",
                                                       title=diagnostic_plot_title,
                                                       ota_outlines=ota_outlines, 
                                                       options=options,
@@ -1564,6 +1570,9 @@ def set_default_options(options_in=None):
 
     options['additional_fits_headers'] = {}
 
+    options['structure_qa_subdirs'] = False
+    options['structure_qa_subdir_name'] = "QA"
+
     return options
 
 
@@ -1694,6 +1703,11 @@ Calibration data:
         print "writing plots as ",options['plotformat']
         
     options['otalevelplots'] = not cmdline_arg_isset("-nootalevelplots")
+
+    options['structure_qa_subdirs'] = cmdline_arg_isset("-qasubdirs")
+    if (cmdline_arg_isset('-qasubdirname')):
+        options['structure_qa_subdir_name'] = cmdline_arg_set_or_default('-qasubdirname', "QA")
+        options['structure_qa_subdirs'] = True
 
     # Now loop over all headers again and isolate the -addfitskey entries
     for entry in sys.argv[1:]:

@@ -1287,3 +1287,31 @@ def derive_ota_outlines(otalist):
             all_corners.append(corner_coords)
 
     return all_corners
+
+
+def create_qa_filename(outputfile, plotname, options):
+
+    if (options['structure_qa_subdirs']):
+        dirname, basename = os.path.split(outputfile)
+        if (dirname == None): dirname = "."
+        qa_plotdir = "%s/%s/" % (dirname, options['structure_qa_subdir_name'])
+        if (not os.path.isdir(qa_plotdir)):
+            os.mkdir(qa_plotdir)
+        qa_plotfile = "%s/%s" % (qa_plotdir, plotname)
+    else:
+        qa_plotfile = outputfile[:-5]+".wcs1", 
+
+    return qa_plotfile
+
+def create_qa_otaplot_filename(plotname, ota, structure_qa_subdirs):
+
+    if (structure_qa_subdirs):
+        # in this case, plotname is to be taken as directory
+        if (not os.path.isdir(plotname)):
+            os.mkdir(plotname)
+        # The actual filenames are the directory and the OTA
+        qa_plotfile = "%s/OTA%02d" % (plotname, ota)
+    else:
+        qa_plotfile = "%s_OTA%02d" % (plotname, ota)
+
+    return qa_plotfile

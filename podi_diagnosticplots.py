@@ -177,7 +177,11 @@ def wcsdiag_scatter(matched_cat, filename, options=None, ota_wcs_stats=None,
             ota_stats = None if ota_wcs_stats == None else ota_wcs_stats[extname]
             print extname, ota_stats
 
-            ota_plotfile = "%s_OTA%02d" % (filename, this_ota)
+            ota_plotfile = create_qa_otaplot_filename(filename, this_ota, options['structure_qa_subdirs'])
+            # ota_plotfile = "%s_OTA%02d" % (filename, this_ota)
+            # if (options['structure_qa_subdirs']):
+            #     ota_plotfile = "%s/OTA%02d" % (filename, this_ota)
+            
             plot_wcsdiag_scatter(d_ra[in_this_ota], d_dec[in_this_ota], ota_plotfile, extension_list,
                                  title=title,
                                  ota_stats=ota_stats, ota_global_stats=ota_global_stats)
@@ -334,7 +338,11 @@ def wcsdiag_shift(matched_cat, filename, options=None, ota_outlines=None,
             extname = "OTA%02d.SCI" % (this_ota)
             title = "WSC Scatter - OTA %02d" % (this_ota)
                 
-            ota_plotfile = "%s_OTA%02d" % (filename, this_ota)
+            ota_plotfile = create_qa_otaplot_filename(filename, this_ota, options['structure_qa_subdirs'])
+            # ota_plotfile = "%s_OTA%02d" % (filename, this_ota)
+            # if (options['structure_qa_subdirs']):
+            #     ota_plotfile = "%s/OTA%02d" % (filename, this_ota)
+
             plot_wcsdiag_shift(good_matches[in_this_ota], 
                                filename=ota_plotfile, 
                                extension_list=extension_list, 
@@ -670,7 +678,8 @@ def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
             ra_ota = ra[in_this_ota]
             dec_ota = dec[in_this_ota]
 
-            ota_plotfile = "%s_OTA%02d" % (output_filename, this_ota)
+            # ota_plotfile = "%s_OTA%02d" % (output_filename, this_ota)
+            ota_plotfile = create_qa_otaplot_filename(output_filename, this_ota, options['structure_qa_subdirs'])
             plot_zeropoint_map(ra_ota, dec_ota, zp_ota, None, ota_plotfile, options, zp_range)
     
     stdout_write(" done!\n")
@@ -780,7 +789,8 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
             ra_ota = ra[in_this_ota]
             dec_ota = dec[in_this_ota]
 
-            ota_plotfile = "%s_OTA%02d" % (output_filename, this_ota)
+            # ota_plotfile = "%s_OTA%02d" % (output_filename, this_ota)
+            ota_plotfile = create_qa_otaplot_filename(output_filename, this_ota, options['structure_qa_subdirs'])
             plot_psfsize_map(ra_ota, dec_ota, fwhm_ota, 
                              output_filename=ota_plotfile, 
                              fwhm_range=fwhm_range,

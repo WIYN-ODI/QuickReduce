@@ -527,7 +527,8 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     if (diagplots):
         import podi_diagnosticplots
 
-        zp_calib_plot = output_filename[:-5]+".photZP"
+        # zp_calib_plot = output_filename[:-5]+".photZP"
+        zp_calib_plot = create_qa_filename(output_filename, "photZP", options)
         podi_diagnosticplots.photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr,
                                                   zp_calib_plot,
                                                   zp_median, zp_std,
@@ -541,7 +542,8 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         ota = odi_sdss_matched[:,10]
         ra = odi_sdss_matched[:,0]
         dec = odi_sdss_matched[:,1]
-        plotfilename = output_filename[:-5]+".photZP_map"
+        # plotfilename = output_filename[:-5]+".photZP_map"
+        plotfilename = create_qa_filename(output_filename, "photZP_map", options)
 
         ota_outlines = None
         if (otalist != None):
