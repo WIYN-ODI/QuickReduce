@@ -124,9 +124,9 @@ def collect_reduce_ota(filename,
         hdu.update_ext_name(extname)
         
         # Now copy the headers from the original file into the new one
-        cards = hdulist[0].header.ascardlist()
-        for c in cards:
-            hdu.header.update(c.key, c.value, c.comment)
+        cards = hdulist[0].header.cards
+        for (keyword, value, comment) in cards:
+            hdu.header.update(keyword, value, comment)
 
         # Also read the MJD for this frame. This will be needed later for the correction
         mjd = hdu.header['MJD-OBS']
@@ -475,14 +475,14 @@ def collect_reduce_ota(filename,
             wcs = pyfits.open(options['wcs_distortion'])
             wcs_header = wcs[extname].header
 
-            cards = wcs_header.ascardlist()
-            for card in cards:
-                if (card.key == 'CRVAL1'):
+            cards = wcs_header.cards
+            for (keyword, value, comment) in cards:
+                if (keyword == 'CRVAL1'):
                     hdu.header["CRVAL1"] -= wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
-                elif (card.key == "CRVAL2"):
+                elif (keyword == "CRVAL2"):
                     hdu.header['CRVAL2'] -= wcs_header['CRVAL2']
                 else:
-                    hdu.header.update(card.key, card.value, card.comment)
+                    hdu.header.update(keyword, value, comment)
 
             # Make sure to write RAs that are positive
             if (hdu.header["CRVAL1"] < 0):
@@ -1040,10 +1040,8 @@ def collectcells(input, outputfile,
 
             # Check if the header already exists in the primary header. If not add it!
             if (not header in ota_list[0].header):
-                card = ota.header.ascardlist()[header]
-                ota_list[0].header.update(card.key, card.value, card.comment)
-                #value = ota.header[header]
-                #ota_list[0].header.update(header, value, "DESCRIPTION")
+                (keyword, value, comment) = ota.header.cards[header]
+                ota_list[0].header.update(keyword, value, comment)
             
             # By now the value should exist in the primary header, 
             # so delete it from each of the extensions
