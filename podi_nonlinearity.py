@@ -541,6 +541,10 @@ def plot_cellbycell_map(fitfile, outputfile, minmax, labels=True, fontsize=2):
     fig, ax = matplotlib.pyplot.subplots()
 
     for ext in range(1, len(hdulist)):
+        if (not ((type(hdulist[ext]) == pyfits.hdu.image.ImageHDU) or
+                  type(hdulist[ext]) == pyfits.hdu.compressed.CompImageHDU) ):
+            continue
+
         for cellx in range(8):
             for celly in range(8):
 
