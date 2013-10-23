@@ -65,8 +65,8 @@ def header_to_polynomial(hdr):
     eta = fill_entries(hdr, ordering, "PV2_%d")
     eta_r = fill_entries(hdr, ordering_r, "PV2_%d")
 
-    if (not 'PV1_1' in hdr):  xi[0,0] = 1.0
-    if (not 'PV2_1' in hdr): eta[0,0] = 1.0
+    if (not 'PV1_1' in hdr):  xi[0,1] = 1.0
+    if (not 'PV2_1' in hdr): eta[0,1] = 1.0
 
     cd = numpy.zeros(shape=(2,2))
     if ('CD1_1' in hdr): cd[0,0] = hdr['CD1_1']
@@ -84,15 +84,57 @@ def header_to_polynomial(hdr):
 
     return xi, xi_r, eta, eta_r, cd, crval, crpix
 
+import itertools
+def polyval2d(x, y, m):
+    ij = itertools.product(range(m.shape[0]), range(m.shape[1]))
+    z = numpy.zeros_like(x)
+    for (i,j) in ij:
+        #print i,j
+        z += m[i,j] * x**j * y**i
+        print i,j,"-->",z
+    return z
 
 def my_pix2wcs(xy, wcs_polynomials):
         
-    xi, xi_r, eta, eta_r, cd, crval, crpix = wcs_polynomials
+    c_xi, c_xi_r, c_eta, c_eta_r, cd, crval, crpix = wcs_polynomials
+
+    #use the input x,y and compute xi and eta first
+
+    print "crpix=",crpix
+    print "xy=\n",xy
+    xy_relative = xy[:,0:2] - crpix
+    print "xy relative=\n",xy_relative
+
+    xi  = xy_relative[:,0] * cd[0,0] + xy_relative[:,1] * cd[0,1]
+    eta = xy_relative[:,1] * cd[1,0] + xy_relative[:,1] * cd[1,1]
+
+    print "xi=\n",xi
+    print "eta=\n",eta
+
+    # compute r = sqrt(xi**2 + eta**2)
+    r = numpy.hypot(xi, eta)
+    print "r=\n",r
+
+    print "c_xi_r", c_xi_r
+    print "c_eta_r", c_eta_r
+
+    xi_prime = polyval2d(xi, eta, c_xi) \
+        + numpy.polynomial.polynomial.polyval(r, c_xi_r[0])
+
+    eta_prime = polyval2d(eta, xi, c_eta) \
+        + numpy.polynomial.polynomial.polyval(r, c_eta_r[0])
+
+    print "xi_prime=\n",xi_prime
+    print "eta_prime=\n",eta_prime
+
+    print "crval:",crval
+    output = numpy.zeros_like(xy) #xi.shape[0],2)
+    output[:,0] = xi_prime
+    output[:,1] = eta_prime
+    output[:,0:2] += crval
 
 
-
-
-    return [0,0]
+    return output
 
 
 print "running soem stupid testing"
@@ -106,15 +148,6 @@ wcs.updateFromHeader()
 x,y = wcs.wcs2pix(ra, dec)
 print x,y
 
-wcs_polynomials = header_to_polynomial(inputhdu.header)
-xi, xi_r, eta, eta_r, cd, crval, crpix = wcs_polynomials
-print xi
-
-radec = my_pix2wcs([1000,1000], wcs_polynomials)
-
-
-#sys.exit(0)
-
 minRA, maxRA, minDec, maxDec = wcs.getImageMinMaxWCSCoords()
 print minRA, maxRA
 print minDec, maxDec
@@ -122,11 +155,17 @@ print minDec, maxDec
 
 xd, yd = 4000, 4000
 
-pixelscale = 1e-4 #0.13 / 3600. * 3
+pixelscale = 0.11 / 3600. 
 
 #output_data = numpy.zeros(shape=(4000,4000))
 
-primhdu = pyfits.PrimaryHDU(data=numpy.zeros(shape=(700,700)))
+cosine_correction = math.cos(math.radians(inputhdu.header['CRVAL2']))
+width = (maxRA - minRA) / pixelscale * cosine_correction
+height = (maxDec - minDec) / pixelscale
+print "\nnew size: %d x %d\n" % (width, height)
+
+
+primhdu = pyfits.PrimaryHDU(data=numpy.zeros(shape=(width,height)))
 # primhdu.header.update("CRPIX1", 0) #inputhdu.header['CRPIX1'])
 # primhdu.header.update("CRPIX2", 0) #inputhdu.header['CRPIX2'])
 # primhdu.header.update("CRVAL1", inputhdu.header['CRVAL1'])
@@ -138,8 +177,8 @@ primhdu = pyfits.PrimaryHDU(data=numpy.zeros(shape=(700,700)))
 
 primhdu.header.update("CRPIX1", 0.0)
 primhdu.header.update("CRPIX2", 0.0)
-primhdu.header.update("CRVAL1", inputhdu.header['CRVAL1'])
-primhdu.header.update("CRVAL2", inputhdu.header['CRVAL2'])
+primhdu.header.update("CRVAL1", 24.) #inputhdu.header['CRVAL1'])
+primhdu.header.update("CRVAL2", 31.) #inputhdu.header['CRVAL2'])
 primhdu.header.update("CD1_1", pixelscale)
 primhdu.header.update("CD1_2", 0.0)
 primhdu.header.update("CD2_1", 0.0)
@@ -152,40 +191,82 @@ primhdu.header.update("CTYPE2", 'DEC--TAN')
 primhdu.header.update("EQUINOX", 2000.0)
 primhdu.header.update("RADESYS", 'ICRS')
 
+
 # Now use this preliminary coordiante system to 
 # compute the position of the reference pixel
 print "Creating output Ra/Dec system"
 outputwcs = astWCS.WCS(primhdu.header, mode="pyfits")
 
-origin_ra, origin_dec = wcs.pix2wcs(0,0)
-# Now compute the pixel of the original reference in the new frame
-crpix_x, crpix_y = outputwcs.wcs2pix(origin_ra, origin_dec)
+
+#wcs_polynomials = header_to_polynomial(inputhdu.header)
+wcs_polynomials = header_to_polynomial(primhdu.header)
+xi, xi_r, eta, eta_r, cd, crval, crpix = wcs_polynomials
+print xi
+
+print "=============================="
+print "=============================="
+print "=============================="
+radec = my_pix2wcs(numpy.array([[2000.,1000.]]), wcs_polynomials)
+print "my=",radec
+print "wcs=",outputwcs.pix2wcs(2000., 1000.)
+print "=============================="
+print "=============================="
+print "=============================="
+
+sys.exit(0)
+
+
+
+# Now for each pixel in the output frame, determine the RA and DEC sky coordinates
+print "Translating x/y to Ra/Dec"
+y, x = numpy.indices(primhdu.data.shape)
+#print x[:10,:10]
+
+output_ra = x * (pixelscale / cosine_correction) + minRA
+output_dec = y * pixelscale + minDec
+
+# Compute the pixel coordiante of the reference pixel for the current wcs solution
+outputwcs.header['CRPIX1'] = 0
+outputwcs.header['CRPIX2'] = 0
+outputwcs.updateFromHeader()
+crpix_x, crpix_y = outputwcs.wcs2pix(output_ra[0,0], output_dec[0,0])
 print crpix_x, crpix_y
+
 outputwcs.header['CRPIX1'] = crpix_x * -1
 outputwcs.header['CRPIX2'] = crpix_y * -1
 primhdu.header['CRPIX1'] = crpix_x * -1
 primhdu.header['CRPIX2'] = crpix_y * -1
 outputwcs.updateFromHeader()
-newtry = outputwcs.wcs2pix(origin_ra, origin_dec)
+
+newtry = outputwcs.wcs2pix(output_ra[0,0], output_dec[0,0])
 print newtry
+
+# origin_ra, origin_dec = wcs.pix2wcs(0,0)
+# # Now compute the pixel of the original reference in the new frame
+# crpix_x, crpix_y = outputwcs.wcs2pix(origin_ra, origin_dec)
+# print crpix_x, crpix_y
+# outputwcs.header['CRPIX1'] = crpix_x * -1
+# outputwcs.header['CRPIX2'] = crpix_y * -1
+# primhdu.header['CRPIX1'] = crpix_x * -1
+# primhdu.header['CRPIX2'] = crpix_y * -1
+# outputwcs.updateFromHeader()
+# newtry = outputwcs.wcs2pix(origin_ra, origin_dec)
+# print newtry
 
 print "============================"
 
-# Now for each pixel in the output frame, determine the RA and DEC sky coordinates
-print "Translating x/y to Ra/Dec"
 
-y, x = numpy.indices(primhdu.data.shape)
-print x[:10,:10]
 
-output_RaDec = numpy.array(outputwcs.pix2wcs(x.ravel(),y.ravel()))
-
-print output_RaDec
-print output_RaDec.shape
-
+#output_radec = numpy.empty(shape=(output_ra.shape[0], output_ra.shape[1], 2))
+#output_radec[:,:,0] = output_ra
+#output_radec[:,:,1] = output_dec
 
 # Using the sky-coordinates, convert them into X/Y in the original frame
 
-xy_coords_in_inputframe = numpy.array(wcs.wcs2pix(output_RaDec[:,0].ravel(), output_RaDec[:,1].ravel()))
+# xy_coords_in_inputframe = numpy.array(wcs.wcs2pix(output_RaDec[:,0].ravel(), output_RaDec[:,1].ravel()))
+
+print "converting sky-coordinates of the new frame into pixel x/y from the old frame"
+xy_coords_in_inputframe = numpy.array(wcs.wcs2pix(output_ra.ravel(), output_dec.ravel()))
 
 print xy_coords_in_inputframe
 print xy_coords_in_inputframe.shape
