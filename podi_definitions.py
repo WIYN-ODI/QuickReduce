@@ -1024,7 +1024,7 @@ def inherit_headers(header, primary_header):
             continue
 
         card = primary_header.ascardlist()[header]
-        header.update(card.key, card.value, card.comment)
+        header[card.key] = (card.value, card.comment)
 
         
 
