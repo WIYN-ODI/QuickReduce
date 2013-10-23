@@ -100,11 +100,16 @@ def collect_reduce_ota(filename,
         hdu = pyfits.ImageHDU()
         log_svn_version(hdu.header)
 
+        # Keep track of what input files we used
+        reduction_files_used = {}
+
         try:
             hdulist = pyfits.open(filename, memmap=False)
         except:
             # This happed with corrupt files
             return data_products
+
+        reduction_files_used['raw'] = filename
 
         detsize = break_region_string(hdulist[0].header['DETSIZE'])
         det_x1, det_x2, det_y1, det_y2 = detsize
@@ -188,6 +193,7 @@ def collect_reduce_ota(filename,
         if (not options['nonlinearity'] == None):
             print "Using non-linearity coefficients from",options['nonlinearity']
             nonlin_data = podi_nonlinearity.load_nonlinearity_correction_table(options['nonlinearity'], ota)
+            reduction_files_used['nonlinearity'] = options['nonlinearity']
 
         for cell in range(1,65):
             if (not options['bgmode']):
@@ -266,6 +272,7 @@ def collect_reduce_ota(filename,
             bias_filename = check_filename_directory(options['bias_dir'], "bias.fits")
             if (os.path.isfile(bias_filename)):
                 bias = pyfits.open(bias_filename)
+                reduction_files_used['bias'] = bias_filename
 
                 # Search for the bias data for the current OTA
                 for bias_ext in bias[1:]:
@@ -292,6 +299,7 @@ def collect_reduce_ota(filename,
             dark_filename = check_filename_directory(options['dark_dir'], "dark_%s.fits" % (detectorglow))
             if (os.path.isfile(dark_filename)):
                 dark = pyfits.open(dark_filename)
+                reduction_files_used['dark'] = dark_filename
                 darktime = dark[0].header['EXPTIME']
 
                 # Search for the flatfield data for the current OTA
@@ -312,6 +320,7 @@ def collect_reduce_ota(filename,
             flatfield_filename = check_filename_directory(options['flat_dir'], "flat_%s.fits" % (filter_name))
             if (os.path.isfile(flatfield_filename)):
                 flatfield = pyfits.open(flatfield_filename)
+                reduction_files_used['flat'] = flatfield_filename
 
                 # Search for the flatfield data for the current OTA
                 for ff_ext in flatfield[1:]:
@@ -334,6 +343,7 @@ def collect_reduce_ota(filename,
                 # all bad pixels as NaNs
                 mask_broken_regions(merged, region_file)
                 hdu.header.add_history("CC-BPM: %s" % (os.path.abspath(region_file)))
+                reduction_files_used['bpm'] = region_file
 
         #
         # If persistency correction is requested, perform it now
@@ -348,6 +358,7 @@ def collect_reduce_ota(filename,
             # Search for the saturation map for this frame and, if found,
             # mask out all saturated pixels
             saturated_thisframe = podi_persistency.select_from_saturation_tables(full_filelist, mjd, None)
+            reduction_files_used['saturation'] = saturated_thisframe
             #print "this frame=",saturated_thisframe,mjd
 
             if (not saturated_thisframe == None):
@@ -358,6 +369,7 @@ def collect_reduce_ota(filename,
             # appropriate correction (which, for now, is simply masking all pixels)
             filelist = podi_persistency.select_from_saturation_tables(full_filelist, mjd, [1,options['max_persistency_time']])
             if (len(filelist) > 0):
+                reduction_files_used['persistency'] = filelist
                 merged = podi_persistency.correct_persistency_effects(ota, merged, mjd, filelist)
                 persistency_catalog_counter = 0
                 for filename in filelist:
@@ -373,6 +385,8 @@ def collect_reduce_ota(filename,
         if (options['fringe_dir'] != None):
             fringe_filename = check_filename_directory(options['fringe_dir'], "fringe__%s.fits" % (filter_name))
             fringe_vector_file = "%s/fringevectors__%s__OTA%02d.reg" % (options['fringe_vectors'], filter_name, ota)
+            reduction_files_used['fringemap'] = fringe_filename
+            reduction_files_used['fringevector'] = fringe_vector_file
             if (options['verbose']):
                 print "fringe file:",fringe_filename, "    found:",os.path.isfile(fringe_filename)
                 print "fringe vector:",fringe_vector_file, "    found:",os.path.isfile(fringe_vector_file)
@@ -475,6 +489,7 @@ def collect_reduce_ota(filename,
             #print "Adding header from WCS minifits (%s)" % (extname)
             wcs = pyfits.open(options['wcs_distortion'])
             wcs_header = wcs[extname].header
+            reduction_files_used['wcs'] = options['wcs_distortion']
 
             cards = wcs_header.cards
             for (keyword, value, comment) in cards:
@@ -604,8 +619,63 @@ def collect_reduce_ota(filename,
     data_products['fringe_scaling'] = fringe_scaling
     data_products['sourcecat'] = source_cat
 
+    data_products['reduction_files_used'] = reduction_files_used
+
     return data_products #hdu, fixwcs_data
     
+
+def collect_reduction_files_used(masterlist, files_this_frame):
+
+    for key, value in files_this_frame.iteritems():
+        if (key in masterlist):
+            existing_keys = masterlist[key]
+            if (type(value) == list):
+                for val1 in value:
+                    masterlist[key].append(val1)
+            else:
+                masterlist[key].append(value)
+        else:
+            # This is a new key, so just copy it
+            if (type(value) == list):
+                masterlist[key] = value
+            else:
+                masterlist[key] = [value]
+
+    # print masterlist
+    return masterlist
+
+def create_association_table(master, verbose=False):
+    
+    reduction_step = []
+    full_filename = []
+    short_filename = []
+
+    for key, value in master.iteritems():
+        for filename in set(value):
+            reduction_step.append(key)
+            full_filename.append(filename)
+            
+            dirname, filebase = os.path.split(filename)
+            short_filename.append(filebase)
+
+            if (verbose):
+                print "% 15s : %s" % (key, filename)
+
+    # print reduction_step
+    # print short_filename
+
+    columns = [\
+        pyfits.Column(name='correction',    format='A25',  array=reduction_step),
+        pyfits.Column(name='filename_full', format='A375', array=full_filename),
+        pyfits.Column(name='filename',      format='A100', array=short_filename),
+        ]
+
+    coldefs = pyfits.ColDefs(columns)
+    tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
+
+    tbhdu.update_ext_name("ASSOCIATIONS", comment=None)
+
+    return tbhdu
 
 
 #########
@@ -753,6 +823,8 @@ def collectcells(input, outputfile,
 
         stdout_write("Replaced some keywords, new output filename: ---> %s\n" % (outputfile))
 
+    input_header = hdulist[0].header
+
     # We know enough about the current frame, so close the file
     hdulist.close()
     del hdulist
@@ -883,6 +955,11 @@ def collectcells(input, outputfile,
 
 
     #
+    # Create a master list that keeps track of all additional files used for this frame
+    #
+    master_reduction_files_used = {}
+
+    #
     # By now all workers have computed their HDUs or are busy doing so,
     # let's extract their results from the return queue and assemble the ota list
     #
@@ -913,6 +990,11 @@ def collectcells(input, outputfile,
 
         hdu = data_products['hdu']
         wcsfix_data = data_products['wcsdata']
+
+        if ('reduction_files_used' in data_products):
+            files_this_frame = data_products['reduction_files_used']
+            # print "\n\n\n\n\nfiles_this_frame=\n\n",files_this_frame,"\n\n\n"
+            collect_reduction_files_used(master_reduction_files_used, files_this_frame)
 
         #if ("persistency_map_updated" in data_products):
         #    # We also received an updated persistency map
@@ -996,7 +1078,10 @@ def collectcells(input, outputfile,
         print fixwcs_odi_y
         print fixwcs_bestguess.shape
         print fixwcs_bestguess
-    
+        
+    if(verbose):
+        print master_reduction_files_used
+
     #
     # Now do some post-processing:
     # 1) Add or overwrite some headers with values from an external wcs minifits file
@@ -1392,6 +1477,13 @@ def collectcells(input, outputfile,
                     continue
                 # print "subtracting",extname
                 ota_list[ext].data -= (fringe_hdulist[extname].data * fringe_scaling_median)
+
+    #
+    # Create an association table from the master reduction files used.
+    # 
+    assoc_table = create_association_table(master_reduction_files_used)
+    ota_list.append(assoc_table)
+
 
     #print "Waiting for a bit"
     #afw.wait()
