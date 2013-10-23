@@ -132,7 +132,7 @@ def collect_reduce_ota(filename,
         # Now copy the headers from the original file into the new one
         cards = hdulist[0].header.cards
         for (keyword, value, comment) in cards:
-            hdu.header.update(keyword, value, comment)
+            hdu.header[keyword] = (value, comment)
 
         # Also read the MJD for this frame. This will be needed later for the correction
         mjd = hdu.header['MJD-OBS']
@@ -206,8 +206,8 @@ def collect_reduce_ota(filename,
             #
             if (hdulist[cell].header['EXTNAME'] == "XY07"):
                 # print "Setting CRPIXs", hdulist[cell].header['CRPIX1'], hdulist[cell].header['CRPIX2']
-                hdu.header.update("CRPIX1", hdulist[cell].header['CRPIX1'], "Ref. pixel RA")
-                hdu.header.update("CRPIX2", hdulist[cell].header['CRPIX2'], "Ref. pixel DEC")
+                hdu.header["CRPIX1"] = (hdulist[cell].header['CRPIX1'], "Ref. pixel RA")
+                hdu.header["CRPIX2"] = (hdulist[cell].header['CRPIX2'], "Ref. pixel DEC")
 
             # Check if this is one of the broken cells
             cellmode_id = get_cellmode(hdulist[0].header, hdulist[cell].header)
@@ -363,7 +363,7 @@ def collect_reduce_ota(filename,
 
             if (not saturated_thisframe == None):
                 merged = podi_persistency.mask_saturation_defects(saturated_thisframe, ota, merged)
-            hdu.header.update("SATMASK", saturated_thisframe)
+            hdu.header["SATMASK"] = saturated_thisframe
 
             # Also pick all files within a given MJD range, and apply the 
             # appropriate correction (which, for now, is simply masking all pixels)
@@ -375,7 +375,7 @@ def collect_reduce_ota(filename,
                 for filename in filelist:
                     persistency_catalog_counter += 1
                     keyname = "PERSIS%02d" % (persistency_catalog_counter)
-                    hdu.header.update(keyname, filename)
+                    hdu.header[keyname] = filename
 
         #
         # If requested, determine the optimal fringe scaling
@@ -412,9 +412,9 @@ def collect_reduce_ota(filename,
                 fringe_hdu.close()
             #print "FRNG_SCL", fringe_scaling_median
             #print "FRNG_STD", fringe_scaling_std
-            hdu.header.update("FRNG_SCL", fringe_scaling_median)
-            hdu.header.update("FRNG_STD", fringe_scaling_std)
-            hdu.header.update("FRNG_OK", (fringe_scaling != None))
+            hdu.header["FRNG_SCL"] = fringe_scaling_median
+            hdu.header["FRNG_STD"] = fringe_scaling_std
+            hdu.header["FRNG_OK"] = (fringe_scaling != None)
 
         # Insert the DETSEC header so IRAF understands where to put the extensions
         start_x = ota_c_x * 4096
@@ -422,7 +422,7 @@ def collect_reduce_ota(filename,
         end_x = start_x + det_x2 - det_x1
         end_y = start_y + det_y2 - det_y1
         detsec_str = "[%d:%d,%d:%d]" % (start_x, end_x, start_y, end_y)
-        hdu.header.update("DETSEC", detsec_str, "position of OTA in focal plane")
+        hdu.header["DETSEC"] = (detsec_str, "position of OTA in focal plane")
                 
         if (cmdline_arg_isset("-simplewcs") or options['wcs_distortion'] != None):
             #
@@ -443,8 +443,8 @@ def collect_reduce_ota(filename,
             del hdu.header['WAT2_004']
             del hdu.header['WAT2_005']
         # in any case, add the CUNIT headers that are missing by default
-        hdu.header.update("CUNIT1", "deg", "")
-        hdu.header.update("CUNIT2", "deg", "")
+        hdu.header["CUNIT1"] = ("deg", "")
+        hdu.header["CUNIT2"] = ("deg", "")
 
         coord_j2000 = ephem.Equatorial(hdu.header['RA'], hdu.header['DEC'], epoch=ephem.J2000)
         if (not options['target_coords'] == None):
@@ -498,7 +498,7 @@ def collect_reduce_ota(filename,
                 elif (keyword == "CRVAL2"):
                     hdu.header['CRVAL2'] -= wcs_header['CRVAL2']
                 else:
-                    hdu.header.update(keyword, value, comment)
+                    hdu.header[keyword] = (value, comment)
 
             # Make sure to write RAs that are positive
             if (hdu.header["CRVAL1"] < 0):
@@ -608,9 +608,9 @@ def collect_reduce_ota(filename,
             sky_level_median = numpy.median(sky_samples[:,4])
             sky_level_mean   = numpy.mean(sky_samples[:,4])
             sky_level_std    = numpy.std(sky_samples[:,4])
-            hdu.header.update("SKY_MEDI", sky_level_median, "sky-level median")
-            hdu.header.update("SKY_MEAN", sky_level_mean, "sky-level mean")
-            hdu.header.update("SKY_STD", sky_level_std, "sky-level rms")
+            hdu.header["SKY_MEDI"] = (sky_level_median, "sky-level median")
+            hdu.header["SKY_MEAN"] = (sky_level_mean, "sky-level mean")
+            hdu.header["SKY_STD"] = (sky_level_std, "sky-level rms")
 
     data_products['hdu'] = hdu
     data_products['wcsdata'] = fixwcs_data
@@ -871,13 +871,13 @@ def collectcells(input, outputfile,
     ota_list = [None] * (len(list_of_otas_to_collect)+1)
     # And add the primary HDU to make the fits file a valid one
     ota_list[0] = pyfits.PrimaryHDU()
-    ota_list[0].header.update("PLVER", pipeline_plver, "name and version")
-    ota_list[0].header.update("PLNAME", pipeline_name, "pipeline name")
-    ota_list[0].header.update("PLVERSIO", pipeline_version, "pipeline version")
-    ota_list[0].header.update("PLAUTHOR", "Ralf Kotulla", "pipeline author")
-    ota_list[0].header.update("PLEMAIL", "kotulla@uwm.edu", "contact email")
+    ota_list[0].header["PLVER"] = (pipeline_plver, "name and version")
+    ota_list[0].header["PLNAME"] = (pipeline_name, "pipeline name")
+    ota_list[0].header["PLVERSIO"] = (pipeline_version, "pipeline version")
+    ota_list[0].header["PLAUTHOR"] = ("Ralf Kotulla", "pipeline author")
+    ota_list[0].header["PLEMAIL"] = ("kotulla@uwm.edu", "contact email")
     for key, value in options['additional_fits_headers'].iteritems():
-        ota_list[0].header.update(key, value, "user-added keyword")
+        ota_list[0].header[key] = (value, "user-added keyword")
     
     #
     # Set up the parallel processing environment
@@ -1127,7 +1127,7 @@ def collectcells(input, outputfile,
             # Check if the header already exists in the primary header. If not add it!
             if (not header in ota_list[0].header):
                 (keyword, value, comment) = ota.header.cards[header]
-                ota_list[0].header.update(keyword, value, comment)
+                ota_list[0].header[keyword] = (value, comment)
             
             # By now the value should exist in the primary header, 
             # so delete it from each of the extensions
@@ -1135,7 +1135,7 @@ def collectcells(input, outputfile,
                 
         # Set the inherit keyword so that the headers removed from each 
         # extension are instead inherited from the primary
-        ota.header.update("INHERIT", True, "Inherit headers from PrimaryHDU")
+        ota.header["INHERIT"] = (True, "Inherit headers from PrimaryHDU")
 
         for header in headers_to_delete_from_otas:
             # As above, make sure header exists
@@ -1166,7 +1166,7 @@ def collectcells(input, outputfile,
                 sky_samples_global = numpy.append(sky_samples_global, sky_samples[ext], axis=0)
 
     sky_global_median = numpy.median(sky_samples_global[:,4])
-    ota_list[0].header.update("SKYLEVEL", sky_global_median)
+    ota_list[0].header["SKYLEVEL"] = sky_global_median
 
     #
     # Now that we have the global sky-level, subtract the 
@@ -1190,10 +1190,10 @@ def collectcells(input, outputfile,
             # And subtract the scaled pupilghost templates.
             podi_matchpupilghost.subtract_pupilghost(ota_list, pg_hdu, scaling, rotate=False)
 
-            ota_list[0].header.update("PUPLGOST", pg_template, "p.g. template")
-            ota_list[0].header.update("PUPLGFAC", scaling, "pupilghost scaling")
+            ota_list[0].header["PUPLGOST"] = (pg_template, "p.g. template")
+            ota_list[0].header["PUPLGFAC"] = (scaling, "pupilghost scaling")
             bg_scaled = podi_matchpupilghost.scaling_factors[filter_name]*sky_global_median
-            ota_list[0].header.update("PUPLGFA2", bg_scaled, "analytical pupilghost scaling")
+            ota_list[0].header["PUPLGFA2"] = (bg_scaled, "analytical pupilghost scaling")
             stdout_write(" done!\n")
 
             pg_hdu.close()
@@ -1443,10 +1443,13 @@ def collectcells(input, outputfile,
                                          otalist=ota_list,
                                          options=options)
 
-        ota_list[0].header.update("PHOTZP", zeropoint_median, "phot. zeropoint corr for exptime")
-        ota_list[0].header.update("PHOTZPE", zeropoint_std, "zeropoint std.dev.")
-        ota_list[0].header.update("PHOTZP_X", zeropoint_exptime, "phot zeropoint for this frame")
+        ota_list[0].header["PHOTZP"] = (zeropoint_median, "phot. zeropoint corr for exptime")
+        ota_list[0].header["PHOTZPE"] = (zeropoint_std, "zeropoint std.dev.")
+        ota_list[0].header["PHOTZP_X"] = (zeropoint_exptime, "phot zeropoint for this frame")
 
+        ota_list[0].header["MAGZERO"] = (zeropoint_median, "phot. zeropoint corr for exptime")
+        ota_list[0].header["MAGZSIG"] = (zeropoint_std)
+        ota_list[0].header["MAGZERR"] = (zeropoint_std)
 
     #
     # If requested by user via command line:
@@ -1460,8 +1463,8 @@ def collectcells(input, outputfile,
         fringe_scaling_std    = numpy.std(good_scalings)
 
         # and log the values in the primary header
-        ota_list[0].header.update("FRNG_SCL", fringe_scaling_median)
-        ota_list[0].header.update("FRNG_STD", fringe_scaling_std)
+        ota_list[0].header["FRNG_SCL"] = fringe_scaling_median
+        ota_list[0].header["FRNG_STD"] = fringe_scaling_std
 
         # Construct the name of the fringe map
         filter_name = ota_list[0].header['FILTER']
