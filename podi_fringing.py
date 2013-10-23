@@ -147,7 +147,7 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False, skymode
 
     # Add the assumed skylevel countrate to primary header so we can use it
     # when it comes to correcting actual data
-    out_hdulist[0].header.update("SKYCNTRT", avg_sky_countrates[filter], "average countrate of dark sky")
+    out_hdulist[0].header["SKYCNTRT"] = (avg_sky_countrates[filter], "average countrate of dark sky")
 
     return_hdu = False
     out_hdu = pyfits.HDUList(out_hdulist)
@@ -304,8 +304,8 @@ def match_subtract_fringing(data_filename, fringe_filename, verbose=True, output
         extname = data_hdulist[ext].header['EXTNAME']
         data_hdulist[ext].data -= (fringe_hdulist[extname].data * median_scaling)
 
-        data_hdulist[ext].header.update("FRNG_SCL", median_scaling, "fringe scaling")
-        data_hdulist[ext].header.update("FRNG_STD", std_scaling, "fringe scaling std.dev.")
+        data_hdulist[ext].header["FRNG_SCL"] = (median_scaling, "fringe scaling")
+        data_hdulist[ext].header["FRNG_STD"] = (std_scaling, "fringe scaling std.dev.")
 
     if (output != None):
         data_hdulist.writeto(output, clobber=True)
@@ -542,7 +542,7 @@ if __name__ == "__main__":
             fringe_binned = rebin_image(fringe, binning)
             
             output_hdulist = [pyfits.PrimaryHDU(data = fringe_binned)]
-            output_hdulist[0].header.update("EXTNAME", "MAP")
+            output_hdulist[0].header["EXTNAME"] = "MAP"
 
             valid_both = numpy.isfinite(data_binned) & numpy.isfinite(fringe_binned)
             data_binned = data_binned[valid_both]

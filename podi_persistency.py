@@ -874,10 +874,10 @@ def create_new_persistency_map(shape=None, write_fits=None):
     # Create a primary header.
     # This only contains the MJD of this exposure
     primary_hdu = pyfits.PrimaryHDU()
-    primary_hdu.header.update("MJD", 0.0, "MJD of exposure")
+    primary_hdu.header["MJD"] = (0.0, "MJD of exposure")
     
-    primary_hdu.header.update("CELL_X", sx, "x-width of each cell")
-    primary_hdu.header.update("CELL_Y", sy, "y-width of each cell")
+    primary_hdu.header["CELL_X"] = (sx, "x-width of each cell")
+    primary_hdu.header["CELL_Y"] = (sy, "y-width of each cell")
     
     # Add primary header to HDU list
     hdulist = [primary_hdu]
@@ -904,10 +904,10 @@ def create_new_persistency_map(shape=None, write_fits=None):
 
         # Add some additional info so we can display it in ds9:
         detsec = '[%d:%d,%d:%d]' % (ota_x*iraf_size_x, ota_x*iraf_size_x+px, ota_y*iraf_size_y, ota_y*iraf_size_y+py)
-        imghdu.header.update("DETSEC", detsec, "Iraf mosaic area of the detector")
+        imghdu.header["DETSEC"] = (detsec, "Iraf mosaic area of the detector")
 
         detsize = '[1:%d,1:%d]' % (px, py)
-        imghdu.header.update("DETSIZE", detsize, "Iraf total image pixels in full mosaic")
+        imghdu.header["DETSIZE"] = (detsize, "Iraf total image pixels in full mosaic")
 
         # Add this OTA to the list of all OTAs in this map
         hdulist.append(imghdu)

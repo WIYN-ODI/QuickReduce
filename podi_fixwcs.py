@@ -90,11 +90,11 @@ def compute_wcs_quality(odi_2mass_matched, ota, hdr=None):
     results['MEDIAN-DEC'] = wcs_mean_ddec
 
     if (not hdr == None):
-        hdr.update("WCS_RMSA", results['RMS-RA'], "RA r.m.s. of WCS matching [arcsec]")
-        hdr.update("WCS_RMSD", results['RMS-DEC'], "DEC r.m.s. of WCS matching [arcsec]")
-        hdr.update("WCS_RMS",  results['RMS'], "r.m.s. of WCS matching [arcsec]")
-        hdr.update("WCS_ERRA", results['MEDIAN-RA'], "RA median error WCS matching [arcsec]")
-        hdr.update("WCS_ERRD", results['MEDIAN-DEC'], "DEC median error of WCS matching [arcsec]")
+        hdr["WCS_RMSA"] = (results['RMS-RA'], "RA r.m.s. of WCS matching [arcsec]")
+        hdr["WCS_RMSD"] = (results['RMS-DEC'], "DEC r.m.s. of WCS matching [arcsec]")
+        hdr["WCS_RMS"] =  (results['RMS'], "r.m.s. of WCS matching [arcsec]")
+        hdr["WCS_ERRA"] = (results['MEDIAN-RA'], "RA median error WCS matching [arcsec]")
+        hdr["WCS_ERRD"] = (results['MEDIAN-DEC'], "DEC median error of WCS matching [arcsec]")
  
     return results
 
@@ -671,8 +671,8 @@ def apply_wcs_shift(shift, hdr, fixrot_trans=None, verbose=False):
     hdr['CRVAL1'] += shift[0]
     hdr['CRVAL2'] += shift[1]
 
-    hdr.update('WCSOF_RA', shift[0], "WCS Zeropoint offset RA")
-    hdr.update('WCSOFDEC', shift[1], "WCS Zeropoint offset DEC")
+    hdr['WCSOF_RA'] = (shift[0], "WCS Zeropoint offset RA")
+    hdr['WCSOFDEC'] = (shift[1], "WCS Zeropoint offset DEC")
 
     if (fixrot_trans != None):
 
@@ -699,9 +699,9 @@ def apply_wcs_shift(shift, hdr, fixrot_trans=None, verbose=False):
         hdr['CD2_1'] = cd21*co - cd22*si
         hdr['CD2_2'] = cd21*si + cd22*co
         
-        hdr.update('WCSMROT1', fixrot_trans[0])
-        hdr.update('WCSMROT2', fixrot_trans[1])
-        hdr.update('WCSMROT3', math.degrees(fixrot_trans[2])*60.)
+        hdr['WCSMROT1'] = fixrot_trans[0]
+        hdr['WCSMROT2'] = fixrot_trans[1]
+        hdr['WCSMROT3'] = math.degrees(fixrot_trans[2])*60.
 
     # Make sure the RA range stays in valid ranges
     if (hdr['CRVAL1'] < 0): hdr['CRVAL1'] += 360 

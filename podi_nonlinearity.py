@@ -253,7 +253,7 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
     tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
 
     primhdu = pyfits.PrimaryHDU()
-    primhdu.header.update("POLYORDR", polyorder)
+    primhdu.header["POLYORDR"] = polyorder
 
     hdulist = pyfits.HDUList([primhdu, tbhdu])
     clobberfile(outputfits)
