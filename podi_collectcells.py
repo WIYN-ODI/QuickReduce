@@ -653,7 +653,7 @@ def create_association_table(master, verbose=False):
     for key, value in master.iteritems():
         for filename in set(value):
             reduction_step.append(key)
-            full_filename.append(filename)
+            full_filename.append(os.path.abspath(filename))
             
             dirname, filebase = os.path.split(filename)
             short_filename.append(filebase)
