@@ -1159,7 +1159,7 @@ def get_svn_version():
 
 def log_svn_version(hdr):
     svn = get_svn_version()
-    hdr.update("QPIPESVN", svn, "QuickReduce Revision")
+    hdr["QPIPESVN"] = (svn, "QuickReduce Revision")
     return
 
 
