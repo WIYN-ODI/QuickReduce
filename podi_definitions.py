@@ -1338,7 +1338,7 @@ def create_qa_otaplot_filename(plotname, ota, structure_qa_subdirs):
 #
 def get_binning(hdr):
 
-    print "determining binng factor"
+    # print "determining binning factor"
     
     # The CCDBIN1 keyword should be foung in primary header, so try this one first
     try:
@@ -1390,5 +1390,6 @@ def extract_biassec_from_cell(data, binning):
     elif (binning == 2):
         dx1, dx2, dy1, dy2 = 250, 265, 0, 247
 
+    # print dx1, dx2, dy1, dy2
     return data[dy1:dy2, dx1:dx2]
 
