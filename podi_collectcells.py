@@ -112,7 +112,7 @@ def collect_reduce_ota(filename,
         reduction_files_used['raw'] = filename
 
         # Get the binning factor
-        binning = 2 #get_binning(hdulist[0].header)
+        binning = get_binning(hdulist[1].header)
         
         # Get the image output size (depends on binning)
         size_x, size_y = get_collected_image_dimensions(binning)
@@ -724,7 +724,8 @@ def collectcells(input, outputfile,
     **********************************************************************
     * This is podi_collectcells                                          *
     * (c) 2012-2013: Ralf Kotulla, kotulla@uwm.edu                       *
-    *                University of Wisconsin, Milwaukee                  *
+    *                University of Wisconsin (Milwaukee & Madison)       *
+    *                WIYN Observatory, Inc                               *
     *                                                                    *
     * Please acknowledge the author when using any products generated    *
     * with this tool. For comments, questions or ideas for improvement   *
