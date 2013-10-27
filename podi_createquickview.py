@@ -1,7 +1,24 @@
 #! /usr/bin/env python
-
 #
-# (c) Ralf Kotulla for WIYN/pODI
+# Copyright 2012-2013 Ralf Kotulla
+#                     kotulla@uwm.edu
+#
+# This file is part of the ODI QuickReduce pipeline package.
+#
+# If you find this program or parts thereof please make sure to
+# cite it appropriately (please contact the author for the most
+# up-to-date reference to use). Also if you find any problems 
+# or have suggestiosn on how to improve the code or its 
+# functionality please let me know. Comments and questions are 
+# always welcome. 
+#
+# The code is made publicly available. Feel free to share the link
+# with whoever might be interested. However, I do ask you to not 
+# publish additional copies on your own website or other sources. 
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
 import sys
@@ -38,22 +55,26 @@ overexposed = [1.0, 0.0, 0.0]
 crossout_missing_otas = True
 from podi_definitions import *
 
-if __name__ == "__main__":
-
-    filename = sys.argv[1]
-    print filename
-
-    output_directory = "."
-    if (len(sys.argv) > 2):
-        output_directory = sys.argv[2]
+def create_quickview(filename, output_directory, verbose=False, clobber=True):
 
     hdulist = pyfits.open(filename)
     filter = hdulist[0].header['FILTER']
     obsid  = hdulist[0].header['OBSID'] 
+    object = hdulist[0].header['OBJECT'].replace(' ','_').replace(',','_')
 
-    print "This is filter",filter
+    fullframe_image_filename = "%s/%s_%s.jpg" % (output_directory, obsid, object)
+    if (os.path.isfile(fullframe_image_filename) and not clobber):
+        # File exists and we were asked not to overwrite anything
+        stdout_write("\nFile (%s) exists, skipping ...\n" % (filename))
+        return
 
-    list_of_otas_to_normalize = otas_for_photometry[filter]
+    if (verbose):
+        stdout_write("\nWorking on file %s (%s, %s) ...\n" % (filename, object, filter))
+
+    try:
+        list_of_otas_to_normalize = otas_for_photometry[filter]
+    except:
+        list_of_otas_to_normalize = central_2x2
 
     # Allocate some memory to hold the data we need to determine the
     # most suitable intensity levels
@@ -61,7 +82,12 @@ if __name__ == "__main__":
     binned_data[:] = numpy.NaN
 
     datapos = 0
+    if (verbose):
+        stdout_write("   Finding contrast: Reading OTA")
     for extension in range(1, len(hdulist)):
+        if (not is_image_extension(hdulist[extension].header)):
+            continue
+
         fppos = int(hdulist[extension].header['FPPOS'][2:4])
 
         try:
@@ -72,7 +98,9 @@ if __name__ == "__main__":
             extension += 1
             continue
 
-        stdout_write("\rReading OTA %02d" % (fppos))
+        #stdout_write("\rReading OTA %02d" % (fppos))
+        if (verbose):
+            stdout_write(" %02d" % (fppos))
 
         # Rebin the frame 8x8 to make it more manageable
         binned = numpy.reshape(hdulist[extension].data, (512,8,512,8)).mean(axis=-1).mean(axis=1)
@@ -82,13 +110,15 @@ if __name__ == "__main__":
         del one_d
         del binned
 
-    stdout_write(" done!\n")
+    if (verbose):
+        stdout_write(" - done!\n")
 
     #
     # Now we are through all OTA/extensions, compute the median value and stds 
     # so we can scale the frames accordingly
     #
-    stdout_write("Finding best intensity levels ...")
+    if (verbose):
+        stdout_write("   Finding best intensity levels ...")
     median = 0
     std = 1e8
     binned_data = binned_data[0:datapos]
@@ -110,10 +140,17 @@ if __name__ == "__main__":
 
     # Create space to hold the full 8x8 OTA focal plane
     full_focalplane = numpy.zeros(shape=(4096,4096))
-
+    if (verbose):
+        stdout_write("   Creating jpeg for OTA")
     for extension in range(1, len(hdulist)):
+        if (not is_image_extension(hdulist[extension].header)):
+            continue
+
         fppos = int(hdulist[extension].header['FPPOS'][2:4])
-        stdout_write("\rCreating jpegs (%02d) ..." % fppos)
+        #stdout_write("\r   Creating jpegs (%02d) ..." % fppos)
+        if (verbose):
+            stdout_write(" %02d" % (fppos))
+
         fp_x = fppos % 10
         fp_y = math.floor(fppos / 10)
         
@@ -131,9 +168,10 @@ if __name__ == "__main__":
         ffp_y = fp_y * 512
         full_focalplane[ffp_x:ffp_x+512, ffp_y:ffp_y+512] = greyscale[:,:]
 
-        image = Image.fromarray(numpy.uint8(greyscale*255))
-        image_filename = "%s/%s.%02d.jpg" % (output_directory, obsid, fppos)
-        image.transpose(Image.FLIP_TOP_BOTTOM).save(image_filename, "JPEG")
+        #image = Image.fromarray(numpy.uint8(greyscale*255))
+        #image_filename = "%s/%s_%s.%02d.jpg" % (output_directory, obsid, object, fppos)
+        #image.transpose(Image.FLIP_TOP_BOTTOM).save(image_filename, "JPEG")
+        #del image
         
         #
         # Mark all overexposed pixels in a different color
@@ -150,11 +188,10 @@ if __name__ == "__main__":
         im_g = Image.fromarray(numpy.uint8(channel_g*255))
         im_b = Image.fromarray(numpy.uint8(channel_b*255))
         im_rgb = Image.merge('RGB', (im_r, im_g, im_b))
-        image_filename = "%s/%s.%02d.rgb.jpg" % (output_directory, obsid, fppos)
+        image_filename = "%s/%s_%s.%02d.rgb.jpg" % (output_directory, obsid, object, fppos)
         im_rgb.transpose(Image.FLIP_TOP_BOTTOM).save(image_filename, "JPEG")
 
         # Delete all temporary images to keep memory demands low
-        del image
         del im_r
         del im_g
         del im_b
@@ -163,7 +200,9 @@ if __name__ == "__main__":
     #
     # Prepare the preview for the full focal plane
     #
-    stdout_write("\rCreating jpegs (full-frame) ...")
+    #stdout_write("\r   Creating jpegs (full-frame) ...")
+    if (verbose):
+        stdout_write(" full-frame")
     image = Image.fromarray(numpy.uint8(full_focalplane*255))
 
     # Add lines to indicate detector borders. Make sure to make them wider than 
@@ -190,8 +229,24 @@ if __name__ == "__main__":
                         draw.line((x*512+lw,y*512,(x+1)*512+lw,(y+1)*512), fill=128)
                         draw.line((x*512+lw,(y+1)*512,(x+1)*512+lw,y*512), fill=128)
 
-    image_filename = "%s/%s.jpg" % (output_directory, obsid)
-    image.transpose(Image.FLIP_TOP_BOTTOM).save(image_filename, "JPEG")
+    image.transpose(Image.FLIP_TOP_BOTTOM).save(fullframe_image_filename, "JPEG")
     del image
 
-    stdout_write(" done!\n")
+    stdout_write(" - done!\n")
+
+
+
+if __name__ == "__main__":
+
+#    filename = sys.argv[1]
+#    print filename
+
+    output_directory = "."
+    output_directory = sys.argv[1]
+
+    clobber = not cmdline_arg_isset("-noclobber")
+    if (not clobber):
+        stdout_write("Activating no-clobber mode!\n")
+
+    for filename in sys.argv[2:]:
+        create_quickview(filename, output_directory, verbose=True, clobber=clobber)

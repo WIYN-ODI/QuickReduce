@@ -1,7 +1,24 @@
 #!/usr/local/bin/python
-
 #
-# (c) Ralf Kotulla for WIYN/pODI
+# Copyright 2012-2013 Ralf Kotulla
+#                     kotulla@uwm.edu
+#
+# This file is part of the ODI QuickReduce pipeline package.
+#
+# If you find this program or parts thereof please make sure to
+# cite it appropriately (please contact the author for the most
+# up-to-date reference to use). Also if you find any problems 
+# or have suggestiosn on how to improve the code or its 
+# functionality please let me know. Comments and questions are 
+# always welcome. 
+#
+# The code is made publicly available. Feel free to share the link
+# with whoever might be interested. However, I do ask you to not 
+# publish additional copies on your own website or other sources. 
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
 """
@@ -58,10 +75,8 @@ def scamp_header_to_minifits(filename, minifits_outputname, reference_fits):
         elif (key in ("CRVAL1", "CRVAL2",
                       "CRPIX1", "CRPIX2", 
                       "CD1_1", "CD1_2", "CD2_1", "CD2_2",
-                      "PV1_0", "PV1_1", "PV1_2", "PV1_4", "PV1_5", "PV1_6",
-                      "PV2_0", "PV2_1", "PV2_2", "PV2_4", "PV2_5", "PV2_6",
                       "EQUINOX",
-                      ) ):
+                      ) or (key[0:2] == "PV" and key[3] == "_")):
             value = float(value)
 
         elif (key in ("RADECSYS", "CTYPE1", "CTYPE2", "CUNIT1", "CUNIT2") ):
@@ -82,7 +97,17 @@ def scamp_header_to_minifits(filename, minifits_outputname, reference_fits):
         comments[key] = comment
 
     refhdu = pyfits.open(reference_fits)
-    if (len(values_list) != len(refhdu)-1):
+    # Count how many image extensions exist in the reference frame
+    n_imageext = 0;
+    for i in range(len(refhdu)):
+        try:
+            extname = refhdu[i].header['EXTNAME']
+            if (extname[0:3] == "OTA" and extname[-3:] == "SCI"):
+                n_imageext += 1
+        except:
+            pass
+
+    if (len(values_list) != n_imageext):
         stdout_write("Illegal scamp solution or wrong reference fits (%d vs %d)!\n" % (len(values_list), len(refhdu)-1))
         return -1
 
@@ -103,7 +128,7 @@ def scamp_header_to_minifits(filename, minifits_outputname, reference_fits):
 
     # Now go through both the minifits and the reference and assign the extname keywords
     ota33_found = False
-    for ext in range(1, len(refhdu)):
+    for ext in range(1, 14): #len(refhdu)):
         extname = refhdu[ext].header['EXTNAME']
         if (extname == "OTA33.SCI"): ota33_found = True
         extlist[ext].update_ext_name(extname)
@@ -127,7 +152,7 @@ def scamp_header_to_minifits(filename, minifits_outputname, reference_fits):
     else:
         d_ra, d_dec = 0, 0
 
-    for ext in range(1, len(refhdu)):
+    for ext in range(1, 14):
         minifits_hdulist[ext].header['CRVAL1'] = d_ra
         minifits_hdulist[ext].header['CRVAL2'] = d_dec
 

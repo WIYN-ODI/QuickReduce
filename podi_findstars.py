@@ -1,4 +1,25 @@
 #! /usr/bin/env python
+#
+# Copyright 2012-2013 Ralf Kotulla
+#                     kotulla@uwm.edu
+#
+# This file is part of the ODI QuickReduce pipeline package.
+#
+# If you find this program or parts thereof please make sure to
+# cite it appropriately (please contact the author for the most
+# up-to-date reference to use). Also if you find any problems 
+# or have suggestiosn on how to improve the code or its 
+# functionality please let me know. Comments and questions are 
+# always welcome. 
+#
+# The code is made publicly available. Feel free to share the link
+# with whoever might be interested. However, I do ask you to not 
+# publish additional copies on your own website or other sources. 
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+#
 
 import sys
 import os
@@ -97,7 +118,9 @@ def find_stars(hdu,
                detect_threshold=2,
                detect_minarea=5,
                saturation_limit=60000,
-               roundness_limit=[-1,1]
+               roundness_limit=[-1,1],
+               max_starcount=1e9,
+               extension_id=0
                ):
 
 
@@ -145,24 +168,27 @@ def find_stars(hdu,
     source_list = []
 
     min_peak_level = global_bg+detect_threshold*global_bg_rms
-        
+    #print "min peak level=",min_peak_level
+
     # Continue searching for peaks as long there's a chance of finding a significant one
-    while(peak_value > min_peak_level):
+    while(peak_value > min_peak_level and len(source_list)<max_starcount):
         current_peak += 1
         
         # Which pixel in the 1-d array are we talking about
         idx = sorted_1d[-1*current_peak]
-        # Ignore this pixel if it's already marked as invalid
-        if (binned_1d[idx] < -1e9):
-            #current_peak += 1
-            continue
-
-        if (verbose): print current_peak, idx, binned_1d[idx]
 
         # Now determine the x,y positions of this pixel
         x,y = indices_x_1d[idx], indices_y_1d[idx]
+
+        # Ignore this pixel if it's already marked as invalid
+        if (binned_1d[idx] < -1e9 or binned[x,y] < -1e9):
+            #current_peak += 1
+            #print "skipping"
+            continue
+
         peak_value = binned[x,y]
-        #print peak_value
+        if (verbose): print current_peak, idx, binned_1d[idx]
+        if (verbose): print "---> ",x, y, binned[x,y], binned_1d[idx]
 
         full_x, full_y = x*binning, y*binning
         if (verbose): print "maxima = ",binned_1d.max(), binned[x,y], "   @ ",x, y, "  (",full_x, full_y,")"
@@ -215,14 +241,14 @@ def find_stars(hdu,
                         print
                         if (dumpfile != None):
                             print >>outcat, center_y+1, center_x+1, fwhm_x, fwhm_y, s_n
-                    stdout_write("\rFound %d stars (%d peaks)..." % (nstars_found, npeaks_found))
+                    stdout_write("\rFound %d stars (%d peaks, [%d >= %d])..." % (nstars_found, npeaks_found, peak_value, min_peak_level))
                     blocking_radius = numpy.min([5 * math.sqrt(fwhm_x * fwhm_y), 3*boxsize])
 
                     # Add 1 pixel, as fits starts counting at 1, whereas numpy starts at 0
                     center_x += 1
                     center_y += 1
                     ra, dec = wcs.pix2wcs(center_x, center_y)
-                    source_info = [ ra, dec, center_x, center_y, fwhm_x, fwhm_y, amplitude, peak, bg_level, bg_variance, s_n, area]
+                    source_info = [ ra, dec, center_x, center_y, fwhm_x, fwhm_y, amplitude, peak, bg_level, bg_variance, s_n, area, extension_id]
                     source_list.append(source_info)
                 del minibox
             else:
@@ -255,7 +281,7 @@ def find_stars(hdu,
     #out_hdulist.writeto(outfile, clobber=True)
 
     source_cat = numpy.array(source_list)
-    
+
     stdout_write("done!\n")
     return source_cat
 
@@ -274,6 +300,8 @@ if __name__ == "__main__":
     hdulist = pyfits.open(inputfile)
 
     for ext in range(1, len(hdulist)):
+        print "\n\n\n\n\n%s\n\n\n\n\n" % (hdulist[ext].header['EXTNAME'])
+
         dumpfilename = "fs_dump.%s" % (hdulist[ext].header['EXTNAME'])
         dumpfile = open(dumpfilename, "w")
         
@@ -289,7 +317,7 @@ if __name__ == "__main__":
         #xxx.fits")
         #print ra_dec
 
-        numpy.savetxt(dumpfile, source_cat[:,0:4], separator=" ")
+        numpy.savetxt(dumpfile, source_cat[:,0:4], delimiter=" ")
 
         dumpfile.close()
         

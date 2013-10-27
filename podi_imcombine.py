@@ -1,9 +1,31 @@
 #! /usr/bin/env python
+#
+# Copyright 2012-2013 Ralf Kotulla
+#                     kotulla@uwm.edu
+#
+# This file is part of the ODI QuickReduce pipeline package.
+#
+# If you find this program or parts thereof please make sure to
+# cite it appropriately (please contact the author for the most
+# up-to-date reference to use). Also if you find any problems 
+# or have suggestiosn on how to improve the code or its 
+# functionality please let me know. Comments and questions are 
+# always welcome. 
+#
+# The code is made publicly available. Feel free to share the link
+# with whoever might be interested. However, I do ask you to not 
+# publish additional copies on your own website or other sources. 
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+#
 
 import sys
 import os
 import pyfits
 import numpy
+numpy.seterr(divide='ignore', invalid='ignore')
 import scipy
 import scipy.stats
 
@@ -29,8 +51,8 @@ except:
 #number_cpus = 1
 
 from podi_definitions import *
-
-   
+import bottleneck
+verbose = cmdline_arg_isset("-verbose")
 
 def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_filelist, operation):
     #queue, shmem_buffer, shmem_results, size_x, size_y, len_filelist = worker_args
@@ -42,7 +64,7 @@ def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_fil
         cmd_quit, line = queue.get()
         if (cmd_quit):
             queue.task_done()
-            return
+            break
 
         if (operation == "median"):
             result_buffer[line,:] = numpy.median(buffer[line,:,:], axis=1)
@@ -96,17 +118,151 @@ def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_fil
         elif (operation == "max"):
             result_buffer[line,:] = numpy.max(buffer[line,:,:], axis=1)
 
+        elif (operation == "nanmean"):
+            result_buffer[line,:] = scipy.stats.nanmean(buffer[line,:,:], axis=1)
+
+        elif (operation == "nanmedian"):
+            result_buffer[line,:] = scipy.stats.nanmedian(buffer[line,:,:], axis=1)
+
+        elif (operation == "nanmedian.bn"):
+            x = numpy.array(buffer[line,:,:], dtype=numpy.float32)
+            result_buffer[line,:] = bottleneck.nanmedian(x, axis=1)
+            x = None
+            del x
         else:
             result_buffer[line,:] = numpy.mean(buffer[line,:,:], axis=1)             
             
 
         queue.task_done()
 
+    buffer = None
+    shmem_buffer = None
+    del shmem_buffer
+    del buffer
+    sys.exit(0)
+
+    return
 
 
-def imcombine(input_filelist, outputfile, operation):
+
+def imcombine_data(datas, operation="nanmean"):
+
+    # Allocate enough shared memory to load a single OTA from all files. The shared part is
+    # important to make communication between the main and the slave processes possible.
+    size_x, size_y = datas[0].shape[0], datas[0].shape[1]
+    total_pixels = size_x*size_y*len(datas)
+    # print "total pixel count",total_pixels
+    shmem_buffer = multiprocessing.RawArray(ctypes.c_float, total_pixels) #size_x*size_y*len(datas))
+
+    # Extract the shared memory buffer as numpy array to make things easier
+    buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len(datas)))
+
+    # Set the full buffer to NaN
+    buffer[:,:,:] = numpy.NaN
+
+    # Now open all the other files, look for the right extension, and copy their image data to buffer
+    for data_id in range(len(datas)):
+        # stdout_write("copying %d" % (data_id))
+        buffer[:,:,data_id] = datas[data_id][:,:]
+
+    sizes = (size_x, size_y, len(datas))
+    combined = imcombine_sharedmem_data(shmem_buffer, operation, sizes)
+
+    del shmem_buffer
+    return combined
+
+def imcombine_sharedmem_data(shmem_buffer, operation, sizes):
+
+    size_x, size_y, n_frames = sizes
+    shmem_results = multiprocessing.RawArray(ctypes.c_float, size_x*size_y)
+
+    #
+    # Set up the parallel processing environment
+    #
     queue = multiprocessing.JoinableQueue()
 
+    #result_buffer = numpy.zeros(shape=(buffer.shape[0], buffer.shape[1]), dtype=numpy.float32)
+    processes = []
+    for i in range(number_cpus):
+        worker_args = (queue, shmem_buffer, shmem_results,
+                       size_x, size_y, n_frames, operation)
+        p = multiprocessing.Process(target=parallel_compute, args=worker_args)
+        p.start()
+        processes.append(p)
+
+    # Now compute median/average/sum/etc
+    buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, n_frames))
+    for line in range(buffer.shape[0]):
+        #print "Adding line",line,"to queue"
+        queue.put((False,line))
+
+    # Tell all workers to shut down when no more data is left to work on
+    for i in range(number_cpus):
+        queue.put((True,None))
+
+    # Once all command are sent out to the workers, join them to speed things up
+    try:
+        queue.join()
+    except KeyboardInterrupt:
+        for p in processes:
+            p.terminate()
+        sys.exit(-1)
+
+    for p in processes:
+        p.terminate()
+
+    results = numpy.copy(shmem_as_ndarray(shmem_results).reshape((size_x, size_y)))
+
+    del shmem_results
+    del queue
+    del buffer
+
+    return results
+
+
+
+def imcombine_subprocess(extension, filelist, shape, operation, queue, verbose):
+
+    #
+    # Allocate enough shared momory to hold all frames
+    #
+    size_x, size_y = shape[0], shape[1]
+    shmem_buffer = multiprocessing.RawArray(ctypes.c_float, size_x*size_y*len(filelist))
+
+    # Extract the shared memory buffer as numpy array to make things easier
+    buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len(filelist)))
+
+    # Set the full buffer to NaN
+    buffer[:,:,:] = numpy.NaN
+
+    # Now open all files, look for the right extension, and copy their image data to buffer
+    for file_number in range(len(filelist)):
+        filename = filelist[file_number]
+        hdulist = pyfits.open(filename)
+        for i in range(1, len(hdulist)):
+            if (not is_image_extension(hdulist[i].header)):
+                continue
+            fppos = hdulist[i].header['EXTNAME']
+            if (fppos == extension):
+                buffer[:,:,file_number] = hdulist[i].data[:,:]
+                break
+        hdulist[i].data = None
+        hdulist.close()
+        del hdulist
+        if (verbose): stdout_write("\n   Added file %s ..." % (filename))
+
+    # stdout_write("\n   Starting imcombine for real ...")
+    combined = imcombine_sharedmem_data(shmem_buffer, operation=operation, sizes=(size_x, size_y, len(filelist)))
+
+    # put the imcombine'd data into the queue to return them to the main process
+    queue.put(combined)
+
+    # and kill this process, returning all its memory
+    sys.exit(0)
+
+
+
+def imcombine(input_filelist, outputfile, operation, return_hdu=False):
     # First loop over all filenames and make sure all files exist
     filelist = []
     for file in input_filelist:
@@ -117,8 +273,10 @@ def imcombine(input_filelist, outputfile, operation):
         stdout_write("No existing files found in input list, hence nothing to do!\n")
         return
     elif (len(filelist) == 1):
-        stdout_write("Only 1 file to combine, save the hassle and copy the file!\n")
+        # stdout_write("Only 1 file to combine, save the hassle and copy the file!\n")
         hdulist = pyfits.open(filelist[0])
+        if (return_hdu):
+            return hdulist
         hdulist.writeto(outputfile)
         return
     
@@ -126,15 +284,10 @@ def imcombine(input_filelist, outputfile, operation):
     # Note that file headers are copied from the first file
     reference_filename = filelist[0]
     ref_hdulist = pyfits.open(reference_filename)
-    filter = ref_hdulist[0].header['FILTER']
 
     # Create the primary extension of the output file
-    primhdu = pyfits.PrimaryHDU()
-
     # Copy all headers from the reference HDU
-    cards = ref_hdulist[0].header.ascardlist()
-    for c in cards:
-        primhdu.header.update(c.key, c.value, c.comment)
+    primhdu = pyfits.PrimaryHDU(header=ref_hdulist[0].header)
 
     # Add PrimaryHDU to list of OTAs that go into the output file
     out_hdulist = [primhdu]
@@ -143,98 +296,82 @@ def imcombine(input_filelist, outputfile, operation):
     # Now loop over all extensions and compute the mean
     #
     for cur_ext in range(1, len(ref_hdulist)):
+
+        data_blocks = []
         # Check what OTA we are dealing with
-        ref_fppos = ref_hdulist[cur_ext].header['FPPOS']
+        if (not is_image_extension(ref_hdulist[cur_ext].header)):
+            continue
+        ref_fppos = ref_hdulist[cur_ext].header['EXTNAME']
 
         stdout_write("\rCombining frames for OTA %s (#% 2d/% 2d) ..." % (ref_fppos, cur_ext, len(ref_hdulist)-1))
 
-        # Allocate enough shared memory to load a single OTA from all files. The shared part is
-        # important to make communication between the main and the slave processes possible.
-        size_x, size_y = ref_hdulist[cur_ext].data.shape[0], ref_hdulist[cur_ext].data.shape[1]
-        shmem_buffer = multiprocessing.RawArray(ctypes.c_float, size_x*size_y*len(filelist))
-        shmem_results = multiprocessing.RawArray(ctypes.c_float, size_x*size_y)
-        
-        # Extract the shared memory buffer as numpy array to make things easier
-        buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len(filelist)))
-
-        # Set the full buffer to NaN
-        buffer[:,:,:] = numpy.NaN
-        
-        # Copy the reference data
-        buffer[:,:,0] = ref_hdulist[cur_ext].data[:,:]
-        del ref_hdulist[cur_ext].data
-
-        # Now open all the other files, look for the right extension, and copy their image data to buffer
-        for file_number in range(1, len(filelist)):
-            filename = filelist[file_number]
-            hdulist = pyfits.open(filename)
-            for i in range(1, len(hdulist)):
-                fppos = hdulist[i].header['FPPOS']
-                if (fppos == ref_fppos):
-                    buffer[:,:,file_number] = hdulist[i].data[:,:]
-                    break
-            hdulist.close()
-            del hdulist
-
         #
-        # Set up the parallel processing environment
+        # Add some weird-looking construct to move the memory allocation and actual 
+        # imcombine into a separate process. This has to do with if/how/when python releases 
+        # memory (or not), causing a massive short-term memory leak.
+        # With the additional process, the memory is onwed by the other process and the memory
+        # is freed once we destroy this helper process.
         #
-        #result_buffer = numpy.zeros(shape=(buffer.shape[0], buffer.shape[1]), dtype=numpy.float32)
-        processes = []
-        for i in range(number_cpus):
-            worker_args = (queue, shmem_buffer, shmem_results,
-                           size_x, size_y, len(filelist), operation)
-            p = multiprocessing.Process(target=parallel_compute, args=worker_args)
-            p.start()
-            processes.append(p)
+        return_queue = multiprocessing.JoinableQueue()
+        worker_args=(ref_fppos, filelist, ref_hdulist[cur_ext].data.shape, operation, return_queue, verbose)
+        p = multiprocessing.Process(target=imcombine_subprocess, args=worker_args)
+        p.start()
+        combined = return_queue.get()
+        p.terminate()
+        del p
 
-        # Now compute median/average/sum/etc
-        for line in range(buffer.shape[0]):
-            #print "Adding line",line,"to queue"
-            queue.put((False,line))
+        if (verbose): stdout_write(" done, creating fits extension ...")
 
-        # Tell all workers to shut down when no more data is left to work on
-        for i in range(number_cpus):
-            queue.put((True,None))
-
-        # Once all command are sent out to the workers, join them to speed things up
-        try:
-            queue.join()
-        except KeyboardInterrupt:
-            for p in processes:
-                p.terminate()
-            sys.exit(-1)
-
-        # Create new ImageHDU
-        hdu = pyfits.ImageHDU()
-
-        # Insert the imcombine'd frame into the output HDU
-        hdu.data = numpy.copy(shmem_as_ndarray(shmem_results).reshape((size_x, size_y)))
-
-        # Copy all headers from the reference HDU
-        cards = ref_hdulist[cur_ext].header.ascardlist()
-        for c in cards:
-            hdu.header.update(c.key, c.value, c.comment)
+        # Create new ImageHDU, insert the imcombined's data and copy the 
+        # header from the reference frame
+        hdu = pyfits.ImageHDU(data=combined, header=ref_hdulist[cur_ext].header)
 
         # Append the new HDU to the list of result HDUs
         out_hdulist.append(hdu)
 
-        del hdu
-        del shmem_buffer
-        del shmem_results
+        if (verbose): stdout_write(" done\n")
 
-    stdout_write(" writing results to file %s ..." % (outputfile))
+    #
+    # At this point, add a fits table listing all filenames that went into this combination
+    #
+    filenames_only = []
+    for file in filelist:
+        dirname, filename = os.path.split(file)
+        filenames_only.append(filename)
+
+    out_hdulist[0].header.update("NCOMBINE", len(filenames_only), "number of combined files")
+
+    columns = [
+        pyfits.Column(name='filename', format="A100", array=filenames_only),
+        ]
+    coldefs = pyfits.ColDefs(columns)
+    tablehdu = pyfits.new_table(coldefs, tbtype="BinTableHDU")
+    tablehdu.header.update("EXTNAME", "FILELIST")
+    out_hdulist.append(tablehdu)
+
+    #
+    # All work done now, prepare to return the data or write it to disk
+    #
     out_hdu = pyfits.HDUList(out_hdulist)
-    clobberfile(outputfile)
-    out_hdu.writeto(outputfile, clobber=True)
-    out_hdu.close()
-    del out_hdu
-    del out_hdulist    
-    stdout_write(" done!\n")
+    if (not return_hdu and outputfile != None):
+        stdout_write(" writing results to file %s ..." % (outputfile))
+        clobberfile(outputfile)
+        out_hdu.writeto(outputfile, clobber=True)
+        out_hdu.close()
+        del out_hdu
+        del out_hdulist
+        stdout_write(" done!\n")
+    elif (return_hdu):
+        stdout_write(" returning HDU for further processing ...\n")
+        return out_hdu
+    else:
+        stdout_write(" couldn't write output file, no filename given!\n")
+
+    return
 
 if __name__ == "__main__":
 
-    outputfile = sys.argv[1]
+    outputfile = get_clean_cmdline()[1]
 
     filelist = get_clean_cmdline()[2:]
 

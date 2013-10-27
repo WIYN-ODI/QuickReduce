@@ -1,8 +1,24 @@
 #!/usr/bin/env python
-
-
 #
-# (c) Ralf Kotulla for WIYN/pODI
+# Copyright 2012-2013 Ralf Kotulla
+#                     kotulla@uwm.edu
+#
+# This file is part of the ODI QuickReduce pipeline package.
+#
+# If you find this program or parts thereof please make sure to
+# cite it appropriately (please contact the author for the most
+# up-to-date reference to use). Also if you find any problems 
+# or have suggestiosn on how to improve the code or its 
+# functionality please let me know. Comments and questions are 
+# always welcome. 
+#
+# The code is made publicly available. Feel free to share the link
+# with whoever might be interested. However, I do ask you to not 
+# publish additional copies on your own website or other sources. 
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
 """
@@ -18,10 +34,11 @@ import os
 import pyfits
 import numpy
 import scipy
+import traceback
 
 gain_correct_frames = False
-from podi_definitions import *
 from podi_collectcells import *
+from podi_definitions import *
 
 
 if __name__ == "__main__":
@@ -37,29 +54,27 @@ if __name__ == "__main__":
         if (not os.path.isdir(output_directory)):
             os.mkdir(output_directory)
     
-    # Handle all reduction flags from command line
-    bias_dir, dark_dir, flatfield_dir, bpm_dir, start = read_reduction_directories(start=start, warn=False)
-
     if (cmdline_arg_isset("-fromfile")):
         filename = get_cmdline_arg("-fromfile")
         file = open(filename, "r")
         lines = file.readlines()
         filelist = []
         for line in lines:
-            filelist.append(line.strip())
+            if (len(line) <=1):
+                continue
+            if (line[0] == "#"):
+                continue
+            fitsfilename = line.strip().split()[0]
+            filelist.append(fitsfilename)
             #print filelist
         #sys.exit(0)
     else:
         filelist = get_clean_cmdline()[1:]
-        
-    # For now assume that the WCS template file is located in the same directory as the executable
-    root_dir, py_exe = os.path.split(os.path.abspath(sys.argv[0]))
-    wcs_solution = root_dir + "/wcs_distort2.fits"
-    wcs_solution = cmdline_arg_set_or_default("-wcs", wcs_solution)
-    stdout_write("Using canned WCS solution from %s...\n" % (wcs_solution))
 
-    fixwcs = cmdline_arg_isset("-fixwcs")
-    
+    # Read all options from command line. This is 100% compatible 
+    # with an individual call to podi_collectcells.
+    options = read_options_from_commandline(None)
+
     # Now loop over all files and run collectcells
     for folder in filelist:
         if (folder[-1] == "/"):
@@ -79,20 +94,25 @@ if __name__ == "__main__":
 
         # And also figure out what the filename is supposed to be
         if (cmdline_arg_isset("-formatout")):
-            outputfile_name = get_cmdline_arg("-formatout")
+            outputfile = get_cmdline_arg("-formatout")
         else:
+            # Then assemble the actual filename
             outputfile_name = "%s.fits" % (basename)
+            outputfile = "%s/%s" % (outputfile_dir, outputfile_name)
 
-        # Then assemble the actual filename
-        outputfile = "%s/%s" % (outputfile_dir, outputfile_name)
 
         stdout_write("Collecting cells from %s ==> %s\n" % (folder,outputfile))
 
         # Collect all cells, perform reduction and write result file
-        collectcells(folder, outputfile,
-                     bias_dir, dark_dir, flatfield_dir, bpm_dir,
-                     wcs_solution=wcs_solution,
-                     fixwcs=fixwcs)
+        try:
+            collectcells(folder, outputfile, options=options, batchmode=False)
+        except:
+            stdout_write("\n\n##############################\n#\n# Something terrible happened!\n")
+            etype, error, stackpos = sys.exc_info()
+            stdout_write("# Exception report:")
+            stdout_write("#  ==> %s\n" % (error))
+            print traceback.format_exc()
+            stdout_write("##############################\n")
 
         stdout_write("\n")
         
