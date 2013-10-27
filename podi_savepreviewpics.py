@@ -141,7 +141,7 @@ def create_quickview(filename, output_directory, z1=None, z2=None, verbose=False
     greyscale = (dataframe - min_level) / (max_level - min_level)
     greyscale[greyscale < 0] = 0.
     greyscale[greyscale > 1] = 1.
-    image_filename = "%s/%s.rk_bin8.jpeg" % (output_directory, filename_without_fits)
+    image_filename = "%s/%s.bin8.jpeg" % (output_directory, filename_without_fits)
     image = Image.fromarray(numpy.uint8(greyscale*255))
     image.transpose(Image.FLIP_TOP_BOTTOM).save(image_filename, "JPEG")
 
@@ -153,7 +153,7 @@ def create_quickview(filename, output_directory, z1=None, z2=None, verbose=False
     greyscale[greyscale > 1] = 1.
     greyscale[greyscale < 0] = 0.
 
-    image_filename = "%s/%s.rk_bin64.jpeg" % (output_directory, filename_without_fits)
+    image_filename = "%s/%s.bin64.jpeg" % (output_directory, filename_without_fits)
     image = Image.fromarray(numpy.uint8(greyscale*255))
     image.transpose(Image.FLIP_TOP_BOTTOM).save(image_filename, "JPEG")
 
