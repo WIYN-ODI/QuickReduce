@@ -1233,15 +1233,25 @@ def cell2ota__extract_data_from_cell(data_in=None):
 
     return data_in[0:494, 0:480]
 
-def cell2ota__get_target_region(x, y):
+def cell2ota__get_target_region(x, y, binning=1):
 
     #taken from ODI OTA Technical Datasheet (det area 480x494, streets 11/28 px)
-    _y = 7 - y
-    y1 = (505*_y)  #was 503 
-    y2 = y1 + 494
-    x1 = 508 * x
-    x2 = x1 + 480
 
+    # Y-coordinates of cell numbers are counted top down,
+    # but pixel coordinates are counted bottom up
+    _y = 7 - y
+
+    if (binning == 1):
+        y1 = (505*_y)  #was 503 
+        y2 = y1 + 494
+        x1 = 508 * x
+        x2 = x1 + 480
+    elif (binning == 2):
+        y1 = int(math.ceil(252.5 * _y))
+        y2 = y1 + 247
+        x1 = 254 * x
+        x2 = x1 + 240
+        
     return x1, x2, y1, y2
 
 
@@ -1315,3 +1325,70 @@ def create_qa_otaplot_filename(plotname, ota, structure_qa_subdirs):
         qa_plotfile = "%s_OTA%02d" % (plotname, ota)
 
     return qa_plotfile
+
+
+
+
+
+
+
+
+#
+# Additional functions to handle binned data more elegantly
+#
+def get_binning(hdr):
+
+    print "determining binng factor"
+    
+    # The CCDBIN1 keyword should be foung in primary header, so try this one first
+    try:
+        binfac = hdr['CCDBIN1']
+        # print binfac
+        return int(binfac)
+    except:
+        pass
+
+    # Couldn't find the CCDBIN1 header, so this is likely not a primary HDU
+    # Try the CCDSUM keyword next
+    try:
+        ccdsum = hdr['CCDSUM']
+        # print ccdsum
+        items = ccdsum.split()
+        return int(items[0])
+    except:
+        pass
+
+    # Still no luck finding a header? Assume it's 1 and continue
+    return 1
+
+
+def get_collected_image_dimensions(binning):
+
+    if (binning == 1):
+        sizex, sizey = 4096, 4096
+    elif (binning == 2):
+        sizex, sizey = 2048, 2048
+
+    return sizex, sizey
+
+
+def extract_datasec_from_cell(data, binning):
+
+    if (binning == 1):
+        dx, dy = 480, 494
+    elif (binning == 2):
+        dx, dy = 240, 247
+
+    # print "extracting datasec", dx, dy
+    return data[0:dy, 0:dx]
+
+
+def extract_biassec_from_cell(data, binning):
+
+    if (binning == 1):
+        dx1, dx2, dy1, dy2 = 500, 530, 0, 494
+    elif (binning == 2):
+        dx1, dx2, dy1, dy2 = 250, 265, 0, 247
+
+    return data[dy1:dy2, dx1:dx2]
+

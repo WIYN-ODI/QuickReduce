@@ -111,13 +111,11 @@ def collect_reduce_ota(filename,
 
         reduction_files_used['raw'] = filename
 
-        detsize = break_region_string(hdulist[0].header['DETSIZE'])
-        det_x1, det_x2, det_y1, det_y2 = detsize
-        #print det_x1, det_x2, det_y1, det_y2
-
-        size_x, size_y = det_x2 - det_x1 + 1, det_y2 - det_y1 + 1
-        #print size_x, size_y
-        size_x, size_y = 4096, 4096
+        # Get the binning factor
+        binning = 2 #get_binning(hdulist[0].header)
+        
+        # Get the image output size (depends on binning)
+        size_x, size_y = get_collected_image_dimensions(binning)
         #print size_x, size_y
 
         obsid = hdulist[0].header["OBSID"]
@@ -219,10 +217,11 @@ def collect_reduce_ota(filename,
             # Now extract just the data section.
             # Values are hard-coded as some of the DATASEC keywords are wrong
             #
-            datasec = hdulist[cell].data[0:494, 0:480] 
-
+            datasec = extract_datasec_from_cell(hdulist[cell].data, binning) #[0:494, 0:480] 
+            # print "datasec.shape=",datasec.shape
             # Now overscan subtract and insert into large frame
-            overscan_region = extract_region(hdulist[cell].data, '[500:530,1:494]')
+            overscan_region = extract_biassec_from_cell(hdulist[cell].data, binning)
+            #extract_region(hdulist[cell].data, '[500:530,1:494]')
             overscan_level = numpy.median(overscan_region)
 
             datasec -= overscan_level
@@ -245,7 +244,8 @@ def collect_reduce_ota(filename,
             #
             # Insert the reduced data-section of this cell into the large OTA frame
             #
-            bx, tx, by, ty = cell2ota__get_target_region(wm_cellx, wm_celly) 
+            bx, tx, by, ty = cell2ota__get_target_region(wm_cellx, wm_celly, binning)
+            # print bx, tx, by, ty, datasec.shape
             merged[by:ty,bx:tx] = datasec
 
         # 
@@ -417,10 +417,10 @@ def collect_reduce_ota(filename,
             hdu.header["FRNG_OK"] = (fringe_scaling != None)
 
         # Insert the DETSEC header so IRAF understands where to put the extensions
-        start_x = ota_c_x * 4096
-        start_y = ota_c_y * 4096        
-        end_x = start_x + det_x2 - det_x1
-        end_y = start_y + det_y2 - det_y1
+        start_x = ota_c_x * size_x #4096
+        start_y = ota_c_y * size_y #4096        
+        end_x = start_x + size_x #det_x2 - det_x1
+        end_y = start_y + size_y #det_y2 - det_y1
         detsec_str = "[%d:%d,%d:%d]" % (start_x, end_x, start_y, end_y)
         hdu.header["DETSEC"] = (detsec_str, "position of OTA in focal plane")
                 
