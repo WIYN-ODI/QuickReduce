@@ -10,6 +10,7 @@ import scipy
 import scipy.stats
 import math
 import scipy.spatial
+import itertools
 
 from  podi_definitions import *
 import podi_search_ipprefcat                                                                                                                  
@@ -29,23 +30,33 @@ def select_brightest(radec, mags, n):
 
     return output_radec, output_mags
 
-
+@profile
 def compute_quad_ratios(ref_coord):
-    areas = numpy.zeros(shape=(1,4))
-    area_ratios = numpy.zeros(shape=(1,2))
+    areas = numpy.zeros(shape=(4))
+    area_ratios = numpy.zeros(shape=(2))
 
     n_points = ref_coord.shape[0]
     n_quads = n_points * (n_points-1) * (n_points-2) * (n_points-3) / 24
 
     ratios = numpy.zeros(shape=(n_quads,2))
     indices = numpy.zeros(shape=(n_quads,4))
-    point_vector = numpy.zeros(shape=(1,4))
+    point_vector = numpy.zeros(shape=(4))
     all_areas = numpy.zeros(shape=(n_quads,4))
+
+    sorted_areas = numpy.zeros_like(areas)
+    sorted_vector = numpy.zeros_like(point_vector)
 
     #
     # Precompute the area of all triangles we might need later on
     #
-    n_triangles = 0
+    triangle_areas = numpy.zeros(shape=(n_points,n_points,n_points))
+    # for (p1,p2,p3) in itertools.combinations(range(n_points),3):
+    #     triangle_areas[p1,p2,p3]  = math.fabs((ref_coord[p1,0]-ref_coord[p2,0])*(ref_coord[p2,1]-ref_coord[p3,1]) - (ref_coord[p2,0]-ref_coord[p3,0])*(ref_coord[p1,1]-ref_coord[p2,1]))
+        
+    for p1 in range(ref_coord.shape[0]-2):
+        for p2 in range(p1+1, ref_coord.shape[0]-1):
+            for p3 in range(p2+1, ref_coord.shape[0]):
+                triangle_areas[p1,p2,p3]  = math.fabs((ref_coord[p1,0]-ref_coord[p2,0])*(ref_coord[p2,1]-ref_coord[p3,1]) - (ref_coord[p2,0]-ref_coord[p3,0])*(ref_coord[p1,1]-ref_coord[p2,1]))
     
     cur_quad = 0
     brightest_ref_radec = ref_coord
@@ -58,59 +69,76 @@ def compute_quad_ratios(ref_coord):
                     # Compute areas of the four possible triangles
                     #
                     # triangle opposite of p1
-                    areas[0,0] = math.fabs((ref_coord[p4,0]-ref_coord[p2,0])*(ref_coord[p2,1]-ref_coord[p3,1]) - (ref_coord[p2,0]-ref_coord[p3,0])*(ref_coord[p4,1]-ref_coord[p2,1]))
+                    areas[0] = triangle_areas[p2,p3,p4]
                     # triangle opposite of p2
-                    areas[0,1] = math.fabs((ref_coord[p1,0]-ref_coord[p4,0])*(ref_coord[p4,1]-ref_coord[p3,1]) - (ref_coord[p4,0]-ref_coord[p3,0])*(ref_coord[p1,1]-ref_coord[p4,1]))
+                    areas[1] = triangle_areas[p1,p3,p4]
                     # triangle opposite of p3
-                    areas[0,2] = math.fabs((ref_coord[p1,0]-ref_coord[p2,0])*(ref_coord[p2,1]-ref_coord[p4,1]) - (ref_coord[p2,0]-ref_coord[p4,0])*(ref_coord[p1,1]-ref_coord[p2,1]))
+                    areas[2] = triangle_areas[p1,p2,p4]
                     # triangle opposite of p4
-                    areas[0,3] = math.fabs((ref_coord[p1,0]-ref_coord[p2,0])*(ref_coord[p2,1]-ref_coord[p3,1]) - (ref_coord[p2,0]-ref_coord[p3,0])*(ref_coord[p1,1]-ref_coord[p2,1]))
+                    areas[3] = triangle_areas[p1,p2,p3]
 
-                    if (numpy.min(areas[0,:]) <= 0):
-                        continue
+                    ## triangle opposite of p1
+                    #areas[0,0] = math.fabs((ref_coord[p4,0]-ref_coord[p2,0])*(ref_coord[p2,1]-ref_coord[p3,1]) - (ref_coord[p2,0]-ref_coord[p3,0])*(ref_coord[p4,1]-ref_coord[p2,1]))
+                    ## triangle opposite of p2
+                    #areas[0,1] = math.fabs((ref_coord[p1,0]-ref_coord[p4,0])*(ref_coord[p4,1]-ref_coord[p3,1]) - (ref_coord[p4,0]-ref_coord[p3,0])*(ref_coord[p1,1]-ref_coord[p4,1]))
+                    ## triangle opposite of p3
+                    #areas[0,2] = math.fabs((ref_coord[p1,0]-ref_coord[p2,0])*(ref_coord[p2,1]-ref_coord[p4,1]) - (ref_coord[p2,0]-ref_coord[p4,0])*(ref_coord[p1,1]-ref_coord[p2,1]))
+                    ## triangle opposite of p4
+                    #areas[0,3] = math.fabs((ref_coord[p1,0]-ref_coord[p2,0])*(ref_coord[p2,1]-ref_coord[p3,1]) - (ref_coord[p2,0]-ref_coord[p3,0])*(ref_coord[p1,1]-ref_coord[p2,1]))
+
+                    #if (numpy.min(areas) <= 0):
+                    #    continue
 
                     # Save which points form this triangle
-                    point_vector[0,:] = numpy.array([p1,p2,p3,p4])
+                    point_vector[0] = p1
+                    point_vector[1] = p2
+                    point_vector[2] = p3
+                    point_vector[3] = p4
+                    # The above is faster than the more elegant
+                    # point_vector[:] = [p1,p2,p3,p4]
 
                     # sort areas
-                    sortindex = numpy.argsort(areas[0,:])
+                    sortindex = numpy.argsort(areas)
 
-                    sorted_areas = numpy.zeros_like(areas)
-                    sorted_vector = numpy.zeros_like(point_vector)
 
                     # Compute the sorted vectors
-                    for i in range(sortindex.shape[0]):
-                        sorted_areas[:,i] = areas[:,sortindex[i]]
-                        sorted_vector[:,i] = point_vector[:,sortindex[i]]
-                        
-                    # sorted_areas = numpy.sort(areas[0,:])
-                    # print sorted_areas.shape
+                    sorted_areas = areas[sortindex]
+                    all_areas[cur_quad,:] = areas[sortindex]
                     
-                    # Create area ratios by dividing by the largest area
-                    area_ratios[0,0] = sorted_areas[0,2] / sorted_areas[0,3]
-                    area_ratios[0,1] = sorted_areas[0,1] / sorted_areas[0,3]
+                    if (all_areas[cur_quad,0] <= 0):
+                        continue
+
+                    # sorted_vector = point_vector[sortindex]
+                    indices[cur_quad,:] = point_vector[sortindex]
+                    
+                    ## Create area ratios by dividing by the largest area
+                    area_ratios[0] = sorted_areas[2] / sorted_areas[3]
+                    area_ratios[1] = sorted_areas[1] / sorted_areas[3]
 
                     # print area_ratios, point_vector
                     # print area_ratios.shape, point_vector.shape, ratios.shape, indices.shape
 
-                    ratios[cur_quad,:] = area_ratios[0,:]
-                    indices[cur_quad,:] = sorted_vector[0,:]
-                    all_areas[cur_quad,:] = sorted_areas[0,:]
+                    # ratios[cur_quad,:] = area_ratios
+                    # indices[cur_quad,:] = sorted_vector
+                    # all_areas[cur_quad,:] = sorted_areas
 
-                    #ratios = numpy.append(ratios, area_ratios, axis=0)
-                    #indices = numpy.append(indices, sorted_vector, axis=0)
-                    #all_areas = numpy.append(all_areas, sorted_areas, axis=0)
-                    
                     cur_quad += 1
 
-                    # print area_ratios.shape, point_vector.shape, ratios.shape, indices.shape
+    ## Create area ratios by dividing by the largest area
+    #area_ratios[0] = sorted_areas[2] / sorted_areas[3]
+    #area_ratios[1] = sorted_areas[1] / sorted_areas[3]
 
-                    # print
+    sortindex = numpy.argsort(all_areas, axis=1)
+    print sortindex[0:5,:]
+
+    ratios[:,0] = all_areas[:,2] / all_areas[:,3]
+    ratios[:,1] = all_areas[:,1] / all_areas[:,3]
 
     # print ratios
     return ratios, indices, all_areas
 
 
+@profile
 def find_optimal_transformation(reference_coords, catalog_coords, verbose=False):
 
     ref_coord = reference_coords
@@ -244,11 +272,11 @@ def find_optimal_transformation(reference_coords, catalog_coords, verbose=False)
         print "Found a best transformation:"
         print "    ",best_transformation
 
-    return best_transformation
+    return best_transformation, n_matches[idx_best_transformation]
 
 
 
-
+@profile
 def match_catalog_areas(src, to_match, radius):
 
 
@@ -415,6 +443,8 @@ if __name__ == "__main__":
         ref_radec = matched_cat[:,0:2]                                                                                                                 
         ref_mag = matched_cat[:,3].reshape((matched_cat.shape[0],1))
 
+        ref_radec = ref_radec[(ref_mag[:,0] > 13) & (ref_mag[:,0]<16)]
+        ref_mag = ref_mag[(ref_mag[:,0] > 13) & (ref_mag[:,0]<16)]
         ref_radec, ref_mag = select_brightest(matched_cat, ref_mag, ref_count)
         print ref_radec.shape, ref_count
 
@@ -433,15 +463,20 @@ if __name__ == "__main__":
 
         print "\n\nGoing to work"
 
-        import cProfile, pstats
-        cProfile.run("""best_transformation = find_optimal_transformation(ref_radec, src_radec)""", "profiler")
-        p = pstats.Stats("profiler")
-        p.strip_dirs().sort_stats('time').print_stats()
-        p.sort_stats('time').print_stats()
+        #import cProfile, pstats
+        ##cProfile.run("""best_transformation = find_optimal_transformation(ref_radec, src_radec)""", "profiler")
+        #cProfile.run("""best_transformation, n_matches = find_optimal_transformation(ref_radec[:,0:2], src_radec)""", "profiler")
+        #p = pstats.Stats("profiler")
+        #p.strip_dirs().sort_stats('time').print_stats()
+        #p.sort_stats('time').print_stats()
+
+        best_transformation, n_matches = find_optimal_transformation(ref_radec[:,0:2], src_radec)
 
         # best_transformation = find_optimal_transformation(ref_radec[:,0:2], src_radec)
 
         print "Found a best transformation:"
         print "    ",best_transformation
+        print " # matches =",n_matches
+
 
         sys.exit(0)
