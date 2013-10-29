@@ -1387,9 +1387,9 @@ def extract_datasec_from_cell(data, binning):
 def extract_biassec_from_cell(data, binning):
 
     if (binning == 1):
-        dx1, dx2, dy1, dy2 = 500, 530, 0, 494
+        dx1, dx2, dy1, dy2 = 500, 550, 0, 494
     elif (binning == 2):
-        dx1, dx2, dy1, dy2 = 250, 265, 0, 247
+        dx1, dx2, dy1, dy2 = 260, 277, 0, 246
 
     # print dx1, dx2, dy1, dy2
     return data[dy1:dy2, dx1:dx2]
