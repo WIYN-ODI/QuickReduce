@@ -103,7 +103,7 @@ def compute_quad_ratios(ref_coord):
 
                     # Compute the sorted vectors
                     sorted_areas = areas[sortindex]
-                    all_areas[cur_quad,:] = areas[sortindex]
+                    all_areas[cur_quad,:] = areas #[sortindex]
                     
                     if (all_areas[cur_quad,0] <= 0):
                         continue
@@ -128,8 +128,18 @@ def compute_quad_ratios(ref_coord):
     #area_ratios[0] = sorted_areas[2] / sorted_areas[3]
     #area_ratios[1] = sorted_areas[1] / sorted_areas[3]
 
+    print "all-areas:\n",all_areas[0:5,:]
+
     sortindex = numpy.argsort(all_areas, axis=1)
-    print sortindex[0:5,:]
+    print "sortindex\n",sortindex[0:5,:]
+
+    xxx = numpy.ravel_multi_index((numpy.arange(all_areas.shape[0])[:, None], sortindex), dims=all_areas.shape)
+    
+    print "xxx=\n",xxx[0:5,:]
+
+    sorted_xxx = (all_areas.ravel()[xxx]).reshape(all_areas.shape)
+
+    print "test-sorted=\n", sorted_xxx[0:5,:]
 
     ratios[:,0] = all_areas[:,2] / all_areas[:,3]
     ratios[:,1] = all_areas[:,1] / all_areas[:,3]
@@ -431,7 +441,8 @@ if __name__ == "__main__":
         ra = numpy.median(src_cat[:,0])
         dec = numpy.median(src_cat[:,1])
 
-        ipp_cat = podi_search_ipprefcat.get_reference_catalog(ra, dec, 0.7, "/Volumes/odifile/Catalogs/2mass_fits/")
+        # ipp_cat = podi_search_ipprefcat.get_reference_catalog(ra, dec, 0.7, "/Volumes/odifile/Catalogs/2mass_fits/")
+        ipp_cat = podi_search_ipprefcat.get_reference_catalog(ra, dec, 0.7, "/datax/2mass_fits/")
         print "Found in 2mass",ipp_cat.shape
 
         matched_cat = match_catalog_areas(src_radec, ipp_cat, (2./60.))
