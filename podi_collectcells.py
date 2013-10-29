@@ -1328,7 +1328,7 @@ def collectcells(input, outputfile,
 
 
         ota_outlines = derive_ota_outlines(ota_list)
-        if (True):
+        if (options['create_qaplots']):
             # print "Creating some diagnostic plots"
             diagnostic_plot_title = "%s\n(obsid: %s - filter: %s- exptime: %ds)" % (
                 ota_list[0].header['OBJECT'],
@@ -1339,6 +1339,7 @@ def collectcells(input, outputfile,
 
             import podi_diagnosticplots
             plotfilename = create_qa_filename(outputfile, "wcs1", options)
+            print plotfilename
             podi_diagnosticplots.wcsdiag_scatter(odi_2mass_matched, 
                                                  plotfilename, # outputfile[:-5]+".wcs1", 
                                                  options=options,
@@ -1668,6 +1669,7 @@ def set_default_options(options_in=None):
 
     options['structure_qa_subdirs'] = False
     options['structure_qa_subdir_name'] = "QA"
+    options['create_qaplots'] = True
 
     return options
 
@@ -1805,6 +1807,8 @@ Calibration data:
         options['structure_qa_subdir_name'] = cmdline_arg_set_or_default('-qasubdirname', "QA")
         options['structure_qa_subdirs'] = True
 
+    options['create_qaplots'] = not cmdline_arg_isset("-noqaplots")
+    
     # Now loop over all headers again and isolate the -addfitskey entries
     for entry in sys.argv[1:]:
         if (entry[:11] == "-addfitskey"):
