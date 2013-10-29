@@ -1303,15 +1303,15 @@ def create_qa_filename(outputfile, plotname, options):
 
     if (options['structure_qa_subdirs']):
         dirname, basename = os.path.split(outputfile)
-        if (dirname == None): dirname = "."
+        if (dirname == None): 
+            dirname = "."
         qa_plotdir = "%s/%s/" % (dirname, options['structure_qa_subdir_name'])
         if (not os.path.isdir(qa_plotdir)):
             os.mkdir(qa_plotdir)
         qa_plotfile = "%s/%s" % (qa_plotdir, plotname)
     else:
-        qa_plotfile = outputfile[:-5]+".wcs1", 
+        qa_plotfile = "%s.%s" % (outputfile[:-5], plotname)
 
-    print qa_plotfile, outputfile, options['structure_qa_subdirs']
     return qa_plotfile
 
 def create_qa_otaplot_filename(plotname, ota, structure_qa_subdirs):
