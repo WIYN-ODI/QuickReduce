@@ -1311,6 +1311,7 @@ def create_qa_filename(outputfile, plotname, options):
     else:
         qa_plotfile = outputfile[:-5]+".wcs1", 
 
+    print qa_plotfile, outputfile, options['structure_qa_subdirs']
     return qa_plotfile
 
 def create_qa_otaplot_filename(plotname, ota, structure_qa_subdirs):
@@ -1393,3 +1394,34 @@ def extract_biassec_from_cell(data, binning):
     # print dx1, dx2, dy1, dy2
     return data[dy1:dy2, dx1:dx2]
 
+
+
+def match_catalog_areas(src, to_match, radius):
+
+
+    src_radec = src[:,0:2].copy()
+    #src_radec[:,0] *= numpy.cos(numpy.radians(src_radec[:,1]))
+    src_tree = scipy.spatial.cKDTree(src_radec)
+
+    match_radec = to_match[:,0:2].copy()
+    #match_radec[:,0] *= numpy.cos(numpy.radians(match_radec[:,1]))
+    match_tree = scipy.spatial.cKDTree(match_radec)
+
+    # Now select all neighbors within the search radius
+    matches = match_tree.query_ball_tree(src_tree, radius, p=2)
+
+    valid = numpy.ones(shape=to_match.shape[0])
+
+    for i in range(len(matches)):
+        if (len(matches[i]) > 0):
+            # This means we found a star in the source catalog close enough to this star
+            # don't do anything
+            pass
+        else:
+            # We didn't find a nearby neighbor, so this is a source to be removed.
+            valid[i] = 0
+
+    matched = to_match[valid == 1]
+    # matched[:,0] /= numpy.cos(numpy.radians(matched[:,1])) 
+
+    return matched
