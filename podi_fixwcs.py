@@ -822,7 +822,7 @@ def rotate_optimize(ota_list, extensions, ref_ra, ref_dec, odi_x, odi_y):
 
     
 
-def optimize_shift(n_matches, verbose=False, declination=0, debuglogfile=None):
+def optimize_shift(n_matches, verbose=False, declination=0, debuglogfile=None, sum_radius=5):
 
     # Sort out all matches that only have one match
     not_just_one = n_matches[:,0] > 1
@@ -849,7 +849,7 @@ def optimize_shift(n_matches, verbose=False, declination=0, debuglogfile=None):
 
 
     # Go through the list of possible shifts and sum up all shifts in the neighborhood
-    d_neighbor = 5.0 / 3600. # i.e. 5 arcseconds
+    d_neighbor = sum_radius / 3600. # i.e. 5 arcseconds
     d_ra_max = d_neighbor / math.cos(math.radians(declination))
     d_dec_max = d_neighbor
 
