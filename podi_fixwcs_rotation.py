@@ -91,11 +91,12 @@ def improve_match_and_rotation(fixwcs_ref_ra, fixwcs_ref_dec,
     p_total = [0,0,0]
 
     for repeat in range(matching_radii.shape[0]): #n_repeats):
-
+        if (verbose):
+            print "\n\nThis is rotation iteration #",repeat
         return_cat = podi_matchcatalogs.match_catalogs(ref_full, odi_full, 
                                                        matching_radius=matching_radii[repeat])
 
-        if (verbose): print "return_Cat=",return_cat
+        if (verbose): print "return_Cat=",return_cat.shape
 
         # Now we should have almost matching catalogs, with the exception 
         # of the mismatch in rotation
@@ -103,9 +104,9 @@ def improve_match_and_rotation(fixwcs_ref_ra, fixwcs_ref_dec,
         good_matches = return_cat[:,2] > 0
         matched_cat = return_cat[good_matches]
 
-        if (verbose): print "left are ",matched_cat.shape,"good matches"
+        if (verbose): print "after eliminating non-matched sources we have ",matched_cat.shape,"good matches left"
 
-        if (verbose): print matched_cat[0:5,:]
+            #i f (verbose): print matched_cat[0:5,:]
 
         p_init = [0., 0., 0.]
         out = scipy.optimize.leastsq(errfunc, p_init,
@@ -127,12 +128,15 @@ def improve_match_and_rotation(fixwcs_ref_ra, fixwcs_ref_dec,
         # Now apply the new correction to the full array of stars
         odi_full[:,0:2] = apply_transformation(p_final, odi_full[:,0:2])
 
+        if (verbose):
+            print "cumulative correction:", p_total, "-->",p_total[0]*60, p_total[1]*60, math.degrees(p_total[2])*60
+            print "\n\n"
 
     # Now we have iteratively refined the matched catalog
     # In a final step use the original catalog to get the full transformation
     # A backup of the unaltered corrdinates are at the back of the odi_full 
     # array and subsequently copied into the matched_cat array
-    p_init = p_total
+    p_init = [0,0,0] #p_total
     out = scipy.optimize.leastsq(errfunc, p_init,
                                  args=(matched_cat[:,0:2], matched_cat[:,4:6]),
                                  full_output=1)
