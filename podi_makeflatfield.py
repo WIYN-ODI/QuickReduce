@@ -108,6 +108,8 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
     # Now normalize all OTAs with the median flatfield level
     stdout_write(" normalizing ...")
     for extension in range(1, len(hdulist)):
+        if (not is_image_extension(hdulist[extension])):
+            continue
         hdulist[extension].data /= ff_median_level
         hdulist[extension].data[hdulist[extension].data < 0.1] = numpy.NaN
         hdulist[extension].header.add_history("FF-level: %.1f" % (ff_median_level))
