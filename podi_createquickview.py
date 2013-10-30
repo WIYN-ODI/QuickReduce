@@ -85,7 +85,7 @@ def create_quickview(filename, output_directory, verbose=False, clobber=True):
     if (verbose):
         stdout_write("   Finding contrast: Reading OTA")
     for extension in range(1, len(hdulist)):
-        if (not is_image_extension(hdulist[extension].header)):
+        if (not is_image_extension(hdulist[extension])):
             continue
 
         fppos = int(hdulist[extension].header['FPPOS'][2:4])
@@ -143,7 +143,7 @@ def create_quickview(filename, output_directory, verbose=False, clobber=True):
     if (verbose):
         stdout_write("   Creating jpeg for OTA")
     for extension in range(1, len(hdulist)):
-        if (not is_image_extension(hdulist[extension].header)):
+        if (not is_image_extension(hdulist[extension])):
             continue
 
         fppos = int(hdulist[extension].header['FPPOS'][2:4])

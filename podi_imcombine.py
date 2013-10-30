@@ -240,7 +240,7 @@ def imcombine_subprocess(extension, filelist, shape, operation, queue, verbose):
         filename = filelist[file_number]
         hdulist = pyfits.open(filename)
         for i in range(1, len(hdulist)):
-            if (not is_image_extension(hdulist[i].header)):
+            if (not is_image_extension(hdulist[i])):
                 continue
             fppos = hdulist[i].header['EXTNAME']
             if (fppos == extension):
@@ -299,7 +299,7 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
 
         data_blocks = []
         # Check what OTA we are dealing with
-        if (not is_image_extension(ref_hdulist[cur_ext].header)):
+        if (not is_image_extension(ref_hdulist[cur_ext])):
             continue
         ref_fppos = ref_hdulist[cur_ext].header['EXTNAME']
 

@@ -1131,16 +1131,9 @@ def mask_broken_regions(datablock, regionfile, verbose=False):
     return datablock
 
 
-
-def is_image_extension(hdr):
-    try:
-        extname = hdr['EXTNAME']
-        if (extname[:3] == "OTA" and extname[-4:] == ".SCI"):
-            return True
-    except:
-        pass
-
-    return False
+def is_image_extension(hdu):
+    return (type(hdu) == pyfits.hdu.image.ImageHDU or
+            type(hdu) == pyfits.hdu.compressed.CompImageHDU)
 
 
 

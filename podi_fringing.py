@@ -85,7 +85,7 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False, skymode
         
         data_blocks = []
         # Check what OTA we are dealing with
-        if (not is_image_extension(ref_hdulist[cur_ext].header)):
+        if (not is_image_extension(ref_hdulist[cur_ext])):
             continue
         extname = ref_hdulist[cur_ext].header['EXTNAME']
 
@@ -410,7 +410,7 @@ if __name__ == "__main__":
             out_hdu = [pyfits.PrimaryHDU(header=hdulist[0].header)]
 
             for ext in range(len(hdulist)):
-                if (not is_image_extension(hdulist[ext].header)):
+                if (not is_image_extension(hdulist[ext])):
                     continue
                 
                 # Skip all OTAs that are marked as video/guide OTAs
@@ -501,7 +501,7 @@ if __name__ == "__main__":
         templatehdu = pyfits.open(template)
 
         for i in range(len(inputhdu)):
-            if (not is_image_extension(inputhdu[i].header)):
+            if (not is_image_extension(inputhdu[i])):
                 continue
 
             extname = inputhdu[i].header['EXTNAME']
