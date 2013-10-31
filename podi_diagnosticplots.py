@@ -334,6 +334,8 @@ def wcsdiag_shift(matched_cat, filename, options=None, ota_outlines=None,
         for (otax, otay) in list_of_otas:
             this_ota = otax * 10 + otay
             in_this_ota = (ota == this_ota)
+            if (numpy.sum(in_this_ota) <= 0):
+                continue
 
             extname = "OTA%02d.SCI" % (this_ota)
             title = "WSC Scatter - OTA %02d" % (this_ota)
@@ -673,7 +675,9 @@ def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
 
         for (otax, otay) in list_of_otas:
             this_ota = otax * 10 + otay
-            in_this_ota = ota == this_ota
+            in_this_ota = (ota == this_ota)
+            if (numpy.sum(in_this_ota) <= 0):
+                continue
             zp_ota = zp_raw[in_this_ota]
             ra_ota = ra[in_this_ota]
             dec_ota = dec[in_this_ota]
@@ -785,6 +789,8 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
             this_ota = otax * 10 + otay
 
             in_this_ota = (ota == this_ota)
+            if (numpy.sum(in_this_ota) <= 0):
+                continue
             fwhm_ota = fwhm[in_this_ota]
             ra_ota = ra[in_this_ota]
             dec_ota = dec[in_this_ota]
