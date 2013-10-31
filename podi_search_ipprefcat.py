@@ -229,12 +229,18 @@ if __name__ == "__main__":
     basedir = cmdline_arg_set_or_default("-basedir", "/Volumes/odifile/Catalogs/IPPRefCat/catdir.synth.grizy/")
     catalog_type = cmdline_arg_set_or_default("-cattype", "IPPRef")
 
+    import podi_sitesetup as sitesetup
+    basedir = sitesetup.wcs_ref_dir
+    catalog_type = sitesetup.wcs_ref_type
+
 
     catalog = get_reference_catalog(ra, dec, radius, basedir=basedir, cattype=catalog_type)
 
-    if (True): #False):
-        for i in range(catalog.shape[0]):
-            for j in range(catalog.shape[1]):
-                print catalog[i,j],
-            print
+    # if (True): #False):
+    #     for i in range(catalog.shape[0]):
+    #         for j in range(catalog.shape[1]):
+    #             print catalog[i,j],
+    #         print
+
+    numpy.savetxt(sys.stdout, catalog)
 
