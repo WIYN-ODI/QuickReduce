@@ -82,6 +82,9 @@ def compute_wcs_quality(odi_2mass_matched, ota, hdr=None):
     rms_ddec = numpy.sqrt(numpy.mean(d_dec**2)) * 3600.
     print "WCS quality:", ota, wcs_mean_dra*3600., wcs_mean_ddec*3600., wcs_scatter*3600., wcs_scatter2*3600., rms_dra, rms_ddec
 
+    def make_valid(x):
+        return x if numpy.isfinite(x) else -9999
+
     results = {}
     results['RMS-RA'] = rms_dra
     results['RMS-DEC'] = rms_ddec
@@ -90,11 +93,11 @@ def compute_wcs_quality(odi_2mass_matched, ota, hdr=None):
     results['MEDIAN-DEC'] = wcs_mean_ddec
 
     if (not hdr == None):
-        hdr["WCS_RMSA"] = (results['RMS-RA'], "RA r.m.s. of WCS matching [arcsec]")
-        hdr["WCS_RMSD"] = (results['RMS-DEC'], "DEC r.m.s. of WCS matching [arcsec]")
-        hdr["WCS_RMS"] =  (results['RMS'], "r.m.s. of WCS matching [arcsec]")
-        hdr["WCS_ERRA"] = (results['MEDIAN-RA'], "RA median error WCS matching [arcsec]")
-        hdr["WCS_ERRD"] = (results['MEDIAN-DEC'], "DEC median error of WCS matching [arcsec]")
+        hdr["WCS_RMSA"] = (make_valid(results['RMS-RA']),     "RA r.m.s. of WCS matching [arcsec]")
+        hdr["WCS_RMSD"] = (make_valid(results['RMS-DEC']),    "DEC r.m.s. of WCS matching [arcsec]")
+        hdr["WCS_RMS"] =  (make_valid(results['RMS']),        "r.m.s. of WCS matching [arcsec]")
+        hdr["WCS_ERRA"] = (make_valid(results['MEDIAN-RA']),  "RA median error WCS matching [arcsec]")
+        hdr["WCS_ERRD"] = (make_valid(results['MEDIAN-DEC']), "DEC median error of WCS matching [arcsec]")
  
     return results
 
