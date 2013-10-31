@@ -1296,7 +1296,7 @@ def create_qa_filename(outputfile, plotname, options):
 
     if (options['structure_qa_subdirs']):
         dirname, basename = os.path.split(outputfile)
-        if (dirname == None): 
+        if (dirname == None or dirname == ''): 
             dirname = "."
         qa_plotdir = "%s/%s/" % (dirname, options['structure_qa_subdir_name'])
         if (not os.path.isdir(qa_plotdir)):
