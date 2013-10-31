@@ -189,7 +189,8 @@ def collect_reduce_ota(filename,
 
         nonlin_data = None
         if (not options['nonlinearity'] == None):
-            print "Using non-linearity coefficients from",options['nonlinearity']
+            if (options['verbose']):
+                print "Using non-linearity coefficients from",options['nonlinearity']
             nonlin_data = podi_nonlinearity.load_nonlinearity_correction_table(options['nonlinearity'], ota)
             reduction_files_used['nonlinearity'] = options['nonlinearity']
 
@@ -369,7 +370,12 @@ def collect_reduce_ota(filename,
             # appropriate correction (which, for now, is simply masking all pixels)
             filelist = podi_persistency.select_from_saturation_tables(full_filelist, mjd, [1,options['max_persistency_time']])
             if (len(filelist) > 0):
-                reduction_files_used['persistency'] = filelist
+                # Extract only the filenames from the filelist dictionary
+                persistency_files_used = []
+                for assoc_persistency_file, assoc_mjd in filelist.iteritems():
+                    persistency_files_used.append(assoc_persistency_file)
+                reduction_files_used['persistency'] = persistency_files_used
+
                 merged = podi_persistency.correct_persistency_effects(ota, merged, mjd, filelist)
                 persistency_catalog_counter = 0
                 for filename in filelist:
@@ -651,6 +657,7 @@ def create_association_table(master, verbose=False):
     short_filename = []
 
     for key, value in master.iteritems():
+        print key,":",value
         for filename in set(value):
             reduction_step.append(key)
             full_filename.append(os.path.abspath(filename))
@@ -1252,6 +1259,8 @@ def collectcells(input, outputfile,
     if (options['fixwcs']):
         debuglog = outputfile+".wcsdebug"
         declination = ota_list[1].header['CRVAL2']
+        ra =  ota_list[1].header['CRVAL1']
+
         #
         # Combine the most-matches shifts from all available OTAs, and
         # determine a rough first shift position.
@@ -1259,7 +1268,8 @@ def collectcells(input, outputfile,
         numpy.savetxt("number_matches", global_number_matches)
         best_guess, contrast, drxy = podi_fixwcs.optimize_shift(global_number_matches, 
                                                                 declination=declination,
-                                                                debuglogfile=debuglog)
+                                                                debuglogfile=debuglog,
+                                                                verbose=True)
         stdout_write("Found offset: %.2f', %.2f' (+/- %.1f''), contrast %.1f (%d)\n" % (
                 best_guess[0]*60., best_guess[1]*60., drxy[0]*3600*0.5, contrast, best_guess[2]))
 
@@ -1276,12 +1286,37 @@ def collectcells(input, outputfile,
             numpy.savetxt("numsave.wcs_shift_guess.txt", wcs_shift_guess)
             numpy.savetxt("numsave.wcs_shift_refinement.txt", wcs_shift_refinement)
 
+        # Create a new 2MASS reference catalog overlapping the ODI source catalog
+        twomass_cat_full = podi_search_ipprefcat.get_reference_catalog(ra, declination, 0.7, sitesetup.wcs_ref_dir)
+        source_cat_radec = numpy.empty(shape=(fixwcs_odi_ra.shape[0],2)) #
+        source_cat_radec[:,0] = fixwcs_odi_ra[:]
+        source_cat_radec[:,1] = fixwcs_odi_dec[:] #numpy.append(fixwcs_ref_ra.reshape(, fixwcs_ref_dec, axis=1)
+        twomass_cat_matched = match_catalog_areas(source_cat_radec, twomass_cat_full, (5./60.))
+
+        print twomass_cat_matched.shape
+        print source_cat_radec.shape
+
+        xxx = open("wcs", "w")
+        numpy.savetxt(xxx, source_cat_radec)
+        print >>xxx, "\n\n\n\n\n\n"
+        numpy.savetxt(xxx, twomass_cat_matched)
+        print >>xxx, "\n\n\n\n\n\n"
+        numpy.savetxt(xxx, twomass_cat_full)
+        xxx.close()
+        
         fixrot_trans = podi_fixwcs_rotation.improve_match_and_rotation(
-            fixwcs_ref_ra, fixwcs_ref_dec,
+            twomass_cat_matched[:,0], twomass_cat_matched[:,1], 
             fixwcs_odi_ra, fixwcs_odi_dec,
             wcs_shift,
-            matching_radius=[5,2,2], n_repeats=3,
-            verbose=False)
+            matching_radius=[10,5,2], n_repeats=3,
+            verbose=True)
+
+        # fixrot_trans = podi_fixwcs_rotation.improve_match_and_rotation(
+        #     fixwcs_ref_ra, fixwcs_ref_dec,
+        #     fixwcs_odi_ra, fixwcs_odi_dec,
+        #     wcs_shift,
+        #     matching_radius=[10,5,2], n_repeats=3,
+        #     verbose=True)
 
         # Now apply all shifts and rotations to the ODI source catalog.
         # catalog is fixwcs_odi_sourcecat
