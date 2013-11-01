@@ -58,7 +58,8 @@ if __name__ == "__main__":
     **********************************************************************
     * This is podi_makecalibrations                                      *
     * (c) 2012-2013: Ralf Kotulla, kotulla@uwm.edu                       *
-    *                University of Wisconsin, Milwaukee                  *
+    *                University of Wisconsin (Milwaukee & Madison)       *
+    *                WIYN Observatory, Inc                               *
     *                                                                    *
     * Please acknowledge the author when using any products generated    *
     * with this tool. For comments, questions or ideas for improvement   *
