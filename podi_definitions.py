@@ -213,11 +213,17 @@ list_of_valid_filter_ids = {
 
 def get_valid_filter_name(hdr):
 
-    filter_id = hdr['FILTERID'].strip()
-    if (filter_id in list_of_valid_filter_ids):
-        filter_name = list_of_valid_filter_ids[filter_id]
-        return filter_name
-
+    try:
+        filter_id = hdr['FILTERID'].strip()
+        if (filter_id in list_of_valid_filter_ids):
+            filter_name = list_of_valid_filter_ids[filter_id]
+            return filter_name
+    except:
+        try: 
+            filter = hdr['FILTER']
+            return filter
+        except:
+            return "unknown"
     return 'unknown'
 
 
