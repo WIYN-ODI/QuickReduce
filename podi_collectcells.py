@@ -194,6 +194,7 @@ def collect_reduce_ota(filename,
             nonlin_data = podi_nonlinearity.load_nonlinearity_correction_table(options['nonlinearity'], ota)
             reduction_files_used['nonlinearity'] = options['nonlinearity']
 
+        all_gains = numpy.zeros(shape=(64))
         for cell in range(1,65):
             if (not options['bgmode']):
                 stdout_write("\r%s:   OTA %02d, cell %s ..." % (obsid, ota, hdulist[cell].header['EXTNAME']))
@@ -208,11 +209,18 @@ def collect_reduce_ota(filename,
                 hdu.header["CRPIX1"] = (hdulist[cell].header['CRPIX1'], "Ref. pixel RA")
                 hdu.header["CRPIX2"] = (hdulist[cell].header['CRPIX2'], "Ref. pixel DEC")
 
+            # Store individual gains and average gain in output extension header
+            gain = float(hdulist[cell].header['GAIN'])
+            gain_keyword = "GAIN_C%d%d" % (wm_cellx, wm_celly)
+            hdu.header[gain_keyword] = (gain, 'gain for cell %d, %d' % (wm_cellx, wm_celly))
+
             # Check if this is one of the broken cells
             cellmode_id = get_cellmode(hdulist[0].header, hdulist[cell].header)
             if (not cellmode_id == 0):
                 # This means it either broken (id=-1) or in video-mode (id=1)
                 continue
+
+            all_gains[cell-1] = gain
 
             #
             # Now extract just the data section.
@@ -241,7 +249,6 @@ def collect_reduce_ota(filename,
                     print "Couldn't find the GAIN header!"
                     pass
 
-
             #
             # Insert the reduced data-section of this cell into the large OTA frame
             #
@@ -267,6 +274,14 @@ def collect_reduce_ota(filename,
             exposure_time = hdulist[0].header['EXPTIME']
         except KeyError:
             exposure_time = 0
+
+        #
+        # Compute the average gain and store how many cells contributed
+        #
+        valid_gain = all_gains > 0
+        gain_avg = numpy.mean(all_gains[valid_gain])
+        hdu.header['GAIN'] = (gain_avg, 'gain averaged over all cells')
+        hdu.header['GAIN_CNT'] = (numpy.sum(valid_gain), 'number of cells contrib. to avg. gain')
 
         # If we are to do some bias subtraction:
         if (not options['bias_dir'] == None):
