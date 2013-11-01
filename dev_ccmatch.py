@@ -194,56 +194,22 @@ def kd_match_catalogs(src_cat, ref_cat, matching_radius, max_count=1):
 
 
 
-
-if __name__ == "__main__":
-    verbose=False
-
-    # Load the source catalog file
-    src_catfile = sys.argv[1]
-    src_raw = numpy.loadtxt(src_catfile)
-    # eliminate all flagged stars
-    src_cat = src_raw[src_raw[:,7] == 0][:,0:2]
-
-    print "src_cat:",src_cat.shape
-
-    # 
-    # Create the reference catalog
-    #
-    ref_catfile = sys.argv[2]
-    ref_raw = numpy.loadtxt(ref_catfile)[:,0:2]
-    print "ref. cat (raw) =",ref_raw.shape
-
-
-    #
-    # Reduce the reference catalog to approx. the coverage of the source catalog
-    #
-    ref_cat = match_catalog_areas(src_cat, ref_raw, 4./60.)
-    print "area matched ref. catalog:", ref_cat.shape
-
-    #
-    # compute the center of the field
-    #
-    center_ra = numpy.median(src_cat[:,0])
-    center_dec = numpy.median(src_cat[:,1])
-    print "field center at ", center_ra, center_dec
-
-    #
-    # For testing purposes, rotate the field by a little
-    #
-    testing = True
-    if (testing):
-        angle = 7./60. # 10 arcmin
-        src_cat = rotate_shift_catalog(src_cat, (center_ra, center_dec), angle, [0.01, -0.005])
+def find_best_guess(src_cat, ref_cat,
+                    center_ra, center_dec,
+                    matching_radius=(1./60.),
+                    angle_max=2., #degrees
+                    d_angle=5 # arcmin
+                    ):
 
     # 
     # Now loop over all stars in the source catalog and find nearby stars in the reference catalog
     # Use a rather large matching radius for this step
     #
-    matching_radius = 1./60. # 1 arcmin
+    #matching_radius = 1./60. # 1 arcmin
     ref_tree = scipy.spatial.cKDTree(ref_cat)
 
-    angle_max = 2.
-    d_angle = 5.
+    #angle_max = 2.
+    #d_angle = 5.
     n_angles = int(math.ceil((2 * angle_max) / (d_angle / 60.))) + 1
 
     all_results = numpy.zeros(shape=(n_angles, 4))
@@ -289,10 +255,70 @@ if __name__ == "__main__":
     best_guess = all_results[idx_best_angle]
     print best_guess, "angle=",best_guess[0]*60.,"arcmin"
 
+
+    return best_guess
+
+
+if __name__ == "__main__":
+    verbose=False
+
+    # Load the source catalog file
+    src_catfile = sys.argv[1]
+    src_raw = numpy.loadtxt(src_catfile)
+    # eliminate all flagged stars
+    src_cat = src_raw[src_raw[:,7] == 0][:,0:2]
+
+    print "src_cat:",src_cat.shape
+
+    # 
+    # Create the reference catalog
+    #
+    ref_catfile = sys.argv[2]
+    ref_raw = numpy.loadtxt(ref_catfile)[:,0:2]
+    print "ref. cat (raw) =",ref_raw.shape
+
+
+    #
+    # Reduce the reference catalog to approx. the coverage of the source catalog
+    #
+    ref_cat = match_catalog_areas(src_cat, ref_raw, 4./60.)
+    print "area matched ref. catalog:", ref_cat.shape
+
+    #
+    # compute the center of the field
+    #
+    center_ra = numpy.median(src_cat[:,0])
+    center_dec = numpy.median(src_cat[:,1])
+    print "field center at ", center_ra, center_dec
+
+    #
+    # For testing purposes, rotate the field by a little
+    #
+    testing = True
+    if (testing):
+        angle = 7./60. # 10 arcmin
+        src_cat = rotate_shift_catalog(src_cat, (center_ra, center_dec), angle, [0.01, -0.005])
+
+    #
+    # Find 1st order best guess
+    #
+    # best_guess = find_best_guess(src_cat, ref_cat,
+    #                              center_ra, center_dec,
+    #                              matching_radius=(1./60.),
+    #                              angle_max=2., #degrees
+    #                              d_angle=5 # arcmin
+    #                              )
+    # print "\n\n\n\n\n found best guess:"
+    # print best_guess, "\n\n\n\n\n"
+    best_guess = [ -8.33333333e-02, 1.02000000e+02, -9.91732294e-03, 5.02854045e-03]
+
+    sys.exit(0)
+
     # 
     # With this best guess at hand, match each star in the source 
     # catalog to a closest match in the reference catalog
     # 
+
 
     print best_guess
     src_rotated = rotate_shift_catalog(src_cat, (center_ra, center_dec), 
@@ -302,6 +328,7 @@ if __name__ == "__main__":
     numpy.savetxt("ccmatch.roughalign", src_rotated)
 
     # Match up stars
+    ref_tree = scipy.spatial.cKDTree(ref_cat)
     src_tree = scipy.spatial.cKDTree(src_rotated)
     matching_radius = 3./3600.
 
@@ -347,7 +374,8 @@ if __name__ == "__main__":
     p_init = [best_guess[0], best_guess[2], best_guess[3]]
     print p_init
 
-    x_rotated = rotate_shift_catalog(src_cat, (center_ra, center_dec), angle=best_guess[0], shift=best_guess[2:4])
+    x_rotated = rotate_shift_catalog(src_cat, (center_ra, center_dec), 
+                                     angle=best_guess[0], shift=best_guess[2:4])
 
     def difference_source_reference_cat(p, src_cat, ref_cat, center, for_fitting=False):
         # (center_ra, center_dec), 
