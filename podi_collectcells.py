@@ -677,7 +677,7 @@ def create_association_table(master, verbose=False):
     short_filename = []
 
     for key, value in master.iteritems():
-        print key,":",value
+        # print key,":",value
         for filename in set(value):
             reduction_step.append(key)
             full_filename.append(os.path.abspath(filename))
