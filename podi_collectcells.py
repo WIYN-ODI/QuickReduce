@@ -126,7 +126,8 @@ def collect_reduce_ota(filename,
         ota_name = "OTA%02d" % ota
         extname = "OTA%02d.SCI" % ota
         hdu.update_ext_name(extname)
-        
+        hdu.header['OTA'] = (ota, "OTA designation")
+
         # Now copy the headers from the original file into the new one
         cards = hdulist[0].header.cards
         for (keyword, value, comment) in cards:
