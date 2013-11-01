@@ -345,6 +345,10 @@ def collect_reduce_ota(filename,
                     if (fppos_flatfield == fppos):
                         # This is the one
                         merged /= ff_ext.data
+
+                        # If normalizing with the flat-field, overwrite the gain
+                        # keyword with the average gain value of the flatfield.
+                        hdu.header['GAIN'] = flatfield[0].header['GAIN']
                         break
 
                 flatfield.close()
