@@ -144,7 +144,7 @@ def rotate_shift_catalog(src_cat, center, angle, shift=None, verbose = False):
     if (verbose): print "src_rotated=\n", src_rotated[:3]
 
     if (not shift == None):
-        print "applying shift", shift
+        if (verbose): print "applying shift", shift
         src_rotated += shift
 
     if (verbose): print "src-final=\n", src_rotated[:3],"\n\n\n"
@@ -156,8 +156,8 @@ def kd_match_catalogs(src_cat, ref_cat, matching_radius, max_count=1):
     src_tree = scipy.spatial.cKDTree(src_cat[:,0:2])
     ref_tree = scipy.spatial.cKDTree(ref_cat[:,0:2])
 
-    print src_cat[0:5]
-    print ref_cat[0:5]
+    # print src_cat[0:5]
+    # print ref_cat[0:5]
 
     # Create an array to hold the matched catalog
     output_cat = numpy.empty(shape=(src_cat.shape[0], src_cat.shape[1]+ref_cat.shape[1]))
@@ -165,7 +165,7 @@ def kd_match_catalogs(src_cat, ref_cat, matching_radius, max_count=1):
     n_src_columns = src_cat.shape[1]
     output_cat[:,0:n_src_columns] = src_cat
 
-    print output_cat[0:5]
+    # print output_cat[0:5]
 
     # also create an array holding for which sources we found a match
     match_found = numpy.zeros(shape=(src_cat.shape[0]))
@@ -173,7 +173,7 @@ def kd_match_catalogs(src_cat, ref_cat, matching_radius, max_count=1):
     # match the catalogs using a kD-tree
     match_indices = src_tree.query_ball_tree(ref_tree, matching_radius, p=2)
 
-    print src_tree.count_neighbors(ref_tree, matching_radius, p=2)
+    # print src_tree.count_neighbors(ref_tree, matching_radius, p=2)
 
     # Now loop over all matches and merge the found matches
     for cur_src in range(src_cat.shape[0]):
@@ -259,69 +259,17 @@ def find_best_guess(src_cat, ref_cat,
     return best_guess
 
 
-if __name__ == "__main__":
-    verbose=False
-
-    # Load the source catalog file
-    src_catfile = sys.argv[1]
-    src_raw = numpy.loadtxt(src_catfile)
-    # eliminate all flagged stars
-    src_cat = src_raw[src_raw[:,7] == 0][:,0:2]
-
-    print "src_cat:",src_cat.shape
-
-    # 
-    # Create the reference catalog
-    #
-    ref_catfile = sys.argv[2]
-    ref_raw = numpy.loadtxt(ref_catfile)[:,0:2]
-    print "ref. cat (raw) =",ref_raw.shape
 
 
-    #
-    # Reduce the reference catalog to approx. the coverage of the source catalog
-    #
-    ref_cat = match_catalog_areas(src_cat, ref_raw, 4./60.)
-    print "area matched ref. catalog:", ref_cat.shape
 
-    #
-    # compute the center of the field
-    #
-    center_ra = numpy.median(src_cat[:,0])
-    center_dec = numpy.median(src_cat[:,1])
-    print "field center at ", center_ra, center_dec
+def fit_best_rotation_shift(src_cat, ref_cat, 
+                            best_guess,
+                            center_ra, center_dec,
+                            matching_radius=(3./3600.)
+                            ):
 
-    #
-    # For testing purposes, rotate the field by a little
-    #
-    testing = True
-    if (testing):
-        angle = 7./60. # 10 arcmin
-        src_cat = rotate_shift_catalog(src_cat, (center_ra, center_dec), angle, [0.01, -0.005])
-
-    #
-    # Find 1st order best guess
-    #
-    # best_guess = find_best_guess(src_cat, ref_cat,
-    #                              center_ra, center_dec,
-    #                              matching_radius=(1./60.),
-    #                              angle_max=2., #degrees
-    #                              d_angle=5 # arcmin
-    #                              )
-    # print "\n\n\n\n\n found best guess:"
-    # print best_guess, "\n\n\n\n\n"
-    best_guess = [ -8.33333333e-02, 1.02000000e+02, -9.91732294e-03, 5.02854045e-03]
-
-    sys.exit(0)
-
-    # 
-    # With this best guess at hand, match each star in the source 
-    # catalog to a closest match in the reference catalog
-    # 
-
-
-    print best_guess
-    src_rotated = rotate_shift_catalog(src_cat, (center_ra, center_dec), 
+    src_rotated = rotate_shift_catalog(src_cat, 
+                                       (center_ra, center_dec), 
                                        angle=best_guess[0], 
                                        shift=best_guess[2:4])
 
@@ -330,7 +278,7 @@ if __name__ == "__main__":
     # Match up stars
     ref_tree = scipy.spatial.cKDTree(ref_cat)
     src_tree = scipy.spatial.cKDTree(src_rotated)
-    matching_radius = 3./3600.
+    # matching_radius = 3./3600.
 
     matched_src_ref_idx = src_tree.query_ball_tree(ref_tree, matching_radius, p=2)
 
@@ -338,6 +286,9 @@ if __name__ == "__main__":
     src_ref_pairs[:,0:2] = src_rotated[:,0:2]
     src_ref_pairs[:,2:4] = numpy.NaN
 
+    #
+    # Merge the two catalogs to make fitting easier
+    #
     for i in range(len(matched_src_ref_idx)):
         # Ignore all points with no or more than 1 closest match
         n_close_stars = len(matched_src_ref_idx[i])
@@ -410,32 +361,126 @@ if __name__ == "__main__":
     numpy.savetxt("ccmatch.r_mismatch", r_mismatch)
 
     center_radec = (center_ra, center_dec)
-    diff = difference_source_reference_cat(p_init, src_cat, src_ref_pairs[:,2:4], center_radec)
+    diff = difference_source_reference_cat(p_init, 
+                                           src_cat, # src-cat
+                                           src_ref_pairs[:,2:4],  # matched ref-cat 
+                                           center_radec)
     numpy.savetxt("ccmatch.diff", diff)
 
 
+    # 
+    # Eliminate all source stars without nearby/unique 
+    # match in the reference catalog
+    #
 
     valid_matches = numpy.isfinite(src_ref_pairs[:,2])
     matched_src = src_cat[valid_matches]
     matched_ref = src_ref_pairs[:,2:4][valid_matches]
 
-    diff2 = difference_source_reference_cat(p_init, matched_src, matched_ref, center_radec, for_fitting=False)
-    numpy.savetxt("ccmatch.diff2", diff2)
+    # diff2 = difference_source_reference_cat(p_init, 
+    #                                         matched_src, 
+    #                                         matched_ref, 
+    #                                         center_radec, 
+    #                                         for_fitting=False)
+    # numpy.savetxt("ccmatch.diff2", diff2)
 
     args = (matched_src, matched_ref, center_radec, True)
-    fit = scipy.optimize.leastsq(difference_source_reference_cat, p_init, args=args, full_output=1)
+    fit = scipy.optimize.leastsq(difference_source_reference_cat, 
+                                 p_init, 
+                                 args=args, 
+                                 full_output=1)
 
-    print "\n\nbefore/after fit"
-    print p_init
-    print fit[0]
-    # Compute uncertainty on the shift and rotation
-    uncert = numpy.sqrt(numpy.diag(fit[1]))
-    print uncert
-    best_shift_rotation_solution = fit[0]
+    best_fit = fit[0]
+
+    # print "\n\nbefore/after fit"
+    # print p_init
+    # print fit[0]
+    # # Compute uncertainty on the shift and rotation
+    # uncert = numpy.sqrt(numpy.diag(fit[1]))
+    # print uncert
+    # best_shift_rotation_solution = fit[0]
 
 
-    diff_afterfit = difference_source_reference_cat(fit[0], matched_src, matched_ref, center_radec, for_fitting=False)
-    numpy.savetxt("ccmatch.diff_afterfit", diff_afterfit)
+    # diff_afterfit = difference_source_reference_cat(fit[0], 
+    # matched_src, matched_ref, center_radec, for_fitting=False)
+    # numpy.savetxt("ccmatch.diff_afterfit", diff_afterfit)
+
+    return best_fit
+
+
+
+
+if __name__ == "__main__":
+    verbose=False
+
+    # Load the source catalog file
+    src_catfile = sys.argv[1]
+    src_raw = numpy.loadtxt(src_catfile)
+
+    #
+    # For testing purposes, rotate the field by a little
+    #
+    testing = True
+    if (testing):
+        angle = 7./60. # 10 arcmin
+        center_ra = numpy.median(src_raw[:,0])
+        center_dec = numpy.median(src_raw[:,1])
+        src_xxx = rotate_shift_catalog(src_raw[:,0:2], (center_ra, center_dec), angle, [0.01, -0.005])
+        src_raw[:,0:2] = src_xxx
+
+    # eliminate all flagged stars
+    src_cat = src_raw[src_raw[:,7] == 0][:,0:2]
+
+    print "src_cat:",src_cat.shape
+
+    # 
+    # Create the reference catalog
+    #
+    ref_catfile = sys.argv[2]
+    ref_raw = numpy.loadtxt(ref_catfile)[:,0:2]
+    print "ref. cat (raw) =",ref_raw.shape
+
+
+    #
+    # Reduce the reference catalog to approx. the coverage of the source catalog
+    #
+    ref_cat = match_catalog_areas(src_cat, ref_raw, 4./60.)
+    print "area matched ref. catalog:", ref_cat.shape
+
+    #
+    # compute the center of the field
+    #
+    center_ra = numpy.median(src_cat[:,0])
+    center_dec = numpy.median(src_cat[:,1])
+    print "field center at ", center_ra, center_dec
+
+    #
+    # Find 1st order best guess
+    #
+    # best_guess = find_best_guess(src_cat, ref_cat,
+    #                              center_ra, center_dec,
+    #                              matching_radius=(1./60.),
+    #                              angle_max=2., #degrees
+    #                              d_angle=5 # arcmin
+    #                              )
+    # print "\n\n\n\n\n found best guess:"
+    # print best_guess, "\n\n\n\n\n"
+    best_guess = [ -8.33333333e-02, 1.02000000e+02, -9.91732294e-03, 5.02854045e-03]
+    # print best_guess
+    print "\n\n\n\n\nbest guess:\n",best_guess,"\n\n\n\n\n"
+
+    # 
+    # With this best guess at hand, match each star in the source 
+    # catalog to a closest match in the reference catalog
+    # 
+
+    best_shift_rotation_solution = fit_best_rotation_shift(
+        src_cat, ref_cat, best_guess,
+        center_ra, center_dec
+        )
+    
+    print "\n\n\n\n\nresulting fit solution:\n",best_shift_rotation_solution,"\n\n\n\n\n"
+
 
     # 
     # Now we have the best fitting rotation and shift position.
@@ -451,13 +496,18 @@ if __name__ == "__main__":
     hdulist = pyfits.open(inputframe)
     hdulist.info()
 
+    
     # Apply the best-fit rotation to all coordinates in source catalog
+    # src_raw = numpy.loadtxt(src_catfile)
     full_src_cat = src_raw.copy()
     numpy.savetxt("ccmatch.opt_src", full_src_cat)
+    
     src_rotated = rotate_shift_catalog(full_src_cat[:,0:2], (center_ra, center_dec), 
                                        angle=best_shift_rotation_solution[0], 
                                        shift=best_shift_rotation_solution[1:3],
                                        verbose=True)
+
+
     numpy.savetxt("ccmatch.opt_rot", src_rotated)
     full_src_cat[:,0:2] = src_rotated[:,0:2]
     # Now we have the full source catalog, with better matching star coordinates
@@ -473,8 +523,10 @@ if __name__ == "__main__":
     numpy.savetxt("ccmatch.opt_diff", diff)
     numpy.savetxt("ccmatch.opt_diff2", diff2)
 
+    #
     # Next we can do the actual coordinate matching between the source and 
     # reference star catalog
+    #
     matched_catalog = kd_match_catalogs(valid_src_cat, ref_cat, matching_radius=(2./3600))
 
     print matched_catalog[:,8]
@@ -491,8 +543,8 @@ if __name__ == "__main__":
         # sources from this OTA
         in_this_ota = (matched_catalog[:,8] == ota)
         print numpy.sum(in_this_ota)
-        print in_this_ota
-        print matched_catalog[:,8]
+        # print in_this_ota
+        # print matched_catalog[:,8]
 
         ota_cat = matched_catalog[in_this_ota]
 
@@ -502,12 +554,3 @@ if __name__ == "__main__":
 
     sys.exit(0)
 
-    args = ( matched_src, matched_ref, (center_ra, center_dec) )
-    fit = scipy.optimize.leastsq(optimize_rotation_angle, p_init, args=args, full_output=1)
-    
-    print fit[0]
-
-    d_r = optimize_rotation_angle(fit[0], matched_src, matched_ref, (center_ra, center_dec))
-    numpy.savetxt("ccmatch.d_r_afterfit", d_r)
-    d_r = optimize_rotation_angle(p_init, matched_src, matched_ref, (center_ra, center_dec))
-    numpy.savetxt("ccmatch.d_r_beforefit", d_r)
