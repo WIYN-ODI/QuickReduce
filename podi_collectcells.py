@@ -895,7 +895,7 @@ def collectcells(input, outputfile,
     # And add the primary HDU to make the fits file a valid one
     ota_list[0] = pyfits.PrimaryHDU()
     ota_list[0].header["PLVER"] = (pipeline_plver, "name and version")
-    ota_list[0].header["PLNAME"] = (pipeline_name, "pipeline name")
+    ota_list[0].header["PIPELINE"] = (pipeline_name, "pipeline name")
     ota_list[0].header["PLVERSIO"] = (pipeline_version, "pipeline version")
     ota_list[0].header["PLAUTHOR"] = ("Ralf Kotulla", "pipeline author")
     ota_list[0].header["PLEMAIL"] = ("kotulla@uwm.edu", "contact email")
