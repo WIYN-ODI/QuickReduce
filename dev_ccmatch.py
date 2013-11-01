@@ -14,6 +14,7 @@ import itertools
 
 from  podi_definitions import *
 import podi_search_ipprefcat
+from podi_wcs import *
 
 def count_matches(src_cat, ref_cat, matching_radius=(1./60.), fine_radius=(2./3600.)):
 
@@ -538,7 +539,7 @@ if __name__ == "__main__":
         ota_extension = hdulist[ext]
         # print ota_extension.header['FPPOS'], ota_extension.header['FPPOS'][2:4]
         ota = int(ota_extension.header['FPPOS'][2:4])
-        print "working on OTA %02d ..." %(ota)
+        print "\n\n\nworking on OTA %02d ..." %(ota)
 
         # sources from this OTA
         in_this_ota = (matched_catalog[:,8] == ota)
@@ -550,6 +551,20 @@ if __name__ == "__main__":
 
         print "sources in ota %d = %s ..." % (ota, str(ota_cat.shape))
 
+        wcs_poly = header_to_polynomial(ota_extension.header)
+        xi, xi_r, eta, eta_r, cd, crval, crpix = wcs_poly
+        numpy.savetxt(sys.stdout, xi, "%9.2e")
+        numpy.savetxt(sys.stdout, xi_r, "%9.2e")
+
+        wcs_poly = update_polynomial(wcs_poly, 
+                                     numpy.array([1.11, 2.22, 3.33, 4.44]), 
+                                     numpy.array([1.11, 2.22, 3.33, 4.44]), 
+                                     )
+
+        xi, xi_r, eta, eta_r, cd, crval, crpix = wcs_poly
+        print
+        numpy.savetxt(sys.stdout, xi, "%9.2e")
+        numpy.savetxt(sys.stdout, xi_r, "%9.2e")
         
 
     sys.exit(0)
