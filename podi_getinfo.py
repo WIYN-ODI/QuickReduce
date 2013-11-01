@@ -1,4 +1,4 @@
-#!/usr/local/bin/python
+#!/usr/bin/env python
 #
 # Copyright 2012-2013 Ralf Kotulla
 #                     kotulla@uwm.edu
