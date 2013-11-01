@@ -112,22 +112,22 @@ broken_ota_cells = {
 all_otas = [00, 16, 22, 23, 24, 32, 33, 34, 42, 43, 44, 55, 61]
 central_3x3 = [22, 23,24, 32, 33, 34, 42, 43, 44]
 central_2x2 = [22,23,32,33]
-
+non_vignetted = [16, 22, 23, 24, 32, 33, 34, 42, 43, 44, 55, 61]
 
 #
 # Enter here the OTAs with full coverage in each of the filters. These OTAs
 # will then be used to compute the median illumination level to correct/normalize the flat-fields
 #
-otas_to_normalize_ff = {"odi_g": [22,23,24,32,42],
-                        "odi_r": all_otas,
-                        "odi_i": all_otas,
-                        "odi_z": all_otas,
+otas_to_normalize_ff = {"odi_g": non_vignetted,
+                        "odi_r": non_vignetted,
+                        "odi_i": non_vignetted,
+                        "odi_z": non_vignetted,
                         "CTIO_Ha": central_2x2,
                         "sdss_u": central_2x2,
                         "CTIO_OIII": central_2x2,
                         "BATC_420": central_2x2,
                         "BATC_390": central_2x2,
-                        "OPEN": all_otas,
+                        "OPEN": non_vignetted,
                         "mosaic_u": central_2x2,
                         "s2_SII": central_2x2,
                         "823_v2": central_2x2,
