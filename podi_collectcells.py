@@ -1025,7 +1025,7 @@ def collectcells(input, outputfile,
             # print "\n\n\n\n\nfiles_this_frame=\n\n",files_this_frame,"\n\n\n"
             collect_reduction_files_used(master_reduction_files_used, files_this_frame)
 
-        global_gain_sum += hdu.header['GAIN']
+        global_gain_sum += (hdu.header['GAIN'] * hdu.header['GAIN_CNT'])
         global_gain_count += hdu.header['GAIN_CNT']
 
         #if ("persistency_map_updated" in data_products):
