@@ -1008,6 +1008,7 @@ def collectcells(input, outputfile,
     sky_samples = {}
     fringe_scaling = None
     global_source_cat = None
+    global_gain_sum, global_gain_count = 0, 0
     for i in range(len(list_of_otas_being_reduced)):
         #hdu, ota_id, wcsfix_data = return_queue.get()
         ota_id, data_products = return_queue.get()
@@ -1019,6 +1020,9 @@ def collectcells(input, outputfile,
             files_this_frame = data_products['reduction_files_used']
             # print "\n\n\n\n\nfiles_this_frame=\n\n",files_this_frame,"\n\n\n"
             collect_reduction_files_used(master_reduction_files_used, files_this_frame)
+
+        global_gain_sum += hdu['GAIN']
+        global_gain_count += hdu['GAIN_CNT']
 
         #if ("persistency_map_updated" in data_products):
         #    # We also received an updated persistency map
@@ -1081,6 +1085,12 @@ def collectcells(input, outputfile,
 
         if (not data_products['sourcecat'] == None):
             global_source_cat = data_products['sourcecat'] if (global_source_cat == None) else numpy.append(global_source_cat, data_products['sourcecat'], axis=0)
+
+    #
+    # Update the global gain variables
+    #
+    ota_list[0].header['GAIN'] = (global_gain_sum / global_gain_count)
+    ota_list[0].header['GAIN_CNT'] = global_gain_count
 
     if (options['fixwcs'] and not options['update_persistency_only']):
         x = open("fixwcs.nmatches","w")
