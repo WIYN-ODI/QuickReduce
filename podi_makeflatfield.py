@@ -44,6 +44,10 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
     flatfield_data = numpy.zeros(shape=(13*4096*4096/(binning_x*binning_y)), dtype=numpy.float32)
     flatfield_data[:] = numpy.NaN
 
+    # also prepare to store the global gain value
+    gain_sum = 0
+    gain_count = 0
+
     datapos = 0
     for extension in range(1, len(hdulist)): #hdulist[1:]:
         if (not is_image_extension(hdulist[extension])):
@@ -61,7 +65,13 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
             continue
 
         hdulist[extension].header.update("FF_NORM", True, "Used in normalization")
+
+        gain_ota = hdulist[extension].header['GAIN']
+        gain_ota_count = hdulist[extension].header['GAIN_CNT']
         
+        gain_sum += gain_ota * gain_ota_count
+        gain_count += gain_ota_count
+
         # We now know that we should include this OTA in the
         # calculation of the flat-field normalization
         stdout_write("\rAdding OTA %02d to flat-field ..." % fppos)
@@ -114,6 +124,13 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
         hdulist[extension].data[hdulist[extension].data < 0.1] = numpy.NaN
         hdulist[extension].header.add_history("FF-level: %.1f" % (ff_median_level))
         
+    #
+    # compute the global gain value and store it in primary header
+    # 
+    global_gain = gain_sum / gain_count
+    hdulist[0].header['GAIN'] = global_gain
+    hdulist[0].header['GAIN_CNT'] = gain_count
+
     stdout_write(" writing results ...")
     if (os.path.isfile(outputfile)):
 	os.remove(outputfile)
