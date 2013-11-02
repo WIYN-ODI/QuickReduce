@@ -102,7 +102,7 @@ def count_matches(src_cat, ref_cat, matching_radius=(1./60.), fine_radius=(2./36
     print "best offset", best_offset
     print "matching in",search_weights[max_coincidence_count],"fields"
 
-    numpy.savetxt("ccmatch.offsetcount.%d" % int(round((angle*60),0)), search_weights)
+    # numpy.savetxt("ccmatch.offsetcount.%d" % int(round((angle*60),0)), search_weights)
 
     return search_weights[max_coincidence_count,0], best_offset
 
@@ -421,7 +421,7 @@ if __name__ == "__main__":
     #
     # For testing purposes, rotate the field by a little
     #
-    testing = True
+    testing = False
     if (testing):
         angle = 7./60. # 10 arcmin
         center_ra = numpy.median(src_raw[:,0])
@@ -458,15 +458,17 @@ if __name__ == "__main__":
     #
     # Find 1st order best guess
     #
-    # best_guess = find_best_guess(src_cat, ref_cat,
-    #                              center_ra, center_dec,
-    #                              matching_radius=(1./60.),
-    #                              angle_max=2., #degrees
-    #                              d_angle=5 # arcmin
-    #                              )
-    # print "\n\n\n\n\n found best guess:"
-    # print best_guess, "\n\n\n\n\n"
-    best_guess = [ -8.33333333e-02, 1.02000000e+02, -9.91732294e-03, 5.02854045e-03]
+    if (not testing):
+        best_guess = find_best_guess(src_cat, ref_cat,
+                                     center_ra, center_dec,
+                                     matching_radius=(1./60.),
+                                     angle_max=2., #degrees
+                                     d_angle=5 # arcmin
+                                     )
+        print "\n\n\n\n\n found best guess:"
+        print best_guess, "\n\n\n\n\n"
+    else:
+        best_guess = [ -8.33333333e-02, 1.02000000e+02, -9.91732294e-03, 5.02854045e-03]
     # print best_guess
     print "\n\n\n\n\nbest guess:\n",best_guess,"\n\n\n\n\n"
 
@@ -530,7 +532,7 @@ if __name__ == "__main__":
     #
     matched_catalog = kd_match_catalogs(valid_src_cat, ref_cat, matching_radius=(2./3600))
 
-    print matched_catalog[:,8]
+    print "OTAs of each source:\n",matched_catalog[:,8]
 
     for ext in range(len(hdulist)):
         if (not is_image_extension(hdulist[ext])):
@@ -548,24 +550,93 @@ if __name__ == "__main__":
         # print matched_catalog[:,8]
 
         ota_cat = matched_catalog[in_this_ota]
+        ota_ref = matched_catalog[in_this_ota][:,-2:] #31:33]
 
         print "sources in ota %d = %s ..." % (ota, str(ota_cat.shape))
 
         wcs_poly = header_to_polynomial(ota_extension.header)
         xi, xi_r, eta, eta_r, cd, crval, crpix = wcs_poly
-        numpy.savetxt(sys.stdout, xi, "%9.2e")
-        numpy.savetxt(sys.stdout, xi_r, "%9.2e")
+        #numpy.savetxt(sys.stdout, xi, "%9.2e")
+        #numpy.savetxt(sys.stdout, xi_r, "%9.2e")
 
-        wcs_poly = update_polynomial(wcs_poly, 
-                                     numpy.array([1.11, 2.22, 3.33, 4.44]), 
-                                     numpy.array([1.11, 2.22, 3.33, 4.44]), 
-                                     )
+        # wcs_poly = update_polynomial(wcs_poly, 
+        #                              numpy.array([1.11, 2.22, 3.33, 4.44]), 
+        #                              numpy.array([1.11, 2.22, 3.33, 4.44]), 
+        #                              )
+
+        # Read starting values from current WCS solution
+        wcs_poly_to_arrays(wcs_poly)
+
+        wcs_poly = wcs_apply_rotation(wcs_poly, best_shift_rotation_solution[0])
+        wcs_poly = wcs_apply_shift(wcs_poly, best_shift_rotation_solution[1:3])
+
+        #
+        # Now with the updated header, compute ra,dec from x,y
+        #
+        ra_dec = wcs_pix2wcs(ota_cat[:,2:4], wcs_poly)
+
+        numpy.savetxt("ccmatch.true_radec", ota_cat[:,0:2])
+        numpy.savetxt("ccmatch.computed_radec", ra_dec)
 
         xi, xi_r, eta, eta_r, cd, crval, crpix = wcs_poly
         print
-        numpy.savetxt(sys.stdout, xi, "%9.2e")
-        numpy.savetxt(sys.stdout, xi_r, "%9.2e")
+        #numpy.savetxt(sys.stdout, xi, "%9.2e")
+        #numpy.savetxt(sys.stdout, xi_r, "%9.2e")
         
+        def optimize_distortion(p, input_xy, input_ref, wcs_poly, fit=True):
+            n_params = p.shape[0] / 2
+            p_xi = p[:n_params]
+            p_eta = p[-n_params:]
+            print p_xi,p_eta
+            
+            wcs_poly_for_fit = update_polynomial(wcs_poly, p_xi, p_eta)
+
+            ra_dec_computed = wcs_pix2wcs(input_xy, wcs_poly_for_fit)
+            diff = input_ref - ra_dec_computed
+            if (not fit):
+                return diff
+            return diff.ravel()
+
+        #
+        # Determine initial guesses from the current wcs distortion
+        #
+        xi_1d, eta_1d = wcs_poly_to_arrays(wcs_poly)
+
+        # For now, let's optimize only the first 4 factors
+        n_free_parameters = 4 # or 7 or 12 or 17 or 24
+        p_init = numpy.append(xi_1d[:n_free_parameters], eta_1d[:n_free_parameters])
+        print p_init
+
+        print "ota-cat=\n",ota_cat[:,2:4]
+        print "ota-ref=\n",ota_ref
+
+        diff = optimize_distortion(p_init, ota_cat[:,2:4], ota_ref, wcs_poly, fit=False)
+        numpy.savetxt("ccmatch.optimize_distortion_before_OTA%02d" % (ota), diff)
+
+        print "\n\n\n\n\n\n\nStarting fitting\n\n\n\n\n"
+        args = (ota_cat[:,2:4], ota_ref, wcs_poly, True)
+        fit = scipy.optimize.leastsq(optimize_distortion, 
+                                     p_init, 
+                                     args=args, 
+                                     full_output=1)
+
+        print "\n\n\n\n\n\n\nDone with fitting\n\n\n\n\n"
+        print p_init
+        print fit[0]
+        
+        p_afterfit = fit[0]
+
+        diff_after = optimize_distortion(fit[0], ota_cat[:,2:4], ota_ref, wcs_poly, fit=False)
+        numpy.savetxt("ccmatch.optimize_distortion_after_OTA%02d" % (ota), diff_after)
+        
+        wcs_poly_after_fit = update_polynomial(wcs_poly, 
+                                               p_afterfit[:n_free_parameters],
+                                               p_afterfit[-n_free_parameters:]
+                                               )
+        wcs_wcspoly_to_header(wcs_poly_after_fit, ota_extension.header)
+
+    print "writing results ..."
+    hdulist.writeto("wcs_fitting_test.fits", clobber=True)
 
     sys.exit(0)
 
