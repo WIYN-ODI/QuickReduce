@@ -1323,16 +1323,18 @@ def collectcells(input, outputfile,
         source_cat_radec[:,1] = fixwcs_odi_dec[:] #numpy.append(fixwcs_ref_ra.reshape(, fixwcs_ref_dec, axis=1)
         twomass_cat_matched = match_catalog_areas(source_cat_radec, twomass_cat_full, (5./60.))
 
-        print twomass_cat_matched.shape
-        print source_cat_radec.shape
+        # print twomass_cat_matched.shape
+        # print source_cat_radec.shape
 
-        xxx = open("wcs", "w")
-        numpy.savetxt(xxx, source_cat_radec)
-        print >>xxx, "\n\n\n\n\n\n"
-        numpy.savetxt(xxx, twomass_cat_matched)
-        print >>xxx, "\n\n\n\n\n\n"
-        numpy.savetxt(xxx, twomass_cat_full)
-        xxx.close()
+        numpy.savetxt(outputfile+".src.raw", global_source_cat)
+
+        #xxx = open("wcs", "w")
+        #numpy.savetxt(xxx, source_cat_radec)
+        #print >>xxx, "\n\n\n\n\n\n"
+        #numpy.savetxt(xxx, twomass_cat_matched)
+        #print >>xxx, "\n\n\n\n\n\n"
+        #numpy.savetxt(xxx, twomass_cat_full)
+        #xxx.close()
         
         fixrot_trans = podi_fixwcs_rotation.improve_match_and_rotation(
             twomass_cat_matched[:,0], twomass_cat_matched[:,1], 
