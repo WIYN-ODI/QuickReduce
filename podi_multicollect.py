@@ -52,7 +52,7 @@ if __name__ == "__main__":
     output_directory = cmdline_arg_set_or_default("-output", None)
     if (output_directory != None):
         if (not os.path.isdir(output_directory)):
-            os.mkdir(output_directory)
+            os.makedirs(output_directory)
     
     if (cmdline_arg_isset("-fromfile")):
         filename = get_cmdline_arg("-fromfile")

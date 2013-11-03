@@ -865,7 +865,7 @@ def collectcells(input, outputfile,
         if (not os.path.isdir(chk_directory)):
             # if the directory doesn't exist ey, create it
             stdout_write("Output directory does not exist, creating it...\n")
-            os.mkdir(chk_directory)
+            os.makedirs(chk_directory)
             changed_outputfilename = True
     if (chk_filename == ''):
         # This happens if the output is just a directory
