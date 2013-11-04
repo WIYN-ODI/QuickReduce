@@ -784,6 +784,8 @@ def collectcells(input, outputfile,
 
         # Split the input filename to extract the directory part
         directory, dummy = os.path.split(input)
+        if (directory == None or directory == ''):
+            directory = "."
 
     elif (os.path.isdir(input)):
         # As a safety precaution, if the first parameter is the directory containing 
