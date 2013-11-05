@@ -43,6 +43,8 @@ if (cmdline_arg_isset("-ncpus")):
 scratch_dir = "/tmp/"
 
 sextractor = "/usr/bin/sex"
+sex_redirect = " >& /dev/null"
+sex_delete_tmps = True
 
 
 if __name__ == "__main__":
