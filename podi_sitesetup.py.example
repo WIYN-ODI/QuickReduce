@@ -42,6 +42,9 @@ if (cmdline_arg_isset("-ncpus")):
 
 scratch_dir = "/tmp/"
 
+sextractor = "/usr/bin/sex"
+
+
 if __name__ == "__main__":
     print "This file defines some site properties, mostly paths."
     print "Feel free to edit it to adapt directories to your site"
