@@ -37,6 +37,10 @@ import Queue
 from podi_definitions import *
 import podi_sitesetup as sitesetup
 
+try:
+    import cPickle as pickle
+except:
+    import pickle
 
 
 if (sitesetup.number_cpus == "auto"):
@@ -381,17 +385,33 @@ def load_saturation_table_list(indexfile, mjd_catalog_list):
         return mjd_catalog_list
 
     # Open the file, read its content, and add to the existing filelist
-    with open(indexfile, "r") as fh:
-        lines = fh.readlines()
-        for line in lines:
-            items = line.strip().split("-->")
-            abs_filename = items[0].strip()
-            mjd = float(items[1].strip())
-            #print items,"-->", abs_filename, mjd
-            
-            # only add the file to the catalog if it exists
-            if (os.path.isfile(abs_filename)):
-                mjd_catalog_list[abs_filename] = mjd
+    pickled_file = indexfile+".pickle"
+    mdj_catalog_list = None
+    if (os.path.isfile(pickled_file)):
+        with open(pickled_file, "rb") as pickle_dict:
+            # print "Reading pickled file..."
+            mjd_ctalog_list = pickle.load(pickle_dict)
+        pass
+
+    if (mjd_catalog_list == None):
+        # This means we couldn't find or read the pickled catalog
+        # in that case, read the regular ascii index file
+        with open(indexfile, "r") as fh:
+            lines = fh.readlines()
+            for line in lines:
+                items = line.strip().split("-->")
+                try:
+                    abs_filename = items[0].strip()
+                    mjd = float(items[1].strip())
+                    #print items,"-->", abs_filename, mjd
+
+                    # only add the file to the catalog if it exists
+                    if (os.path.isfile(abs_filename)):
+                        mjd_catalog_list[abs_filename] = mjd
+                except:
+                    print "@@@@@ ERROR in podi_persistency:"
+                    print "@@@@@ Problem reading line:"
+                    print "@@@@@",line
 
     #print "read from file:\n",mjd_catalog_list,"\n\n"
     return mjd_catalog_list
@@ -410,6 +430,12 @@ def save_saturation_table_list(filename, mjd_catalog_list):
         for catfile, mjd in mjd_catalog_list.iteritems():
             print >>fh, '%s --> %.12f' % (catfile, mjd)
         fh.close()
+
+    pickled_cat = filename+".pickle"
+    with open(pickled_cat, "wb") as pf:
+        pickle.dump(mjd_catalog_list, pf)
+        pf.close()
+
     return
 
 def get_list_of_saturation_tables(directory, mjd_catalog_list=None): 
