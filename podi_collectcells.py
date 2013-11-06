@@ -374,10 +374,12 @@ def collect_reduce_ota(filename,
 
             # Get a list of all saturation catalogs
             full_filelist = podi_persistency.get_list_of_saturation_tables(options['persistency_dir'])
-            #print full_filelist
+            # print full_filelist
 
             # Search for the saturation map for this frame and, if found,
             # mask out all saturated pixels
+            #if (verbose): 
+            print "MJD of this frame:", mjd
             saturated_thisframe = podi_persistency.select_from_saturation_tables(full_filelist, mjd, None)
             reduction_files_used['saturation'] = saturated_thisframe
             #print "this frame=",saturated_thisframe,mjd
@@ -682,6 +684,9 @@ def create_association_table(master, verbose=False):
         # print key,":",value
         for filename in set(value):
             reduction_step.append(key)
+            print key, "-->",filename
+            if (filename == None):
+                continue
             full_filename.append(os.path.abspath(filename))
             
             dirname, filebase = os.path.split(filename)
