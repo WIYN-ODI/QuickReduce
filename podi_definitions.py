@@ -134,6 +134,7 @@ otas_to_normalize_ff = {"odi_g": non_vignetted,
                         "918R_v1": central_2x2,
                         "Us_solid": central_2x2,
                         "unknown": central_2x2,
+                        "windowGlass": all_otas,
                         }	
 
 #
