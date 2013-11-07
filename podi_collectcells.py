@@ -540,7 +540,7 @@ def collect_reduce_ota(filename,
         if (options['fixwcs']):
             # Create source catalog
             
-            if (hdu.header['CELLMODE'].find("V") > -1):
+            if (options['skip_guide_ota'] and hdu.header['CELLMODE'].find("V") > -1):
                 source_cat = None
             elif (False):
                 source_cat = podi_findstars.find_stars(hdu, binning=4, boxsize=24, dumpfile=None, verbose=False,
@@ -954,7 +954,7 @@ def collectcells(input, outputfile,
 
     # Create all processes to handle the actual reduction and combination
     #print "Creating",number_cpus,"worker processes"
-    if ('profile' in options and number_cpus == 1):
+    if ('profile' in options or number_cpus == 1):
         # 
         # If profiling is activated, run one only one processor and in non-multiprocessing mode
         #
@@ -1326,7 +1326,9 @@ def collectcells(input, outputfile,
             numpy.savetxt("numsave.wcs_shift_refinement.txt", wcs_shift_refinement)
 
         # Create a new 2MASS reference catalog overlapping the ODI source catalog
-        twomass_cat_full = podi_search_ipprefcat.get_reference_catalog(ra, declination, 0.7, sitesetup.wcs_ref_dir)
+        twomass_cat_full = podi_search_ipprefcat.get_reference_catalog(ra, declination, 0.7, 
+                                                                       basedir=sitesetup.wcs_ref_dir,
+                                                                       cattype=sitesetup.wcs_ref_type)
         source_cat_radec = numpy.empty(shape=(fixwcs_odi_ra.shape[0],2)) #
         source_cat_radec[:,0] = fixwcs_odi_ra[:]
         source_cat_radec[:,1] = fixwcs_odi_dec[:] #numpy.append(fixwcs_ref_ra.reshape(, fixwcs_ref_dec, axis=1)
@@ -1746,6 +1748,8 @@ def set_default_options(options_in=None):
     options['structure_qa_subdirs'] = False
     options['structure_qa_subdir_name'] = "QA"
     options['create_qaplots'] = True
+
+    options['skip_guide_ota'] = False
 
     return options
 
