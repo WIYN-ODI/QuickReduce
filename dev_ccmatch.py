@@ -16,7 +16,7 @@ from  podi_definitions import *
 import podi_search_ipprefcat
 from podi_wcs import *
 
-max_pointing_error = 3.
+max_pointing_error = 2.
 
 def count_matches(src_cat, ref_cat, 
                   matching_radius=(max_pointing_error/60.), 
@@ -110,8 +110,7 @@ def count_matches(src_cat, ref_cat,
     max_coincidence_count = numpy.argmax(search_weights[:,0])
 
     best_offset = all_offsets[max_coincidence_count,:]
-    print "best offset", best_offset
-    print "matching in",search_weights[max_coincidence_count],"fields"
+    print "best offset", best_offset, "matching in",search_weights[max_coincidence_count][0],"fields"
 
     if (not debugangle == None):
         numpy.savetxt("ccmatch.offsetcount.%d" % int(round((debugangle*60),0)), search_weights)
@@ -131,8 +130,8 @@ def rotate_shift_catalog(src_cat, center, angle, shift=None, verbose = False):
     center_ra, center_dec = center
     # print center_ra, center_dec
 
-    src_rotated = numpy.zeros_like(src_cat)
-    src_rel_to_center = src_cat - [center_ra, center_dec] 
+    src_rotated = numpy.zeros(shape=(src_cat.shape[0],2))
+    src_rel_to_center = src_cat[:,0:2] - [center_ra, center_dec] 
     if (not shift == None):
         src_rel_to_center += shift
 
@@ -163,15 +162,18 @@ def rotate_shift_catalog(src_cat, center, angle, shift=None, verbose = False):
         + math.cos(angle_rad) * src_rel_to_center[:,1] \
         + center_dec
     
-    if (verbose): print "src_rotated=\n", src_rotated[:3]
+    if (verbose): print "src_rotated=\n", src_rotated[:3,0:2]
 
 #    if (not shift == None):
 #        if (verbose): print "applying shift", shift
 #        src_rotated += shift
 
     if (verbose): print "src-final=\n", src_rotated[:3],"\n\n\n"
-        
-    return src_rotated
+
+    src_output = src_cat.copy()
+    src_output[:,0:2] = src_rotated[:,0:2]
+
+    return src_output
 
 def kd_match_catalogs(src_cat, ref_cat, matching_radius, max_count=1):
 
@@ -261,6 +263,7 @@ def find_best_guess(src_cat, ref_cat,
         #     +  math.cos(angle_rad) * src_rel_to_center[:,1] \
         #     + center_dec
 
+        print "Angle:",angle*60.," --> ",
         n_matches, offset = count_matches(src_rotated, ref_cat, matching_radius, 
                                           fine_radius=fine_radius,
                                           debugangle=angle)
@@ -423,6 +426,127 @@ def fit_best_rotation_shift(src_cat, ref_cat,
 
 
 
+def optimize_shift_rotation(p, guessed_match, hdulist, fitting=True):
+
+    diff = numpy.zeros(shape=(guessed_match.shape[0],2))
+
+    n_start = 0
+
+    for ext in range(3): #len(hdulist)):
+        if (not is_image_extension(hdulist[ext])):
+            continue
+
+        ota_extension = hdulist[ext]
+        ota = int(ota_extension.header['FPPOS'][2:4])
+        
+        # sources from this OTA
+        in_this_ota = (guessed_match[:,8] == ota)
+        number_src_in_this_ota = numpy.sum(in_this_ota)
+        # print number_src_in_this_ota
+        if (number_src_in_this_ota <= 0):
+            continue
+
+        ota_cat = guessed_match[in_this_ota]
+
+        # Read the WCS imformation from the fits file
+        wcs_poly = header_to_polynomial(ota_extension.header)
+
+        # And apply the current shift and rotation values
+        wcs_poly = wcs_apply_rotation(wcs_poly, p[0])
+        wcs_poly = wcs_apply_shift(wcs_poly, p[1:3])
+
+        # hdr = ota_extension.header.copy()
+        # wcs_wcspoly_to_header(wcs_poly, hdr)
+        # hdr['CTYPE1'] = 'RA---TPN'
+        # hdr['CTYPE2'] = 'DEC--TPN'
+        # wcs = astWCS.WCS(hdr, mode='pyfits')
+        # ra_dec = numpy.array(wcs.pix2wcs(ota_cat[:,2], ota_cat[:,3]))
+        # print ra_dec.shape, number_src_in_this_ota
+
+        # Extract only the stars in this OTA - 
+        # only for these is the WCS solution applicable
+        ota_cat = guessed_match[in_this_ota]
+
+        # Convert pixel coordinates into Ra/Dec
+        ra_dec = wcs_pix2wcs(ota_cat[:,2:4], wcs_poly, False)
+
+
+        
+        # And compute the offset between ODI and reference catalog
+        ota_diff = ra_dec - ota_cat[:,0:2] #ota_cat[:,-2:]
+
+        # and save differences until we have all of them
+        diff[n_start:n_start+number_src_in_this_ota] = ota_diff
+        
+        n_start += number_src_in_this_ota
+
+    if (not fitting):
+        return diff
+
+    x = open("ccmatch.wcsfitting", "a")
+    numpy.savetxt(x, diff)
+    print >>x, "\n\n\n\n\n"
+    x.close()
+
+    y = open("ccmatch.fitparams", "a")
+    print >>y, p[0], p[1], p[2]
+    y.close()
+
+    
+    return diff.ravel()
+
+
+
+def verify_wcs_model(cat, hdulist):
+
+    comp = numpy.zeros(shape=(cat.shape[0],6))
+
+    n_start = 0
+
+    for ext in range(len(hdulist)):
+        if (not is_image_extension(hdulist[ext])):
+            continue
+
+        ota_extension = hdulist[ext]
+        ota = int(ota_extension.header['FPPOS'][2:4])
+
+        # sources from this OTA
+        in_this_ota = (cat[:,8] == ota)
+        number_src_in_this_ota = numpy.sum(in_this_ota)
+        # print number_src_in_this_ota
+        if (number_src_in_this_ota <= 0):
+            continue
+
+        # Read the WCS imformation from the fits file
+        wcs_poly = header_to_polynomial(ota_extension.header)
+
+        wcs_poly = wcs_clear_distortion(wcs_poly)
+
+
+        # Extract only the stars in this OTA - 
+        # only for these is the WCS solution applicable
+        ota_cat = cat[in_this_ota]
+
+        # Convert pixel coordinates into Ra/Dec
+        ra_dec = wcs_pix2wcs(ota_cat[:,2:4], wcs_poly)
+        
+        comp[n_start:n_start+number_src_in_this_ota,0:2] = ota_cat[:,0:2]
+        comp[n_start:n_start+number_src_in_this_ota,2:4] = ra_dec[:,0:2]
+
+        ota_extension.header['CTYPE1'] = 'RA---TPV'
+        ota_extension.header['CTYPE2'] = 'DEC--TPV'
+        wcs = astWCS.WCS(ota_extension.header, mode='pyfits')
+        wcs2 = numpy.array(wcs.pix2wcs(ota_cat[:,2], ota_cat[:,3]))
+        
+        print wcs2.shape
+        print wcs2[0:4,0:2]
+        comp[n_start:n_start+number_src_in_this_ota,4:6] = wcs2[:,0:2]
+
+        n_start += number_src_in_this_ota
+
+    return comp
+
+
 if __name__ == "__main__":
     verbose=False
 
@@ -447,6 +571,18 @@ Valid modes are only
     src_raw = numpy.loadtxt(src_catfile)
 
     #
+    # Load the input frame
+    #
+    inputframe = sys.argv[3]
+    print "optimizing rotation in frame",inputframe
+    hdulist = pyfits.open(inputframe)
+
+    # wcs_verify = verify_wcs_model(src_raw, hdulist)
+    # numpy.savetxt("ccmatch.wcs_verify", wcs_verify)
+    # sys.exit(0)
+
+
+    #
     # For testing purposes, rotate the field by a little
     #
     testing = False
@@ -458,7 +594,8 @@ Valid modes are only
         src_raw[:,0:2] = src_xxx
 
     # eliminate all flagged stars
-    src_cat = src_raw[src_raw[:,7] == 0][:,0:2]
+    full_src_cat = src_raw[src_raw[:,7] == 0]
+    src_cat = full_src_cat[:,0:2]
 
     print "src_cat:",src_cat.shape
 
@@ -475,16 +612,10 @@ Valid modes are only
     #
     ref_cat = match_catalog_areas(src_cat, ref_raw, max_pointing_error/60.)
     print "area matched ref. catalog:", ref_cat.shape
+    numpy.savetxt("ccmatch.matched_ref_cat", ref_cat)
 
 
 
-    inputframe = sys.argv[3]
-    print "optimizing rotation in frame",inputframe
-    
-    hdulist = pyfits.open(inputframe)
-    # hdulist.info()
-
-  
 
     #
     # compute the center of the field
@@ -551,8 +682,8 @@ Valid modes are only
     best_guess = find_best_guess(src_cat, ref_cat,
                                  center_ra, center_dec,
                                  matching_radius=(max_pointing_error/60.),
-                                 angle_max=4, #degrees
-                                 d_angle=3 # arcmin
+                                 angle_max=1.5, #degrees
+                                 d_angle=5 # arcmin
                                  )
     print "\n\n\n\n\n found best guess:"
     print best_guess
@@ -574,40 +705,117 @@ Valid modes are only
     current_best_rotation = best_guess[0]
     current_best_shift = best_guess[2:4]
 
-    guessed_cat = rotate_shift_catalog(src_cat[:,0:2], (center_ra, center_dec), 
+    guessed_cat = rotate_shift_catalog(full_src_cat, (center_ra, center_dec), 
                                        angle=current_best_rotation,
                                        shift=current_best_shift,
                                        verbose=False)
     numpy.savetxt("ccmatch.guessed_cat", guessed_cat)
 
-    guessed_match = kd_match_catalogs(guessed_cat, ref_cat, (5./3600), max_count=1)
-    numpy.savetxt("ccmatch.guessed_match", guessed_match)
-    
+    # x_out = open("ccmatch.guessed_cat.computed", "w")
+    # for ext in range(len(hdulist)):
+    #     if (not is_image_extension(hdulist[ext])):
+    #         continue
+
+    #     ota_extension = hdulist[ext]
+    #     ota = int(ota_extension.header['FPPOS'][2:4])
+
+    #     # sources from this OTA
+    #     in_this_ota = (guessed_cat[:,8] == ota)
+    #     number_src_in_this_ota = numpy.sum(in_this_ota)
+    #     # print number_src_in_this_ota
+
+    #     # Read the WCS imformation from the fits file
+    #     wcs_poly = header_to_polynomial(ota_extension.header)
+
+    #     # And apply the current shift and rotation values
+    #     #wcs_poly = wcs_apply_rotation(wcs_poly, current_best_rotation)
+    #     #wcs_poly = wcs_apply_shift(wcs_poly, current_best_shift)
+
+    #     # Extract only the stars in this OTA - 
+    #     # only for these is the WCS solution applicable
+    #     ota_cat = guessed_cat[in_this_ota]
+
+    #     # Convert pixel coordinates into Ra/Dec
+    #     ra_dec = wcs_pix2wcs(ota_cat[:,2:4], wcs_poly)
+        
+    #     numpy.savetxt(x_out, ra_dec)
+    # x_out.close()
+
+
+
+
 
     # 
     # With this best guess at hand, match each star in the source 
     # catalog to a closest match in the reference catalog
     # 
 
+    guessed_match = kd_match_catalogs(guessed_cat, ref_cat, (5./3600), max_count=1)
+    numpy.savetxt("ccmatch.guessed_match", guessed_match)
+
+
+    #
+    # Now optimize the shift and rotation
+    #
+    
+    # # Set initial guess as the best-guess values from above
+    # p_init = [current_best_rotation,
+    #           current_best_shift[0],
+    #           current_best_shift[1]
+    #           ]
+
+    # #
+    # # Do least squares fitting to optimize shifts in Ra/Dec 
+    # # and rotation offset
+    # #
+    # fit_results = scipy.optimize.leastsq(optimize_shift_rotation,
+    #                                      p_init, 
+    #                                      args=(guessed_match, hdulist, True),
+    #                                      full_output=1,
+    #                                      )
+
+    # print "Before rot/shift fit:"
+    # print p_init
+
+    # best_shift_rotation_solution = fit_results[0]
+    # print "after rot/shift fit"
+    # print best_shift_rotation_solution
+
+
+    # diff_beforefit = optimize_shift_rotation(p_init,
+    #                                          guessed_match, hdulist, False)
+    # diff_afterfit = optimize_shift_rotation(best_shift_rotation_solution,
+    #                                         guessed_match, hdulist, False)
+    # numpy.savetxt("ccmatch.diff_before_fit", diff_beforefit)
+    # numpy.savetxt("ccmatch.diff_after_fit", diff_afterfit)
+
+
+    # (p, guessed_match, hdulist)
+
     best_shift_rotation_solution = fit_best_rotation_shift(
-        src_cat, ref_cat, best_guess,
-        center_ra, center_dec,
-        matching_radius=(5./3600.)
-        )
+         src_cat, ref_cat, best_guess,
+         center_ra, center_dec,
+         matching_radius=(5./3600.)
+         )
+    # best_shift_rotation_solution = optimize_shift_rotation(guessed_match, hdulist, )
+    # print "Alternative method:\n"
+    # print "best fit:",best_shift_rotation_solution
 
     print "\n\n\n\n\nresulting fit solution:\n",best_shift_rotation_solution,"\n\n\n\n\n"
+    print full_src_cat.shape
 
-    src_rotated = rotate_shift_catalog(src_cat[:,0:2], (center_ra, center_dec), 
+    src_rotated = rotate_shift_catalog(full_src_cat, (center_ra, center_dec), 
                                        angle=best_shift_rotation_solution[0],
                                        shift=best_shift_rotation_solution[1:3],
                                        verbose=False)
+    print src_rotated.shape
     matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(2./3600.), max_count=1)
     numpy.savetxt("ccmatch.after_shift+rot", matched)
 
 
     current_best_rotation = best_shift_rotation_solution[0]
     current_best_shift = best_shift_rotation_solution[1:3]
-    n_matches = numpy.sum(numpy.isfinite(matched[2]))
+    n_matches = numpy.sum(numpy.isfinite(matched[:,2]))
 
     hdulist[0].header['WCS1_DA'] = (best_guess[0], "WCS calib best guess angle")
     hdulist[0].header['WCS1_DRA'] = (best_guess[2], "WCS calib best guess d_RA")
@@ -634,7 +842,7 @@ Valid modes are only
         print "writing results ..."
         #hduout = pyfits.HDUList(hdulist[0:3])
         #hduout.append(hdulist[13])
-        hduout = pyfits.HDUList(hdulist[0:5])
+        hduout = pyfits.HDUList(hdulist)
         hduout.writeto(outputfile, clobber=True)
 
         # For testing, apply correction to the input catalog, 
