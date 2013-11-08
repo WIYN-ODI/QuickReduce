@@ -174,7 +174,7 @@ def wcsdiag_scatter(matched_cat, filename, options=None, ota_wcs_stats=None,
 
             ota_stats = None
             if (not ota_wcs_stats == None):
-                if (extname in wcs_wcs_stats):
+                if (extname in ota_wcs_stats):
                     ota_stats = ota_wcs_stats[extname]
 
             title = "WSC Scatter - OTA %02d" % (this_ota)
