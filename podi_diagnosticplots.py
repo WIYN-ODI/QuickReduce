@@ -171,10 +171,14 @@ def wcsdiag_scatter(matched_cat, filename, options=None, ota_wcs_stats=None,
             in_this_ota = (ota == this_ota)
 
             extname = "OTA%02d.SCI" % (this_ota)
-            ota_stats = None if ota_wcs_stats == None else ota_wcs_stats[extname]
+
+            ota_stats = None
+            if (not ota_wcs_stats == None):
+                if (extname in wcs_wcs_stats):
+                    ota_stats = ota_wcs_stats[extname]
+
             title = "WSC Scatter - OTA %02d" % (this_ota)
                 
-            ota_stats = None if ota_wcs_stats == None else ota_wcs_stats[extname]
             print extname, ota_stats
 
             ota_plotfile = create_qa_otaplot_filename(filename, this_ota, options['structure_qa_subdirs'])
