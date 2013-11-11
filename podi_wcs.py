@@ -24,7 +24,7 @@ ordering = numpy.array([
         [22, -1, -1, -1, -1, -1]
         ])
 ordering_r = numpy.array([
-        [-1, 3, 11, -1, 23]
+        [-1, 3, -1, 11, -1, 23]
         ])
 
 
@@ -107,6 +107,28 @@ def wcs_wcspoly_to_header(wcs_polynomials, hdr):
 
     return
 
+
+def wcs_clear_distortion(wcs_polynomials, min=0):
+
+    print "clearing distortion"
+    xi, xi_r, eta, eta_r, cd, crval, crpix = wcs_polynomials
+
+    xi[ordering>=min] = 0
+    xi_r[:] = 0
+
+    eta[ordering>=min] = 0
+    eta_r[:] = 0
+
+    xi[0,1] = 1.
+    eta[0,1] = 1
+    print ordering[0,1]
+
+    wcs_polynomials = xi, xi_r, eta, eta_r, cd, crval, crpix
+
+    return wcs_polynomials
+
+    
+
 def polyval2d(x, y, m):
     ij = itertools.product(range(m.shape[0]), range(m.shape[1]))
 #    ij = itertools.product(range(2), range(2))
@@ -121,7 +143,7 @@ def polyval2d(x, y, m):
 #        print i,j," [",m[i,j],"]   -->",z[:3]
     return z
 
-def wcs_pix2wcs(xy, wcs_polynomials, debug=False):
+def wcs_pix2wcs(xy, wcs_polynomials, include_distortion=True, debug=False):
         
     c_xi, c_xi_r, c_eta, c_eta_r, cd, crval, crpix = wcs_polynomials
 
@@ -154,41 +176,75 @@ def wcs_pix2wcs(xy, wcs_polynomials, debug=False):
     # eta_prime = polyval2d(_eta, _xi, c_eta) \
     #     + numpy.polynomial.polynomial.polyval(_r, c_eta_r[0])
 
-    xi_prime = polyval2d(xi, eta, c_xi) \
-        + numpy.polynomial.polynomial.polyval(r, c_xi_r[0])
-    print xi_prime[:3]
+    if (include_distortion):
+        xi_prime = polyval2d(xi, eta, c_xi) \
+            + numpy.polynomial.polynomial.polyval(r, c_xi_r[0])
+        eta_prime = polyval2d(eta, xi, c_eta) \
+            + numpy.polynomial.polynomial.polyval(r, c_eta_r[0])
 
-    eta_prime = polyval2d(eta, xi, c_eta) \
-        + numpy.polynomial.polynomial.polyval(r, c_eta_r[0])
-    print eta_prime[:3]
+        # _xi_prime = polyval2d(_xi, _eta, c_xi) \
+        #     + numpy.polynomial.polynomial.polyval(_r, c_xi_r[0])
+        # _eta_prime = polyval2d(_eta, _xi, c_eta) \
+        #     + numpy.polynomial.polynomial.polyval(_r, c_eta_r[0])
+    else:
+        xi_prime = xi
+        eta_prime = eta
 
-    x = numpy.zeros(shape=(xy.shape[0],4))
-    x[:,0] = xi
-    x[:,1] = xi_prime
-    x[:,2] = eta
-    x[:,3] = eta_prime
-    dummy_x = open("distortion","a")
-    numpy.savetxt(dummy_x, x)
-    print >>dummy_x, "\n\n\n\n\n\n"
-    dummy_x.close()
+    # x = numpy.zeros(shape=(xy.shape[0],4))
+    # x[:,0] = xi
+    # x[:,1] = xi_prime
+    # x[:,2] = eta
+    # x[:,3] = eta_prime
+    # dummy_x = open("distortion","a")
+    # numpy.savetxt(dummy_x, x)
+    # print >>dummy_x, "\n\n\n\n\n\n"
+    # dummy_x.close()
 
-    xi_prime, eta_prime = xi, eta
+    # Uncomment the next line to disable distortion.
+    # xi_prime, eta_prime = xi, eta
+
+    CRVAL2 = crval[1]
 
     cos_dec0 = math.cos(math.radians(crval[1]))
     sin_dec0 = math.sin(math.radians(crval[1]))
 
+
     _xi_prime = numpy.radians(xi_prime)
     _eta_prime = numpy.radians(eta_prime)
 
-    _ra = numpy.arctan2(_xi_prime,
-                       cos_dec0 - _eta_prime*sin_dec0)
-    ra = numpy.degrees(_ra) + crval[0]
-    ra[ra < 0] += 360.
+
+
+    # _ra = numpy.arctan2(_xi_prime,
+    #                    cos_dec0 - _eta_prime*sin_dec0)
+    # ra = numpy.degrees(_ra) + crval[0]
+    # ra[ra < 0] += 360.
     
-    _dec_xxx = numpy.sqrt((cos_dec0 - _eta_prime*sin_dec0)**2 + _xi_prime**2)
-    _dec = numpy.arctan2(_eta_prime*cos_dec0 + sin_dec0, _dec_xxx)
+    # _dec_xxx = numpy.sqrt((cos_dec0 - _eta_prime*sin_dec0)**2 + _xi_prime**2)
+    # _dec = numpy.arctan2(_eta_prime*cos_dec0 + sin_dec0, _dec_xxx)
     
-    dec = numpy.degrees(_dec)
+    # dec = numpy.degrees(_dec)
+
+    
+    a1 = _xi_prime / math.cos(math.radians(CRVAL2))
+    a2 = 1. - _eta_prime * math.tan(math.radians(CRVAL2))
+    alpha_prime = numpy.arctan2(a1, a2)
+    ra = numpy.degrees(alpha_prime) + crval[0]
+
+    d1 = (_eta_prime + math.tan(math.radians(CRVAL2))) * numpy.cos(alpha_prime)
+    d2 = 1. - _eta_prime * math.tan(math.radians(CRVAL2))
+    dec = numpy.degrees(numpy.arctan2(d1, d2))
+
+
+    rp = numpy.sqrt(_xi_prime**2 + _eta_prime**2)
+        
+    phi = numpy.arctan2(_xi_prime, -_eta_prime)
+    phi[rp == 0] = 0
+        
+    theta = numpy.arctan2(math.radians(CRVAL2), rp)
+
+
+
+
 
 
     # if (debug):
@@ -210,6 +266,73 @@ def wcs_pix2wcs(xy, wcs_polynomials, debug=False):
 
     output[:,0] = ra
     output[:,1] = dec
+
+    return output
+
+
+
+
+
+def wcs_pix2wcs_astlib(xy, wcs_polynomials, include_distortion=True, debug=False):
+        
+    c_xi, c_xi_r, c_eta, c_eta_r, cd, crval, crpix = wcs_polynomials
+
+    #use the input x,y and compute xi and eta first
+    xy_relative = xy[:,0:2] - crpix
+
+    # Apply CD matrix
+    dx  = xy_relative[:,0] * cd[0,0] + xy_relative[:,1] * cd[0,1]
+    dy = xy_relative[:,1] * cd[1,0] + xy_relative[:,1] * cd[1,1]
+
+    r = numpy.sqrt(dx**2 + dy**2)
+
+    dxr = numpy.radians(dx)
+    dyr = numpy.radians(dy)
+    rr = numpy.radians(r)
+
+    if (include_distortion):
+        
+        dx_prime = polyval2d(dx, dy, c_xi) \
+            + numpy.polynomial.polynomial.polyval(r, c_xi_r[0])
+        dy_prime = polyval2d(dx, dy, c_eta) \
+            + numpy.polynomial.polynomial.polyval(r, c_eta_r[0])
+
+        # dx_prime = polyval2d(dxr, dyr, c_xi) \
+        #     + numpy.polynomial.polynomial.polyval(rr, c_xi_r[0])
+        # dy_prime = polyval2d(dxr, dyr, c_eta) \
+        #     + numpy.polynomial.polynomial.polyval(rr, c_eta_r[0])
+
+
+        dx, dy = dx_prime, dy_prime
+
+
+    # l, m = dx, dy
+
+    l = numpy.radians(dx)
+    m = numpy.radians(dy)
+
+    cos0 = math.cos(math.radians(crval[1]))
+    sin0 = math.sin(math.radians(crval[1]))
+
+    ra0 = math.radians(crval[0])
+    dec0 = math.radians(crval[1])
+
+    dect = cos0 - m * sin0
+
+    rat = ra0 + numpy.arctan2(l, dect)
+
+    dect = numpy.arctan( numpy.cos(rat-ra0) * (m * cos0 + sin0) / dect)
+
+    ra_out = rat
+    dec_out = dect
+
+    ra_out[ra_out < 0] += 2 * math.pi
+
+
+    output = numpy.zeros_like(xy) #xi.shape[0],2)
+
+    output[:,0] = numpy.degrees(ra_out)
+    output[:,1] = numpy.degrees(dec_out)
 
     return output
 
@@ -340,7 +463,7 @@ def wcs_poly_to_arrays(wcs_poly, debug=False):
 
 
 
-def wcs_apply_rotation(wcs_poly, angle, debug=True):
+def wcs_apply_rotation(wcs_poly, angle, debug=False):
 
     # Extract the individual elements
     xi, xi_r, eta, eta_r, cd, crval, crpix = wcs_poly
@@ -393,3 +516,34 @@ def wcs_apply_shift(wcs_poly, shift, debug=False):
         print
 
     return xi, xi_r, eta, eta_r, cd, crval_shifted, crpix
+
+
+
+if __name__ == '__main__':
+
+    print "# hello!"
+
+    fitsfile = sys.argv[1]
+
+    catfile = sys.argv[2]
+
+    cat = numpy.loadtxt(catfile)
+
+    xy = cat[:,2:4]
+    
+    
+    # Load the fits file and get the header
+    hdulist = pyfits.open(fitsfile)
+    wcspoly = header_to_polynomial(hdulist[0].header)
+    
+    radec_cat = cat[:,0:2]
+
+    radec_computed = wcs_pix2wcs(xy, wcspoly, include_distortion=True)
+
+    radec_computed2 = wcs_pix2wcs_astlib(xy, wcspoly, include_distortion=True)
+
+    output = numpy.append(radec_cat, radec_computed, axis=1)
+    output = numpy.append(output, radec_computed2, axis=1)
+
+    # print output.shape
+    numpy.savetxt(sys.stdout, output)
