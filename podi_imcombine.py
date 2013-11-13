@@ -342,6 +342,7 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
     out_hdulist[0].header.update("NCOMBINE", len(filenames_only), "number of combined files")
 
     columns = [
+        pyfits.Column(name='filenumber', format="I4", array=range(1,len(filenames_only)+1)),
         pyfits.Column(name='filename', format="A100", array=filenames_only),
         ]
     coldefs = pyfits.ColDefs(columns)
