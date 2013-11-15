@@ -286,7 +286,7 @@ def collect_reduce_ota(filename,
 
         # If we are to do some bias subtraction:
         if (not options['bias_dir'] == None):
-            bias_filename = check_filename_directory(options['bias_dir'], "bias.fits")
+            bias_filename = check_filename_directory(options['bias_dir'], "bias_bin%s.fits" % (binning))
             if (os.path.isfile(bias_filename)):
                 bias = pyfits.open(bias_filename)
                 reduction_files_used['bias'] = bias_filename
@@ -313,7 +313,7 @@ def collect_reduce_ota(filename,
             # For now assume all detectors are switched on
             detectorglow = "yes"
 
-            dark_filename = check_filename_directory(options['dark_dir'], "dark_%s.fits" % (detectorglow))
+            dark_filename = check_filename_directory(options['dark_dir'], "dark_%s_bin%d.fits" % (detectorglow, binning))
             if (os.path.isfile(dark_filename)):
                 dark = pyfits.open(dark_filename)
                 reduction_files_used['dark'] = dark_filename
@@ -334,7 +334,7 @@ def collect_reduce_ota(filename,
 
         # If the third parameter points to a directory with flat-fields
         if (not options['flat_dir'] == None):
-            flatfield_filename = check_filename_directory(options['flat_dir'], "flat_%s.fits" % (filter_name))
+            flatfield_filename = check_filename_directory(options['flat_dir'], "flat_%s_bin%d.fits" % (filter_name, binning))
             if (os.path.isfile(flatfield_filename)):
                 flatfield = pyfits.open(flatfield_filename)
                 reduction_files_used['flat'] = flatfield_filename

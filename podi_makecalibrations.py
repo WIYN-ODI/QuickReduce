@@ -116,8 +116,10 @@ if __name__ == "__main__":
         directory, filename = os.path.split(ota00)
         
         hdulist = pyfits.open(ota00)
+        binning = get_binning(hdulist[1].header)
         obstype = hdulist[0].header['OBSTYPE']
-        print "   %s --> %s" % (directory, obstype)
+
+        print "   %s --> %s BIN=%d" % (directory, obstype, binning)
 
         if (obstype == "DFLAT"):
             filter = hdulist[0].header['FILTER']
@@ -144,7 +146,7 @@ if __name__ == "__main__":
     #
     # First of all, let's combine all bias frames
     #
-    bias_frame = "%s/bias.fits" % (output_directory)
+    bias_frame = "%s/bias_bin%d.fits" % (output_directory, binning)
     if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "bias"): 
         stdout_write("####################\n#\n# Creating bias-frame\n#\n####################\n")
         bias_to_stack = []
@@ -174,7 +176,7 @@ if __name__ == "__main__":
     # Now that we have the master bias frame, go ahead and reduce the darks
     #
     # For now set all darks to detector-glow "yes"
-    dark_frame = "%s/dark_yes.fits" % (output_directory)
+    dark_frame = "%s/dark_yes_bin%d.fits" % (output_directory, binning)
     if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "dark"): 
         cmdline_opts = read_options_from_commandline()
         options['bias_dir'] = output_directory if (cmdline_opts['bias_dir'] == None) else cmdline_opts['bias_dir']
@@ -209,13 +211,14 @@ if __name__ == "__main__":
         cmdline_opts = read_options_from_commandline()
         options['bias_dir'] = output_directory if (cmdline_opts['bias_dir'] == None) else cmdline_opts['bias_dir']
         options['dark_dir'] = output_directory if (cmdline_opts['dark_dir'] == None) else cmdline_opts['dark_dir']
+        pupilghost_dir = options['pupilghost_dir']
         for cur_filter_id in range(len(filters)):
             # Overwrite the pupil ghost correction so we don't do it twice
-            pupilghost_dir = options['pupilghost_dir']
             options['pupilghost_dir'] = None
+            print "pupilghost dir=",pupilghost_dir
 
             filter = filters[cur_filter_id]
-            flat_frame = "%s/flat_%s.fits" % (output_directory, filter)
+            flat_frame = "%s/flat_%s_bin%d.fits" % (output_directory, filter, binning)
             flats_to_stack = []
             if (not os.path.isfile(flat_frame) or cmdline_arg_isset("-redo")):
                 stdout_write("####################\n#\n# Reducing flat-field %s\n#\n####################\n" % filter)
@@ -253,7 +256,7 @@ if __name__ == "__main__":
                     stdout_write("Performing pupil ghost correction ...")
                     # Get level os active filter and determine what the template filename is
                     filter_level = get_filter_level(flat_hdus[0].header)
-                    pg_template = "%s/pupilghost_template___level_%d.fits" % (options['pupilghost_dir'], filter_level)
+                    pg_template = "%s/pupilghost_template___level_%d__bin%d.fits" % (options['pupilghost_dir'], filter_level, binning)
                     print pg_template
 
                     # If we have a template for this level
@@ -277,5 +280,7 @@ if __name__ == "__main__":
             if (not cmdline_arg_isset("-keeptemps")):
                 for file in flats_to_stack:
                     clobberfile(file)
+
+#            options['pupilghost_dir'] = pupilghost_dir
 
     stdout_write("\nAll done, yippie :-)\n\n")
