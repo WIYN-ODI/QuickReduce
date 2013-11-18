@@ -18,6 +18,24 @@ from podi_wcs import *
 
 max_pointing_error = 2.
 
+import logging
+
+def select_brightest(radec, mags, n):
+    # print mags
+    si = numpy.argsort(mags[:,0])
+    # print si
+
+    output_radec = numpy.zeros(shape=(n, radec.shape[1]))
+    output_mags = numpy.zeros(shape=(n, mags.shape[1]))
+
+    for i in range(n):
+        # print si[i], mags[si[i],0]
+        output_radec[i,:] = radec[si[i],:]
+        output_mags[i,:] = mags[si[i],:]
+
+    return output_radec, output_mags
+
+
 def count_matches(src_cat, ref_cat, 
                   matching_radius=(max_pointing_error/60.), 
                   fine_radius=(4./3600.), debugangle=None):
@@ -241,8 +259,8 @@ def find_best_guess(src_cat, ref_cat,
 
     all_results[:,0] = numpy.linspace(-angle_max, angle_max, n_angles)
     for cur_angle in range(n_angles):
-
         angle = all_results[cur_angle,0]
+        print "\n\n\nWorking on angle",angle,angle*60,"(deg/arcmin)\n\n\n"
         # print "\n\n\n",angle*60
 
         src_rotated = rotate_shift_catalog(src_cat, (center_ra, center_dec), angle, None)
@@ -595,6 +613,12 @@ Valid modes are only
 
     # eliminate all flagged stars
     full_src_cat = src_raw[src_raw[:,7] == 0]
+    n_max = 750
+    if (full_src_cat.shape[0] > n_max):
+        print "truncating src_cat:",full_src_cat.shape,"-->",n_max
+        # That's more than we need, limited the catalog to the brightest n stars
+        full_src_cat, bright_mags = select_brightest(full_src_cat, full_src_cat[:,10:13], n_max)
+
     src_cat = full_src_cat[:,0:2]
 
     print "src_cat:",src_cat.shape
@@ -649,13 +673,30 @@ Valid modes are only
         for ext in range(len(hdulist)):
             if (not is_image_extension(hdulist[ext])):
                 continue
+
             ota_extension = hdulist[ext]
+            print "\nApplying shift",best_guess[2:4],"to extension",ota_extension.header['EXTNAME']
+            print hdulist[ext].header['CRVAL1'], hdulist[ext].header['CRVAL2']
             wcs_poly = header_to_polynomial(ota_extension.header)
             wcs_poly = wcs_apply_shift(wcs_poly, best_guess[2:4])
-            wcs_wcspoly_to_header(wcs_poly, ota_extension.header)
+            wcs_wcspoly_to_header(wcs_poly, hdulist[ext].header) #ota_extension.header)
+            print hdulist[ext].header['CRVAL1'], hdulist[ext].header['CRVAL2']
+            hdulist[ext].header['XVAL1'] = hdulist[ext].header['CRVAL1']
+            hdulist[ext].header['XVAL2'] = hdulist[ext].header['CRVAL2']
+
         print "writing results ..."
         hduout = pyfits.HDUList(hdulist[0:2])
+        print "writing hduout..."
+        #primhdu = pyfits.PrimaryHDU(header=hdulist[1].header, 
+        #                            data=hdulist[1].data)
+        #hduxxx = pyfits.HDUList([primhdu])
+        #hduxxx.writeto("output_xxx.fits", clobber=True)
         hduout.writeto(outputfile, clobber=True)
+        print "CRVAL in output file!:"
+        print primhdu.header['CRVAL1'], primhdu.header['CRVAL2']
+        #hdulist.writeto(outputfile, clobber=True)
+
+        # sys.exit(0)
 
         # For testing, apply correction to the input catalog, 
         # match it to the reference catalog and output both to file
@@ -683,7 +724,7 @@ Valid modes are only
                                  center_ra, center_dec,
                                  matching_radius=(max_pointing_error/60.),
                                  angle_max=1.5, #degrees
-                                 d_angle=5 # arcmin
+                                 d_angle=10 # arcmin
                                  )
     print "\n\n\n\n\n found best guess:"
     print best_guess
