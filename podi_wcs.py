@@ -519,7 +519,147 @@ def wcs_apply_shift(wcs_poly, shift, debug=False):
 
 
 
+def rotate_polynomial(poly, rotate):
+
+    out = numpy.zeros_like(poly)
+
+    # print "x'=", rotate[0]
+    # print "y'=", rotate[1]
+
+    # poly_coeffs = [
+    #     [1],
+    #     [1,2,1],
+    #     [1,3,3,1],
+    #     [1,4,6,4,1],
+    #     [1,5,10,10,5,1],
+    #     [1,6,15,20,15,6,1]
+    #     ]
+
+    rotate_x = numpy.array([[0, math.cos(math.radians(angle))],
+                            [math.sin(math.radians(angle)), 0]])
+
+    rotate_y = numpy.array([[0, math.cos(math.radians(angle))],
+                            [-math.sin(math.radians(angle)), 0]])
+
+
+    for (i,j) in itertools.product(range(poly.shape[0]), range(poly.shape[1])):
+        print "\n\n",i,j
+
+        new_matrix = ax_plus_by_multipower(rotate_x, i, rotate_y, j)
+        
+        sx, sy = new_matrix.shape[0], new_matrix.shape[1]
+
+        out[:sx, :sy] += poly[i,j] * new_matrix
+
+    return out
+
+def ax_plus_by_multiply(in1, in2):
+
+    size = in1.shape[0] + in2.shape[0] - 1
+    out = numpy.zeros(shape=(size, size))
+
+    # Loop over all items in array 1
+    for (x,y) in itertools.product(range(in1.shape[0]), range(in1.shape[1])):
+
+        # now perform multiplication
+        to_add = in1[x,y] * in2
+
+        out[x:x+in2.shape[0], y:y+in2.shape[1]] += to_add
+
+    return out
+
+def ax_plus_by_power(in1, power):
+
+    if (power == 0):
+        return numpy.array([[1]])
+    elif (power == 1):
+        return in1
+    else:
+        out = in1
+        for i in range(power-1):
+            out = ax_plus_by_multiply(out, in1)
+
+    return out
+
+
+def ax_plus_by_multipower(in1, power1, in2, power2):
+
+    out1 = ax_plus_by_power(in1, power1)
+    out2 = ax_plus_by_power(in2, power2)
+    return ax_plus_by_multiply(out1, out2)
+
+
 if __name__ == '__main__':
+
+
+    if (cmdline_arg_isset("-rotate")):
+
+        # poly = numpy.array([
+        #         [0. ,  1.0],
+        #         [1.0,  0.0]
+        #         ])
+
+        # rotation = numpy.array([
+        #         [0.9, 0.1], 
+        #         [0.1, 0.9]
+        #         ])
+
+        # print rotation[0]
+        # result = rotate_polynomial(poly, rotation)
+
+        # print result
+
+
+        in1 = numpy.array([[0,1],[1,0]])
+        in2 = numpy.array([[0,0.5],[1,0]])
+        out = ax_plus_by_multiply(in1, in2)
+        print out
+
+
+        out3 = ax_plus_by_multiply(in1, out)
+        print out3
+
+        out4 = ax_plus_by_multiply(in1, out3)
+        print out4
+
+        out4b = ax_plus_by_multiply(out3, in1)
+        print out4b
+
+        out6 = ax_plus_by_multiply(out3, out3)
+        print out6
+
+        print "\n\n\n\n"
+        print ax_plus_by_power(in1, 0)
+        print ax_plus_by_power(in1, 1)
+        print ax_plus_by_power(in1, 2)
+        print ax_plus_by_power(in1, 3)
+        print ax_plus_by_power(in1, 4)
+        print ax_plus_by_power(in1, 5)
+
+        print "\n\n"
+        print ax_plus_by_multipower(in1,0,in2,0)
+        print ax_plus_by_multipower(in1,1,in2,0)
+        print ax_plus_by_multipower(in1,0,in2,1)
+        print ax_plus_by_multipower(in1,1,in2,1)
+
+        print "\n\n\ntrying rotation ...\n"
+        rot_angle = 0
+        new_x = numpy.array([[0, math.cos(math.radians(rot_angle))],
+                             [math.sin(math.radians(rot_angle)), 0],
+                             ])
+        new_y = numpy.array([[0, math.cos(math.radians(rot_angle))],
+                             [-math.sin(math.radians(rot_angle)), 0],
+                             ])
+
+        pure_x = numpy.array([[0, 1,],
+                              [0, 0]])
+
+        rotated_x = ax_plus_by_multiply(pure_x, new_x)
+        rotated_y = ax_plus_by_multiply(pure_x, new_y)
+        print rotated_x
+        print rotated_y
+
+        sys.exit(0)
 
     print "# hello!"
 
