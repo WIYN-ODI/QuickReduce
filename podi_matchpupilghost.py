@@ -34,6 +34,7 @@ import os
 import pyfits
 import numpy
 import scipy
+import dev_pgcenter
 
 gain_correct_frames = False
 from podi_definitions import *
@@ -42,13 +43,14 @@ import podi_fitskybackground
 
 scaling_factors = {
     "odi_g": 1.0,
-    "odi_i": 0.15,
+    "odi_i": 0.3, #15,
 }
 
-def subtract_pupilghost_extension(input_hdu, rotator_angle, filter, pupil_hdu, scaling, 
-                                  rotate=True, verbose=True, non_negative=True):
+def subtract_pupilghost_extension(input_hdu, rotator_angle, filtername, pupil_hdu, scaling, 
+                                  rotate=True, verbose=True, non_negative=True,
+                                  find_center_from_data=True):
     """
-    Contains all functionality to dexecute the actual pupil ghost removal. 
+    Contains all functionality to execute the actual pupil ghost removal. 
     The pupil ghost is roatted to match the rotation angle of the science 
     frame, then scaled with the specified scaling factor and lastly the 
     scaled template is removed from the science frame. The results stay in 
@@ -71,25 +73,33 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filter, pupil_hdu, s
         return
 
     # Better: read the center coordinates from the pupil ghost template file
-    if (filter in pupilghost_centers):
-        if (extname in pupilghost_centers[filter]):
-            center_x, center_y = pupilghost_centers[filter][extname]
-        else:
-            if (extname in pupilghost_centers):
-                center_x, center_y = pupilghost_centers[extname]
-            else:
-                # Don't know what center coordinate to use, abort
-                return
-    elif (extname in pupilghost_centers):
-        center_x, center_y = pupilghost_centers[extname]
+    if (find_center_from_data):
+        fx, fy, fr, vx, vy, vr = dev_pgcenter.find_pupilghost_center(input_hdu, verbose=False)
+        center_x, center_y = vx, vy
     else:
-        # Don't know what center coordinate to use, abort
-        return
+        if (filtername in pupilghost_centers):
+            if (extname in pupilghost_centers[filtername]):
+                print pupilghost_centers[filtername][extname]
+                center_x, center_y = pupilghost_centers[filtername][extname]
+            else:
+                if (extname in pupilghost_centers):
+                    center_x, center_y = pupilghost_centers[extname]
+                else:
+                    # Don't know what center coordinate to use, abort
+                    return
+        elif (extname in pupilghost_centers):
+            center_x, center_y = pupilghost_centers[extname]
+        else:
+            # Don't know what center coordinate to use, abort
+            return
 
     #
     # Now we know we have to do something
     #
-    if (verbose): print "Found matching pupil ghost template in extension",right_ext
+    if (verbose): 
+        print "Found matching pupil ghost template in extension",right_ext
+    print "Using center coordinates", center_x, center_y
+
 
     if (rotate):
         # print "___%s___" % rotator_angle
@@ -132,8 +142,12 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filter, pupil_hdu, s
 
     input_hdu.data -= (correction * scaling)
 
-    input_hdu.header.update("PGCENTER", "%d %d" % (center_x, center_y))
+    # Store the position of the pupil ghost center
+    input_hdu.header["PGCENTER"] = "%d %d" % (center_x, center_y)
+    input_hdu.header['PGCNTR_X'] = center_x
+    input_hdu.header['PGCNTR_y'] = center_y
 
+    
     if (verbose): print "all done, going home!"
     return input_hdu
 
@@ -151,8 +165,8 @@ def subtract_pupilghost(input_hdu, pupil_hdu, scaling, rotate=True, verbose=True
     # Now go through each of the HDUs in the data frame and correct the pupil ghost
     for i in range(1, len(input_hdu)):
         rotator_angle = input_hdu[0].header['ROTSTART']
-        filter = input_hdu[0].header['FILTER']
-        subtract_pupilghost_extension(input_hdu[i], rotator_angle, filter, pupil_hdu, 
+        filtername = input_hdu[0].header['FILTER']
+        subtract_pupilghost_extension(input_hdu[i], rotator_angle, filtername, pupil_hdu, 
                                       rotate=rotate, scaling=scaling, verbose=verbose)
 
     return input_hdu
