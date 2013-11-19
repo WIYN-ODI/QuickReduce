@@ -349,6 +349,20 @@ def collect_reduce_ota(filename,
                         # If normalizing with the flat-field, overwrite the gain
                         # keyword with the average gain value of the flatfield.
                         hdu.header['GAIN'] = flatfield[0].header['GAIN']
+
+                        # Also copy the center position of the pupilghost
+                        # If this is not stored in the flat-field, assume some
+                        # standard coordinates
+                        if (extname in pupilghost_centers):
+                            pupilghost_center_x, pupilghost_center_y = pupilghost_centers[extname]
+                            hdu.header['PGCNTR_X'] = (pupilghost_center_x, "pupil ghost center position X")
+                            hdu.header['PGCNTR_Y'] = (pupilghost_center_y, "pupil ghost center position Y")
+                        if ('PGCNTR_X' in ff_ext.header):
+                            pupilghost_center_x = ff_ext.header['PGCNTR_X']
+                            hdu.header['PGCNTR_X'] = (pupilghost_center_x, "pupil ghost center position X")
+                        if ('PGCNTR_Y' in ff_ext.header):
+                            pupilghost_center_y = ff_ext.header['PGCNTR_Y']
+                            hdu.header['PGCNTR_Y'] = (pupilghost_center_y, "pupil ghost center position Y")
                         break
 
                 flatfield.close()
@@ -684,7 +698,6 @@ def create_association_table(master, verbose=False):
         # print key,":",value
         for filename in set(value):
             reduction_step.append(key)
-            print key, "-->",filename
             if (filename == None):
                 continue
             full_filename.append(os.path.abspath(filename))
@@ -862,6 +875,8 @@ def collectcells(input, outputfile,
 
     input_header = hdulist[0].header
 
+    binning = get_binning(hdulist[0].header)
+
     # We know enough about the current frame, so close the file
     hdulist.close()
     del hdulist
@@ -915,7 +930,9 @@ def collectcells(input, outputfile,
     ota_list[0].header["PLEMAIL"] = ("kotulla@uwm.edu", "contact email")
     for key, value in options['additional_fits_headers'].iteritems():
         ota_list[0].header[key] = (value, "user-added keyword")
-    
+
+    ota_list[0].header['BINNING'] = (binning, "bining factor")
+
     #
     # Set up the parallel processing environment
     #
@@ -1105,11 +1122,11 @@ def collectcells(input, outputfile,
     ota_list[0].header['GAIN'] = (global_gain_sum / global_gain_count)
     ota_list[0].header['GAIN_CNT'] = global_gain_count
 
-    if (options['fixwcs'] and not options['update_persistency_only']):
-        x = open("fixwcs.nmatches","w")
-        numpy.savetxt(x, global_number_matches)
-        x.close()
-        del x
+    # if (options['fixwcs'] and not options['update_persistency_only']):
+    #     x = open("fixwcs.nmatches","w")
+    #     numpy.savetxt(x, global_number_matches)
+    #     x.close()
+    #     del x
 
     # Now all processes have returned their results, terminate them 
     # and delete all instances to free up memory
@@ -1224,7 +1241,8 @@ def collectcells(input, outputfile,
     if (options['pupilghost_dir'] != None):
         filter_level = get_filter_level(ota_list[0].header)
         filter_name = get_valid_filter_name(ota_list[0].header)
-        pg_template = "%s/pupilghost_radial___level_%d.fits" % (options['pupilghost_dir'], filter_level)
+        binning = ota_list[0].header['BINNING']
+        pg_template = "%s/pupilghost_radial___level_%d__bin%d.fits" % (options['pupilghost_dir'], filter_level, binning)
         stdout_write("looking for radial pupil ghost template %s...\n" % (pg_template))
         # If we have a template for this level
         if (os.path.isfile(pg_template)):
@@ -1235,7 +1253,8 @@ def collectcells(input, outputfile,
             scaling, scaling_std = podi_matchpupilghost.get_pupilghost_scaling(ota_list, pg_hdu)
 
             # And subtract the scaled pupilghost templates.
-            podi_matchpupilghost.subtract_pupilghost(ota_list, pg_hdu, scaling, rotate=False)
+            podi_matchpupilghost.subtract_pupilghost(ota_list, pg_hdu, scaling, rotate=False,
+                                                     source_center_coords='header')
 
             ota_list[0].header["PUPLGOST"] = (pg_template, "p.g. template")
             ota_list[0].header["PUPLGFAC"] = (scaling, "pupilghost scaling")
@@ -1244,6 +1263,9 @@ def collectcells(input, outputfile,
             stdout_write(" done!\n")
 
             pg_hdu.close()
+        else:
+            print "Pupilghost correction requested, but no template found:"
+            print "  was looking for filename",pg_template
 
     #
     # Fix the WCS if requested
