@@ -48,7 +48,9 @@ scaling_factors = {
 
 def subtract_pupilghost_extension(input_hdu, rotator_angle, filtername, pupil_hdu, scaling, 
                                   rotate=True, verbose=True, non_negative=True,
-                                  find_center_from_data=True):
+                                  source_center_coords='data'
+                                  ):
+
     """
     Contains all functionality to execute the actual pupil ghost removal. 
     The pupil ghost is roatted to match the rotation angle of the science 
@@ -72,10 +74,22 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filtername, pupil_hd
         # We can't do anythin in this case, so let's simply return
         return
 
-    # Better: read the center coordinates from the pupil ghost template file
-    if (find_center_from_data):
+    #
+    # Set the coordinates of the center of the pupilghost 
+    #
+    # Read the center coordinates from the pupil ghost template file
+    if (source_center_coords == 'data'):
         fx, fy, fr, vx, vy, vr = dev_pgcenter.find_pupilghost_center(input_hdu, verbose=False)
         center_x, center_y = vx, vy
+    #
+    # Use center coordinates from header
+    elif (source_center_coords == 'header'):
+        if ("PGCNTR_X" in input_hdu.header): 
+            center_x = input_hdu.header['PGCNTR_X']
+        if ("PGCNTR_Y" in input_hdu.header): 
+            center_y = input_hdu.header['PGCNTR_Y']
+    #
+    # by default, resort to the old-fashined canned values
     else:
         if (filtername in pupilghost_centers):
             if (extname in pupilghost_centers[filtername]):
@@ -118,7 +132,7 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filtername, pupil_hd
             rotated = template
         else:
             if (verbose): print "rotating template by",rotator_angle,"degrees"
-            rotated = rotate_around_center(template, -1 * rotator_angle, mask_nans=False)
+            rotated = rotate_around_center(template, rotator_angle, mask_nans=False)
     else:
         if (verbose): print "No rotation requested, skipping rotation"
         rotated = pupil_hdu[right_ext].data
@@ -144,17 +158,19 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filtername, pupil_hd
 
     # Store the position of the pupil ghost center
     input_hdu.header["PGCENTER"] = "%d %d" % (center_x, center_y)
-    input_hdu.header['PGCNTR_X'] = center_x
-    input_hdu.header['PGCNTR_y'] = center_y
+    input_hdu.header['PGCNTR_X'] = (center_x, 'pupil ghost center x')
+    input_hdu.header['PGCNTR_y'] = (center_y, 'pupil ghost center y')
+    input_hdu.header['PGSCALNG'] = (scaling, "pupil ghost template scaling")
+    input_hdu.header['PGROTANG'] = (rotator_angle, "pupil ghost rotator angle")
 
-    
     if (verbose): print "all done, going home!"
     return input_hdu
 
 
 
 
-def subtract_pupilghost(input_hdu, pupil_hdu, scaling, rotate=True, verbose=True):
+def subtract_pupilghost(input_hdu, pupil_hdu, scaling, rotate=True, verbose=True,
+                        source_center_coords='data'):
     """
     This is a wrapper around the subtract_pupilghost_extension routine,
     going through all the extensions that might have a pupil ghost.
@@ -166,8 +182,14 @@ def subtract_pupilghost(input_hdu, pupil_hdu, scaling, rotate=True, verbose=True
     for i in range(1, len(input_hdu)):
         rotator_angle = input_hdu[0].header['ROTSTART']
         filtername = input_hdu[0].header['FILTER']
+
+        # Perform pupilghost removal on a single extension
+        # simple hand on all parameters
         subtract_pupilghost_extension(input_hdu[i], rotator_angle, filtername, pupil_hdu, 
-                                      rotate=rotate, scaling=scaling, verbose=verbose)
+                                      rotate=rotate, 
+                                      scaling=scaling, 
+                                      verbose=verbose, 
+                                      source_center_coords=source_center_coords)
 
     return input_hdu
 
