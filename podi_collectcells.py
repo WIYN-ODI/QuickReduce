@@ -31,12 +31,14 @@ How-to use:
 
 import sys
 import os
+import signal
 import pyfits
 import numpy
 import scipy
 import scipy.optimize
 import ephem
 import traceback
+#import psutil
 
 import Queue
 import threading
@@ -752,6 +754,55 @@ def parallel_collect_reduce_ota(queue, return_queue,
     return
 
 
+
+def kill_all_child_processes(process_tracker):
+
+    try:
+        while (True):
+            child_pid = process_tracker.get(True, 1.)
+            stdout_write("\n   terminating child process (process-ID %d) ..." % (child_pid))
+            os.kill(child_pid, signal.SIGKILL)
+            stdout_write(" done!")
+    except Queue.Empty:
+        stdout_write("\n   all child processes terminated!")
+
+    return
+
+def collectcells_with_timeout(input, outputfile,
+                              batchmode=False,
+                              verbose=False,
+                              options=None,
+                              showsplash=True,
+                              timeout=None,
+                              process_tracker=None):
+
+    # Start a collectcells as subprocess
+    
+    cc_args = (input, outputfile,
+               process_tracker,
+               batchmode,
+               verbose,
+               options,
+               showsplash)
+
+    p = multiprocessing.Process(target=collectcells, args=cc_args)
+    if (verbose): print "Starting collectcells with timeout"
+    p.start()
+    if (verbose): print "collectcells started!"
+
+    timeout = timeout if timeout > 0 else None
+    p.join(timeout)
+    if (p.is_alive()):
+        stdout_write("\n\nTimeout event triggered, shutting things down ...")
+        kill_all_child_processes(process_tracker)
+
+        stdout_write("\n   Killing collectcells after timeout...")
+        p.terminate()
+        stdout_write(" all done!\n\n")
+
+    return
+
+
 #########
 #
 # collectcells:
@@ -760,10 +811,12 @@ def parallel_collect_reduce_ota(queue, return_queue,
 #
 #########
 def collectcells(input, outputfile,
+                 process_tracker,
                  batchmode=False,
                  verbose=False,
                  options=None,
-                 showsplash=True):
+                 showsplash=True,
+                 ):
 
     if (showsplash):
         stdout_write("""\
@@ -1000,6 +1053,11 @@ def collectcells(input, outputfile,
             p = multiprocessing.Process(target=parallel_collect_reduce_ota, args=worker_args)
             p.start()
             processes.append(p)
+            if (not process_tracker == None):
+                if (verbose): print "Adding current slave process to process-tracker...", i
+                process_tracker.put(p.pid)
+                if (verbose): print "done adding to process-tracker"
+
             time.sleep(0.01)
 
         # Tell all workers to shut down when no more data is left to work on
@@ -1924,6 +1982,9 @@ Calibration data:
 
 if __name__ == "__main__":
 
+    m = multiprocessing.Manager()
+    process_tracker = m.Queue()
+
     # Read the input directory that contains the individual OTA files
     input = get_clean_cmdline()[1]
 
@@ -1952,8 +2013,19 @@ if __name__ == "__main__":
             p.strip_dirs().sort_stats('time').print_stats()
             p.sort_stats('time').print_stats()
         else:
-            collectcells(input, outputfile, options=options)
+            if (cmdline_arg_isset("-timeout")):
+                timeout = float(cmdline_arg_set_or_default("-timeout", 900))
+                print "Setting timeout to",timeout,"seconds"
+                collectcells_with_timeout(input, outputfile, options=options,
+                                          timeout=timeout,
+                                          process_tracker=process_tracker)
+            else:
+                collectcells(input, outputfile, process_tracker=process_tracker, options=options)
     except:
+        print "Cleaning up left over child processes"
+        kill_all_child_processes(process_tracker)
+
+        stdout_write("\n\n\n\n\n\nkilled main task...\n\n\n\n\n\n")
         stdout_write("\n\n##############################\n#\n# Something terrible happened!\n")
         etype, error, stackpos = sys.exc_info()
         stdout_write("# Exception report:")
