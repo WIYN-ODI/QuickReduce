@@ -153,10 +153,16 @@ def find_center(hdu_data, coord_x, coord_y,
     #
     # setup the array for the pattern recognition
     #
+    if (verbose):
+        print "search-r=",search_r
+        print "search-x=",search_x
+        print "search-y=",search_y
     n_x = int(math.ceil((search_x[1] - search_x[0])/search_x[2]))
     x_values_to_try = (numpy.arange(n_x) * search_x[2]) + search_x[0]
     n_y = int(math.ceil((search_y[1] - search_y[0])/search_y[2]))
     y_values_to_try = (numpy.arange(n_y) * search_y[2]) + search_y[0]
+    # Make sure each ring is at least one (binned) pixel wide
+    if (search_r[2] < prebin): search_r[2] = prebin
     n_r = int(math.ceil((search_r[1] - search_r[0])/search_r[2]))
     r_values_to_try = (numpy.arange(n_r+1) * search_r[2]) + search_r[0]
 
@@ -170,6 +176,7 @@ def find_center(hdu_data, coord_x, coord_y,
     # many pixels fall into the radial slices
     #
     bincount = numpy.zeros(shape=(n_x, n_y, n_r))
+    bincount_w = numpy.zeros(shape=(n_x, n_y, n_r))
     for i_cx, i_cy in itertools.product(range(n_x), range(n_y)):
 
         cx = x_values_to_try[i_cx]
@@ -179,12 +186,20 @@ def find_center(hdu_data, coord_x, coord_y,
 
         # Count pixels in each of the rings.
         # Also use intensity as weight to emphasize stronger features
-        count,edges = numpy.histogram(pixel_radius, bins=r_values_to_try, 
+        count_w,edges = numpy.histogram(pixel_radius, bins=r_values_to_try, 
                                       weights=pixel_value)
  
+        count, edges = numpy.histogram(pixel_radius, bins=r_values_to_try)
+ 
+        # Compute the area of this ring
+        outer_r = edges[1:]**2
+        inner_r = edges[:-1]**2
+        area_full_circle = outer_r - inner_r
+
         # Insert the ring count into the overall structure
         bincount[i_cx, i_cy, :] = count[:]
-    
+        bincount_w[i_cx, i_cy, :] = count_w[:] / area_full_circle
+
         
     if (not fixed_radius == None):
         # Find what radial bin is covered by the specified radius
@@ -192,7 +207,7 @@ def find_center(hdu_data, coord_x, coord_y,
         if (verbose): print "using fixed radius",fixed_radius, ir
 
         # For this radius, find the center position with the strongest signal
-        center_only = bincount[:,:,ir]
+        center_only = bincount_w[:,:,ir]
         index = numpy.argmax(center_only)
         #print "argmax=",index
         ix, iy = numpy.unravel_index(index, center_only.shape)
@@ -201,7 +216,7 @@ def find_center(hdu_data, coord_x, coord_y,
 
     else:
 
-        index = numpy.argmax(bincount)
+        index = numpy.argmax(bincount_w)
         ix, iy, ir = numpy.unravel_index(index, bincount.shape)
 
 
@@ -224,7 +239,7 @@ pupilghost_center_guess = {
     }
 
 
-def find_pupilghost_center(hdu, verbose=False):
+def find_pupilghost_center(hdu, verbose=False, fixed_radius=1270):
 
     
     cx, cy = pupilghost_center_guess[hdu.header["EXTNAME"]]
@@ -235,17 +250,22 @@ def find_pupilghost_center(hdu, verbose=False):
     rawdata[:,3980:] = numpy.NaN
     px, py = numpy.indices(rawdata.shape)
 
-    search_width=500
-
+    search_width=250
+    search_r = [1240,1320, 2]
+    search_x = [cx-search_width, cx+search_width,10]
+    search_y = [cy-search_width, cy+search_width,10]
+    if (verbose):
+        print "search-r=",search_r
+        print "search-x=",search_x
+        print "search-y=",search_y
+    prebin=8
     x, y, r, bincount, edge_frame = find_center(rawdata, px, py,
-                                                search_r = [1200,1350, 10],
-                                                search_x = [cx-search_width, cx+search_width,20],
-                                                search_y = [cy-search_width, cy+search_width,20],
-                                                prebin=8,
+                                                search_r = search_r, search_x = search_x, search_y = search_y,
+                                                prebin=prebin,
                                                 #debugname=hdu[i].header["EXTNAME"],
-                                                fixed_radius=1280,
+                                                fixed_radius=fixed_radius,
                                                 )
-    if (verbose): print x,y,r, " ---> ", x, y, r
+    if (verbose): print "Initial rough center (binning",prebin,") ---> ", x, y, r
 
     # numpy.savetxt("bincount"+hdu[i].header["EXTNAME"], numpy.sum(numpy.sum(bincount, axis=0), axis=0))
     # log = open("bincount"+hdu[i].header["EXTNAME"]+".full", "w")
@@ -280,30 +300,32 @@ def find_pupilghost_center(hdu, verbose=False):
     midres_px   = px[min_valid_x:max_valid_x, min_valid_y:max_valid_y]
     midres_py   = py[min_valid_x:max_valid_x, min_valid_y:max_valid_y]
 
-    fixed_r_x, fixed_r_y, fixed_r_r, bincount2, edge_frame2 = find_center(midres_filtered,
-                                                midres_px, midres_py,
-                                                search_r = [radius-20,radius+20,2],
-                                                search_x = [center_x-30,center_x+30,4],
-                                                search_y = [center_y-30,center_y+30,4],
-                                                prebin=4,
-                                                #debugname=hdu[i].header["EXTNAME"]+"__midres__",
-                                                fixed_radius=1280,
-                                                  threshold=0,
-                                                )
+    search_r = [radius-20,radius+20,2]
+    search_x = [center_x-30,center_x+30,4]
+    search_y = [center_y-30,center_y+30,4]
+    prebin=4
+    fixed_r_x, fixed_r_y, fixed_r_r, bincount2, edge_frame2 = \
+        find_center(midres_filtered,
+                    midres_px, midres_py,
+                    search_r = search_r, search_x = search_x, search_y = search_y,
+                    prebin=prebin,
+                    #debugname=hdu[i].header["EXTNAME"]+"__midres__",
+                    fixed_radius=fixed_radius,
+                    threshold=0,
+                    )
 
-    if (verbose): print "MID-resolution: ", x,y,r, " ---> ", fixed_r_x, fixed_r_y, fixed_r_r
+    if (verbose): print "Better resolution (binning",prebin,", fixed r=",fixed_radius,"px): ---> ", fixed_r_x, fixed_r_y, fixed_r_r
 
-    var_r_x, var_r_y, var_r_r, bincount2, edge_frame2 = find_center(midres_filtered,
-                                                midres_px, midres_py,
-                                                search_r = [radius-20,radius+20,2],
-                                                search_x = [center_x-30,center_x+30,4],
-                                                search_y = [center_y-30,center_y+30,4],
-                                                prebin=4,
-                                                #debugname=hdu[i].header["EXTNAME"]+"__midres__",
-                                                  threshold=0,
-                                                )
+    var_r_x, var_r_y, var_r_r, bincount2, edge_frame2 = \
+        find_center(midres_filtered,
+                    midres_px, midres_py,
+                    search_r = search_r, search_x = search_x, search_y = search_y,
+                    prebin=prebin,
+                    #debugname=hdu[i].header["EXTNAME"]+"__midres__",
+                    threshold=0,
+                    )
 
-    if (verbose): print "MID-resolution (variable r): ", x,y,r, " ---> ", var_r_x, var_r_y, var_r_r
+    if (verbose): print "Better resolution (binning",prebin,", variable radius):  ---> ", var_r_x, var_r_y, var_r_r
 
     return fixed_r_x, fixed_r_y, fixed_r_r, var_r_x, var_r_y, var_r_r
 
@@ -318,7 +340,7 @@ if __name__ == "__main__":
 
         print hdu[i].header["EXTNAME"]
 
-        fx, fy, fr, vx, vy, vr = find_pupilghost_center(hdu[i], verbose=False)
+        fx, fy, fr, vx, vy, vr = find_pupilghost_center(hdu[i], verbose=True)
         print "   fixed radius:", fx, fy, fr
         print "variable radius:", vx, vy, vr
 
