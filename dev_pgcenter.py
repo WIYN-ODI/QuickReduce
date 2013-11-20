@@ -215,116 +215,114 @@ def find_center(hdu_data, coord_x, coord_y,
 
 
 
+
+pupilghost_center_guess = {
+    "OTA33.SCI": (4050, 4050),
+    "OTA34.SCI": (4050, -100),
+    "OTA44.SCI": (-100, -100),
+    "OTA43.SCI": (-100, 4050),
+    }
+
+
+def find_pupilghost_center(hdu, verbose=False):
+
+    
+    cx, cy = pupilghost_center_guess[hdu.header["EXTNAME"]]
+
+    rawdata = hdu.data.T.copy()
+    # trim the edges generously
+    rawdata[3980:,:] = numpy.NaN
+    rawdata[:,3980:] = numpy.NaN
+    px, py = numpy.indices(rawdata.shape)
+
+    search_width=500
+
+    x, y, r, bincount, edge_frame = find_center(rawdata, px, py,
+                                                search_r = [1200,1350, 10],
+                                                search_x = [cx-search_width, cx+search_width,20],
+                                                search_y = [cy-search_width, cy+search_width,20],
+                                                prebin=8,
+                                                #debugname=hdu[i].header["EXTNAME"],
+                                                fixed_radius=1280,
+                                                )
+    if (verbose): print x,y,r, " ---> ", x, y, r
+
+    # numpy.savetxt("bincount"+hdu[i].header["EXTNAME"], numpy.sum(numpy.sum(bincount, axis=0), axis=0))
+    # log = open("bincount"+hdu[i].header["EXTNAME"]+".full", "w")
+    # for x,y,z  in itertools.product(range(bincount.shape[0]), 
+    #                                 range(bincount.shape[1]), 
+    #                                 range(bincount.shape[2])):
+    #     print >>log, x, y, z, bincount[x,y,z]
+    # log.close()
+
+    # hdu[i].data = edge_frame
+    # print
+
+    # Now we have a rough idea where the center is.
+    # Extract a sub-region of the frame close to the center 
+    # that contains the signal plus some extra, re-run the 
+    # center-finding routine and refine the solution.
+    center_x = x#*prebin
+    center_y = y#*prebin
+    radius = r#*prebin
+    margin = 50 # pixels
+
+    min_x, max_x = center_x - radius - margin, center_x + radius + margin
+    min_y, max_y = center_y - radius - margin, center_y + radius + margin
+
+    min_valid_x = numpy.max([0, min_x])
+    max_valid_x = numpy.min([rawdata.shape[0], max_x])
+    min_valid_y = numpy.max([0, min_y])
+    max_valid_y = numpy.min([rawdata.shape[1], max_y])
+
+    midres_data = rawdata[min_valid_x:max_valid_x, min_valid_y:max_valid_y]
+    midres_filtered = scipy.signal.medfilt2d(midres_data, 7)
+    midres_px   = px[min_valid_x:max_valid_x, min_valid_y:max_valid_y]
+    midres_py   = py[min_valid_x:max_valid_x, min_valid_y:max_valid_y]
+
+    fixed_r_x, fixed_r_y, fixed_r_r, bincount2, edge_frame2 = find_center(midres_filtered,
+                                                midres_px, midres_py,
+                                                search_r = [radius-20,radius+20,2],
+                                                search_x = [center_x-30,center_x+30,4],
+                                                search_y = [center_y-30,center_y+30,4],
+                                                prebin=4,
+                                                #debugname=hdu[i].header["EXTNAME"]+"__midres__",
+                                                fixed_radius=1280,
+                                                  threshold=0,
+                                                )
+
+    if (verbose): print "MID-resolution: ", x,y,r, " ---> ", fixed_r_x, fixed_r_y, fixed_r_r
+
+    var_r_x, var_r_y, var_r_r, bincount2, edge_frame2 = find_center(midres_filtered,
+                                                midres_px, midres_py,
+                                                search_r = [radius-20,radius+20,2],
+                                                search_x = [center_x-30,center_x+30,4],
+                                                search_y = [center_y-30,center_y+30,4],
+                                                prebin=4,
+                                                #debugname=hdu[i].header["EXTNAME"]+"__midres__",
+                                                  threshold=0,
+                                                )
+
+    if (verbose): print "MID-resolution (variable r): ", x,y,r, " ---> ", var_r_x, var_r_y, var_r_r
+
+    return fixed_r_x, fixed_r_y, fixed_r_r, var_r_x, var_r_y, var_r_r
+
+
 if __name__ == "__main__":
 
     hdu = pyfits.open(sys.argv[1])
 
     prebin=8
-#    lx = [0,400,400,-100,-100]
-#    ly = [0, 400,-100,-100,400]
-
-    lx = numpy.array([0, 3200, 3200, -800, -800]) #/ prebin
-    ly = numpy.array([0, 3200, -800, -800, 3200]) #/ prebin
-
-    guess_center = {
-        "OTA33.SCI": (4050, 4050),
-        "OTA34.SCI": (4050, -100),
-        "OTA44.SCI": (-100, -100),
-        "OTA43.SCI": (-100, 4050),
-        }
-
-    guess_cx = numpy.array([0, 4050, 3200, -800, -800]) #/ prebin
-    guess_cy = numpy.array([0, 4050, -800, -800, 3200]) #/ prebin
-
-    dx, dy, dr = 16,16,16
 
     for i in range(1,5):
+
         print hdu[i].header["EXTNAME"]
 
-        r_minmax=[800,1600] 
-        x_minmax=[lx[i], lx[i]+1600]
-        y_minmax=[ly[i], ly[i]+1600]
+        fx, fy, fr, vx, vy, vr = find_pupilghost_center(hdu[i], verbose=False)
+        print "   fixed radius:", fx, fy, fr
+        print "variable radius:", vx, vy, vr
 
-        rawdata = hdu[i].data.T
-        # trim the edges generously
-        rawdata[3980:,:] = numpy.NaN
-        rawdata[:,3980:] = numpy.NaN
-        px, py = numpy.indices(rawdata.shape)
-
-        cx, cy = guess_center[hdu[i].header["EXTNAME"]]
-        search_width=500
-
-        x, y, r, bincount, edge_frame = find_center(rawdata, px, py,
-                                                    search_r = [1200,1350, 10],
-                                                    search_x = [cx-search_width, cx+search_width,20],
-                                                    search_y = [cy-search_width, cy+search_width,20],
-                                                    prebin=8,
-                                                    #debugname=hdu[i].header["EXTNAME"],
-                                                    fixed_radius=1280,
-                                                    )
-        print x,y,r, " ---> ", x, y, r
-              
-        numpy.savetxt("bincount"+hdu[i].header["EXTNAME"], numpy.sum(numpy.sum(bincount, axis=0), axis=0))
-        # log = open("bincount"+hdu[i].header["EXTNAME"]+".full", "w")
-        # for x,y,z  in itertools.product(range(bincount.shape[0]), 
-        #                                 range(bincount.shape[1]), 
-        #                                 range(bincount.shape[2])):
-        #     print >>log, x, y, z, bincount[x,y,z]
-        # log.close()
-
-            
-#        print x,y,r, " ---> ", x*prebin+1, y*prebin+1, r*prebin
-
-        hdu[i].data = edge_frame
-        print
-
-        # Now we have a rough idea where the center is.
-        # Extract a sub-region of the frame close to the center 
-        # that contains the signal plus some extra, re-run the 
-        # center-finding routine and refine the solution.
-        center_x = x#*prebin
-        center_y = y#*prebin
-        radius = r#*prebin
-        margin = 50 # pixels
-
-        min_x, max_x = center_x - radius - margin, center_x + radius + margin
-        min_y, max_y = center_y - radius - margin, center_y + radius + margin
-
-        min_valid_x = numpy.max([0, min_x])
-        max_valid_x = numpy.min([rawdata.shape[0], max_x])
-        min_valid_y = numpy.max([0, min_y])
-        max_valid_y = numpy.min([rawdata.shape[1], max_y])
-
-        midres_data = rawdata[min_valid_x:max_valid_x, min_valid_y:max_valid_y]
-        midres_filtered = scipy.signal.medfilt2d(midres_data, 7)
-        midres_px   = px[min_valid_x:max_valid_x, min_valid_y:max_valid_y]
-        midres_py   = py[min_valid_x:max_valid_x, min_valid_y:max_valid_y]
-        
-        x, y, r, bincount2, edge_frame2 = find_center(midres_filtered,
-                                                    midres_px, midres_py,
-                                                    search_r = [radius-20,radius+20,2],
-                                                    search_x = [center_x-30,center_x+30,4],
-                                                    search_y = [center_y-30,center_y+30,4],
-                                                    prebin=4,
-                                                    #debugname=hdu[i].header["EXTNAME"]+"__midres__",
-                                                    fixed_radius=1280,
-                                                      threshold=0,
-                                                    )
  
-        print "MID-resolution: ", x,y,r, " ---> ", x, y, r
- 
-        x, y, r, bincount2, edge_frame2 = find_center(midres_filtered,
-                                                    midres_px, midres_py,
-                                                    search_r = [radius-20,radius+20,2],
-                                                    search_x = [center_x-30,center_x+30,4],
-                                                    search_y = [center_y-30,center_y+30,4],
-                                                    prebin=4,
-                                                    #debugname=hdu[i].header["EXTNAME"]+"__midres__",
-                                                      threshold=0,
-                                                    )
- 
-        print "MID-resolution (variable r): ", x,y,r, " ---> ", x, y, r
- 
-    hduout = hdu[0:5]
-    hduout.writeto("/scratch/edges.fits", clobber=True)
+    # hduout = hdu[0:5]
+    # hduout.writeto("/scratch/edges.fits", clobber=True)
 
