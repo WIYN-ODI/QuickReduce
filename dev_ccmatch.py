@@ -152,8 +152,6 @@ def rotate_shift_catalog(src_cat, center, angle, shift=None, verbose = False):
 
     src_rotated = numpy.zeros(shape=(src_cat.shape[0],2))
     src_rel_to_center = src_cat[:,0:2] - [center_ra, center_dec] 
-    if (not shift == None):
-        src_rel_to_center += shift
 
     # print "\n\n\nDuring rotation"
     # print "src-cat=\n",src_cat[:5,:]
@@ -166,7 +164,7 @@ def rotate_shift_catalog(src_cat, center, angle, shift=None, verbose = False):
 
     # print "in rot_shift: angle-rad=",angle_rad
 
-    if (not shift == None):
+    if (verbose and not shift == None):
         print "@@@@ shift rotation"
         print "shift=", shift
         print "angle=", angle*60, "arcmin"
@@ -181,14 +179,13 @@ def rotate_shift_catalog(src_cat, center, angle, shift=None, verbose = False):
         = math.sin(angle_rad) * src_rel_to_center[:,0] \
         + math.cos(angle_rad) * src_rel_to_center[:,1] \
         + center_dec
+
+    if (not shift == None):
+        src_rotated += shift
     
-    if (verbose): print "src_rotated=\n", src_rotated[:3,0:2]
-
-#    if (not shift == None):
-#        if (verbose): print "applying shift", shift
-#        src_rotated += shift
-
-    if (verbose): print "src-final=\n", src_rotated[:3],"\n\n\n"
+    if (verbose): 
+        print "src_rotated=\n", src_rotated[:3,0:2]
+        print "src-final=\n", src_rotated[:3],"\n\n\n"
 
     src_output = src_cat.copy()
     src_output[:,0:2] = src_rotated[:,0:2]
