@@ -260,19 +260,22 @@ def find_best_guess(src_cat, ref_cat,
         all_results = numpy.zeros(shape=(1, 4))
         all_results[0,0] = 0.
         
-    elif (len(angle_max == 2)):
-        # Two angles given, interpret them as min and max
-        n_angles = int(math.ceil((angle_max[1] - angle_max[0]) / (d_angle / 60.))) + 1
-        all_results = numpy.zeros(shape=(n_angles, 4))
-        all_results[:,0] = numpy.linspace(angle_max[0], angle_max[1], n_angles)
-
-    else: 
+    elif (type(angle_max) == int or type(angle_max) == float): 
         # Just a number given, assume the range is from -x to +x
         n_angles = int(math.ceil((2 * angle_max) / (d_angle / 60.))) + 1
         all_results = numpy.zeros(shape=(n_angles, 4))
         all_results[:,0] = numpy.linspace(-angle_max, angle_max, n_angles)
 
-    
+    elif (len(angle_max) == 2):
+        # Two angles given, interpret them as min and max
+        n_angles = int(math.ceil((angle_max[1] - angle_max[0]) / (d_angle / 60.))) + 1
+        all_results = numpy.zeros(shape=(n_angles, 4))
+        all_results[:,0] = numpy.linspace(angle_max[0], angle_max[1], n_angles)
+
+    else:
+        print "We don't know how to handle this case"
+        print "in find_best_guess, angle_max =",angle_max
+        sys.exit(0)
 
     for cur_angle in range(n_angles):
         angle = all_results[cur_angle,0]
