@@ -616,6 +616,49 @@ def ccmatch_shift(source_cat,
 
 
  
+def log_shift_rotation(hdulist, params, n_step=1):
+
+    hdulist[0].header['WCS%d_DA'  % n_step] = (params[0], "WCS calib best guess angle")
+    hdulist[0].header['WCS%d_DRA' % n_step] = (params[2], "WCS calib best guess d_RA")
+    hdulist[0].header['WCS%d_DDE' % n_step] = (params[3], "WCS calib best guess d_DEC")
+    hdulist[0].header['WCS%d_N'   % n_step] = (params[1], "WCS calib best guess # matches")
+
+    return
+
+
+
+
+def apply_correction_to_header(hdulist, best_guess, verbose=False):
+
+    for ext in range(len(hdulist)):
+        if (not is_image_extension(hdulist[ext])):
+            continue
+
+        ota_extension = hdulist[ext]
+        
+        # Read all WCS relevant information from the FITS header
+        print "\nApplying shift",best_guess[2:4],"to extension",ota_extension.header['EXTNAME']
+        print hdulist[ext].header['CRVAL1'], hdulist[ext].header['CRVAL2']
+        wcs_poly = header_to_polynomial(ota_extension.header)
+
+        # Apply the shift and rotation
+        wcs_poly = wcs_apply_shift(wcs_poly, best_guess[2:4])
+
+        # Write the updated, WCS relevant keywords back to FITS header
+        wcs_wcspoly_to_header(wcs_poly, hdulist[ext].header) #ota_extension.header)
+
+        if (verbose):
+            print hdulist[ext].header['CRVAL1'], hdulist[ext].header['CRVAL2']
+            hdulist[ext].header['XVAL1'] = hdulist[ext].header['CRVAL1']
+            hdulist[ext].header['XVAL2'] = hdulist[ext].header['CRVAL2']
+
+    return
+
+
+
+
+
+
 if __name__ == "__main__":
     verbose=False
 
@@ -717,6 +760,8 @@ Valid modes are only
         # Load & Prepare reference catalog
         center_ra = hdulist[1].header['CRVAL1']
         center_dec = hdulist[1].header['CRVAL2']
+
+        # Compute the optimal shift vector
         wcs_correction = ccmatch_shift(source_cat=src_cat,
                                        reference_cat=ref_cat,
                                        center=(center_ra, center_dec),
@@ -725,42 +770,16 @@ Valid modes are only
 
         print wcs_correction
 
-        best_guess = wcs_correction
-
-        hdulist[0].header['WCS1_DA'] = (best_guess[0], "WCS calib best guess angle")
-        hdulist[0].header['WCS1_DRA'] = (best_guess[2], "WCS calib best guess d_RA")
-        hdulist[0].header['WCS1_DDE'] = (best_guess[3], "WCS calib best guess d_DEC")
-        hdulist[0].header['WCS1_N'] = (best_guess[1], "WCS calib best guess # matches")
+        # Add the best fit shift to outut header to keep track 
+        # of the changes we are making
+        log_shift_rotation(hdulist, params=wcs_correction, n_step=1)
 
         # Now apply this shift to the output file and write results
+        apply_correction_to_header(hdulist, wcs_correction, verbose=False)
 
-        for ext in range(len(hdulist)):
-            if (not is_image_extension(hdulist[ext])):
-                continue
-
-            ota_extension = hdulist[ext]
-            print "\nApplying shift",best_guess[2:4],"to extension",ota_extension.header['EXTNAME']
-            print hdulist[ext].header['CRVAL1'], hdulist[ext].header['CRVAL2']
-            wcs_poly = header_to_polynomial(ota_extension.header)
-            wcs_poly = wcs_apply_shift(wcs_poly, best_guess[2:4])
-            wcs_wcspoly_to_header(wcs_poly, hdulist[ext].header) #ota_extension.header)
-            print hdulist[ext].header['CRVAL1'], hdulist[ext].header['CRVAL2']
-            hdulist[ext].header['XVAL1'] = hdulist[ext].header['CRVAL1']
-            hdulist[ext].header['XVAL2'] = hdulist[ext].header['CRVAL2']
-
+        # All work is done, write the output FITS file
         print "writing results ..."
-        #hduout = pyfits.HDUList(hdulist[0:2])
-        hduout = hdulist
-        print "writing hduout..."
-        #primhdu = pyfits.PrimaryHDU(header=hdulist[1].header, 
-        #                            data=hdulist[1].data)
-        #hduxxx = pyfits.HDUList([primhdu])
-        #hduxxx.writeto("output_xxx.fits", clobber=True)
-        hduout.writeto(outputfile, clobber=True)
-        print "CRVAL in output file!:"
-        print hduout[1].header['CRVAL1'], hduout[1].header['CRVAL2']
-        # print primhdu.header['CRVAL1'], primhdu.header['CRVAL2']
-        #hdulist.writeto(outputfile, clobber=True)
+        hdulist.writeto(outputfile, clobber=True)
 
         # sys.exit(0)
 
@@ -768,9 +787,9 @@ Valid modes are only
         # match it to the reference catalog and output both to file
         src_rotated = rotate_shift_catalog(src_cat[:,0:2], (center_ra, center_dec), 
                                            angle=0.,
-                                           shift=best_guess[2:4],
+                                           shift=wcs_correction[2:4],
                                            verbose=False)
-        matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(2./3600.), max_count=1)
+        matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(5./3600.), max_count=1)
         numpy.savetxt("ccmatch.after_shift", matched)
 
         sys.exit(0)
@@ -789,7 +808,7 @@ Valid modes are only
     best_guess = find_best_guess(src_cat, ref_cat,
                                  center_ra, center_dec,
                                  matching_radius=(max_pointing_error/60.),
-                                 angle_max=1.5, #degrees
+                                 angle_max=[-2,2], #degrees
                                  d_angle=10 # arcmin
                                  )
     print "\n\n\n\n\n found best guess:"
