@@ -86,7 +86,7 @@ def sample_background(data, wcs, starcat, min_found=200, boxwidth=30, fit_region
     # searching until we either found 50 per OTA or have tried 100 times
     found = 0
     tried = 0
-    max_tried = 1.5*min_found
+    max_tried = int(1.5*min_found)
 
     skip_nan_boxes = True
     if (box_center == None):
