@@ -154,14 +154,21 @@ def fit_background(hdulist, plotname=None, exclude_videocells=True, fit_order=3,
     # First of all, get the list of sources in all the frames
     #print hdulist.info()
 
-    odicat = hdulist['CAT.ODI']
-    #print odicat.data
+    try:
+        odicat = hdulist['CAT.ODI']
+        #print odicat.data
 
-    odi_x = odicat.data.field("X")
-    odi_y = odicat.data.field("Y")
-    odi_ota = odicat.data.field("OTA")
-    odi_ra = odicat.data.field("RA")
-    odi_dec = odicat.data.field("DEC")
+        odi_x = odicat.data.field("X")
+        odi_y = odicat.data.field("Y")
+        odi_ota = odicat.data.field("OTA")
+        odi_ra = odicat.data.field("RA")
+        odi_dec = odicat.data.field("DEC")
+    except:
+        odi_ota = numpy.zeros(shape=(0))
+        odi_ra = numpy.zeros(shape=(0))
+        odi_dec = numpy.zeros(shape=(0))
+        odi_x = numpy.zeros(shape=(0))
+        odi_y = numpy.zeros(shape=(0))
 
     #odi_radec = odicat.data[:,0:2]
     #print odi_radec
@@ -217,7 +224,7 @@ def fit_background(hdulist, plotname=None, exclude_videocells=True, fit_order=3,
         # Determine the maximum and minimum coordinates
         minmax_radec = find_maximum_extent(minmax_radec, wcs, max_xy)
 
-        starcat = (ota_x, ota_y)
+        starcat = (ota_x, ota_y) if numpy.sum(ota_select) > 0 else None
         fit_regions = sample_background(hdulist[ext_name].data, wcs, 
                                         starcat, 
                                         min_found=200, 
@@ -285,7 +292,7 @@ def fit_background(hdulist, plotname=None, exclude_videocells=True, fit_order=3,
     
     #print "#\n#\n#\nfitorder=",fit_order,"\n\#\n#\n"
 
-    if (True): #fit_order <= 1):
+    if (fit_order < 1):
 
         stdout_write("Doing some simple bg-subtraction...\n")
 
@@ -313,7 +320,7 @@ def fit_background(hdulist, plotname=None, exclude_videocells=True, fit_order=3,
             if (cellmode.find("V") >= 0):
                 continue
             hdulist[ext_name].data -= median
-            hdulist[ext_name].header.update("BGLVLCST", median, "constant background level")
+            hdulist[ext_name].header["BGLVLCST"] = (median, "constant background level")
             hdulist_out.append(hdulist[ext_name])
         stdout_write(" done!\n")
 
@@ -326,7 +333,7 @@ def fit_background(hdulist, plotname=None, exclude_videocells=True, fit_order=3,
         x, y, z = skypoints[:,0], skypoints[:,1], skypoints[:,4]
 
         # Fit a 3rd order, 2d polynomial
-        m = polyfit2d(x,y,z, order=3)
+        m = polyfit2d(x,y,z, order=fit_order)
 
         # Evaluate it on a grid...
         nx, ny = 50, 50
@@ -466,7 +473,7 @@ def fit_background(hdulist, plotname=None, exclude_videocells=True, fit_order=3,
 
 if __name__ == "__main__":
 
-    fit_order = cmdline_arg_set_or_default("-fitorder",3)
+    fit_order = int(cmdline_arg_set_or_default("-fitorder",3))
     plotting = cmdline_arg_set_or_default("-plot", "all")
     noclobber = cmdline_arg_isset("-noclobber")
 
