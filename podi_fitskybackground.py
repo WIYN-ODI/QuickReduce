@@ -107,8 +107,8 @@ def sample_background(data, wcs, starcat, min_found=200, boxwidth=30, fit_region
     while (found < min_found and tried < max_tried):
         #print box_center[tried,:]
 
-        x1, x2 = box_center[tried,0]-boxwidth, box_center[tried,0]+boxwidth
-        y1, y2 = box_center[tried,1]-boxwidth, box_center[tried,1]+boxwidth
+        x1, x2 = int(box_center[tried,0]-boxwidth), int(box_center[tried,0]+boxwidth)
+        y1, y2 = int(box_center[tried,1]-boxwidth), int(box_center[tried,1]+boxwidth)
 
         cutout = numpy.array(data[y1:y2,x1:x2], dtype=numpy.float32)
         #cutout = data[y1:y2,x1:x2]
