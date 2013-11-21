@@ -129,6 +129,11 @@ def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_fil
             result_buffer[line,:] = bottleneck.nanmedian(x, axis=1)
             x = None
             del x
+        elif (operation == "nanmean.bn"):
+            x = numpy.array(buffer[line,:,:], dtype=numpy.float32)
+            result_buffer[line,:] = bottleneck.nanmean(x, axis=1)
+            x = None
+            del x
         else:
             result_buffer[line,:] = numpy.mean(buffer[line,:,:], axis=1)             
             
@@ -339,7 +344,7 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
         dirname, filename = os.path.split(file)
         filenames_only.append(filename)
 
-    out_hdulist[0].header.update("NCOMBINE", len(filenames_only), "number of combined files")
+    out_hdulist[0].header["NCOMBINE"] = (len(filenames_only), "number of combined files")
 
     columns = [
         pyfits.Column(name='filenumber', format="I4", array=range(1,len(filenames_only)+1)),
@@ -347,7 +352,7 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
         ]
     coldefs = pyfits.ColDefs(columns)
     tablehdu = pyfits.new_table(coldefs, tbtype="BinTableHDU")
-    tablehdu.header.update("EXTNAME", "FILELIST")
+    tablehdu.header["EXTNAME"] = "FILELIST"
     out_hdulist.append(tablehdu)
 
     #
