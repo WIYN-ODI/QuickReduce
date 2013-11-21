@@ -270,8 +270,8 @@ if __name__ == "__main__":
                         pg_hdu = pyfits.open(pg_template)
                         scaling = podi_matchpupilghost.scaling_factors[filter]
                         podi_matchpupilghost.subtract_pupilghost(flat_hdus, pg_hdu, scaling)
-                        flat_hdus[0].header.update("PUPLGOST", pg_template, "p.g. template")
-                        flat_hdus[0].header.update("PUPLGFAC", scaling, "pupilghost scaling")
+                        flat_hdus[0].header["PUPLGOST"] = (pg_template, "p.g. template")
+                        flat_hdus[0].header["PUPLGFAC"] = (scaling, "pupilghost scaling")
                         stdout_write(" done!\n")
                     else:
                         stdout_write(" --> problem:\n")

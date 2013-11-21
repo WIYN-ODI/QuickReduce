@@ -60,11 +60,11 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
             index = list_of_otas_to_normalize.index(fppos)
         except:
             # We didn't find this OTA in the list, so skip it
-            hdulist[extension].header.update("FF_NORM", False, "Used in normalization")
+            hdulist[extension].header["FF_NORM"] = (False, "Used in normalization")
             extension += 1
             continue
 
-        hdulist[extension].header.update("FF_NORM", True, "Used in normalization")
+        hdulist[extension].header["FF_NORM"] = (True, "Used in normalization")
 
         gain_ota = hdulist[extension].header['GAIN']
         gain_ota_count = hdulist[extension].header['GAIN_CNT']
