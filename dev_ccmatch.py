@@ -15,8 +15,10 @@ import itertools
 from  podi_definitions import *
 import podi_search_ipprefcat
 from podi_wcs import *
+import podi_search_ipprefcat
+import podi_sitesetup as sitesetup
 
-max_pointing_error = 2.
+max_pointing_error = 5.
 
 import logging
 
@@ -623,11 +625,26 @@ Valid modes are only
 
     print "src_cat:",src_cat.shape
 
+    #
+    # compute the center of the field
+    #
+    center_ra = hdulist[1].header['CRVAL1'] #numpy.median(src_cat[:,0])
+    center_dec = hdulist[1].header['CRVAL2'] #numpy.median(src_cat[:,1])
+    print "field center at ", center_ra, center_dec
+
+
     # 
     # Create the reference catalog
     #
     ref_catfile = sys.argv[2]
-    ref_raw = numpy.loadtxt(ref_catfile)[:,0:2]
+    if (ref_catfile == "-"):
+        search_size = 0.8
+        ref_raw = podi_search_ipprefcat.get_reference_catalog(center_ra, center_dec, search_size, 
+                                                              basedir=sitesetup.wcs_ref_dir,
+                                                              cattype=sitesetup.wcs_ref_type)
+        ref_raw = ref_raw[:,0:2]
+    else:
+        ref_raw = numpy.loadtxt(ref_catfile)[:,0:2]
     print "ref. cat (raw) =",ref_raw.shape
 
 
@@ -640,13 +657,6 @@ Valid modes are only
 
 
 
-
-    #
-    # compute the center of the field
-    #
-    center_ra = hdulist[1].header['CRVAL1'] #numpy.median(src_cat[:,0])
-    center_dec = hdulist[1].header['CRVAL2'] #numpy.median(src_cat[:,1])
-    print "field center at ", center_ra, center_dec
 
     current_best_rotation = 0
     current_best_shift = [0.,0.]
@@ -693,7 +703,8 @@ Valid modes are only
         #hduxxx.writeto("output_xxx.fits", clobber=True)
         hduout.writeto(outputfile, clobber=True)
         print "CRVAL in output file!:"
-        print primhdu.header['CRVAL1'], primhdu.header['CRVAL2']
+        print hduout[1].header['CRVAL1'], hduout[1].header['CRVAL2']
+        # print primhdu.header['CRVAL1'], primhdu.header['CRVAL2']
         #hdulist.writeto(outputfile, clobber=True)
 
         # sys.exit(0)
