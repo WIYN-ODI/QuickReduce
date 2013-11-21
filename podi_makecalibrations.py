@@ -159,6 +159,7 @@ if __name__ == "__main__":
                 if (not os.path.isfile(bias_outfile) or cmdline_arg_isset("-redo")):
                     collectcells(cur_bias, bias_outfile,
                                  options=options,
+                                 process_tracker=None,
                                  batchmode=False,
                                  showsplash=False)
                 bias_to_stack.append(bias_outfile)
@@ -190,6 +191,7 @@ if __name__ == "__main__":
                 dark_outfile = "%s/dark.%s.fits" % (tmp_directory, strip_fits_extension_from_filename(basename))
                 if (not os.path.isfile(dark_outfile) or cmdline_arg_isset("-redo")):
                     collectcells(cur_dark, dark_outfile,
+                                 process_tracker=None,
                                  options=options,
                                  batchmode=False, showsplash=False)
                 darks_to_stack.append(dark_outfile)
@@ -231,6 +233,7 @@ if __name__ == "__main__":
                         #wcs_solution = os.path.split(os.path.abspath(sys.argv[0]))[0]+"/wcs_distort2.fits"
                         #wcs_solution = cmdline_arg_set_or_default("-wcs", wcs_solution)
                         hdu_list = collectcells(cur_flat, flat_outfile,
+                                                process_tracker=None,
                                                 options=options,
                                                 batchmode=True, showsplash=False)
                         normalize_flatfield(None, flat_outfile, binning_x=8, binning_y=8, repeats=3, batchmode_hdu=hdu_list)
@@ -256,7 +259,9 @@ if __name__ == "__main__":
                     stdout_write("Performing pupil ghost correction ...")
                     # Get level os active filter and determine what the template filename is
                     filter_level = get_filter_level(flat_hdus[0].header)
-                    pg_template = "%s/pupilghost_template___level_%d__bin%d.fits" % (options['pupilghost_dir'], filter_level, binning)
+
+                    pg_filename = "pupilghost_template___level_%d__bin%d.fits" % (filter_level, binning)
+                    pg_template = check_filename_directory(options['pupilghost_dir'], pg_filename)
                     print pg_template
 
                     # If we have a template for this level
