@@ -255,11 +255,28 @@ def find_best_guess(src_cat, ref_cat,
 
     #angle_max = 2.
     #d_angle = 5.
-    n_angles = int(math.ceil((2 * angle_max) / (d_angle / 60.))) + 1
 
-    all_results = numpy.zeros(shape=(n_angles, 4))
+    
+    if (angle_max == None):
+        # This means there's no rotation at all
+        n_angles = 1
+        all_results = numpy.zeros(shape=(1, 4))
+        all_results[0,0] = 0.
+        
+    elif (len(angle_max == 2)):
+        # Two angles given, interpret them as min and max
+        n_angles = int(math.ceil((angle_max[1] - angle_max[0]) / (d_angle / 60.))) + 1
+        all_results = numpy.zeros(shape=(n_angles, 4))
+        all_results[:,0] = numpy.linspace(angle_max[0], angle_max[1], n_angles)
 
-    all_results[:,0] = numpy.linspace(-angle_max, angle_max, n_angles)
+    else: 
+        # Just a number given, assume the range is from -x to +x
+        n_angles = int(math.ceil((2 * angle_max) / (d_angle / 60.))) + 1
+        all_results = numpy.zeros(shape=(n_angles, 4))
+        all_results[:,0] = numpy.linspace(-angle_max, angle_max, n_angles)
+
+    
+
     for cur_angle in range(n_angles):
         angle = all_results[cur_angle,0]
         print "\n\n\nWorking on angle",angle,angle*60,"(deg/arcmin)\n\n\n"
@@ -567,6 +584,41 @@ def verify_wcs_model(cat, hdulist):
     return comp
 
 
+
+
+def ccmatch_shift(source_cat, 
+                  reference_cat,
+                  center=None, #[center_ra, center_dec],
+                  matching_radius=(max_pointing_error/60.), #(max_pointing_error/60.)
+                  ):
+
+
+    if (center == None):
+        center_ra = numpy.median(source_cat[:,0])
+        center_dec = numpy.median(source_cat[:,1])
+    else:
+        center_ra, center_dec = center
+
+    best_guess = find_best_guess(source_cat, 
+                                 reference_cat,
+                                 center_ra, center_dec,
+                                 matching_radius=matching_radius,
+                                 angle_max=None,
+                                 )
+
+    print "\n\n\n\n\n found best guess:"
+    print best_guess
+    print best_guess[2:4]*3600.
+    print "\n\n\n\n\n"
+
+    return best_guess
+
+
+
+
+
+
+ 
 if __name__ == "__main__":
     verbose=False
 
@@ -662,16 +714,21 @@ Valid modes are only
     current_best_shift = [0.,0.]
 
     if (mode == "shift"):
-        best_guess = find_best_guess(src_cat, ref_cat,
-                                     center_ra, center_dec,
-                                     matching_radius=(max_pointing_error/60.),
-                                     angle_max=0.00001, #degrees
-                                     d_angle=3 # arcmin
-                                     )
-        print "\n\n\n\n\n found best guess:"
-        print best_guess
-        print best_guess[2:4]*3600.
-        print "\n\n\n\n\n"
+
+        # Prepare source catalog
+        
+        # Load & Prepare reference catalog
+        center_ra = hdulist[1].header['CRVAL1']
+        center_dec = hdulist[1].header['CRVAL2']
+        wcs_correction = ccmatch_shift(source_cat=src_cat,
+                                       reference_cat=ref_cat,
+                                       center=(center_ra, center_dec),
+                                       matching_radius=(max_pointing_error/60.)
+                                       )
+
+        print wcs_correction
+
+        best_guess = wcs_correction
 
         hdulist[0].header['WCS1_DA'] = (best_guess[0], "WCS calib best guess angle")
         hdulist[0].header['WCS1_DRA'] = (best_guess[2], "WCS calib best guess d_RA")
@@ -695,7 +752,8 @@ Valid modes are only
             hdulist[ext].header['XVAL2'] = hdulist[ext].header['CRVAL2']
 
         print "writing results ..."
-        hduout = pyfits.HDUList(hdulist[0:2])
+        #hduout = pyfits.HDUList(hdulist[0:2])
+        hduout = hdulist
         print "writing hduout..."
         #primhdu = pyfits.PrimaryHDU(header=hdulist[1].header, 
         #                            data=hdulist[1].data)
