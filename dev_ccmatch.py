@@ -305,8 +305,8 @@ def find_best_guess(src_cat, ref_cat,
                                           fine_radius=fine_radius,
                                           debugangle=angle)
 
-        all_results[cur_angle,1] = n_matches
-        all_results[cur_angle,2:4] = offset
+        all_results[cur_angle,1:3] = offset
+        all_results[cur_angle,3] = n_matches
 
     numpy.savetxt(sys.stdout, all_results)
     numpy.savetxt("ccmatch.allresults", all_results)
@@ -315,7 +315,7 @@ def find_best_guess(src_cat, ref_cat,
     #
     # Now find the best solution (the one with the highest matched star density)
     #
-    idx_best_angle = numpy.argmax(all_results[:,1])
+    idx_best_angle = numpy.argmax(all_results[:,3])
 
     best_guess = all_results[idx_best_angle]
     print best_guess, "angle=",best_guess[0]*60.,"arcmin"
@@ -608,7 +608,7 @@ def ccmatch_shift(source_cat,
 
     print "\n\n\n\n\n found best guess:"
     print best_guess
-    print best_guess[2:4]*3600.
+    print "offset=",best_guess[1:3]*3600.
     print "\n\n\n\n\n"
 
     return best_guess
@@ -622,9 +622,9 @@ def ccmatch_shift(source_cat,
 def log_shift_rotation(hdulist, params, n_step=1):
 
     hdulist[0].header['WCS%d_DA'  % n_step] = (params[0], "WCS calib best guess angle")
-    hdulist[0].header['WCS%d_DRA' % n_step] = (params[2], "WCS calib best guess d_RA")
-    hdulist[0].header['WCS%d_DDE' % n_step] = (params[3], "WCS calib best guess d_DEC")
-    hdulist[0].header['WCS%d_N'   % n_step] = (params[1], "WCS calib best guess # matches")
+    hdulist[0].header['WCS%d_DRA' % n_step] = (params[1], "WCS calib best guess d_RA")
+    hdulist[0].header['WCS%d_DDE' % n_step] = (params[2], "WCS calib best guess d_DEC")
+    hdulist[0].header['WCS%d_N'   % n_step] = (params[3], "WCS calib best guess # matches")
 
     return
 
@@ -640,12 +640,12 @@ def apply_correction_to_header(hdulist, best_guess, verbose=False):
         ota_extension = hdulist[ext]
         
         # Read all WCS relevant information from the FITS header
-        print "\nApplying shift",best_guess[2:4],"to extension",ota_extension.header['EXTNAME']
+        print "\nApplying shift",best_guess[1:3],"to extension",ota_extension.header['EXTNAME']
         print hdulist[ext].header['CRVAL1'], hdulist[ext].header['CRVAL2']
         wcs_poly = header_to_polynomial(ota_extension.header)
 
         # Apply the shift and rotation
-        wcs_poly = wcs_apply_shift(wcs_poly, best_guess[2:4])
+        wcs_poly = wcs_apply_shift(wcs_poly, best_guess[1:3])
 
         # Write the updated, WCS relevant keywords back to FITS header
         wcs_wcspoly_to_header(wcs_poly, hdulist[ext].header) #ota_extension.header)
@@ -790,7 +790,7 @@ Valid modes are only
         # match it to the reference catalog and output both to file
         src_rotated = rotate_shift_catalog(src_cat[:,0:2], (center_ra, center_dec), 
                                            angle=0.,
-                                           shift=wcs_correction[2:4],
+                                           shift=wcs_correction[1:3],
                                            verbose=False)
         matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(5./3600.), max_count=1)
         numpy.savetxt("ccmatch.after_shift", matched)
@@ -828,7 +828,7 @@ Valid modes are only
                                  )
     print "\n\n\n\n\n found best guess:"
     print initial_guess
-    print initial_guess[2:4]*3600.
+    print initial_guess[1:3]*3600.
     print "\n\n\n\n\n"
 
     # Add the best fit shift to outut header to keep track 
@@ -840,7 +840,7 @@ Valid modes are only
     #
     print "\n\n\n\n\nbest guess:\n",initial_guess,"\n\n\n\n\n"
     current_best_rotation = initial_guess[0]
-    current_best_shift = initial_guess[2:4]
+    current_best_shift = initial_guess[1:3]
     guessed_cat = rotate_shift_catalog(full_src_cat, (center_ra, center_dec), 
                                        angle=current_best_rotation,
                                        shift=current_best_shift,
