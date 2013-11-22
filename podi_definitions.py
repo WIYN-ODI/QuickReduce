@@ -134,6 +134,7 @@ otas_to_normalize_ff = {"odi_g": non_vignetted,
                         "918R_v1": central_2x2,
                         "Us_solid": central_2x2,
                         "unknown": central_2x2,
+                        "UNKNOWN": central_2x2,
                         "windowGlass": all_otas,
                         }	
 
@@ -1010,10 +1011,15 @@ pupilghost_centers = {
               "OTA34.SCI": (4207, -189),
               "OTA44.SCI": ( -12, -204)},
 
-    "odi_i": {"OTA33.SCI": (4064, 4148),
-              "OTA34.SCI": (4084, -216),
-              "OTA44.SCI": ( -84, -240),
-              "OTA43.SCI": (-104, 4124)},
+    # "odi_i": {"OTA33.SCI": (4064, 4148),
+    #           "OTA34.SCI": (4084, -216),
+    #           "OTA44.SCI": ( -84, -240),
+    #           "OTA43.SCI": (-104, 4124)},
+
+    "odi_i": {"OTA33.SCI": (4225, 4145),
+              "OTA34.SCI": (4225, -143),
+              "OTA44.SCI": ( -31, -207),
+              "OTA43.SCI": ( -63, 4081)},
 
     # use the direct coordinates as a backup for compatibility for now
     "OTA33.SCI": (4182, 4155),
@@ -1035,7 +1041,7 @@ def inherit_headers(header, primary_header):
 
         
 
-def rebin_image(data, binfac):
+def rebin_image(data, binfac, operation=numpy.mean):
 
     if (binfac < 1):
         stdout_write("Rebinning at the moment only supports binning to larger pixels with binfac>1\n")
@@ -1058,8 +1064,8 @@ def rebin_image(data, binfac):
 #    rebinned = numpy.reshape(container, (out_size_x, binfac, out_size_y, binfac)).mean(axis=-1).mean(axis=1)
 
     rb1 = numpy.array(numpy.reshape(container, (out_size_x, binfac, out_size_y, binfac)), dtype=numpy.float32)
-    rb2 = nanmean(rb1, axis=-1)
-    rebinned = nanmean(rb2, axis=1)
+    rb2 = operation(rb1, axis=-1)
+    rebinned = operation(rb2, axis=1)
 
 #    rb1 = numpy.array(numpy.reshape(container, (out_size_x, binfac, out_size_y, binfac)), dtype=numpy.float32)
 #    rb2 = nanmedian(rb1, axis=-1)
@@ -1342,12 +1348,12 @@ def get_binning(hdr):
     # print "determining binning factor"
     
     # The CCDBIN1 keyword should be foung in primary header, so try this one first
-    try:
-        binfac = hdr['CCDBIN1']
-        # print binfac
-        return int(binfac)
-    except:
-        pass
+    # try:
+    #     binfac = hdr['CCDBIN1']
+    #     # print binfac
+    #     return int(binfac)
+    # except:
+    #     pass
 
     # Couldn't find the CCDBIN1 header, so this is likely not a primary HDU
     # Try the CCDSUM keyword next
@@ -1358,6 +1364,10 @@ def get_binning(hdr):
         return int(items[0])
     except:
         pass
+
+    #
+    # If we still don't find a valid header, look at the size of the data section
+    #
 
     # Still no luck finding a header? Assume it's 1 and continue
     return 1
