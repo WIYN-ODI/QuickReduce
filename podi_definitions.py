@@ -118,68 +118,112 @@ non_vignetted = [16, 22, 23, 24, 32, 33, 34, 42, 43, 44, 55, 61]
 # Enter here the OTAs with full coverage in each of the filters. These OTAs
 # will then be used to compute the median illumination level to correct/normalize the flat-fields
 #
-otas_to_normalize_ff = {"odi_g": non_vignetted,
-                        "odi_r": non_vignetted,
-                        "odi_i": non_vignetted,
-                        "odi_z": non_vignetted,
-                        "CTIO_Ha": central_2x2,
-                        "sdss_u": central_2x2,
-                        "CTIO_OIII": central_2x2,
-                        "BATC_420": central_2x2,
-                        "BATC_390": central_2x2,
-                        "OPEN": non_vignetted,
-                        "mosaic_u": central_2x2,
-                        "s2_SII": central_2x2,
-                        "823_v2": central_2x2,
-                        "918R_v1": central_2x2,
-                        "Us_solid": central_2x2,
-                        "unknown": central_2x2,
-                        "UNKNOWN": central_2x2,
-                        "windowGlass": all_otas,
-                        }	
+otas_to_normalize_ff = {
+    #
+    # Full ODI filters
+    #
+    "odi_g": non_vignetted,
+    "odi_i": non_vignetted,
+    "odi_r": non_vignetted,
+    "odi_z": non_vignetted,
+    #
+    # All other filters
+    #
+    "823_v2": central_2x2,
+    "918R_v1": central_2x2,
+    "BATC_390": central_2x2,
+    "BATC_420": central_2x2,
+    "CTIO_Ha": central_2x2,
+    "CTIO_Ha_8nm": central_2x2,
+    "CTIO_OIII": central_2x2,
+    "Halpha_and_odiz": central_2x2,
+    "KPNO_815": central_2x2,
+    "mosaic_u": central_2x2,
+    "MosaicU_and_odir": central_2x2,
+    "OPEN": non_vignetted,
+    "s2_SII": central_2x2,
+    "sdss_u": central_2x2,
+    "UG5": central_2x2,
+    "unknown": central_2x2,
+    "UNKNOWN": central_2x2,
+    "Us_solid": central_2x2,
+    "windowGlass": all_otas,
+    "WRC3": central_2x2,
+    }	
 
 #
 # These are the OTAs that have at least partial coverage in each filter
 #
-otas_for_photometry = {"odi_g": all_otas,
-                       "odi_r": all_otas,
-                       "odi_i": all_otas,
-                       "odi_z": all_otas,
-                       "CTIO_Ha": central_3x3,
-                       "sdss_u": central_3x3,
-                       "CTIO_OIII": central_3x3,
-                       "BATC_420": central_3x3,
-                       "BATC_390": central_3x3,
-                       "OPEN": all_otas,
-                       "mosaic_u": central_3x3,
-                       "s2_SII": central_3x3,
-                       "823_v2": central_3x3,
-                       "918R_v1": central_3x3,
-                       "unknown": central_2x2,
-                       }	
+otas_for_photometry = {
+    #
+    # Full ODI filters
+    #
+    "odi_g": all_otas,
+    "odi_r": all_otas,
+    "odi_i": all_otas,
+    "odi_z": all_otas,
+    #
+    # All other filters
+    #
+    "823_v2": central_3x3,
+    "918R_v1": central_3x3,
+    "BATC_390": central_3x3,
+    "BATC_420": central_3x3,
+    "CTIO_Ha": central_3x3,
+    "CTIO_Ha_8nm": central_3x3,
+    "CTIO_OIII": central_3x3,
+    "Halpha_and_odiz": central_3x3,
+    "KPNO_815": central_3x3,
+    "mosaic_u": central_3x3,
+    "MosaicU_and_odir": central_3x3,
+    "OPEN": all_otas,
+    "sdss_u": central_3x3,
+    "s2_SII": central_3x3,
+    "UG5": central_3x3,
+    "unknown": central_3x3,
+    "UNKNOWN": central_3x3,
+    "Us_solid": central_3x3,
+    "windowGlass": all_otas,
+    "WRC3": central_3x3,
+    }	
 
 
 #
 # This list is used for photometric calibration.
 # Enter the SDSS equivalent name for each of the filters
 #
-sdss_equivalents = {"odi_g": 'g',
-                    "odi_r": 'r',
-                    "odi_i": 'i',
-                    "odi_z": 'z',
-                    "CTIO_Ha": None,
-                    "sdss_u": 'u',
-                    "CTIO_OIII": None,
-                    "BATC_420": None,
-                    "BATC_390": None,
-                    "OPEN": None,
-                    "mosaic_u": 'u',
-                    "s2_SII": None,
-                    "823_v2": None,
-                    "918R_v1": None,
-                    "Us_solid": 'u',
-                    "unknown": None,
-		    }	
+sdss_equivalents = {
+    #
+    # Full ODI filters
+    #
+    "odi_g": 'g',
+    "odi_r": 'r',
+    "odi_i": 'i',
+    "odi_z": 'z',
+    #
+    # All other filters
+    #
+    "823_v2": None,
+    "918R_v1": None,
+    "BATC_390": None,
+    "BATC_420": None,
+    "CTIO_Ha": None,
+    "CTIO_Ha_8nm": None,
+    "CTIO_OIII": None,
+    "Halpha_and_odiz": None,
+    "KPNO_815": None,
+    "mosaic_u": 'u',
+    "MosaicU_and_odir": None,
+    "OPEN": None,
+    "sdss_u": 'u',
+    "s2_SII": None,
+    "UG5": None,
+    "unknown": None,
+    "UNKNOWN": None,
+    "Us_solid": 'u',
+    "windowGlass": None,
+    "WRC3": None,
+    }	
 
 sdss_photometric_column = {"u":  2,
                            "g":  4,
@@ -1348,12 +1392,12 @@ def get_binning(hdr):
     # print "determining binning factor"
     
     # The CCDBIN1 keyword should be foung in primary header, so try this one first
-    # try:
-    #     binfac = hdr['CCDBIN1']
-    #     # print binfac
-    #     return int(binfac)
-    # except:
-    #     pass
+    try:
+        binfac = hdr['CCDBIN1']
+        # print binfac
+        return int(binfac)
+    except:
+        pass
 
     # Couldn't find the CCDBIN1 header, so this is likely not a primary HDU
     # Try the CCDSUM keyword next
