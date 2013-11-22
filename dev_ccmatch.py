@@ -797,6 +797,16 @@ Valid modes are only
 
         sys.exit(0)
 
+        ##################################################################################
+        #
+        # End of shift only
+        #
+        ##################################################################################
+
+
+
+
+
     #
     #   |
     #   |
@@ -808,121 +818,49 @@ Valid modes are only
     #
     # Find 1st order best guess
     #
-    best_guess = find_best_guess(src_cat, ref_cat,
+    center_ra = hdulist[1].header['CRVAL1']
+    center_dec = hdulist[1].header['CRVAL2']
+    initial_guess = find_best_guess(src_cat, ref_cat,
                                  center_ra, center_dec,
                                  matching_radius=(max_pointing_error/60.),
                                  angle_max=[-2,2], #degrees
                                  d_angle=10 # arcmin
                                  )
     print "\n\n\n\n\n found best guess:"
-    print best_guess
-    print best_guess[2:4]*3600.
+    print initial_guess
+    print initial_guess[2:4]*3600.
     print "\n\n\n\n\n"
 
-    # hdulist[0].header['WCS1_DA'] = best_guess[0]
-    # hdulist[0].header['WCS1_DRA'] = best_guess[2]
-    # hdulist[0].header['WCS1_DDE'] = best_guess[3]
-    # hdulist[0].header['WCS1_N'] = best_guess[1]
-    hdulist[0].header['WCS1_DA'] = (best_guess[0], "WCS calib best guess angle")
-    hdulist[0].header['WCS1_DRA'] = (best_guess[2], "WCS calib best guess d_RA")
-    hdulist[0].header['WCS1_DDE'] = (best_guess[3], "WCS calib best guess d_DEC")
-    hdulist[0].header['WCS1_N'] = (best_guess[1], "WCS calib best guess # matches")
+    # Add the best fit shift to outut header to keep track 
+    # of the changes we are making
+    log_shift_rotation(hdulist, params=initial_guess, n_step=1)
 
-
-    print "\n\n\n\n\nbest guess:\n",best_guess,"\n\n\n\n\n"
-
-    current_best_rotation = best_guess[0]
-    current_best_shift = best_guess[2:4]
-
+    #
+    # Apply the best guess transformation to the input catalog
+    #
+    print "\n\n\n\n\nbest guess:\n",initial_guess,"\n\n\n\n\n"
+    current_best_rotation = initial_guess[0]
+    current_best_shift = initial_guess[2:4]
     guessed_cat = rotate_shift_catalog(full_src_cat, (center_ra, center_dec), 
                                        angle=current_best_rotation,
                                        shift=current_best_shift,
                                        verbose=False)
     numpy.savetxt("ccmatch.guessed_cat", guessed_cat)
 
-    # x_out = open("ccmatch.guessed_cat.computed", "w")
-    # for ext in range(len(hdulist)):
-    #     if (not is_image_extension(hdulist[ext])):
-    #         continue
-
-    #     ota_extension = hdulist[ext]
-    #     ota = int(ota_extension.header['FPPOS'][2:4])
-
-    #     # sources from this OTA
-    #     in_this_ota = (guessed_cat[:,8] == ota)
-    #     number_src_in_this_ota = numpy.sum(in_this_ota)
-    #     # print number_src_in_this_ota
-
-    #     # Read the WCS imformation from the fits file
-    #     wcs_poly = header_to_polynomial(ota_extension.header)
-
-    #     # And apply the current shift and rotation values
-    #     #wcs_poly = wcs_apply_rotation(wcs_poly, current_best_rotation)
-    #     #wcs_poly = wcs_apply_shift(wcs_poly, current_best_shift)
-
-    #     # Extract only the stars in this OTA - 
-    #     # only for these is the WCS solution applicable
-    #     ota_cat = guessed_cat[in_this_ota]
-
-    #     # Convert pixel coordinates into Ra/Dec
-    #     ra_dec = wcs_pix2wcs(ota_cat[:,2:4], wcs_poly)
-        
-    #     numpy.savetxt(x_out, ra_dec)
-    # x_out.close()
-
-
-
-
-
     # 
     # With this best guess at hand, match each star in the source 
     # catalog to a closest match in the reference catalog
     # 
-
-    guessed_match = kd_match_catalogs(guessed_cat, ref_cat, (5./3600), max_count=1)
+    crossmatch_radius = 5./3600. # 5 arcsec
+    guessed_match = kd_match_catalogs(guessed_cat, ref_cat, crossmatch_radius, max_count=1)
     numpy.savetxt("ccmatch.guessed_match", guessed_match)
 
 
     #
     # Now optimize the shift and rotation
     #
-    
-    # # Set initial guess as the best-guess values from above
-    # p_init = [current_best_rotation,
-    #           current_best_shift[0],
-    #           current_best_shift[1]
-    #           ]
-
-    # #
-    # # Do least squares fitting to optimize shifts in Ra/Dec 
-    # # and rotation offset
-    # #
-    # fit_results = scipy.optimize.leastsq(optimize_shift_rotation,
-    #                                      p_init, 
-    #                                      args=(guessed_match, hdulist, True),
-    #                                      full_output=1,
-    #                                      )
-
-    # print "Before rot/shift fit:"
-    # print p_init
-
-    # best_shift_rotation_solution = fit_results[0]
-    # print "after rot/shift fit"
-    # print best_shift_rotation_solution
-
-
-    # diff_beforefit = optimize_shift_rotation(p_init,
-    #                                          guessed_match, hdulist, False)
-    # diff_afterfit = optimize_shift_rotation(best_shift_rotation_solution,
-    #                                         guessed_match, hdulist, False)
-    # numpy.savetxt("ccmatch.diff_before_fit", diff_beforefit)
-    # numpy.savetxt("ccmatch.diff_after_fit", diff_afterfit)
-
-
-    # (p, guessed_match, hdulist)
-
     best_shift_rotation_solution = fit_best_rotation_shift(
-         src_cat, ref_cat, best_guess,
+         src_cat, ref_cat, initial_guess,
          center_ra, center_dec,
          matching_radius=(5./3600.)
          )
@@ -946,10 +884,10 @@ Valid modes are only
     current_best_shift = best_shift_rotation_solution[1:3]
     n_matches = numpy.sum(numpy.isfinite(matched[:,2]))
 
-    hdulist[0].header['WCS1_DA'] = (best_guess[0], "WCS calib best guess angle")
-    hdulist[0].header['WCS1_DRA'] = (best_guess[2], "WCS calib best guess d_RA")
-    hdulist[0].header['WCS1_DDE'] = (best_guess[3], "WCS calib best guess d_DEC")
-    hdulist[0].header['WCS1_N'] = (best_guess[1], "WCS calib best guess # matches")
+    # hdulist[0].header['WCS1_DA'] = (best_guess[0], "WCS calib best guess angle")
+    # hdulist[0].header['WCS1_DRA'] = (best_guess[2], "WCS calib best guess d_RA")
+    # hdulist[0].header['WCS1_DDE'] = (best_guess[3], "WCS calib best guess d_DEC")
+    # hdulist[0].header['WCS1_N'] = (best_guess[1], "WCS calib best guess # matches")
 
     hdulist[0].header['WCS2_DA']  = (current_best_rotation, "WCS rot refi d_angle")
     hdulist[0].header['WCS2_DRA'] = (current_best_shift[0], "WCS rot refi r_RA")
