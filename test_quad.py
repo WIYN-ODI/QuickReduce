@@ -17,6 +17,8 @@ import podi_search_ipprefcat
 
 def select_brightest(radec, mags, n):
     # print mags
+
+    n = mags.shape[0] if n > mags.shape[0] else n
     si = numpy.argsort(mags[:,0])
     # print si
 
@@ -69,58 +71,22 @@ def compute_quad_ratios(ref_coord):
                     # Compute areas of the four possible triangles
                     #
                     # triangle opposite of p1
-                    areas[0] = triangle_areas[p2,p3,p4]
+                    all_areas[cur_quad,0] = triangle_areas[p2,p3,p4]
                     # triangle opposite of p2
-                    areas[1] = triangle_areas[p1,p3,p4]
+                    all_areas[cur_quad,1] = triangle_areas[p1,p3,p4]
                     # triangle opposite of p3
-                    areas[2] = triangle_areas[p1,p2,p4]
+                    all_areas[cur_quad,2] = triangle_areas[p1,p2,p4]
                     # triangle opposite of p4
-                    areas[3] = triangle_areas[p1,p2,p3]
+                    all_areas[cur_quad,3] = triangle_areas[p1,p2,p3]
 
-                    ## triangle opposite of p1
-                    #areas[0,0] = math.fabs((ref_coord[p4,0]-ref_coord[p2,0])*(ref_coord[p2,1]-ref_coord[p3,1]) - (ref_coord[p2,0]-ref_coord[p3,0])*(ref_coord[p4,1]-ref_coord[p2,1]))
-                    ## triangle opposite of p2
-                    #areas[0,1] = math.fabs((ref_coord[p1,0]-ref_coord[p4,0])*(ref_coord[p4,1]-ref_coord[p3,1]) - (ref_coord[p4,0]-ref_coord[p3,0])*(ref_coord[p1,1]-ref_coord[p4,1]))
-                    ## triangle opposite of p3
-                    #areas[0,2] = math.fabs((ref_coord[p1,0]-ref_coord[p2,0])*(ref_coord[p2,1]-ref_coord[p4,1]) - (ref_coord[p2,0]-ref_coord[p4,0])*(ref_coord[p1,1]-ref_coord[p2,1]))
-                    ## triangle opposite of p4
-                    #areas[0,3] = math.fabs((ref_coord[p1,0]-ref_coord[p2,0])*(ref_coord[p2,1]-ref_coord[p3,1]) - (ref_coord[p2,0]-ref_coord[p3,0])*(ref_coord[p1,1]-ref_coord[p2,1]))
-
-                    #if (numpy.min(areas) <= 0):
-                    #    continue
 
                     # Save which points form this triangle
-                    point_vector[0] = p1
-                    point_vector[1] = p2
-                    point_vector[2] = p3
-                    point_vector[3] = p4
+                    indices[cur_quad,0] = p1
+                    indices[cur_quad,1] = p2
+                    indices[cur_quad,2] = p3
+                    indices[cur_quad,3] = p4
                     # The above is faster than the more elegant
                     # point_vector[:] = [p1,p2,p3,p4]
-
-                    # sort areas
-                    sortindex = numpy.argsort(areas)
-
-
-                    # Compute the sorted vectors
-                    sorted_areas = areas[sortindex]
-                    all_areas[cur_quad,:] = areas #[sortindex]
-                    
-                    if (all_areas[cur_quad,0] <= 0):
-                        continue
-
-                    # sorted_vector = point_vector[sortindex]
-                    indices[cur_quad,:] = point_vector[sortindex]
-                    
-                    ## Create area ratios by dividing by the largest area
-                    area_ratios[0] = sorted_areas[2] / sorted_areas[3]
-                    area_ratios[1] = sorted_areas[1] / sorted_areas[3]
-
-                    # print area_ratios, point_vector
-                    # print area_ratios.shape, point_vector.shape, ratios.shape, indices.shape
-
-                    # ratios[cur_quad,:] = area_ratios
-                    # indices[cur_quad,:] = sorted_vector
-                    # all_areas[cur_quad,:] = sorted_areas
 
                     cur_quad += 1
 
@@ -138,8 +104,13 @@ def compute_quad_ratios(ref_coord):
     print "xxx=\n",xxx[0:5,:]
 
     sorted_xxx = (all_areas.ravel()[xxx]).reshape(all_areas.shape)
+    all_areas = sorted_xxx
 
     print "test-sorted=\n", sorted_xxx[0:5,:]
+
+    print "indices before sort\n",indices[0:5,:]
+    indices = (indices.ravel()[xxx]).reshape(indices.shape)
+    print "indices after sort\n",indices[0:5,:]
 
     ratios[:,0] = all_areas[:,2] / all_areas[:,3]
     ratios[:,1] = all_areas[:,1] / all_areas[:,3]
@@ -149,7 +120,7 @@ def compute_quad_ratios(ref_coord):
 
 
 @profile
-def find_optimal_transformation(reference_coords, catalog_coords, verbose=False):
+def find_optimal_transformation(reference_coords, catalog_coords, verbose=False, skip_inplausible=True, max_rotation=20):
 
     ref_coord = reference_coords
     brightest_cat_radec  = catalog_coords
@@ -185,8 +156,12 @@ def find_optimal_transformation(reference_coords, catalog_coords, verbose=False)
         print cat_ratios[:10,:]
 
 
-    all_transformations = numpy.zeros((0,6))
+    # Count how many pais we are going to find
+    n_matches = search_tree.count_neighbors(coord_tree, 0.001, p=2)
 
+    all_transformations = numpy.zeros((n_matches,6))
+
+    cur_match = 0
     for i in range(len(matches)):
         if (len(matches[i]) <= 0):
             continue
@@ -229,17 +204,34 @@ def find_optimal_transformation(reference_coords, catalog_coords, verbose=False)
             transformation_x, residuals_x, rank_x, s_x = numpy.linalg.lstsq(ABC, cat_x)
             # print transformation_x
 
+            if (transformation_x[0] > 1.1 or transformation_x[0] < 0.8):
+                continue
+
             DEF = numpy.vstack([ref_x, ref_y, numpy.ones(len(ref_x))]).T
             transformation_y, residuals_y, rank_y, s_y = numpy.linalg.lstsq(DEF, cat_y)
             # print transformation_y
 
+            # Check if this solution is a plausible solution, i.e. 
+            # mostly rotation and offset with little shear
+            if (skip_inplausible):
+                rel_difference = (transformation_x[0] - transformation_y[1]) / (math.fabs(transformation_x[0]) + math.fabs(transformation_y[1]))
+                if (math.fabs(rel_difference) > 0.05):
+                    continue
+                determinant = transformation_x[0] * transformation_y[1] - transformation_x[1] * transformation_y[0]
+                if (determinant > 1.1 or determinant < 0.9):
+                    continue
+
             # now combine both x/y transformation into one
             transformation_xy = numpy.append(transformation_x, transformation_y).reshape((1,6))
+
+            all_transformations[cur_match, :] = transformation_xy
 
             if (verbose):
                 print "       ",transformation_xy
 
-            all_transformations = numpy.append(all_transformations, transformation_xy, axis=0)
+            # all_transformations = numpy.append(all_transformations, transformation_xy, axis=0)
+            cur_match += 1
+
 
         # print cat_ratios[i,:]
         # print [ref_ratios[matches[i][j]] for j in range(len(matches[i]))]
@@ -249,6 +241,7 @@ def find_optimal_transformation(reference_coords, catalog_coords, verbose=False)
     if (verbose):
         print all_transformations
 
+    all_transformations = all_transformations[:cur_match,:]
 
     #
     # Now we have all matches, go ahead and find the most frequent solution
@@ -258,7 +251,7 @@ def find_optimal_transformation(reference_coords, catalog_coords, verbose=False)
     all_transformations[:,5] /= 100.
     transform_tree = scipy.spatial.cKDTree(all_transformations)
 
-    matching_transforms = transform_tree.query_ball_tree(transform_tree, 0.01, p=2)
+    matching_transforms = transform_tree.query_ball_tree(transform_tree, 0.003, p=2)
     # matching_transforms = transform_tree.count_neighbors(transform_tree, 0.001, p=2)
 
     # Now loop over all matching transformations and count how many times we find this or a very similar match:
@@ -426,7 +419,7 @@ if __name__ == "__main__":
         src_cat = numpy.loadtxt(catalog_file)
 
         # Eliminate all stars with flags
-        src_cat = src_cat[src_cat[:,7] == 0]
+        # src_cat = src_cat[src_cat[:,7] == 0]
 
         mag_column = int(cmdline_arg_set_or_default("-srcmag", 0))-1
         src_count = int(cmdline_arg_set_or_default("-srccount", 10))
@@ -438,8 +431,12 @@ if __name__ == "__main__":
             
 
         # Load the reference catalog
-        ra = numpy.median(src_cat[:,0])
-        dec = numpy.median(src_cat[:,1])
+        # ra = numpy.median(src_cat[:,0])
+        # dec = numpy.median(src_cat[:,1])
+        print src_cat[:,0]
+        ra = scipy.stats.nanmedian(src_cat[:,0])
+        dec = scipy.stats.nanmedian(src_cat[:,1])
+        print "Center of field ~", ra, dec
 
         # ipp_cat = podi_search_ipprefcat.get_reference_catalog(ra, dec, 0.7, "/Volumes/odifile/Catalogs/2mass_fits/")
         ipp_cat = podi_search_ipprefcat.get_reference_catalog(ra, dec, 0.7, "/datax/2mass_fits/")
