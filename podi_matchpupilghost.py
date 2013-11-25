@@ -180,6 +180,9 @@ def subtract_pupilghost(input_hdu, pupil_hdu, scaling, rotate=True, verbose=True
 
     # Now go through each of the HDUs in the data frame and correct the pupil ghost
     for i in range(1, len(input_hdu)):
+        if (not is_image_extension(input_hdu[i])):
+            continue
+
         rotator_angle = input_hdu[0].header['ROTSTART']
         filtername = input_hdu[0].header['FILTER']
 
