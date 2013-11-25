@@ -32,6 +32,7 @@ import scipy.interpolate
 import math
 import scipy.optimize
 import bottleneck
+import dev_pgcenter
 
 from podi_definitions import *
 az_knot_limit = [50,600]
@@ -117,7 +118,19 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
 
         if (extname in pupilghost_centers):
             print "\n\n\n\n\n",extname
-            center_x, center_y = pupilghost_centers[extname]
+
+            #
+            # Determine center position
+            #
+            # old method: use fixed values
+            # center_x, center_y = pupilghost_centers[extname]
+
+            input_hdu = hdu_ref[i]
+
+            fx, fy, fr, vx, vy, vr = dev_pgcenter.find_pupilghost_center(input_hdu, verbose=False)
+            center_x = vx
+            center_y = vy
+
 
             #stdout_write("Using center position %d, %d for OTA %s\n" % (center_y, center_x, extname))
             stdout_write("Adding OTA %s, center @ %d, %d\n" % (extname, center_x, center_y))
@@ -161,7 +174,15 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
             imghdu = pyfits.ImageHDU(data=combined_rotated)
             imghdu.header.update('EXTNAME', extname)
             imghdu.header.update('ROTANGLE', rotator_angle)
-            
+
+            imghdu.header['OTA'] = int(extname[3:5])
+            imghdu.header['PGCNTRFX'] = fx
+            imghdu.header['PGCNTRFY'] = fy
+            imghdu.header['PGCNTRFR'] = fr
+            imghdu.header['PGCNTRVX'] = vx
+            imghdu.header['PGCNTRVY'] = vy
+            imghdu.header['PGCNTRVR'] = vr
+
             hdulist.append(imghdu)
 
     HDUlist = pyfits.HDUList(hdulist)
