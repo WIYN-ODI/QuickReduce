@@ -164,6 +164,9 @@ def rotate_shift_catalog(src_cat, center, angle, shift=None, verbose = False):
 
     # print "in rot_shift: angle-rad=",angle_rad
 
+    # Account for cos(declination)
+    src_rel_to_center[:,0] *= math.cos(math.radians(center_dec))
+
     if (verbose and not shift == None):
         print "@@@@ shift rotation"
         print "shift=", shift
@@ -171,15 +174,21 @@ def rotate_shift_catalog(src_cat, center, angle, shift=None, verbose = False):
         print "X=",math.cos(angle_rad) * shift[0] - math.sin(angle_rad) * shift[1]
         print "y=",math.sin(angle_rad) * shift[0] + math.cos(angle_rad) * shift[1]
 
+    # Apply rotation
     src_rotated[:,0] \
         = math.cos(angle_rad) * src_rel_to_center[:,0] \
-        - math.sin(angle_rad) * src_rel_to_center[:,1] \
-        + center_ra
+        - math.sin(angle_rad) * src_rel_to_center[:,1]
     src_rotated[:,1] \
         = math.sin(angle_rad) * src_rel_to_center[:,0] \
         + math.cos(angle_rad) * src_rel_to_center[:,1] \
-        + center_dec
 
+    # Fix cos(declination)
+    src_rotated[:,0] /= math.cos(math.radians(center_dec))
+
+    # Add center position
+    src_rotated += [center_ra, center_dec]
+
+    # if requested, add shift
     if (not shift == None):
         src_rotated += shift
     
@@ -336,7 +345,7 @@ def fit_best_rotation_shift(src_cat, ref_cat,
     src_rotated = rotate_shift_catalog(src_cat, 
                                        (center_ra, center_dec), 
                                        angle=best_guess[0], 
-                                       shift=best_guess[2:4])
+                                       shift=best_guess[1:3])
 
     numpy.savetxt("ccmatch.roughalign", src_rotated)
 
@@ -392,7 +401,7 @@ def fit_best_rotation_shift(src_cat, ref_cat,
     print p_init
 
     x_rotated = rotate_shift_catalog(src_cat, (center_ra, center_dec), 
-                                     angle=best_guess[0], shift=best_guess[2:4])
+                                     angle=best_guess[0], shift=best_guess[1:3])
 
     def difference_source_reference_cat(p, src_cat, ref_cat, center, for_fitting=False):
         src_rotated = rotate_shift_catalog(src_cat, center, 
@@ -458,7 +467,11 @@ def fit_best_rotation_shift(src_cat, ref_cat,
     
     numpy.savetxt("ccmatch.diff_afterfit", diff_afterfit)
 
-    return best_fit
+    return_value = [best_fit[0], 
+                    best_fit[1], best_fit[2], 
+                    src_ref_pairs.shape[0]]
+
+    return return_value
 
 
 
@@ -619,12 +632,12 @@ def ccmatch_shift(source_cat,
 
 
  
-def log_shift_rotation(hdulist, params, n_step=1):
+def log_shift_rotation(hdulist, params, n_step=1, description=""):
 
-    hdulist[0].header['WCS%d_DA'  % n_step] = (params[0], "WCS calib best guess angle")
-    hdulist[0].header['WCS%d_DRA' % n_step] = (params[1], "WCS calib best guess d_RA")
-    hdulist[0].header['WCS%d_DDE' % n_step] = (params[2], "WCS calib best guess d_DEC")
-    hdulist[0].header['WCS%d_N'   % n_step] = (params[3], "WCS calib best guess # matches")
+    hdulist[0].header['WCS%d_DA'  % n_step] = (params[0], "%s angle" % (description))
+    hdulist[0].header['WCS%d_DRA' % n_step] = (params[1], "%s d_RA" % (description))
+    hdulist[0].header['WCS%d_DDE' % n_step] = (params[2], "%s d_DEC" % (description))
+    hdulist[0].header['WCS%d_N'   % n_step] = (params[3], "%s n_matches" % (description))
 
     return
 
@@ -775,7 +788,8 @@ Valid modes are only
 
         # Add the best fit shift to outut header to keep track 
         # of the changes we are making
-        log_shift_rotation(hdulist, params=wcs_correction, n_step=1)
+        log_shift_rotation(hdulist, params=wcs_correction, n_step=1,
+                           description="WCS calib best guess")
 
         # Now apply this shift to the output file and write results
         apply_correction_to_header(hdulist, wcs_correction, verbose=False)
@@ -833,7 +847,8 @@ Valid modes are only
 
     # Add the best fit shift to outut header to keep track 
     # of the changes we are making
-    log_shift_rotation(hdulist, params=initial_guess, n_step=1)
+    log_shift_rotation(hdulist, params=initial_guess, n_step=1,
+                           description="WCS initial guess")
 
     #
     # Apply the best guess transformation to the input catalog
@@ -889,10 +904,15 @@ Valid modes are only
     # hdulist[0].header['WCS1_DDE'] = (best_guess[3], "WCS calib best guess d_DEC")
     # hdulist[0].header['WCS1_N'] = (best_guess[1], "WCS calib best guess # matches")
 
-    hdulist[0].header['WCS2_DA']  = (current_best_rotation, "WCS rot refi d_angle")
-    hdulist[0].header['WCS2_DRA'] = (current_best_shift[0], "WCS rot refi r_RA")
-    hdulist[0].header['WCS2_DDE'] = (current_best_shift[1], "WCS rot refi r_DEC")
-    hdulist[0].header['WCS2_N']   = (n_matches, "WCS rot refi n_matches")
+    # Add the refined shift and rotation to output header to keep track 
+    # of the changes we are making
+    log_shift_rotation(hdulist, params=best_shift_rotation_solution, n_step=2, 
+                       description="WCS rot refi")
+
+    # hdulist[0].header['WCS2_DA']  = (current_best_rotation, "WCS rot refi d_angle")
+    # hdulist[0].header['WCS2_DRA'] = (current_best_shift[0], "WCS rot refi r_RA")
+    # hdulist[0].header['WCS2_DDE'] = (current_best_shift[1], "WCS rot refi r_DEC")
+    # hdulist[0].header['WCS2_N']   = (n_matches, "WCS rot refi n_matches")
 
 
     if (mode == "rotation"):
