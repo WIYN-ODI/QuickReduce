@@ -1300,7 +1300,8 @@ def collectcells(input, outputfile,
         filter_level = get_filter_level(ota_list[0].header)
         filter_name = get_valid_filter_name(ota_list[0].header)
         binning = ota_list[0].header['BINNING']
-        pg_template = "%s/pupilghost_radial___level_%d__bin%d.fits" % (options['pupilghost_dir'], filter_level, binning)
+#        pg_template = "%s/pupilghost_radial___level_%d__bin%d.fits" % (options['pupilghost_dir'], filter_level, binning)
+        pg_template = "%s/pupilghost_template___level_%d__bin%d.fits" % (options['pupilghost_dir'], filter_level, binning)
         stdout_write("looking for radial pupil ghost template %s...\n" % (pg_template))
         # If we have a template for this level
         if (os.path.isfile(pg_template)):
@@ -1311,7 +1312,9 @@ def collectcells(input, outputfile,
             scaling, scaling_std = podi_matchpupilghost.get_pupilghost_scaling(ota_list, pg_hdu)
 
             # And subtract the scaled pupilghost templates.
-            podi_matchpupilghost.subtract_pupilghost(ota_list, pg_hdu, scaling, rotate=False,
+            podi_matchpupilghost.subtract_pupilghost(ota_list, pg_hdu, scaling, 
+                                                     # rotate=False,
+                                                     rotate=True,
                                                      source_center_coords='header')
 
             ota_list[0].header["PUPLGOST"] = (pg_template, "p.g. template")
