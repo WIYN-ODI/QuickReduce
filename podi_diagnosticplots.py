@@ -135,18 +135,27 @@ R.M.S. %0.3f / %.3f (DEC)
     return
 
 
-def wcsdiag_scatter(matched_cat, filename, options=None, ota_wcs_stats=None,
+def wcsdiag_scatter(#matched_cat, 
+                    matched_radec_odi, 
+                    matched_radec_2mass, 
+                    matched_ota,
+                    filename, options=None, ota_wcs_stats=None,
                     also_plot_singleOTAs=True
                     ):
 
     stdout_write("Creating the WCS scatter plot ...")
 
-    matches_zeroed = matched_cat
-    good_matches = matches_zeroed[matches_zeroed[:,2] >= 0]
-    d_ra  = good_matches[:,0] - good_matches[:,2]
-    d_dec = good_matches[:,1] - good_matches[:,3]
-    ota = good_matches[:,10]
-    print ota
+    # Eliminate all matches with somehow illegal coordinates
+    good_matches = numpy.isfinite(matched_radec_odi[:,0]) & numpy.isfinite(matched_radec_2mass[:,0])
+    matched_radec_odi   = matched_radec_odi[good_matches]
+    matched_radec_2mass = matched_radec_2mass[good_matches]
+    matched_ota         = matched_ota[good_matches]
+
+#    matches_zeroed = matched_cat
+#    good_matches = matches_zeroed[matches_zeroed[:,2] >= 0]
+    d_ra  = matched_radec_odi[:,0] - matched_radec_2mass[:,0]
+    d_dec = matched_radec_odi[:,1] - matched_radec_2mass[:,1]
+    ota = matched_ota
 
     if (options == None):
         extension_list = ('png')
@@ -221,27 +230,31 @@ def wcsdiag_scatter(matched_cat, filename, options=None, ota_wcs_stats=None,
 #####################################################################################
 
 
-def plot_wcsdiag_shift(matched_cat, filename, extension_list=('png'), 
+def plot_wcsdiag_shift(radec, d_radec,
+                       # matched_cat, 
+                       filename, extension_list=('png'), 
                        ota_outlines=None, 
                        title=None,
                        ):
 
     fig, ax = matplotlib.pyplot.subplots()
     
-    d_ra  = matched_cat[:,0] - matched_cat[:,2]
-    d_dec = matched_cat[:,1] - matched_cat[:,3]
-    ramin, ramax = numpy.min(matched_cat[:,0]), numpy.max(matched_cat[:,0])
-    decmin, decmax = numpy.min(matched_cat[:,1]), numpy.max(matched_cat[:,1])
+#    d_ra  = matched_cat[:,0] - matched_cat[:,2]
+#    d_dec = matched_cat[:,1] - matched_cat[:,3]
+#    ramin, ramax = numpy.min(matched_cat[:,0]), numpy.max(matched_cat[:,0])
+#    decmin, decmax = numpy.min(matched_cat[:,1]), numpy.max(matched_cat[:,1])
+    ramin, ramax = numpy.min(radec[:,0]), numpy.max(radec[:,0])
+    decmin, decmax = numpy.min(radec[:,1]), numpy.max(radec[:,1])
 
     dimension = numpy.min([ramax-ramin, decmax-decmin])
     vector_scaling = 10 * dimension/100 * 3600. # size of 1 arcsec in percent of screen size
 
-    ax.plot(matched_cat[:,0], matched_cat[:,1],
+    ax.plot(radec[:,0], radec[:,1],
             color='red', marker='o', linestyle='None',
             markeredgecolor='none', markersize=4, 
             )
-    Q = ax.quiver(matched_cat[:,0], matched_cat[:,1], 
-                  d_ra*vector_scaling, d_dec*vector_scaling,
+    Q = ax.quiver(radec[:,0], radec[:,1], 
+                  d_radec[:,0]*vector_scaling, d_radec[:,1]*vector_scaling,
                   linewidth=0, edgecolor='red',
                   angles='xy', scale_units='xy', pivot='tail', zorder=99, 
                   scale=1,
@@ -304,18 +317,36 @@ def plot_wcsdiag_shift(matched_cat, filename, extension_list=('png'),
 
 
 
-def wcsdiag_shift(matched_cat, filename, options=None, ota_outlines=None, 
+def wcsdiag_shift(matched_radec_odi, 
+                  matched_radec_2mass, 
+                  matched_ota,
+                  filename, 
+                  options=None, 
+                  ota_outlines=None, 
                   ota_wcs_stats=None,
                   also_plot_singleOTAs=True
                   ):
 
     stdout_write("Creating the WCS offset/shift plot ...")
 
-    matches_zeroed = matched_cat
-    good_matches = matches_zeroed[matches_zeroed[:,2] >= 0]
-    d_ra  = good_matches[:,0] - good_matches[:,2]
-    d_dec = good_matches[:,1] - good_matches[:,3]
-    ota = good_matches[:,10]
+    # Eliminate all matches with somehow illegal coordinates
+    good_matches = numpy.isfinite(matched_radec_odi[:,0]) & numpy.isfinite(matched_radec_2mass[:,0])
+    matched_radec_odi   = matched_radec_odi[good_matches]
+    matched_radec_2mass = matched_radec_2mass[good_matches]
+    matched_ota         = matched_ota[good_matches]
+
+    d_radec = matched_radec_odi - matched_radec_2mass
+    ota = matched_ota
+
+#    d_ra  = matched_radec_odi[:,0] - matched_radec_2mass[:,0]
+#    d_dec = matched_radec_odi[:,1] - matched_radec_2mass[:,1]
+
+
+    # matches_zeroed = matched_cat
+    # good_matches = matches_zeroed[matches_zeroed[:,2] >= 0]
+    # d_ra  = good_matches[:,0] - good_matches[:,2]
+    # d_dec = good_matches[:,1] - good_matches[:,3]
+    # ota = good_matches[:,10]
     
     if (options == None):
         extension_list = ('png')
@@ -324,7 +355,10 @@ def wcsdiag_shift(matched_cat, filename, options=None, ota_outlines=None,
 
     # Create one plot for the full focalplane
     title = "WCS Scatter - full focal plane"
-    plot_wcsdiag_shift(good_matches, filename, extension_list, 
+    plot_wcsdiag_shift(radec=matched_radec_2mass,
+                       d_radec=d_radec,
+                       filename=filename, 
+                       extension_list=extension_list, 
                        ota_outlines=None,
                        title=title,
                        )
@@ -344,12 +378,16 @@ def wcsdiag_shift(matched_cat, filename, options=None, ota_outlines=None,
             extname = "OTA%02d.SCI" % (this_ota)
             title = "WSC Scatter - OTA %02d" % (this_ota)
                 
+            ota_radec = matched_radec_2mass[in_this_ota]
+            ota_d_radec = d_radec[in_this_ota]
+
             ota_plotfile = create_qa_otaplot_filename(filename, this_ota, options['structure_qa_subdirs'])
             # ota_plotfile = "%s_OTA%02d" % (filename, this_ota)
             # if (options['structure_qa_subdirs']):
             #     ota_plotfile = "%s/OTA%02d" % (filename, this_ota)
 
-            plot_wcsdiag_shift(good_matches[in_this_ota], 
+            plot_wcsdiag_shift(radec=ota_radec,
+                               d_radec = ota_d_radec,
                                filename=ota_plotfile, 
                                extension_list=extension_list, 
                                ota_outlines=None,

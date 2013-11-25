@@ -1654,7 +1654,7 @@ def collectcells(input, outputfile,
             int(ota_list[0].header['EXPTIME']),
             )
 
-        ota_wcs_stats = {}
+        ota_wcs_stats = None #{}
         # for extension in range(1, len(ota_list)):
         #     if (ota_list[extension] == None):
         #         continue
@@ -1671,22 +1671,26 @@ def collectcells(input, outputfile,
         import podi_diagnosticplots
 
         # Create the WCS scatter plot
-        # plotfilename = create_qa_filename(outputfile, "wcs1", options)
-        # podi_diagnosticplots.wcsdiag_scatter(odi_2mass_matched, 
-        #                                      plotfilename, # outputfile[:-5]+".wcs1", 
-        #                                      options=options,
-        #                                      ota_wcs_stats=ota_wcs_stats,
-        #                                      also_plot_singleOTAs=options['otalevelplots'])
+        plotfilename = create_qa_filename(outputfile, "wcs1", options)
+        podi_diagnosticplots.wcsdiag_scatter(matched_radec_odi=odi_2mass_matched[:,0:2], 
+                                             matched_radec_2mass=odi_2mass_matched[:,-2:],
+                                             matched_ota=odi_2mass_matched[:,8],
+                                             filename=plotfilename, 
+                                             options=options,
+                                             ota_wcs_stats=ota_wcs_stats,
+                                             also_plot_singleOTAs=options['otalevelplots'])
 
-        # # Create the WCS shift plot
-        # plotfilename = create_qa_filename(outputfile, "wcs2", options)
-        # podi_diagnosticplots.wcsdiag_shift(odi_2mass_matched, 
-        #                                    plotfilename, #outputfile[:-5]+".wcs2", 
-        #                                    options=options,
-        #                                    ota_wcs_stats=ota_wcs_stats,
-        #                                    ota_outlines=ota_outlines,
-        #                                    also_plot_singleOTAs=options['otalevelplots'])
-        
+        # Create the WCS shift plot
+        plotfilename = create_qa_filename(outputfile, "wcs2", options)
+        podi_diagnosticplots.wcsdiag_shift(matched_radec_odi=odi_2mass_matched[:,0:2],
+                                           matched_radec_2mass=odi_2mass_matched[:,-2:],
+                                           matched_ota=odi_2mass_matched[:,8],
+                                           filename=plotfilename, #outputfile[:-5]+".wcs2", 
+                                           options=options,
+                                           ota_wcs_stats=ota_wcs_stats,
+                                           ota_outlines=ota_outlines,
+                                           also_plot_singleOTAs=options['otalevelplots'])
+
         # Create the image quality plot
         # This should be cleaned up to make the call for this plot nicer
         flags = global_source_cat[:,7]
