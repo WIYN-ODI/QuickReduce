@@ -226,7 +226,7 @@ def find_center(hdu_data, coord_x, coord_y,
         print "  center-y=",y_values_to_try[iy],"(",iy,")"
         print "    radius=",r_values_to_try[ir],"(",ir,")"
 
-    return x_values_to_try[ix], y_values_to_try[iy], r_values_to_try[ir], bincount, abs33
+    return x_values_to_try[ix], y_values_to_try[iy], r_values_to_try[ir], bincount, bincount_w, abs33
 
 
 
@@ -238,6 +238,14 @@ pupilghost_center_guess = {
     "OTA43.SCI": (-100, 4050),
     }
 
+
+
+fiducial_centers = {
+    'OTA43.SCI': (-8, 4136, 1268, -8, 4136, 1268), 
+    'OTA34.SCI': (4172, -188, 1268, 4172, -188, 1268), 
+    'OTA33.SCI': (4152, 4156, 1268, 4152, 4156, 1268), 
+    'OTA44.SCI': (32, -190, 1268, 32, -190, 1268)
+    }
 
 def find_pupilghost_center(hdu, verbose=False, fixed_radius=1270):
 
@@ -259,12 +267,13 @@ def find_pupilghost_center(hdu, verbose=False, fixed_radius=1270):
         print "search-x=",search_x
         print "search-y=",search_y
     prebin=8
-    x, y, r, bincount, edge_frame = find_center(rawdata, px, py,
-                                                search_r = search_r, search_x = search_x, search_y = search_y,
-                                                prebin=prebin,
-                                                #debugname=hdu[i].header["EXTNAME"],
-                                                fixed_radius=fixed_radius,
-                                                )
+    x, y, r, bincount, bincount_w, edge_frame = \
+        find_center(rawdata, px, py,
+                    search_r = search_r, search_x = search_x, search_y = search_y,
+                    prebin=prebin,
+                    #debugname=hdu[i].header["EXTNAME"],
+                    fixed_radius=fixed_radius,
+                    )
     if (verbose): print "Initial rough center (binning",prebin,") ---> ", x, y, r
 
     # numpy.savetxt("bincount"+hdu[i].header["EXTNAME"], numpy.sum(numpy.sum(bincount, axis=0), axis=0))
@@ -304,7 +313,7 @@ def find_pupilghost_center(hdu, verbose=False, fixed_radius=1270):
     search_x = [center_x-30,center_x+30,4]
     search_y = [center_y-30,center_y+30,4]
     prebin=4
-    fixed_r_x, fixed_r_y, fixed_r_r, bincount2, edge_frame2 = \
+    fixed_r_x, fixed_r_y, fixed_r_r, bincount2, bincount2_w, edge_frame2 = \
         find_center(midres_filtered,
                     midres_px, midres_py,
                     search_r = search_r, search_x = search_x, search_y = search_y,
@@ -316,7 +325,7 @@ def find_pupilghost_center(hdu, verbose=False, fixed_radius=1270):
 
     if (verbose): print "Better resolution (binning",prebin,", fixed r=",fixed_radius,"px): ---> ", fixed_r_x, fixed_r_y, fixed_r_r
 
-    var_r_x, var_r_y, var_r_r, bincount2, edge_frame2 = \
+    var_r_x, var_r_y, var_r_r, bincount_var, bincount_var_w, edge_frame2 = \
         find_center(midres_filtered,
                     midres_px, midres_py,
                     search_r = search_r, search_x = search_x, search_y = search_y,
@@ -330,21 +339,113 @@ def find_pupilghost_center(hdu, verbose=False, fixed_radius=1270):
     return fixed_r_x, fixed_r_y, fixed_r_r, var_r_x, var_r_y, var_r_r
 
 
-if __name__ == "__main__":
+import podi_wcs
 
-    hdu = pyfits.open(sys.argv[1])
+def get_reliable_pupilghost_center(hdulist):
 
     prebin=8
+    pg_centers = {}
 
-    for i in range(1,5):
+    for i in range(len(hdulist)):
 
-        print hdu[i].header["EXTNAME"]
+        if (not is_image_extension(hdulist[i])):
+            continue
+
+        print hdulist[i].header["EXTNAME"]
+        extname = hdu[i].header["EXTNAME"]
+
+        if (not extname in fiducial_centers):
+            continue
 
         fx, fy, fr, vx, vy, vr = find_pupilghost_center(hdu[i], verbose=True)
         print "   fixed radius:", fx, fy, fr
         print "variable radius:", vx, vy, vr
 
- 
-    # hduout = hdu[0:5]
-    # hduout.writeto("/scratch/edges.fits", clobber=True)
+        pg_centers[extname] = fx, fy, fr, vx, vy, vr
+
+        wcspoly = podi_wcs.header_to_polynomial(hdulist[i].header)
+        radec  = podi_wcs.wcs_pix2wcs(numpy.array([[vx*1.0, vy*1.0]]), wcspoly, False)
+        print radec
+
+
+    print pg_centers
+
+#     # angle = -140
+#     pg_centers = {'OTA43.SCI': (-4, 4142, 1268, -4, 4142, 1268), 'OTA34.SCI': (4210, -170, 1268, 4210, -170, 1268), 'OTA33.SCI': (4146, 4144, 1268, 4146, 4144, 1268), 'OTA44.SCI': (16, -170, 1268, 16, -170, 1268)}
+
+#     # angle = -5
+# #    pg_centers = {'OTA43.SCI': (8, 4132, 1268, 8, 4132, 1268), 'OTA34.SCI': (4166, -178, 1268, 4166, -178, 1268), 'OTA33.SCI': (4150, 4162, 1268, 4150, 4162, 1268), 'OTA44.SCI': (22, -188, 1268, 22, -188, 1268)}
+
+#     # fiducial angle = +5
+
+# #    pg_centers = fiducial_centers
+
+
+    # Now compute the shift between the found center 
+    # and the fiducial reference solution
+    all_shifts = []
+    for ota, centers in pg_centers.iteritems():
+        
+        if (not ota in fiducial_centers):
+            continue
+        if (ota == 'OTA33.SCI'):
+            continue
+
+        # Get the values for this frame
+        fx, fy, fr, vx, vy, vr = centers
+        # Get the fiducial coordinates
+        _fx, _fy, _fr, _vx, _vy, _vr = pg_centers['OTA33.SCI']
+
+        _, _, _, fidx, fidy, _ = fiducial_centers[ota]
+        _, _, _, _fidx, _fidy, _ = fiducial_centers['OTA33.SCI']
+
+        # fiducial_centers[ota]
+        
+        dx = (vx - _vx) - (fidx - _fidx)
+        dy = (vy - _vy) - (fidy - _fidy)
+        all_shifts.append([dx, dy])
+
+        print ota, "this=", (vx - _vx), (vy - _vy), "    fiducial=", (fidx - _fidx), (fidy - _fidy)
+
+
+    # Compute the best fitting shift
+    all_shifts = numpy.array(all_shifts)
+    numpy.savetxt(sys.stdout, all_shifts, "%d")
+
+    median_shift = numpy.median(all_shifts, axis=0)
+    print median_shift
+
+    for ota, centers in fiducial_centers.iteritems():
+
+        fx, fy, fr, vx, vy, vr = centers
+
+        print ota," --> ", vx-median_shift[0], vy-median_shift[1]
+
+
+
+if __name__ == "__main__":
+
+    hdu = pyfits.open(sys.argv[1])
+
+    get_reliable_pupilghost_center(hdu)
+
+    # prebin=8
+
+    # pg_centers = {}
+
+    # for i in range(1,5):
+
+    #     print hdu[i].header["EXTNAME"]
+    #     extname = hdu[i].header["EXTNAME"]
+    #     fx, fy, fr, vx, vy, vr = find_pupilghost_center(hdu[i], verbose=True)
+    #     print "   fixed radius:", fx, fy, fr
+    #     print "variable radius:", vx, vy, vr
+
+    #     pg_centers[extname] = fx, fy, fr, vx, vy, vr
+
+
+    # print pg_centers
+
+    # # hduout = hdu[0:5]
+    # # hduout.writeto("/scratch/edges.fits", clobber=True)
 
