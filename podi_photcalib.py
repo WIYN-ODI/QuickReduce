@@ -593,6 +593,8 @@ if __name__ == "__main__":
                   otalist=hdulist,
                   options=options)
 
+        sys.exit(0)
+
     elif (cmdline_arg_isset("-querysdss")):
         ra_min = float(get_clean_cmdline()[1])
         ra_max = float(get_clean_cmdline()[2])
