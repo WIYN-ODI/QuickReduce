@@ -674,52 +674,50 @@ def apply_correction_to_header(hdulist, best_guess, verbose=False):
 
 
 
+#############################################################################
+#############################################################################
+#
+#
+#
+#############################################################################
+#############################################################################
 
-if __name__ == "__main__":
-    verbose=False
+def ccmatch(source_catalog, reference_catalog, input_hdu, mode):
 
-    mode = cmdline_arg_set_or_default('-mode', 'xxx')
-    print mode
 
-    valid_mode = (mode == "shift" or mode == "rotation" or mode == "distortion")
-    if (not valid_mode):
-        print """\
-This mode is not known.
-Valid modes are only
-  * shift
-  * rotation
-  * distortion
-"""
-        sys.exit(0)
+    if (type(source_catalog) == str):
+        # Load the source catalog file
+        src_catfile = sys.argv[1]
+        src_raw = numpy.loadtxt(src_catfile)
+    else:
+        src_raw = source_catalog
 
-    outputfile = sys.argv[4]
-
-    # Load the source catalog file
-    src_catfile = sys.argv[1]
-    src_raw = numpy.loadtxt(src_catfile)
 
     #
-    # Load the input frame
+    # Make sure we have a valid input catalog
     #
-    inputframe = sys.argv[3]
-    print "optimizing rotation in frame",inputframe
-    hdulist = pyfits.open(inputframe)
+    if (type(input_hdu) == str):
+        # Load the input frame
+        print "optimizing rotation in frame",input_hdu
+        hdulist = pyfits.open(input_hdu)
+    else:
+        hdulist = input_hdu
 
     # wcs_verify = verify_wcs_model(src_raw, hdulist)
     # numpy.savetxt("ccmatch.wcs_verify", wcs_verify)
     # sys.exit(0)
 
 
-    #
-    # For testing purposes, rotate the field by a little
-    #
-    testing = False
-    if (testing):
-        angle = 7./60. # 10 arcmin
-        center_ra = numpy.median(src_raw[:,0])
-        center_dec = numpy.median(src_raw[:,1])
-        src_xxx = rotate_shift_catalog(src_raw[:,0:2], (center_ra, center_dec), angle, [0.01, -0.005])
-        src_raw[:,0:2] = src_xxx
+    # #
+    # # For testing purposes, rotate the field by a little
+    # #
+    # testing = False
+    # if (testing):
+    #     angle = 7./60. # 10 arcmin
+    #     center_ra = numpy.median(src_raw[:,0])
+    #     center_dec = numpy.median(src_raw[:,1])
+    #     src_xxx = rotate_shift_catalog(src_raw[:,0:2], (center_ra, center_dec), angle, [0.01, -0.005])
+    #     src_raw[:,0:2] = src_xxx
 
     # eliminate all flagged stars
     full_src_cat = src_raw[src_raw[:,7] == 0]
@@ -786,20 +784,6 @@ Valid modes are only
 
         print wcs_correction
 
-        # Add the best fit shift to outut header to keep track 
-        # of the changes we are making
-        log_shift_rotation(hdulist, params=wcs_correction, n_step=1,
-                           description="WCS calib best guess")
-
-        # Now apply this shift to the output file and write results
-        apply_correction_to_header(hdulist, wcs_correction, verbose=False)
-
-        # All work is done, write the output FITS file
-        print "writing results ..."
-        hdulist.writeto(outputfile, clobber=True)
-
-        # sys.exit(0)
-
         # For testing, apply correction to the input catalog, 
         # match it to the reference catalog and output both to file
         src_rotated = rotate_shift_catalog(src_cat[:,0:2], (center_ra, center_dec), 
@@ -809,7 +793,19 @@ Valid modes are only
         matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(5./3600.), max_count=1)
         numpy.savetxt("ccmatch.after_shift", matched)
 
-        sys.exit(0)
+
+        # Add the best fit shift to outut header to keep track 
+        # of the changes we are making
+        log_shift_rotation(hdulist, params=wcs_correction, n_step=1,
+                           description="WCS calib best guess")
+
+        # Now apply this shift to the output file and write results
+        apply_correction_to_header(hdulist, wcs_correction, verbose=False)
+
+        # All work is done, write the output FITS file
+        # print "writing results ..."
+        # hdulist.writeto(outputfile, clobber=True)
+        return hdulist
 
         ##################################################################################
         #
@@ -926,11 +922,6 @@ Valid modes are only
             wcs_poly = wcs_apply_rotation(wcs_poly, current_best_rotation)
             wcs_poly = wcs_apply_shift(wcs_poly, current_best_shift)
             wcs_wcspoly_to_header(wcs_poly, ota_extension.header)
-        print "writing results ..."
-        #hduout = pyfits.HDUList(hdulist[0:3])
-        #hduout.append(hdulist[13])
-        hduout = pyfits.HDUList(hdulist)
-        hduout.writeto(outputfile, clobber=True)
 
         # For testing, apply correction to the input catalog, 
         # match it to the reference catalog and output both to file
@@ -940,7 +931,14 @@ Valid modes are only
                                            verbose=False)
         matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(2./3600.), max_count=1)
         numpy.savetxt("ccmatch.after_rotation", matched)
-        sys.exit(0)
+
+        #print "writing results ..."
+        #hduout = pyfits.HDUList(hdulist[0:3])
+        #hduout.append(hdulist[13])
+        #hduout = pyfits.HDUList(hdulist)
+        #hduout.writeto(outputfile, clobber=True)
+        return hdulist
+
 
 
     #
@@ -1125,11 +1123,43 @@ Valid modes are only
         #
         wcs_wcspoly_to_header(wcs_poly_after_fit, ota_extension.header)
 
-    print "writing results ..."
-    hduout = pyfits.HDUList(hdulist[0:3])
-    hduout.append(hdulist[13])
-    hduout.writeto(outputfile, clobber=True)
+    #print "writing results ..."
+    #hduout = pyfits.HDUList(hdulist[0:3])
+    #hduout.append(hdulist[13])
+    #hduout.writeto(outputfile, clobber=True)
     # hdulist.writeto(outputfile, clobber=True)
+    return hdulist
 
-    sys.exit(0)
 
+
+
+
+if __name__ == "__main__":
+    verbose=False
+
+    mode = cmdline_arg_set_or_default('-mode', 'xxx')
+    print mode
+
+    valid_mode = (mode == "shift" or mode == "rotation" or mode == "distortion")
+    if (not valid_mode):
+        print """\
+This mode is not known.
+Valid modes are only
+  * shift
+  * rotation
+  * distortion
+"""
+        sys.exit(0)
+
+
+    source_catalog = sys.argv[1]
+    
+    reference_catalog = None
+    
+    input_hdu = sys.argv[3]
+
+    output_hdu = ccmatch(source_catalog, reference_catalog, input_hdu, mode)
+
+    outputfile = sys.argv[4]
+    
+    output_hdu.writeto(outputfile, clobber=True)
