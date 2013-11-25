@@ -792,17 +792,17 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
 
         # For testing, apply correction to the input catalog, 
         # match it to the reference catalog and output both to file
-        src_rotated = rotate_shift_catalog(src_cat[:,0:2], (center_ra, center_dec), 
+        src_rotated = rotate_shift_catalog(src_raw, (center_ra, center_dec), 
                                            angle=0.,
                                            shift=wcs_correction[1:3],
                                            verbose=False)
         matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(2./3600.), max_count=1)
         numpy.savetxt("ccmatch.after_shift", matched)
 
-        src_raw_rotated = rotate_shift_catalog(src_raw, (center_ra, center_dec), 
-                                               angle=0.,
-                                               shift=wcs_correction[1:3],
-                                               verbose=False)
+        # src_raw_rotated = rotate_shift_catalog(src_raw, (center_ra, center_dec), 
+        #                                        angle=0.,
+        #                                        shift=wcs_correction[1:3],
+        #                                        verbose=False)
 
         # Add the best fit shift to outut header to keep track 
         # of the changes we are making
@@ -818,7 +818,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         return_value['hdulist'] = hdulist
         return_value['transformation'] = wcs_correction
         return_value['matched_src+2mass'] = matched
-        return_value['calibrated_src_cat'] = src_raw_rotated
+        return_value['calibrated_src_cat'] = src_rotated
         return_value['2mass-catalog'] = ref_cat
 
         return return_value #hdulist, wcs_correction, 
@@ -941,17 +941,17 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
 
         # For testing, apply correction to the input catalog, 
         # match it to the reference catalog and output both to file
-        src_rotated = rotate_shift_catalog(src_cat[:,0:2], (center_ra, center_dec), 
+        src_rotated = rotate_shift_catalog(src_raw, (center_ra, center_dec), 
                                            angle=current_best_rotation,
                                            shift=current_best_shift,
                                            verbose=False)
         matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(2./3600.), max_count=1)
         numpy.savetxt("ccmatch.after_rotation", matched)
 
-        src_raw_rotated = rotate_shift_catalog(src_raw, (center_ra, center_dec), 
-                                               angle=current_best_rotation,
-                                               shift=current_best_shift,
-                                               verbose=False)
+        # src_raw_rotated = rotate_shift_catalog(src_raw, (center_ra, center_dec), 
+        #                                        angle=current_best_rotation,
+        #                                        shift=current_best_shift,
+        #                                        verbose=False)
 
         #print "writing results ..."
         #hduout = pyfits.HDUList(hdulist[0:3])
@@ -962,7 +962,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         return_value['hdulist'] = hdulist
         return_value['transformation'] = best_shift_rotation_solution
         return_value['matched_src+2mass'] = matched
-        return_value['calibrated_src_cat'] = src_raw_rotated
+        return_value['calibrated_src_cat'] = src_rotated
         return_value['2mass-catalog'] = ref_cat
 
         return return_value 
