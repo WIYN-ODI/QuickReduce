@@ -682,7 +682,9 @@ def apply_correction_to_header(hdulist, best_guess, verbose=False):
 #############################################################################
 #############################################################################
 
-def ccmatch(source_catalog, reference_catalog, input_hdu, mode):
+def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
+            max_pointing_error=4,
+            max_rotator_error=[-1,2]):
 
 
     if (type(source_catalog) == str):
@@ -769,6 +771,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode):
     current_best_rotation = 0
     current_best_shift = [0.,0.]
 
+    return_value = {}
+
     if (mode == "shift"):
 
         # Prepare source catalog
@@ -792,9 +796,13 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode):
                                            angle=0.,
                                            shift=wcs_correction[1:3],
                                            verbose=False)
-        matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(5./3600.), max_count=1)
+        matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(2./3600.), max_count=1)
         numpy.savetxt("ccmatch.after_shift", matched)
 
+        src_raw_rotated = rotate_shift_catalog(src_raw, (center_ra, center_dec), 
+                                               angle=0.,
+                                               shift=wcs_correction[1:3],
+                                               verbose=False)
 
         # Add the best fit shift to outut header to keep track 
         # of the changes we are making
@@ -807,7 +815,13 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode):
         # All work is done, write the output FITS file
         # print "writing results ..."
         # hdulist.writeto(outputfile, clobber=True)
-        return hdulist
+        return_value['hdulist'] = hdulist
+        return_value['transformation'] = wcs_correction
+        return_value['matched_src+2mass'] = matched
+        return_value['calibrated_src_cat'] = src_raw_rotated
+        return_value['2mass-catalog'] = ref_cat
+
+        return return_value #hdulist, wcs_correction, 
 
         ##################################################################################
         #
@@ -835,7 +849,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode):
     initial_guess = find_best_guess(src_cat, ref_cat,
                                  center_ra, center_dec,
                                  matching_radius=(max_pointing_error/60.),
-                                 angle_max=[-2,2], #degrees
+                                 angle_max=max_rotator_error, #[-2,2], #degrees
                                  d_angle=10 # arcmin
                                  )
     print "\n\n\n\n\n found best guess:"
@@ -934,12 +948,25 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode):
         matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(2./3600.), max_count=1)
         numpy.savetxt("ccmatch.after_rotation", matched)
 
+        src_raw_rotated = rotate_shift_catalog(src_raw, (center_ra, center_dec), 
+                                               angle=current_best_rotation,
+                                               shift=current_best_shift,
+                                               verbose=False)
+
         #print "writing results ..."
         #hduout = pyfits.HDUList(hdulist[0:3])
         #hduout.append(hdulist[13])
         #hduout = pyfits.HDUList(hdulist)
         #hduout.writeto(outputfile, clobber=True)
-        return hdulist
+
+        return_value['hdulist'] = hdulist
+        return_value['transformation'] = best_shift_rotation_solution
+        return_value['matched_src+2mass'] = matched
+        return_value['calibrated_src_cat'] = src_raw_rotated
+        return_value['2mass-catalog'] = ref_cat
+
+        return return_value 
+
 
 
 

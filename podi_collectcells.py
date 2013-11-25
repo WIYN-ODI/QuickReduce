@@ -1628,10 +1628,80 @@ def collectcells(input, outputfile,
         # Current HDUList is in: --> ota_list
 
         import dev_ccmatch
-        ota_list = dev_ccmatch.ccmatch(source_catalog=global_source_cat,
+
+        ccmatched = dev_ccmatch.ccmatch(source_catalog=global_source_cat,
                                        reference_catalog=None, # meaning ccamtch will obtain it
                                        input_hdu=ota_list, 
                                        mode="rotation")
+
+        # Use the fixed HDUList
+        ota_list = ccmatched['hdulist']
+
+        # Also extract some of the matched/calibrated catalogs
+        odi_2mass_matched = ccmatched['matched_src+2mass']
+
+        global_source_cat = ccmatched['calibrated_src_cat']
+
+
+    if (options['fixwcs'] and options['create_qaplots']):
+        ota_outlines = derive_ota_outlines(ota_list)
+            # print "Creating some diagnostic plots"
+
+        diagnostic_plot_title = "%s\n(obsid: %s - filter: %s- exptime: %ds)" % (
+            ota_list[0].header['OBJECT'],
+            ota_list[0].header['OBSID'],
+            ota_list[0].header['FILTER'],
+            int(ota_list[0].header['EXPTIME']),
+            )
+
+        ota_wcs_stats = {}
+        # for extension in range(1, len(ota_list)):
+        #     if (ota_list[extension] == None):
+        #         continue
+
+        #     # Compute the typical RMS of the alignment
+        #     ota = int(ota_list[extension].header['EXTNAME'][3:5])
+        #     results = podi_fixwcs.compute_wcs_quality(odi_2mass_matched, ota, ota_list[extension].header)
+        #     # print results
+        #     ota_wcs_stats[ota_list[extension].header['EXTNAME']] = results
+        # results = podi_fixwcs.compute_wcs_quality(odi_2mass_matched, None, ota_list[0].header)
+        # # print results
+        # ota_wcs_stats['full'] = results
+        
+        import podi_diagnosticplots
+
+        # Create the WCS scatter plot
+        # plotfilename = create_qa_filename(outputfile, "wcs1", options)
+        # podi_diagnosticplots.wcsdiag_scatter(odi_2mass_matched, 
+        #                                      plotfilename, # outputfile[:-5]+".wcs1", 
+        #                                      options=options,
+        #                                      ota_wcs_stats=ota_wcs_stats,
+        #                                      also_plot_singleOTAs=options['otalevelplots'])
+
+        # # Create the WCS shift plot
+        # plotfilename = create_qa_filename(outputfile, "wcs2", options)
+        # podi_diagnosticplots.wcsdiag_shift(odi_2mass_matched, 
+        #                                    plotfilename, #outputfile[:-5]+".wcs2", 
+        #                                    options=options,
+        #                                    ota_wcs_stats=ota_wcs_stats,
+        #                                    ota_outlines=ota_outlines,
+        #                                    also_plot_singleOTAs=options['otalevelplots'])
+        
+        # Create the image quality plot
+        # This should be cleaned up to make the call for this plot nicer
+        flags = global_source_cat[:,7]
+        valid_flags = flags == 0
+        ra = global_source_cat[:,0][valid_flags]
+        dec= global_source_cat[:,1][valid_flags]
+        fwhm = global_source_cat[:,5][valid_flags]
+        ota = global_source_cat[:,8][valid_flags]
+        plotfilename = create_qa_filename(outputfile, "seeing", options)
+        podi_diagnosticplots.diagplot_psfsize_map(ra, dec, fwhm, ota, 
+                                                  output_filename=plotfilename, #outputfile[:-5]+".seeing",
+                                                  title=diagnostic_plot_title,
+                                                  ota_outlines=ota_outlines, 
+                                                  options=options,
+                                                  also_plot_singleOTAs=options['otalevelplots'])
 
 
 
