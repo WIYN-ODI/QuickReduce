@@ -1143,8 +1143,10 @@ def collectcells(input, outputfile,
                 #print "source_cat[:,2]=",source_cat[:,2]
                 #print "source_cat[:,3]=",source_cat[:,3]
 
-                reference_catalog = reference_cat if (reference_catalog == None) else numpy.append(reference_catalog, reference_cat, axis=0)
-                #RK fixwcs_odi_sourcecat = source_cat if (fixwcs_odi_sourcecat == None) else numpy.append(fixwcs_odi_sourcecat, source_cat, axis=0)
+                reference_catalog = reference_cat if (reference_catalog == None) else \
+                    numpy.append(reference_catalog, reference_cat, axis=0)
+                #RK fixwcs_odi_sourcecat = source_cat if (fixwcs_odi_sourcecat == None) else \
+                #    numpy.append(fixwcs_odi_sourcecat, source_cat, axis=0)
 
                 fixwcs_bestguess[i,:] = [dx, dy]
 
@@ -1172,7 +1174,8 @@ def collectcells(input, outputfile,
                 numpy.append(fringe_scaling, data_products['fringe_scaling'], axis=0)
 
         if (not data_products['sourcecat'] == None):
-            global_source_cat = data_products['sourcecat'] if (global_source_cat == None) else numpy.append(global_source_cat, data_products['sourcecat'], axis=0)
+            global_source_cat = data_products['sourcecat'] if (global_source_cat == None) \
+                else numpy.append(global_source_cat, data_products['sourcecat'], axis=0)
 
     #
     # Update the global gain variables
@@ -1378,7 +1381,7 @@ def collectcells(input, outputfile,
             except:
                 pass
 
-    if (options['fixwcs']):
+    if (options['fixwcs'] and False):
         debuglog = outputfile+".wcsdebug"
         declination = ota_list[1].header['CRVAL2']
         ra =  ota_list[1].header['CRVAL1']
@@ -1613,6 +1616,25 @@ def collectcells(input, outputfile,
         ota_list[0].header["MAGZERO"] = (zeropoint_median, "phot. zeropoint corr for exptime")
         ota_list[0].header["MAGZSIG"] = (zeropoint_std)
         ota_list[0].header["MAGZERR"] = (zeropoint_std)
+
+
+
+    #
+    # New WCS matching using CCMatch
+    #
+    if (options['fixwcs']):
+
+        # The entire source catalog is located in: --> global_source_cat
+        # Current HDUList is in: --> ota_list
+
+        import dev_ccmatch
+        ota_list = dev_ccmatch.ccmatch(source_catalog=global_source_cat,
+                                       reference_catalog=None, # meaning ccamtch will obtain it
+                                       input_hdu=ota_list, 
+                                       mode="rotation")
+
+
+
 
     #
     # If requested by user via command line:
