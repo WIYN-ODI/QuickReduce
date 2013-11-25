@@ -634,9 +634,9 @@ def ccmatch_shift(source_cat,
  
 def log_shift_rotation(hdulist, params, n_step=1, description=""):
 
-    hdulist[0].header['WCS%d_DA'  % n_step] = (params[0], "%s angle" % (description))
-    hdulist[0].header['WCS%d_DRA' % n_step] = (params[1], "%s d_RA" % (description))
-    hdulist[0].header['WCS%d_DDE' % n_step] = (params[2], "%s d_DEC" % (description))
+    hdulist[0].header['WCS%d_DA'  % n_step] = (params[0], "%s angle [deg]" % (description))
+    hdulist[0].header['WCS%d_DRA' % n_step] = (params[1]*3600., "%s d_RA [arcsec]" % (description))
+    hdulist[0].header['WCS%d_DDE' % n_step] = (params[2]*3600, "%s d_DEC [arcsec]" % (description))
     hdulist[0].header['WCS%d_N'   % n_step] = (params[3], "%s n_matches" % (description))
 
     return
@@ -687,7 +687,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode):
 
     if (type(source_catalog) == str):
         # Load the source catalog file
-        src_catfile = sys.argv[1]
+        src_catfile = source_catalog
         src_raw = numpy.loadtxt(src_catfile)
     else:
         src_raw = source_catalog
@@ -742,15 +742,17 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode):
     # 
     # Create the reference catalog
     #
-    ref_catfile = sys.argv[2]
-    if (ref_catfile == "-"):
+    # ref_catfile = sys.argv[2]
+    # if (ref_catfile == "-"):
+    #
+    if (reference_catalog == None):
         search_size = 0.8
         ref_raw = podi_search_ipprefcat.get_reference_catalog(center_ra, center_dec, search_size, 
                                                               basedir=sitesetup.wcs_ref_dir,
                                                               cattype=sitesetup.wcs_ref_type)
         ref_raw = ref_raw[:,0:2]
     else:
-        ref_raw = numpy.loadtxt(ref_catfile)[:,0:2]
+        ref_raw = reference_catalog #numpy.loadtxt(ref_catfile)[:,0:2]
     print "ref. cat (raw) =",ref_raw.shape
 
 
