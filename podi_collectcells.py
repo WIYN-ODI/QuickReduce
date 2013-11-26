@@ -1709,6 +1709,37 @@ def collectcells(input, outputfile,
 
 
 
+    if (options['photcalib'] and options['fixwcs']):
+        zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = 99., 99., None, 99.
+        stdout_write("\n\n\nExecuting photcalib...\n\n\n")
+
+        exptime = ota_list[0].header['EXPTIME']
+        titlestring = "%s\n(obsid: %s - filter: %s- exptime: %ds)" % (
+            ota_list[0].header['OBJECT'],
+            ota_list[0].header['OBSID'],
+            ota_list[0].header['FILTER'],
+            int(ota_list[0].header['EXPTIME']),
+            )
+        filter_name = get_valid_filter_name(ota_list[0].header)
+
+        zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = \
+            podi_photcalib.photcalib(global_source_cat, outputfile, filter_name, 
+                                 exptime=exptime,
+                                 diagplots=True,
+                                 plottitle=titlestring,
+                                 otalist=ota_list,
+                                 options=options)
+
+        ota_list[0].header["PHOTZP"] = (zeropoint_median, "phot. zeropoint corr for exptime")
+        ota_list[0].header["PHOTZPE"] = (zeropoint_std, "zeropoint std.dev.")
+        ota_list[0].header["PHOTZP_X"] = (zeropoint_exptime, "phot zeropoint for this frame")
+
+        ota_list[0].header["MAGZERO"] = (zeropoint_median, "phot. zeropoint corr for exptime")
+        ota_list[0].header["MAGZSIG"] = (zeropoint_std)
+        ota_list[0].header["MAGZERR"] = (zeropoint_std)
+
+
+
 
     #
     # If requested by user via command line:
