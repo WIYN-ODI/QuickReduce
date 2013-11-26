@@ -22,6 +22,8 @@ max_pointing_error = 5.
 
 import logging
 
+create_debug_files = False
+
 def select_brightest(radec, mags, n):
     # print mags
     si = numpy.argsort(mags[:,0])
@@ -97,7 +99,7 @@ def count_matches(src_cat, ref_cat,
     all_offsets = all_offsets[:cur_pair,:]
     # print "found", all_offsets.shape, "potential offsets", cur_pair, n_matches
 
-    numpy.savetxt("ccmatch.dump",all_offsets)
+    if (create_debug_files): numpy.savetxt("ccmatch.dump",all_offsets)
 
     # 
     # At this stage, we have a catalog of all potential offsets, 
@@ -133,7 +135,7 @@ def count_matches(src_cat, ref_cat,
     print "best offset", best_offset, "matching in",search_weights[max_coincidence_count][0],"fields"
 
     if (not debugangle == None):
-        numpy.savetxt("ccmatch.offsetcount.%d" % int(round((debugangle*60),0)), search_weights)
+        if (create_debug_files): numpy.savetxt("ccmatch.offsetcount.%d" % int(round((debugangle*60),0)), search_weights)
 
     return search_weights[max_coincidence_count,0], best_offset
 
@@ -318,7 +320,7 @@ def find_best_guess(src_cat, ref_cat,
         all_results[cur_angle,3] = n_matches
 
     numpy.savetxt(sys.stdout, all_results)
-    numpy.savetxt("ccmatch.allresults", all_results)
+    if (create_debug_files): numpy.savetxt("ccmatch.allresults", all_results)
 
 
     #
@@ -347,7 +349,7 @@ def fit_best_rotation_shift(src_cat, ref_cat,
                                        angle=best_guess[0], 
                                        shift=best_guess[1:3])
 
-    numpy.savetxt("ccmatch.roughalign", src_rotated)
+    if (create_debug_files): numpy.savetxt("ccmatch.roughalign", src_rotated)
 
     # Match up stars
     ref_tree = scipy.spatial.cKDTree(ref_cat)
@@ -371,7 +373,7 @@ def fit_best_rotation_shift(src_cat, ref_cat,
 
         src_ref_pairs[i, 2:4] = ref_cat[matched_src_ref_idx[i][0]]
 
-    numpy.savetxt("ccmatch.srcrefmatched", src_ref_pairs)
+    if (create_debug_files): numpy.savetxt("ccmatch.srcrefmatched", src_ref_pairs)
 
     #
     # Further optimize the rotation angle by introducing the 
@@ -414,16 +416,16 @@ def fit_best_rotation_shift(src_cat, ref_cat,
         return diff
 
 
-    numpy.savetxt("ccmatch.x_rotated", x_rotated)
+    if (create_debug_files): numpy.savetxt("ccmatch.x_rotated", x_rotated)
 
-    numpy.savetxt("ccmatch.r_mismatch", r_mismatch)
+    if (create_debug_files): numpy.savetxt("ccmatch.r_mismatch", r_mismatch)
 
     center_radec = (center_ra, center_dec)
     diff = difference_source_reference_cat(p_init, 
                                            src_cat, # src-cat
                                            src_ref_pairs[:,2:4],  # matched ref-cat 
                                            center_radec)
-    numpy.savetxt("ccmatch.diff", diff)
+    if (create_debug_files): numpy.savetxt("ccmatch.diff", diff)
 
 
     # 
@@ -465,7 +467,7 @@ def fit_best_rotation_shift(src_cat, ref_cat,
                                                     center_radec, 
                                                     for_fitting=False)
     
-    numpy.savetxt("ccmatch.diff_afterfit", diff_afterfit)
+    if (create_debug_files): numpy.savetxt("ccmatch.diff_afterfit", diff_afterfit)
 
     return_value = [best_fit[0], 
                     best_fit[1], best_fit[2], 
@@ -533,15 +535,16 @@ def optimize_shift_rotation(p, guessed_match, hdulist, fitting=True):
     if (not fitting):
         return diff
 
-    x = open("ccmatch.wcsfitting", "a")
-    numpy.savetxt(x, diff)
-    print >>x, "\n\n\n\n\n"
-    x.close()
-
-    y = open("ccmatch.fitparams", "a")
-    print >>y, p[0], p[1], p[2]
-    y.close()
-
+    if (create_debug_files): 
+        x = open("ccmatch.wcsfitting", "a")
+        numpy.savetxt(x, diff)
+        print >>x, "\n\n\n\n\n"
+        x.close()
+        
+        y = open("ccmatch.fitparams", "a")
+        print >>y, p[0], p[1], p[2]
+        y.close()
+        
     
     return diff.ravel()
 
@@ -763,7 +766,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     ref_cat = match_catalog_areas(src_cat, ref_raw, max_pointing_error/60.)
     print "area matched ref. catalog:", ref_cat.shape
-    numpy.savetxt("ccmatch.matched_ref_cat", ref_cat)
+    if (create_debug_files): numpy.savetxt("ccmatch.matched_ref_cat", ref_cat)
 
 
 
@@ -797,7 +800,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                                            shift=wcs_correction[1:3],
                                            verbose=False)
         matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(2./3600.), max_count=1)
-        numpy.savetxt("ccmatch.after_shift", matched)
+        if (create_debug_files): numpy.savetxt("ccmatch.after_shift", matched)
 
         # src_raw_rotated = rotate_shift_catalog(src_raw, (center_ra, center_dec), 
         #                                        angle=0.,
@@ -872,7 +875,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                                        angle=current_best_rotation,
                                        shift=current_best_shift,
                                        verbose=False)
-    numpy.savetxt("ccmatch.guessed_cat", guessed_cat)
+    if (create_debug_files): numpy.savetxt("ccmatch.guessed_cat", guessed_cat)
 
     # 
     # With this best guess at hand, match each star in the source 
@@ -880,7 +883,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # 
     crossmatch_radius = 5./3600. # 5 arcsec
     guessed_match = kd_match_catalogs(guessed_cat, ref_cat, crossmatch_radius, max_count=1)
-    numpy.savetxt("ccmatch.guessed_match", guessed_match)
+    if (create_debug_files): numpy.savetxt("ccmatch.guessed_match", guessed_match)
 
 
     #
@@ -904,7 +907,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                                        verbose=False)
     print src_rotated.shape
     matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(2./3600.), max_count=1)
-    numpy.savetxt("ccmatch.after_shift+rot", matched)
+    if (create_debug_files): numpy.savetxt("ccmatch.after_shift+rot", matched)
 
 
     current_best_rotation = best_shift_rotation_solution[0]
@@ -946,7 +949,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                                            shift=current_best_shift,
                                            verbose=False)
         matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(2./3600.), max_count=1)
-        numpy.savetxt("ccmatch.after_rotation", matched)
+        if (create_debug_files): numpy.savetxt("ccmatch.after_rotation", matched)
 
         # src_raw_rotated = rotate_shift_catalog(src_raw, (center_ra, center_dec), 
         #                                        angle=current_best_rotation,
@@ -988,14 +991,14 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # Apply the best-fit rotation to all coordinates in source catalog
     # src_raw = numpy.loadtxt(src_catfile)
     full_src_cat = src_raw.copy()
-    numpy.savetxt("ccmatch.opt_src", full_src_cat)
+    if (create_debug_files): numpy.savetxt("ccmatch.opt_src", full_src_cat)
     
     src_rotated = rotate_shift_catalog(full_src_cat[:,0:2], (center_ra, center_dec), 
                                        angle=current_best_rotation,
                                        shift=current_best_shift,
                                        verbose=True)
 
-    numpy.savetxt("ccmatch.opt_rot", src_rotated)
+    if (create_debug_files): numpy.savetxt("ccmatch.opt_rot", src_rotated)
 
     # Update the Ra/Dec in the full source catalog
     full_src_cat[:,0:2] = src_rotated[:,0:2]
@@ -1005,8 +1008,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     valid_stars = full_src_cat[:,7] == 0
     valid_src_cat = full_src_cat[valid_stars]
 
-    numpy.savetxt("ccmatch.opt_ref", ref_cat)
-    numpy.savetxt("ccmatch.opt_valid", valid_src_cat)
+    if (create_debug_files): numpy.savetxt("ccmatch.opt_ref", ref_cat)
+    if (create_debug_files): numpy.savetxt("ccmatch.opt_valid", valid_src_cat)
 
     # diff = full_src_cat[:,0:2] - src_raw[:,0:2]
     # diff2 = src_rotated[:,0:2] - src_raw[:,0:2]
@@ -1019,7 +1022,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # reference star catalog
     #
     matched_catalog = kd_match_catalogs(valid_src_cat, ref_cat, matching_radius=(2./3600))
-    numpy.savetxt("ccmatch.match_cat_for_distopt", matched_catalog)
+    if (create_debug_files): numpy.savetxt("ccmatch.match_cat_for_distopt", matched_catalog)
     
     print "OTAs of each source:\n",matched_catalog[:,8]
 
@@ -1076,14 +1079,14 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             #
             ra_dec = wcs_pix2wcs(ota_cat[:,2:4], wcs_poly)
 
-            numpy.savetxt("ccmatch.true_radec.OTA%02d" % (ota), ota_cat[:,0:2])
-            numpy.savetxt("ccmatch.computed_radec.OTA%02d" % (ota), ra_dec)
+            if (create_debug_files): numpy.savetxt("ccmatch.true_radec.OTA%02d" % (ota), ota_cat[:,0:2])
+            if (create_debug_files): numpy.savetxt("ccmatch.computed_radec.OTA%02d" % (ota), ra_dec)
 
             xi, xi_r, eta, eta_r, cd, crval, crpix = wcs_poly
             xi[0,0] = 10000
             wcs_poly2 = xi, xi_r, eta, eta_r, cd, crval, crpix
             ra_dec2 = wcs_pix2wcs_2(ota_cat[:,2:4], wcs_poly2)
-            numpy.savetxt("ccmatch.computed_radec2.OTA%02d" % (ota), ra_dec2)
+            if (create_debug_files): numpy.savetxt("ccmatch.computed_radec2.OTA%02d" % (ota), ra_dec2)
 
             # sys.exit(0)
 
@@ -1120,7 +1123,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             print "ota-ref=\n",ota_ref
 
             diff = optimize_distortion(p_init, ota_cat[:,2:4], ota_ref, wcs_poly, fit=False)
-            numpy.savetxt("ccmatch.optimize_distortion_before_OTA%02d" % (ota), diff)
+            if (create_debug_files): numpy.savetxt("ccmatch.optimize_distortion_before_OTA%02d" % (ota), diff)
 
             if (True):
                 print "\n\n\n\n\n\n\nStarting fitting\n\n\n\n\n"
@@ -1139,7 +1142,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                 p_afterfit = p_init
 
             diff_after = optimize_distortion(p_afterfit, ota_cat[:,2:4], ota_ref, wcs_poly, fit=False)
-            numpy.savetxt("ccmatch.optimize_distortion_after_OTA%02d" % (ota), diff_after)
+            if (create_debug_files): numpy.savetxt("ccmatch.optimize_distortion_after_OTA%02d" % (ota), diff_after)
         
             wcs_poly_after_fit = update_polynomial(wcs_poly, 
                                                    p_afterfit[:n_free_parameters],
