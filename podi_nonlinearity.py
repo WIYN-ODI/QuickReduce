@@ -315,6 +315,27 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
     this_cell = (data[:,0] == ota) & (data[:,3] == cellx) & (data[:,4] == celly)
     subset = data[this_cell]
 
+    # Average together values with identical exposure times
+    exptimes = set(subset[:,5])
+    exptimes_sorted = numpy.zeros((len(exptimes)))
+    print exptimes
+
+    i=0
+    for x in exptimes:
+        exptimes_sorted[i] = x
+        i += 1
+
+    exptimes_sorted = numpy.sort(exptimes_sorted)
+    print exptimes_sorted
+
+    good_data = numpy.zeros(shape=(len(exptimes), subset.shape[1]))
+    for exptime in range(exptimes_sorted.shape[0]):
+        this_exptime = subset[:,5] == exptimes_sorted[exptime]
+        values = subset[this_exptime]
+        good_data[exptime] = numpy.mean(values, axis=0)
+
+    subset = good_data
+
     # Determine the min and max exposure times
     exptime_min = 0
     exptime_max = 1.05 * numpy.max(subset[:,6])
@@ -332,10 +353,10 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
 
     fig = matplotlib.pyplot.figure()
     left = 0.1
-    width = 0.87
+    width = 0.885
 
-    ax1 = fig.add_axes([left, 0.3,width,0.64])
-    ax2 = fig.add_axes([left, 0.1,width,0.2])
+    ax1 = fig.add_axes([left, 0.26,width,0.68])
+    ax2 = fig.add_axes([left, 0.08,width,0.18])
 
     ax1.set_xlim([flux_min, flux_max/fluxscaling])
     ax2.set_xlim([flux_min, flux_max/fluxscaling])
@@ -362,7 +383,15 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
     colors = ('red', 'green', 'blue', 'grey')
     poly_fits = [None] * 3 #len(colors)
 
-    error_range = [-0.6, 0.6]
+#    error_range = [-0.4, 0.4]
+    error_range = [-0.25, 0.25]
+
+    # Draw zero line
+    hline_x = numpy.linspace(0,70,700)
+    hline_y = numpy.zeros_like(hline_x)
+    ax2.plot(hline_x, hline_y, "-", color="#808080")
+
+
 
     ax1.set_title("OTA %02d, cell %1d,%1d" % (ota, cellx, celly))
     for i in range(len(poly_fits)):
@@ -376,7 +405,8 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
         timediff = exptimes - evaluate_poly(medlevel, fit)
         within_errors = (timediff < error_range[1]) & (timediff > error_range[0])
 
-        ax2.scatter(medlevel[within_errors]/fluxscaling, timediff[within_errors], c=colors[i])
+#        ax2.scatter(medlevel[within_errors]/fluxscaling, timediff[within_errors], c=colors[i])
+        ax2.plot(medlevel[within_errors]/fluxscaling, timediff[within_errors], 'o-', c=colors[i])
         above = timediff > error_range[1]
         if (numpy.sum(above) > 0):
             med_above = medlevel[above]
@@ -392,7 +422,8 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
 
         if (i==2):
 #            ax1.set_label()
-            fig.text(0.93, 0.36, '3rd-order polynomial fit:\ny = x + %.4e*x^2 + %.4e*x^3' % (fit[1]/fit[0], fit[2]/fit[0]), 
+            sign = "+" if fit[1] > 0 else "-"
+            fig.text(0.93, 0.36, '3rd-order polynomial fit:\ny = x %s %.4e*x^2 + %.4e*x^3' % (sign, math.fabs(fit[1]/fit[0]), fit[2]/fit[0]), 
                      horizontalalignment='right', verticalalignment='bottom')
 
     # Set maximum exposure time
@@ -400,14 +431,14 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
     max_exptime_plot = numpy.max([max_exptime_fit, numpy.max(exptimes)])
     ax1.set_ylim([exptime_min, max_exptime_plot])
 
-
     ax1.legend(loc='upper left', borderaxespad=1)
     ax1.get_xaxis().set_ticklabels([]) #set_visible(False)
     ax1.set_ylabel("exposure time t_exp (~ true flux)")
     
     ax2.set_ylabel("delta t_exp")
     ax2.set_xlabel("observed flux level (x1000 cts)")
-    ax2.set_ylim([-0.77,0.77])
+#    ax2.set_ylim([-0.27,0.27])
+    ax2.set_ylim([1.1*error_range[0], 1.1*error_range[1]])
     fig.savefig(outputfile)
 
     return
@@ -448,7 +479,13 @@ def create_nonlinearity_map(fitfile, outputfile, fluxlevel, minmax, labels=True)
     all_corners = []
     all_intensity = []
 
-    fig, ax = matplotlib.pyplot.subplots()
+#    fig, ax = matplotlib.pyplot.subplots()
+    fig = matplotlib.pyplot.figure()
+    left = 0.1
+    width = 0.885
+
+    ax = fig.add_axes([0.00, 0.04, 0.97, 0.91])
+ 
 
     data = numpy.array([fluxlevel])
     for cell in (range(ota.shape[0])):
@@ -506,13 +543,13 @@ def create_nonlinearity_map(fitfile, outputfile, fluxlevel, minmax, labels=True)
     
     coll = matplotlib.collections.PolyCollection(corners, #facecolor='#505050', #
                                                  facecolor=colorvalues,
-                                                 edgecolor='black', linestyle='-', linewidth=0.2,
+                                                 edgecolor='black', linestyle='-', linewidth=0.1,
                                                  cmap=matplotlib.pyplot.cm.get_cmap('spectral'),
                                                  )
-    
+
     img = matplotlib.pyplot.imshow([[1e9],[1e9]], vmin=nl_min, vmax=nl_max, cmap=cmap, extent=(0,0,0,0), origin='lower')
     #colorbar = matplotlib.pyplot.colorbar(cmap=cmap)
-    fig.colorbar(img) #, text="non-linearity")
+    fig.colorbar(img, format="%+.3f") #, text="non-linearity")
     ax.set_title("Non-linearity @ %d counts" % (int(fluxlevel)))
 
     ax.set_xlim(-0.1,8.1)
