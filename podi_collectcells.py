@@ -761,7 +761,10 @@ def kill_all_child_processes(process_tracker):
         while (True):
             child_pid = process_tracker.get(True, 1.)
             stdout_write("\n   terminating child process (process-ID %d) ..." % (child_pid))
-            os.kill(child_pid, signal.SIGKILL)
+            try:
+                os.kill(child_pid, signal.SIGKILL)
+            except:
+                pass
             stdout_write(" done!")
     except Queue.Empty:
         stdout_write("\n   all child processes terminated!")
