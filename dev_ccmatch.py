@@ -18,6 +18,9 @@ from podi_wcs import *
 import podi_search_ipprefcat
 import podi_sitesetup as sitesetup
 
+import Queue
+import multiprocessing
+
 max_pointing_error = 5.
 
 import logging
@@ -246,12 +249,40 @@ def kd_match_catalogs(src_cat, ref_cat, matching_radius, max_count=1):
 
 
 
+def count_matches_parallelwrapper(work_queue, return_queue,
+                                  src_cat, ref_cat, center_ra, center_dec,
+                                  matching_radius=(max_pointing_error/60.), 
+                                  fine_radius=(4./3600.), debugangle=None
+                                  ):
+
+    while (True):
+        task = work_queue.get()
+        if (task == None):
+            break
+
+        angle_id, angle = task
+
+        print "\n\n\nWorking on angle",angle,angle*60,"(deg/arcmin)\n\n\n"
+
+        src_rotated = rotate_shift_catalog(src_cat, (center_ra, center_dec), angle, None)
+
+        print "Angle:",angle*60.," --> ",
+        n_matches, offset = count_matches(src_rotated, ref_cat, matching_radius, 
+                                          fine_radius=fine_radius,
+                                          debugangle=angle)
+
+        return_queue.put((angle_id, n_matches, offset))
+        work_queue.task_done()
+
+    return
+
 def find_best_guess(src_cat, ref_cat,
                     center_ra, center_dec,
                     matching_radius=(max_pointing_error/60.),
                     angle_max=5., #degrees
                     d_angle=3, # arcmin
-                    fine_radius=2./3600.
+                    fine_radius=2./3600.,
+                    allow_parallel=True,
                     ):
 
     # 
@@ -288,36 +319,63 @@ def find_best_guess(src_cat, ref_cat,
         print "in find_best_guess, angle_max =",angle_max
         sys.exit(0)
 
-    for cur_angle in range(n_angles):
-        angle = all_results[cur_angle,0]
-        print "\n\n\nWorking on angle",angle,angle*60,"(deg/arcmin)\n\n\n"
-        # print "\n\n\n",angle*60
 
-        src_rotated = rotate_shift_catalog(src_cat, (center_ra, center_dec), angle, None)
-        # print "src-cat:",src_cat.shape
-        # print "src_roated:",src_rotated.shape
-        # print "ref-cat:",ref_cat.shape
+    if (allow_parallel):
 
-        # angle_rad = math.radians(angle)
+        processes = []
+        queue = multiprocessing.JoinableQueue()
+        return_queue = multiprocessing.Queue()
+        
+        # Feed all angles to check into the queue
+        for cur_angle in range(n_angles):
+            angle = all_results[cur_angle,0]
+            queue.put((cur_angle, angle))
 
-        # src_rotated = numpy.zeros_like(src_cat)
-        # src_rel_to_center = src_cat - [center_ra, center_dec]
-        # src_rotated[:,0] \
-        #     = math.cos(angle_rad) * src_rel_to_center[:,0] \
-        #     + math.sin(angle_rad) * src_rel_to_center[:,1] \
-        #     + center_ra
-        # src_rotated[:,1] \
-        #     = -math.sin(angle_rad) * src_rel_to_center[:,0] \
-        #     +  math.cos(angle_rad) * src_rel_to_center[:,1] \
-        #     + center_dec
+        worker_args = (queue, return_queue,
+                       src_cat, ref_cat, center_ra, center_dec,
+                       matching_radius,
+                       fine_radius, 
+                       angle)
 
-        print "Angle:",angle*60.," --> ",
-        n_matches, offset = count_matches(src_rotated, ref_cat, matching_radius, 
-                                          fine_radius=fine_radius,
-                                          debugangle=angle)
+        number_cpus = sitesetup.number_cpus
+        print "Running ccmatch on %d CPUs, hold on ..." % (number_cpus)
+        for i in range(number_cpus):
+            p = multiprocessing.Process(target=count_matches_parallelwrapper, args=worker_args)
+            p.start()
+            processes.append(p)
 
-        all_results[cur_angle,1:3] = offset
-        all_results[cur_angle,3] = n_matches
+            # Also send a quit signal to each process
+            queue.put(None)
+        
+        # And finally, collect all results
+        for i in range(n_angles):
+
+            returned = return_queue.get()
+            cur_angle, n_matches, offset = returned
+
+            all_results[cur_angle,1:3] = offset
+            all_results[cur_angle,3] = n_matches
+
+        # Join all processes to make sure they terminate alright 
+        # without leaving zombie processes behind.
+        for p in processes:
+            p.join()
+
+
+    else:
+
+        for cur_angle in range(n_angles):
+            angle = all_results[cur_angle,0]
+            print "\n\n\nWorking on angle",angle,angle*60,"(deg/arcmin)\n\n\n"
+
+            src_rotated = rotate_shift_catalog(src_cat, (center_ra, center_dec), angle, None)
+            print "Angle:",angle*60.," --> ",
+            n_matches, offset = count_matches(src_rotated, ref_cat, matching_radius, 
+                                              fine_radius=fine_radius,
+                                              debugangle=angle)
+
+            all_results[cur_angle,1:3] = offset
+            all_results[cur_angle,3] = n_matches
 
     numpy.savetxt(sys.stdout, all_results)
     if (create_debug_files): numpy.savetxt("ccmatch.allresults", all_results)
@@ -620,6 +678,7 @@ def ccmatch_shift(source_cat,
                                  center_ra, center_dec,
                                  matching_radius=matching_radius,
                                  angle_max=None,
+                                 allow_parallel=False,
                                  )
 
     print "\n\n\n\n\n found best guess:"
@@ -767,6 +826,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     ref_cat = match_catalog_areas(src_cat, ref_raw, max_pointing_error/60.)
     print "area matched ref. catalog:", ref_cat.shape
     if (create_debug_files): numpy.savetxt("ccmatch.matched_ref_cat", ref_cat)
+    if (create_debug_files): numpy.savetxt("ccmatch.src_cat", src_cat)
 
 
 
@@ -850,11 +910,12 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     center_ra = hdulist[1].header['CRVAL1']
     center_dec = hdulist[1].header['CRVAL2']
     initial_guess = find_best_guess(src_cat, ref_cat,
-                                 center_ra, center_dec,
-                                 matching_radius=(max_pointing_error/60.),
-                                 angle_max=max_rotator_error, #[-2,2], #degrees
-                                 d_angle=10 # arcmin
-                                 )
+                                    center_ra, center_dec,
+                                    matching_radius=(max_pointing_error/60.),
+                                    angle_max=max_rotator_error, #[-2,2], #degrees
+                                    d_angle=10, # arcmin
+                                    allow_parallel=True
+                                    )
     print "\n\n\n\n\n found best guess:"
     print initial_guess
     print initial_guess[1:3]*3600.
