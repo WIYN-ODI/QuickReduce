@@ -46,6 +46,8 @@ import matplotlib.lines
 
 from podi_definitions import *
 
+import Queue
+import multiprocessing
 
 
 #####################################################################################
@@ -165,9 +167,22 @@ def wcsdiag_scatter(#matched_cat,
     # Create one plot for the full focalplane
     ota_global_stats = None if ota_wcs_stats == None else ota_wcs_stats['full']
     title = "WCS Scatter - full focal plane"
-    plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list, 
-                         title=title,
-                         ota_stats=None, ota_global_stats=ota_global_stats)
+
+    processes = []
+    plot_args= {"d_ra": d_ra, 
+                "d_dec": d_dec, 
+                "filename": filename, 
+                "extension_list": extension_list, 
+                "title": title,
+                "ota_stats": None,
+                "ota_global_stats": ota_global_stats,
+            }
+    p = multiprocessing.Process(target=plot_wcsdiag_scatter, kwargs=plot_args)
+    p.start()
+    processes.append(p)
+    # plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list, 
+    #                      title=title,
+    #                      ota_stats=None, ota_global_stats=ota_global_stats)
 
     # Now break down the plots by OTA
     if (also_plot_singleOTAs):
@@ -194,10 +209,25 @@ def wcsdiag_scatter(#matched_cat,
             # ota_plotfile = "%s_OTA%02d" % (filename, this_ota)
             # if (options['structure_qa_subdirs']):
             #     ota_plotfile = "%s/OTA%02d" % (filename, this_ota)
-            
-            plot_wcsdiag_scatter(d_ra[in_this_ota], d_dec[in_this_ota], ota_plotfile, extension_list,
-                                 title=title,
-                                 ota_stats=ota_stats, ota_global_stats=ota_global_stats)
+
+            plot_args= {"d_ra": d_ra[in_this_ota], 
+                        "d_dec": d_dec[in_this_ota], 
+                        "filename": ota_plotfile, 
+                        "extension_list": extension_list, 
+                        "title": title,
+                        "ota_stats": ota_stats,
+                        "ota_global_stats": ota_global_stats,
+                    }
+            p = multiprocessing.Process(target=plot_wcsdiag_scatter, kwargs=plot_args)
+            p.start()
+            processes.append(p)
+
+            # plot_wcsdiag_scatter(d_ra[in_this_ota], d_dec[in_this_ota], ota_plotfile, extension_list,
+            #                      title=title,
+            #                      ota_stats=ota_stats, ota_global_stats=ota_global_stats)
+
+    for p in processes:
+        p.join()
 
     # Create some plots for WCS diagnosis
     stdout_write(" done!\n")
@@ -353,16 +383,21 @@ def wcsdiag_shift(matched_radec_odi,
     else:
         extension_list = options['plotformat']
 
+    processes = []
+
     # Create one plot for the full focalplane
     title = "WCS Scatter - full focal plane"
-    plot_wcsdiag_shift(radec=matched_radec_2mass,
-                       d_radec=d_radec,
-                       filename=filename, 
-                       extension_list=extension_list, 
-                       ota_outlines=None,
-                       title=title,
-                       )
-
+    plot_args = {"radec": matched_radec_2mass,
+                 "d_radec": d_radec,
+                 "filename": filename, 
+                 "extension_list": extension_list, 
+                 "ota_outlines": None,
+                 "title": title,
+             }
+    p = multiprocessing.Process(target=plot_wcsdiag_shift, kwargs=plot_args)
+    p.start()
+    processes.append(p)
+ 
     # Now break down the plots by OTA
     if (also_plot_singleOTAs):
         list_of_otas = available_ota_coords
@@ -386,13 +421,19 @@ def wcsdiag_shift(matched_radec_odi,
             # if (options['structure_qa_subdirs']):
             #     ota_plotfile = "%s/OTA%02d" % (filename, this_ota)
 
-            plot_wcsdiag_shift(radec=ota_radec,
-                               d_radec = ota_d_radec,
-                               filename=ota_plotfile, 
-                               extension_list=extension_list, 
-                               ota_outlines=None,
-                               title=title,
-                               )
+            plot_args = {"radec": ota_radec,
+                         "d_radec": ota_d_radec,
+                         "filename": ota_plotfile, 
+                         "extension_list": extension_list, 
+                         "ota_outlines": None,
+                         "title": title,
+                     }
+            p = multiprocessing.Process(target=plot_wcsdiag_shift, kwargs=plot_args)
+            p.start()
+            processes.append(p)
+
+    for p in processes:
+        p.join()
 
 #     fig, ax = matplotlib.pyplot.subplots()
     
@@ -812,12 +853,27 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
 
     fwhm_range = (fwhm_min, fwhm_max)
 
+    processes = []
+
     # Create one plot for the full focal plane, using boxes to outlines OTAs
-    plot_psfsize_map(ra, dec, fwhm, output_filename, 
-                     fwhm_range=fwhm_range,
-                     title=title,
-                     ota_outlines=ota_outlines,
-                     options=options)
+    plot_args = {"ra": ra, 
+                 "dec": dec, 
+                 "fwhm": fwhm, 
+                 "output_filename": output_filename, 
+                 "fwhm_range": fwhm_range,
+                 "title": title,
+                 "ota_outlines": ota_outlines, 
+                 "options": options,
+    }
+    p = multiprocessing.Process(target=plot_psfsize_map, kwargs=plot_args)
+    p.start()
+    processes.append(p)
+   
+    # plot_psfsize_map(ra, dec, fwhm, output_filename, 
+    #                  fwhm_range=fwhm_range,
+    #                  title=title,
+    #                  ota_outlines=ota_outlines,
+    #                  options=options)
 
     print ota_outlines
 
@@ -839,12 +895,29 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
 
             # ota_plotfile = "%s_OTA%02d" % (output_filename, this_ota)
             ota_plotfile = create_qa_otaplot_filename(output_filename, this_ota, options['structure_qa_subdirs'])
-            plot_psfsize_map(ra_ota, dec_ota, fwhm_ota, 
-                             output_filename=ota_plotfile, 
-                             fwhm_range=fwhm_range,
-                             title=title,
-                             ota_outlines=None,
-                             options=options)
+            # plot_psfsize_map(ra_ota, dec_ota, fwhm_ota, 
+            #                  output_filename=ota_plotfile, 
+            #                  fwhm_range=fwhm_range,
+            #                  title=title,
+            #                  ota_outlines=None,
+            #                  options=options)
+
+            plot_args = {"ra": ra_ota, 
+                         "dec": dec_ota, 
+                         "fwhm": fwhm_ota, 
+                         "output_filename": ota_plotfile, 
+                         "fwhm_range": fwhm_range,
+                         "title": title,
+                         "ota_outlines": None,
+                         "options": options,
+            }
+            p = multiprocessing.Process(target=plot_psfsize_map, kwargs=plot_args)
+            p.start()
+            processes.append(p)
+
+
+    for p in processes:
+        p.join()
 
     stdout_write(" done!\n")
 
