@@ -538,6 +538,14 @@ def collect_reduce_ota(filename,
             #print "Adding header from WCS minifits (%s)" % (extname)
             wcs = pyfits.open(options['wcs_distortion'])
             wcs_header = wcs[extname].header
+
+            # Modify the WCS solution to properly represents the WCS solution of binned data
+            # print "Correcting the WCS solution for binning factor",binning,"..."
+            for hdr_name in ('CRPIX1', 'CRPIX2'):
+                wcs_header[hdr_name] /= binning
+            for hdr_name in ('CD1_1', 'CD1_2', 'CD2_1', 'CD2_2'):
+                wcs_header[hdr_name] *= binning
+
             reduction_files_used['wcs'] = options['wcs_distortion']
 
             cards = wcs_header.cards
