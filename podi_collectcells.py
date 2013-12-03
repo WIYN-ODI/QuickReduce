@@ -191,11 +191,16 @@ def collect_reduce_ota(filename,
             stdout_write("\r%s: Starting work on OTA %02d ...\n" % (obsid, ota))
 
         nonlin_data = None
-        if (not options['nonlinearity'] == None):
+        if (options['nonlinearity-set']):
+            nonlinearity_file = options['nonlinearity']
+            if (options['nonlinearity'] == None or 
+                options['nonlinearity'] == "" or
+                not os.path.isfile(nonlinearity_file)):
+                nonlinearity_file = podi_nonlinearity.find_nonlinearity_coefficient_file(mjd, options)
             if (options['verbose']):
-                print "Using non-linearity coefficients from",options['nonlinearity']
-            nonlin_data = podi_nonlinearity.load_nonlinearity_correction_table(options['nonlinearity'], ota)
-            reduction_files_used['nonlinearity'] = options['nonlinearity']
+                print "Using non-linearity coefficients from",nonlinearity_file
+            nonlin_data = podi_nonlinearity.load_nonlinearity_correction_table(nonlinearity_file, ota)
+            reduction_files_used['nonlinearity'] = nonlinearity_file
 
         all_gains = numpy.zeros(shape=(64))
         for cell in range(1,65):
@@ -238,7 +243,7 @@ def collect_reduce_ota(filename,
 
             datasec -= overscan_level
 
-            if (not options['nonlinearity'] == None):
+            if (options['nonlinearity-set']):
                 nonlin_correction = podi_nonlinearity.compute_cell_nonlinearity_correction(
                     datasec, wm_cellx, wm_celly, nonlin_data)
                 datasec += nonlin_correction
@@ -1935,6 +1940,7 @@ def set_default_options(options_in=None):
     options['bpm_dir']  = None
 
     options['nonlinearity'] = None
+    options['nonlinearity-set'] = False
 
     options['fixwcs'] = False
     options['wcs_distortion'] = None
@@ -2086,6 +2092,7 @@ Calibration data:
 
     options['photcalib'] = cmdline_arg_isset("-photcalib")
 
+    options['nonlinearity-set'] = cmdline_arg_isset("-nonlinearity")
     options['nonlinearity'] = cmdline_arg_set_or_default("-nonlinearity", None)
 
     if (cmdline_arg_isset('-plotformat')):
