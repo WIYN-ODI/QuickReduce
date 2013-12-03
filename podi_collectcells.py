@@ -300,6 +300,8 @@ def collect_reduce_ota(filename,
 
                 # Search for the bias data for the current OTA
                 for bias_ext in bias[1:]:
+                    if (not is_image_extension(bias_ext)):
+                        continue
                     fppos_bias = bias_ext.header['FPPOS']
                     if (fppos_bias == fppos):
                         # This is the one
@@ -328,6 +330,8 @@ def collect_reduce_ota(filename,
 
                 # Search for the flatfield data for the current OTA
                 for dark_ext in dark[1:]:
+                    if (not is_image_extension(dark_ext)):
+                        continue
                     fppos_dark = dark_ext.header['FPPOS']
                     if (fppos_dark == fppos):
                         # This is the one
@@ -348,6 +352,8 @@ def collect_reduce_ota(filename,
 
                 # Search for the flatfield data for the current OTA
                 for ff_ext in flatfield[1:]:
+                    if (not is_image_extension(ff_ext)):
+                        continue
                     fppos_flatfield = ff_ext.header['FPPOS']
                     if (fppos_flatfield == fppos):
                         # This is the one
