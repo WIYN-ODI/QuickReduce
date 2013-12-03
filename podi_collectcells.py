@@ -606,7 +606,7 @@ def collect_reduce_ota(filename,
                         source_cat = None
                     else:
                         if (source_cat.shape[0] == 0 or source_cat.ndim < 2):
-                            source_cat == None
+                            source_cat = None
                         else:
                             source_cat[:,8] = ota
                             flags = source_cat[:,7]
@@ -614,7 +614,7 @@ def collect_reduce_ota(filename,
                             if (verbose): print "source-cat:", source_cat.shape, numpy.sum(valid)
                             source_cat = source_cat[valid]
                 except:
-                    source_cat == None
+                    source_cat = None
                 if (sitesetup.sex_delete_tmps):
                     clobberfile(fitsfile)
                     clobberfile(catfile)
