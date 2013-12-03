@@ -32,6 +32,7 @@ How-to use:
 import sys
 import os
 import pyfits
+from podi_definitions import get_binning
 
 
 if __name__ == "__main__":
@@ -54,10 +55,12 @@ if __name__ == "__main__":
             object = hdr['OBJECT']
             exptime = hdr['EXPTIME']
             filter = hdr['FILTER']
+            binning = get_binning(hdulist[1].header)
+
         except:
             pass
 
         ra = hdr['RA']
         dec = hdr['DEC']
 
-        print "%s %6s %15s %6.1f %60s %14s %14s" % (filename, obstype, filter, exptime, object, ra, dec)
+        print "%s %6s %d %15s %6.1f %60s %14s %14s" % (filename, obstype, binning, filter, exptime, object, ra, dec)
