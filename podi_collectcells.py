@@ -1120,6 +1120,9 @@ def collectcells(input, outputfile,
         hdu = data_products['hdu']
         wcsfix_data = data_products['wcsdata']
 
+        if (hdu == None):
+            continue
+
         if ('reduction_files_used' in data_products):
             files_this_frame = data_products['reduction_files_used']
             # print "\n\n\n\n\nfiles_this_frame=\n\n",files_this_frame,"\n\n\n"
@@ -1131,9 +1134,6 @@ def collectcells(input, outputfile,
         #if ("persistency_map_updated" in data_products):
         #    # We also received an updated persistency map
         #    persistency[ota_id] = data_products["persistency_map_updated"]
-
-        if (hdu == None):
-            continue
 
         ota_list[ota_id] = hdu
         
