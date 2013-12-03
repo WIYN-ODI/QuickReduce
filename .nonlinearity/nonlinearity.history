@@ -1,0 +1,11 @@
+# Non-linearity history.
+# Helps determine the appropriate non-linearity calibration automatically
+#
+# Format of this file is
+# Start-MJD filename
+#
+# Each file is valid from the given MJD date up to the MJD of the next entry, if
+# a next entry exists, or indefinitely if no next entry is given.
+# 
+00000.0 nonlinearity_pre20131014.fits
+56225.5 nonlinearity_20131119.fits

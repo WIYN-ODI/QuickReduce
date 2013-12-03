@@ -645,6 +645,30 @@ def plot_cellbycell_map(fitfile, outputfile, minmax, labels=True, fontsize=2):
     return
 
 
+def find_nonlinearity_coefficient_file(target_mjd, options):
+
+    # Construct the name of the history file
+    history_filename = "%s/.nonlinearity/nonlinearity.history" % (options['exec_dir'])
+
+    # Read the file and determine which coefficient file is the best one.
+    history_file = open(history_filename, "r")
+    lines = history_file.readlines()
+    for line in lines:
+        if (line[0] == '#'):
+            continue
+        items = line.split()
+        mjd = float(items[0])
+
+        if (target_mjd > mjd):
+            filename = items[1]
+        else:
+            break
+
+    # Now assemble the entire filename
+    full_filename = "%s/.nonlinearity/%s" % (options['exec_dir'], filename)
+    return os.path.abspath(full_filename)
+
+
 if __name__ == "__main__":
 
 
@@ -783,7 +807,15 @@ Creating all fits
         plot_cellbycell_map(fitfile, outputfile, minmax, labels=labels, fontsize=fontsize)
         sys.exit(0)
 
- 
+    if (cmdline_arg_isset("-findfile")):
+        target_mjd = float(get_clean_cmdline()[1])
+        import podi_collectcells
+        options = podi_collectcells.read_options_from_commandline(None)
+        filename = find_nonlinearity_coefficient_file(target_mjd, options)
+        print filename
+        sys.exit(0)
+
+
     # Read the input directory that contains the individual OTA files
     inputfiles = get_clean_cmdline()[1:]
     all_data = create_nonlinearity_data(inputfiles)
