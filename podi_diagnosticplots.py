@@ -45,6 +45,7 @@ gain_correct_frames = False
 import matplotlib.lines
 
 from podi_definitions import *
+import podi_sitesetup as sitesetup
 
 import Queue
 import multiprocessing
@@ -549,17 +550,20 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
     delta = 0.3 if zp_std < 0.3 else zp_std
     close_to_median = (zp_raw > zp_median - 3 * delta) & (zp_raw < zp_median + 3 * delta)
     
-    
     #zp_max, zp_min = zp_median+3*delta, zp_median-3*delta
-    zp_max = zp_median+5*zp_std+0.3
-    zp_min = zp_median-5*zp_std-0.3
+    zp_min = zp_median-sitesetup.diagplot__zeropoint_ZPrange[0] if \
+             (sitesetup.diagplot__zeropoint_ZPrange[0] > 0) else zp_median-5*zp_std-0.3
+    zp_max = zp_median+sitesetup.diagplot__zeropoint_ZPrange[1] if \
+             (sitesetup.diagplot__zeropoint_ZPrange[1] > 0) else zp_median+5*zp_std+0.3
 
     # Determine the min and max sdss magnitudes
     sdss_min = numpy.min(sdss_mag - sdss_magerr) - 1
     sdss_max = numpy.max(sdss_mag + sdss_magerr)
     # now round them to the nearest integer
-    sdss_minint = int(math.floor(sdss_min))
-    sdss_maxint = int(math.ceil(sdss_max))
+    sdss_minint = sitesetup.diagplot__zeropoint_magrange[0] if \
+                  (sitesetup.diagplot__zeropoint_magrange[0] > 0) else int(math.floor(sdss_min))
+    sdss_maxint = sitesetup.diagplot__zeropoint_magrange[1] if \
+                  (sitesetup.diagplot__zeropoint_magrange[1] > 0) else int(math.ceil(sdss_max))
 
     # Prepare some helpers for horizontal lines
     # There has to be a more elegant way to do this
@@ -742,8 +746,15 @@ def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
     stdout_write("Creating the photometric calibration per OTA plot ...")
 
     zp_raw = sdss_mag - odi_mag
-    zp_min = scipy.stats.scoreatpercentile(zp_raw,  5)
-    zp_max = scipy.stats.scoreatpercentile(zp_raw, 95)
+
+    zp_median = numpy.median(zp_raw)
+
+    zp_min = scipy.stats.scoreatpercentile(zp_raw,  5) if \
+             (sitesetup.diagplot__zerpointmap_range[0] <= 0) else \
+             zp_median - sitesetup.diagplot__zerpointmap_range[0]
+    zp_max = scipy.stats.scoreatpercentile(zp_raw, 95) if \
+             (sitesetup.diagplot__zerpointmap_range[1] <= 0) else \
+             zp_median + sitesetup.diagplot__zerpointmap_range[1]
 
     # Create one plot for the full focal plane, using boxes to outlines OTAs
     zp_range = (zp_min, zp_max)

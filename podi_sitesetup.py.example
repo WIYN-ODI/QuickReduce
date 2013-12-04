@@ -47,6 +47,16 @@ sex_redirect = " >& /dev/null"
 sex_delete_tmps = True
 
 
+
+#
+# some settings for the diagnostic plots
+#
+diagplot__zeropoint_ZPrange = [0.5,0.5]
+diagplot__zeropoint_magrange = [11,21]
+
+diagplot__zerpointmap_range = [0.2,0.2]
+
+
 if __name__ == "__main__":
     print "This file defines some site properties, mostly paths."
     print "Feel free to edit it to adapt directories to your site"
