@@ -262,7 +262,7 @@ def count_matches_parallelwrapper(work_queue, return_queue,
 
         angle_id, angle = task
 
-        print "\n\n\nWorking on angle",angle,angle*60,"(deg/arcmin)\n\n\n"
+        print "Starting work on angle",angle,angle*60,"(deg/arcmin)"
 
         src_rotated = rotate_shift_catalog(src_cat, (center_ra, center_dec), angle, None)
 
