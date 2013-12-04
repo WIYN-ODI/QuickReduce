@@ -425,7 +425,10 @@ def query_sdss_catalog(ra_range, dec_range, sdss_filter, verbose=False):
 def photcalib(source_cat, output_filename, filtername, exptime=1, 
               diagplots=True, calib_directory=None, overwrite_cat=None,
               plottitle=None, otalist=None,
-              options=None):
+              options=None,
+              verbose=False,
+              eliminate_flags=True,
+              matching_radius=3):
 
     error_return_value = (99.9, 99.9, None, 99.9)
 
@@ -439,10 +442,10 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
 
     # Eliminate all stars with flags
-    flags = source_cat[:,7]
-    no_flags_set = (flags == 0)
-
-    source_cat = source_cat[no_flags_set]
+    if (eliminate_flags):
+        flags = source_cat[:,7]
+        no_flags_set = (flags == 0)
+        source_cat = source_cat[no_flags_set]
 
     ra_min = numpy.min(source_cat[:,0])
     ra_max = numpy.max(source_cat[:,0])
@@ -464,7 +467,9 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     if (std_stars.shape[0] <= 0):
         stdout_write("No stars not found - looks like this region isn't covered by SDSS - sorry!\n\n")
         return error_return_value
-
+    if (verbose):
+        stdout_write("Found %d reference stars in the SDSS...\n" % (std_stars.shape[0]))
+        numpy.savetxt("sdss.cat", std_stars)
 
     #
     # Now go through each of the extension
@@ -473,14 +478,19 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     stdout_write("\nStarting work, results in %s ...\n\n" % output_filename)
     results = open(output_filename, "w")
 
-    odi_sdss_matched = podi_matchcatalogs.match_catalogs(source_cat, std_stars)
+
+    odi_sdss_matched = podi_matchcatalogs.match_catalogs(source_cat, std_stars, matching_radius=matching_radius)
+    if (verbose):
+        print "ODI+SDSS matched:",odi_sdss_matched.shape
 
     if (odi_sdss_matched != None):
         numpy.savetxt(results, odi_sdss_matched, delimiter=" ")
 
     # Stars without match in SDSS have RA=-9999, let's sort them out
     found_sdss_match = odi_sdss_matched[:,2] >= 0
-    
+    if (verbose):
+        print "ODI+SDSS matched (good coords):",numpy.sum(found_sdss_match)
+  
     odi_sdss_matched = odi_sdss_matched[found_sdss_match]
 
     odi_ra, odi_dec = odi_sdss_matched[:,0], odi_sdss_matched[:,1]
@@ -490,6 +500,9 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     odi_mag, odi_magerr = odi_sdss_matched[:,17], odi_sdss_matched[:,25]
     sdss_mag = odi_sdss_matched[:,(source_cat.shape[1]+pc)]
     sdss_magerr = odi_sdss_matched[:,(source_cat.shape[1]+pc+1)]
+
+    if (verbose):
+        print "ODI/SDSS", odi_mag.shape, sdss_mag.shape
 
     zp_correction_exptime = -2.5 * math.log10(exptime)
     odi_mag -= zp_correction_exptime
@@ -616,6 +629,58 @@ if __name__ == "__main__":
         else:
             print "Found",catalog.shape[0],"results"
         #print catalog
+
+    elif (cmdline_arg_isset("-swarp")):
+
+        print "Starting phot-calib..."
+        inputfile = get_clean_cmdline()[1]
+        
+        raw_frame = get_clean_cmdline()[2]
+
+        import podi_collectcells
+        import podi_sitesetup as sitesetup
+        options = podi_collectcells.read_options_from_commandline()
+
+        # Run SourceExtractor
+        print "Running source-extractor"
+        sex_config_file = "%s/.config/wcsfix.sex" % (options['exec_dir'])
+        parameters_file = "%s/.config/wcsfix.sexparam" % (options['exec_dir'])
+        catfile = "%s.cat" % (inputfile[:-5])
+        sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s %s" % (
+                    sitesetup.sextractor, sex_config_file, parameters_file, catfile, 
+                    inputfile, sitesetup.sex_redirect)
+        if (os.path.isfile(catfile) and not cmdline_arg_isset("-resex")):
+            print "catalog exists, re-using it"
+        else:
+            if (options['verbose']): print sexcmd
+            os.system(sexcmd)
+
+        # Load the catalog
+        src_catalog = numpy.loadtxt(catfile)
+        print "Found",src_catalog.shape[0],"stars in frame"
+
+        # Now eliminate all frames with magnitude 99
+        good_photometry = src_catalog[:,16] < 0
+        src_catalog = src_catalog[good_photometry]
+        print src_catalog.shape[0],"stars with good photometry"
+
+        hdulist = pyfits.open(raw_frame)
+        filter_name = hdulist[0].header['FILTER']
+        exptime = hdulist[0].header['EXPTIME']
+
+        pc =  photcalib(src_catalog, 
+                        inputfile, 
+                        filtername=filter_name, 
+                        exptime=exptime,
+                        diagplots=True,
+                        plottitle="swarped frame",
+                        otalist=None,
+                        options=options,
+                        verbose=True,
+                        eliminate_flags=True)
+        zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = pc
+        print zeropoint_median
+        print zeropoint_std
 
     else:
         fitsfile = get_clean_cmdline()[1]
