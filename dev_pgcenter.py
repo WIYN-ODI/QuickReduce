@@ -14,6 +14,8 @@ import bottleneck
 from podi_definitions import *
 import itertools
 
+numpy.seterr(divide='ignore', invalid='ignore')
+
 # def rebin_image(data, binfac):
     
 #     if (binfac < 1):
@@ -71,9 +73,9 @@ def find_center(hdu_data, coord_x, coord_y,
     all_y = rebin_image(coord_y, prebin, operation=numpy.mean)
 
     if (debugname != None):
-        pyfits.HDUList([pyfits.PrimaryHDU(data=ot33b)]).writeto("debug_"+debugname+"___data.fits", clobber=True)
-        pyfits.HDUList([pyfits.PrimaryHDU(data=all_x)]).writeto("debug_"+debugname+"___all_x.fits", clobber=True)
-        pyfits.HDUList([pyfits.PrimaryHDU(data=all_y)]).writeto("debug_"+debugname+"___all_y.fits", clobber=True)
+        pyfits.HDUList([pyfits.PrimaryHDU(data=ot33b.T)]).writeto("debug_"+debugname+"___data.fits", clobber=True)
+        pyfits.HDUList([pyfits.PrimaryHDU(data=all_x.T)]).writeto("debug_"+debugname+"___all_x.fits", clobber=True)
+        pyfits.HDUList([pyfits.PrimaryHDU(data=all_y.T)]).writeto("debug_"+debugname+"___all_y.fits", clobber=True)
     ot33_orig = ot33b.copy()
 
     ot33b[numpy.isnan(ot33b)] = 0
@@ -86,7 +88,7 @@ def find_center(hdu_data, coord_x, coord_y,
     y33 = scipy.ndimage.sobel(ot33b, axis=1, mode='constant')
     abs33 = numpy.hypot(x33, y33)
     if (debugname != None):
-        pyfits.HDUList([pyfits.PrimaryHDU(data=abs33)]).writeto("debug_"+debugname+"___sobel.fits", clobber=True)
+        pyfits.HDUList([pyfits.PrimaryHDU(data=abs33.T)]).writeto("debug_"+debugname+"___sobel.fits", clobber=True)
 
     #
     # Create a mask of all valid images
@@ -111,7 +113,7 @@ def find_center(hdu_data, coord_x, coord_y,
     if (verbose): print "number valid pixels after growing",numpy.sum((mask_grown == False))
 
     if (debugname != None):
-        pyfits.HDUList([pyfits.PrimaryHDU(data=mask_grown_float)]).writeto("debug_"+debugname+"___mask.fits", clobber=True)
+        pyfits.HDUList([pyfits.PrimaryHDU(data=mask_grown_float.T)]).writeto("debug_"+debugname+"___mask.fits", clobber=True)
 
     #
     # Apply the now widened mask to the gradient map
@@ -122,7 +124,7 @@ def find_center(hdu_data, coord_x, coord_y,
     abs33_binary[abs33 >= 0.1] = 1
     abs33[mask_grown] = numpy.NaN
     if (debugname != None):
-        pyfits.HDUList([pyfits.PrimaryHDU(data=abs33)]).writeto("debug_"+debugname+"___sobel_filtered.fits", clobber=True)
+        pyfits.HDUList([pyfits.PrimaryHDU(data=abs33.T)]).writeto("debug_"+debugname+"___sobel_filtered.fits", clobber=True)
     #
     # Now apply a threshold so we only deal with strong gradients and get rid 
     # of a lot of the underlying background noise
@@ -247,7 +249,12 @@ fiducial_centers = {
     'OTA44.SCI': (32, -190, 1268, 32, -190, 1268)
     }
 
-def find_pupilghost_center(hdu, verbose=False, fixed_radius=1270):
+
+
+
+
+def find_pupilghost_center(hdu, verbose=False, fixed_radius=1270, debugname=None):
+# returns  fixed_r_x, fixed_r_y, fixed_r_r, var_r_x, var_r_y, var_r_r
 
     
     cx, cy = pupilghost_center_guess[hdu.header["EXTNAME"]]
@@ -256,6 +263,9 @@ def find_pupilghost_center(hdu, verbose=False, fixed_radius=1270):
     # trim the edges generously
     rawdata[3980:,:] = numpy.NaN
     rawdata[:,3980:] = numpy.NaN
+    rawdata[:50,:] = numpy.NaN
+    rawdata[:,:50] = numpy.NaN
+    rawdata[500:1000,0:500] = numpy.NaN
     px, py = numpy.indices(rawdata.shape)
 
     search_width=250
@@ -271,8 +281,9 @@ def find_pupilghost_center(hdu, verbose=False, fixed_radius=1270):
         find_center(rawdata, px, py,
                     search_r = search_r, search_x = search_x, search_y = search_y,
                     prebin=prebin,
-                    #debugname=hdu[i].header["EXTNAME"],
+                    debugname=None if (debugname==None) else (debugname + hdu.header["EXTNAME"] + "__lowres__"),
                     fixed_radius=fixed_radius,
+                    verbose=verbose,
                     )
     if (verbose): print "Initial rough center (binning",prebin,") ---> ", x, y, r
 
@@ -318,9 +329,10 @@ def find_pupilghost_center(hdu, verbose=False, fixed_radius=1270):
                     midres_px, midres_py,
                     search_r = search_r, search_x = search_x, search_y = search_y,
                     prebin=prebin,
-                    #debugname=hdu[i].header["EXTNAME"]+"__midres__",
+                    debugname=None if (debugname==None) else (debugname + hdu.header["EXTNAME"]+"__midres_f__"),
                     fixed_radius=fixed_radius,
                     threshold=0,
+                    verbose=verbose,
                     )
 
     if (verbose): print "Better resolution (binning",prebin,", fixed r=",fixed_radius,"px): ---> ", fixed_r_x, fixed_r_y, fixed_r_r
@@ -330,8 +342,9 @@ def find_pupilghost_center(hdu, verbose=False, fixed_radius=1270):
                     midres_px, midres_py,
                     search_r = search_r, search_x = search_x, search_y = search_y,
                     prebin=prebin,
-                    #debugname=hdu[i].header["EXTNAME"]+"__midres__",
+                    debugname=None if (debugname==None) else (debugname + hdu.header["EXTNAME"]+"__midres_v__"),
                     threshold=0,
+                    verbose=verbose,
                     )
 
     if (verbose): print "Better resolution (binning",prebin,", variable radius):  ---> ", var_r_x, var_r_y, var_r_r
@@ -425,27 +438,92 @@ def get_reliable_pupilghost_center(hdulist):
 
 if __name__ == "__main__":
 
-    hdu = pyfits.open(sys.argv[1])
 
-    get_reliable_pupilghost_center(hdu)
+    if (cmdline_arg_isset("-template")):
+        hdu = pyfits.open(get_clean_cmdline()[1])
 
-    # prebin=8
+        coord_x, coord_y = numpy.indices(hdu[1].data.shape)
 
-    # pg_centers = {}
+        var_r_x, var_r_y, var_r_r, bincount_var, bincount_var_w, edge_frame2 = \
+        find_center(hdu[1].data, coord_x, coord_y,
+                    #lx, ly, 
+                    prebin=8, 
+                    #r_minmax=[100,200], x_minmax=[400,600], y_minmax=[400,600], 
+                    search_x=[4300, 4700, 10],
+                    search_y=[4300, 4700, 10],
+                    search_r=[800, 1400, 10],
+                    fixed_radius=None,
+                    # dx=2, dy=2, dr=2
+                    threshold=None,
+                    debugname="___debug2____",
+                    verbose=True
+                    )
 
-    # for i in range(1,5):
-
-    #     print hdu[i].header["EXTNAME"]
-    #     extname = hdu[i].header["EXTNAME"]
-    #     fx, fy, fr, vx, vy, vr = find_pupilghost_center(hdu[i], verbose=True)
-    #     print "   fixed radius:", fx, fy, fr
-    #     print "variable radius:", vx, vy, vr
-
-    #     pg_centers[extname] = fx, fy, fr, vx, vy, vr
+        print var_r_x, var_r_y, var_r_r
 
 
-    # print pg_centers
 
-    # # hduout = hdu[0:5]
-    # # hduout.writeto("/scratch/edges.fits", clobber=True)
+
+        var_r_x, var_r_y, var_r_r, bincount_var, bincount_var_w, edge_frame2 = \
+        find_center(hdu[1].data, coord_x, coord_y,
+                    #lx, ly, 
+                    prebin=2, 
+                    #r_minmax=[100,200], x_minmax=[400,600], y_minmax=[400,600], 
+                    search_x=[4480, 4520, 2],
+                    search_y=[4480, 4520, 2],
+                    search_r=[1265, 1300, 1],
+                    fixed_radius=None,
+                    # dx=2, dy=2, dr=2
+                    threshold=None,
+                    debugname="___debug3____",
+                    verbose=True
+                    )
+
+        print var_r_x, var_r_y, var_r_r
+
+    elif (cmdline_arg_isset("-flat")):
+
+        flatfile = get_clean_cmdline()[1]
+        hdulist = pyfits.open(flatfile)
+
+        for i in range(2): #len(hdulist)):
+
+            if (not is_image_extension(hdulist[i])):
+                continue
+
+#            print hdulist[i].header["EXTNAME"]
+            extname = hdulist[i].header["EXTNAME"]
+            print "\n\n\n",extname
+
+            fixed_r_x, fixed_r_y, fixed_r_r, var_r_x, var_r_y, var_r_r = find_pupilghost_center(
+                hdulist[i], 
+                verbose=True, 
+                debugname="__test__",
+                fixed_radius=1286)
+
+            print "center position (fixed/var)"
+            print fixed_r_x, fixed_r_y, fixed_r_r
+            print var_r_x, var_r_y, var_r_r
+
+# #     get_reliable_pupilghost_center(hdu)
+
+#     prebin=8
+
+#     pg_centers = {}
+
+#     for i in range(1,5):
+
+#         print hdu[i].header["EXTNAME"]
+#         extname = hdu[i].header["EXTNAME"]
+#         fx, fy, fr, vx, vy, vr = find_pupilghost_center(hdu[i], verbose=True)
+#         print "   fixed radius:", fx, fy, fr
+#         print "variable radius:", vx, vy, vr
+
+#         pg_centers[extname] = fx, fy, fr, vx, vy, vr
+
+
+#     print pg_centers
+
+#     hduout = hdu[0:5]
+#     hduout.writeto("/scratch/edges.fits", clobber=True)
 
