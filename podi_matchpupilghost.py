@@ -52,25 +52,26 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filtername, pupil_hd
                                   ):
 
     """
-    Contains all functionality to execute the actual pupil ghost removal. 
-    The pupil ghost is roatted to match the rotation angle of the science 
-    frame, then scaled with the specified scaling factor and lastly the 
-    scaled template is removed from the science frame. The results stay in 
-    the input_hdu variable that is also returned.
+
+    Contains all functionality to execute the actual pupil ghost removal. The
+    pupil ghost is roatted to match the rotation angle of the science frame,
+    then scaled with the specified scaling factor and lastly the scaled template
+    is removed from the science frame. The results stay in the input_hdu
+    variable that is also returned.
 
     Parameters
     ----------
     input_hdu : pyfits.HDU
-        Has to be a valid ImageHDU. This HDU is the source of the image 
-        data that contains the pupilghost, as well as the EXTNAME 
-        keyword to select the right template.
+        Has to be a valid ImageHDU. This HDU is the source of the image data 
+        that contains the pupilghost, as well as the EXTNAME keyword to select
+        the correct template.
 
     rotator_angle : float
         Rotator angle from the primary HDU
 
     filtername : string
-        This parameter is only important if source_center_coords is not set
-        to 'header' or 'data'. In that case, it defines the filter for the
+        This parameter is only important if source_center_coords is not set to
+        'header' or 'data'. In that case, it defines the filter for the set of 
         set of pre-canned pupilghost center coordinates
 
     pupil_hdu : pyfits.HDUList
@@ -220,11 +221,11 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filtername, pupil_hd
         tx, ty, _, _, _, _ = dev_pgcenter.find_pupilghost_center(imghdu, verbose=False,
                                                                  fixed_radius=vr)
         print "Found pg center at",tx, ty
-
+        
         template_centerx, template_centery = tx+xys[0], ty+xys[2]
         print "Using",template_centerx, template_centery, "as center coordinates for template"
         # center_x, center_y = vx, vy
-
+        
         # Swap x/y since python does it too
         print "rot.shape=",rotated.shape
 
