@@ -57,6 +57,55 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filtername, pupil_hd
     frame, then scaled with the specified scaling factor and lastly the 
     scaled template is removed from the science frame. The results stay in 
     the input_hdu variable that is also returned.
+
+    Parameters
+    ----------
+    input_hdu : pyfits.HDU
+        Has to be a valid ImageHDU. This HDU is the source of the image 
+        data that contains the pupilghost, as well as the EXTNAME 
+        keyword to select the right template.
+
+    rotator_angle : float
+        Rotator angle from the primary HDU
+
+    filtername : string
+        This parameter is only important if source_center_coords is not set
+        to 'header' or 'data'. In that case, it defines the filter for the
+        set of pre-canned pupilghost center coordinates
+
+    pupil_hdu : pyfits.HDUList
+        HDUlist containing the pupilghost template
+
+    scaling : float
+        scaling factor for the pupilghost amplutide
+
+    rotate : Bool
+        Apply rotation (see rotator_angle) to the pupilghost template before
+        removing it from the input data
+
+    verbose : Bool
+        Output some progress updates during runtime
+
+    non_negative : Bool
+        if set, all negative values in the pupilghost templates (that are 
+        very likely unphysical) are clipped to 0.
+
+    source_center_coords : ('data', 'header', 'xxx').
+        if set to 'data', the center of the pupilghost is determined auto-
+        matically during execution. If set to 'header', it is assumed that
+        the input-hdu already contains header keywords with information about
+        the location of the pupilghost. This is likely not the case for flat-
+        field data, but important for science frames. All other values use
+        the pre-canned coordinates given in podi_definitions.
+
+    Returns
+    -------
+    No return value per se, changes are reflected in input_hdu
+
+    see also
+    --------
+    dev_pgcenter.find_pupilghost_center
+
     """
 
     #
@@ -72,22 +121,29 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filtername, pupil_hd
     if (right_ext < 0):
         # This extension is not listed in the pupil-ghost template
         # We can't do anythin in this case, so let's simply return
+        input_hdu.header['PGAFCTD'] = (False, "is the OTA affected by the pupilghost")
         return
 
     #
     # Set the coordinates of the center of the pupilghost 
     #
     # Read the center coordinates from the pupil ghost template file
+    source_center_coords = 'data'
     if (source_center_coords == 'data'):
         fx, fy, fr, vx, vy, vr = dev_pgcenter.find_pupilghost_center(input_hdu, verbose=False)
         center_x, center_y = vx, vy
     #
     # Use center coordinates from header
     elif (source_center_coords == 'header'):
-        if ("PGCNTR_X" in input_hdu.header): 
-            center_x = input_hdu.header['PGCNTR_X']
-        if ("PGCNTR_Y" in input_hdu.header): 
-            center_y = input_hdu.header['PGCNTR_Y']
+        # if ("PGCNTR_X" in input_hdu.header): 
+        #     center_x = input_hdu.header['PGCNTR_X']
+        # if ("PGCNTR_Y" in input_hdu.header): 
+        #     center_y = input_hdu.header['PGCNTR_Y']
+
+        if ('PGEFCTVX' in input_hdu.header):
+            center_x = input_hdu.header['PGEFCTVX']
+        if ('PGEFCTVX' in input_hdu.header):
+            center_x = input_hdu.header['PGEFCTVX']
     #
     # by default, resort to the old-fashined canned values
     else:
@@ -112,8 +168,7 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filtername, pupil_hd
     #
     if (verbose): 
         print "Found matching pupil ghost template in extension",right_ext
-    print "Using center coordinates", center_x, center_y
-
+    print "Using center coordinates", center_x, center_y," for data frame"
 
     if (rotate):
         # print "___%s___" % rotator_angle
@@ -136,20 +191,50 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filtername, pupil_hd
     else:
         if (verbose): print "No rotation requested, skipping rotation"
         rotated = pupil_hdu[right_ext].data
-        
-    #
-    # Ok, now we have the pupil ghost rotated to the right angle
-    #
-        
-    data_shape = input_hdu.data.shape
-    
-    # Swap x/y since python does it too
-    print "rot.shape=",rotated.shape
-    bx = rotated.shape[0] / 2 - center_x
-    by = rotated.shape[1] / 2 - center_y
+     
+   
+    template_centerx, template_centery = rotated.shape[0]/2, rotated.shape[1]/2
+    if (source_center_coords == 'data'):
+        #
+        # Ok, now we have the pupil ghost rotated to the right angle
+        #
+        data_shape = input_hdu.data.shape
+
+        # Now extract the right quadrant from the pupilghost template
+        quadrant = {'OTA33.SCI': [0,4500,0,4500],
+                    'OTA34.SCI': [0,4500,4500,9000],
+                    'OTA44.SCI': [4500,9000,4500,9000],
+                    'OTA43.SCI': [4500,9000,0,4500],
+                }
+        quadrant = {'OTA33.SCI': [400,4500,400,4500],
+                    'OTA34.SCI': [400,4500,4500,8600],
+                    'OTA44.SCI': [4500,8600,4500,8600],
+                    'OTA43.SCI': [4500,8600,400,4500],
+                }
+        xys = quadrant[extname]
+        template_quadrant = rotated[xys[2]:xys[3], xys[0]:xys[1]]
+        # Now we have the right quadrant, search for center position in template
+        imghdu = pyfits.ImageHDU(data=template_quadrant)
+        imghdu.header['EXTNAME'] = extname
+        pyfits.HDUList([pyfits.PrimaryHDU(), imghdu]).writeto("template_%s.fits" % extname, clobber=True)
+        tx, ty, _, _, _, _ = dev_pgcenter.find_pupilghost_center(imghdu, verbose=False,
+                                                                 fixed_radius=vr)
+        print "Found pg center at",tx, ty
+
+        template_centerx, template_centery = tx+xys[0], ty+xys[2]
+        print "Using",template_centerx, template_centery, "as center coordinates for template"
+        # center_x, center_y = vx, vy
+
+        # Swap x/y since python does it too
+        print "rot.shape=",rotated.shape
+
+ 
+    bx = template_centerx - center_x
+    by = template_centery - center_y
     tx, ty = bx + data_shape[0], by + data_shape[1]
 
     correction = rotated[by:ty, bx:tx]
+    correction[numpy.isnan(correction)] = 0.
 
     if (non_negative):
         correction[correction < 0] = 0
@@ -157,9 +242,18 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filtername, pupil_hd
     input_hdu.data -= (correction * scaling)
 
     # Store the position of the pupil ghost center
-    input_hdu.header["PGCENTER"] = "%d %d" % (center_x, center_y)
+    input_hdu.header['PGAFCTD'] = (True, "is the OTA affected by the pupilghost")
+    input_hdu.header['PGCENTER'] = "%d %d" % (center_x, center_y)
     input_hdu.header['PGCNTR_X'] = (center_x, 'pupil ghost center x')
-    input_hdu.header['PGCNTR_y'] = (center_y, 'pupil ghost center y')
+    input_hdu.header['PGCNTR_Y'] = (center_y, 'pupil ghost center y')
+    input_hdu.header['PGTMPL_X'] = (template_centerx, 'pupil ghost template center x')
+    input_hdu.header['PGTMPL_Y'] = (template_centery, 'pupil ghost template center y')
+    input_hdu.header['PGREG_X1'] = (bx, "matched region of pupilghost, left")
+    input_hdu.header['PGREG_X2'] = (tx, "matched region of pupilghost, right")
+    input_hdu.header['PGREG_Y1'] = (by, "matched region of pupilghost, bottom")
+    input_hdu.header['PGREG_Y2'] = (ty, "matched region of pupilghost, top")
+    input_hdu.header['PGEFCTVX'] = (center_x - template_centerx + rotated.shape[1]/2, "effective pupilghost center X")
+    input_hdu.header['PGEFCTVY'] = (center_y - template_centery + rotated.shape[0]/2, "effective pupilghost center Y")
     input_hdu.header['PGSCALNG'] = (scaling, "pupil ghost template scaling")
     input_hdu.header['PGROTANG'] = (rotator_angle, "pupil ghost rotator angle")
 
@@ -170,7 +264,8 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filtername, pupil_hd
 
 
 def subtract_pupilghost(input_hdu, pupil_hdu, scaling, rotate=True, verbose=True,
-                        source_center_coords='data'):
+                        source_center_coords='data',
+                        ):
     """
     This is a wrapper around the subtract_pupilghost_extension routine,
     going through all the extensions that might have a pupil ghost.
@@ -183,7 +278,7 @@ def subtract_pupilghost(input_hdu, pupil_hdu, scaling, rotate=True, verbose=True
         if (not is_image_extension(input_hdu[i])):
             continue
 
-        rotator_angle = input_hdu[0].header['ROTSTART']
+        rotator_angle = input_hdu[0].header['ROTSTART'] if (rotate) else 0.
         filtername = input_hdu[0].header['FILTER']
 
         # Perform pupilghost removal on a single extension
@@ -392,7 +487,9 @@ if __name__ == "__main__":
         scaling = float(sys.argv[4])
     print "using scaling factor",scaling
 
-    subtract_pupilghost(input_hdu, pupil_hdu, scaling=scaling)
+    subtract_pupilghost(input_hdu, pupil_hdu, scaling=scaling, 
+                        source_center_coords='precomp',
+                        rotate=False)
 
     # Now, using the rotation angle given in the input frame, 
     # rotate and extract the pupil ghost sections for each of the OTAs.
