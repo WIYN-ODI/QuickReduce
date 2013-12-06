@@ -583,7 +583,7 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
     #
 
     # Prepare a histogram to illustrate the distribution of ZP values
-    binwidth = (0.2 * zp_std)
+    binwidth = numpy.max([(0.2 * zp_std), 0.05])
     nbins = (zp_max - zp_min) / binwidth
     count, edges = numpy.histogram(zp_raw, bins=nbins, range=[zp_min, zp_max], normed=True)
     # Normalize histogram
