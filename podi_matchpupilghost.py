@@ -22,12 +22,56 @@
 #
 
 """
-How-to use:
+podi_matchpupilghost
 
-./podi_collectcells.py 
+This module contains all routines and functionality related to removing the 
+pupilghost signature from either the flat-field or a science frame. 
 
+
+Standalone functions:
+================================================================================
+Most routines are made to be called from other routines, but the following 
+stand-alone modi exist:
+
+
+* **Create a radial profile from a full 2-d template**
+
+  Run as :
+  ``./podi_matchpupilghost -makeradial 2d-template.fits 1d-output.fits``
+
+
+
+* **Compute the best-fitting scaling factor for the template**
+
+  Run as:
+  ``./podi_matchpupilghost -getscaling science_input.fits template.fits``
+
+
+
+* **Subtract the pupilghost from a given frame, with automatic scaling**
+
+  Run as:
+  ``./podi_matchpupilghost -cleanpupilghost inputframe.fits template.fits output.fits``
+
+  In this case, the scaling factor is automatically derived in the same manner
+  as with the -getscaling flag described above.
+
+
+
+
+* **Subtract the pupilghost from a given frame**
+
+  Run as:
+  ``./podi_matchpupilghost -cleanpupilghost inputframe.fits template.fits output.fits (scaling)``
+
+  (scaling is optional, and a value of 1.0 is assumed if no value is given.
+
+
+Modules
+================================================================================
 
 """
+
 
 import sys
 import os
@@ -39,6 +83,11 @@ import dev_pgcenter
 gain_correct_frames = False
 from podi_definitions import *
 import podi_fitskybackground
+
+"""
+Available functions
+===================
+"""
 
 
 scaling_factors = {
@@ -443,6 +492,12 @@ def get_pupilghost_scaling(science_frame, pupilghost_frame,
     return clipped_median, clipped_std
 
 if __name__ == "__main__":
+
+    if (len(sys.argv) <= 1 or sys.argv[1] == "-help"):
+        #print help('podi_matchpupilghost')
+        import podi_matchpupilghost as me
+        print me.__doc__
+        sys.exit(0)
 
     if (cmdline_arg_isset("-makeradial")):
         inputframe = get_clean_cmdline()[1]
