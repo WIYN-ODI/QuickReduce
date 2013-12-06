@@ -363,21 +363,34 @@ def collect_reduce_ota(filename,
                         # keyword with the average gain value of the flatfield.
                         hdu.header['GAIN'] = flatfield[0].header['GAIN']
 
-                        # Also copy the center position of the pupilghost
-                        # If this is not stored in the flat-field, assume some
-                        # standard coordinates
-                        if (extname in pupilghost_centers):
-                            pupilghost_center_x, pupilghost_center_y = pupilghost_centers[extname]
-                            hdu.header['PGCNTR_X'] = (pupilghost_center_x, "pupil ghost center position X")
-                            hdu.header['PGCNTR_Y'] = (pupilghost_center_y, "pupil ghost center position Y")
-                        if ('PGCNTR_X' in ff_ext.header):
-                            pupilghost_center_x = ff_ext.header['PGCNTR_X']
-                            hdu.header['PGCNTR_X'] = (pupilghost_center_x, "pupil ghost center position X")
-                        if ('PGCNTR_Y' in ff_ext.header):
-                            pupilghost_center_y = ff_ext.header['PGCNTR_Y']
-                            hdu.header['PGCNTR_Y'] = (pupilghost_center_y, "pupil ghost center position Y")
-                        break
+                        
+                        if ('PGAFCTD' in ff_ext.header and ff_ext.header['PGAFCTD']):
+                            # Also copy the center position of the pupilghost
+                            # If this is not stored in the flat-field, assume some
+                            # standard coordinates
+                            if (extname in pupilghost_centers):
+                                pupilghost_center_x, pupilghost_center_y = pupilghost_centers[extname]
+                                hdu.header['PGCNTR_X'] = (pupilghost_center_x, "pupil ghost center position X")
+                                hdu.header['PGCNTR_Y'] = (pupilghost_center_y, "pupil ghost center position Y")
+                            for pgheader in (
+                                    'PGCENTER', 'PGCNTR_X', 'PGCNTR_Y',
+                                    'PGTMPL_X', 'PGTMPL_Y', 
+                                    'PGREG_X1', 'PGREG_X2', 'PGREG_Y1', 'PGREG_Y2',
+                                    'PGEFCTVX', 'PGEFCTVY', 
+                                    'PGSCALNG',
+                                    'PGROTANG',
+                            ):
+                                if (pgheader in ff_ext.header):
+                                    hdu.header[pgheader] = ff_ext.header[pgheader]
 
+                            # if ('PGCNTR_X' in ff_ext.header):
+                            #     pupilghost_center_x = ff_ext.header['PGCNTR_X']
+                            #     hdu.header['PGCNTR_X'] = (pupilghost_center_x, "pupil ghost center position X")
+                            # if ('PGCNTR_Y' in ff_ext.header):
+                            #     pupilghost_center_y = ff_ext.header['PGCNTR_Y']
+                            #     hdu.header['PGCNTR_Y'] = (pupilghost_center_y, "pupil ghost center position Y")
+                        break
+                        
                 flatfield.close()
                 hdu.header.add_history("CC-FLAT: %s" % (os.path.abspath(flatfield_filename)))
                 del flatfield
