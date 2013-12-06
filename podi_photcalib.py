@@ -476,15 +476,14 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     # Improve: Change execution to parallel !!!
     #
     stdout_write("\nStarting work, results in %s ...\n\n" % output_filename)
-    results = open(output_filename, "w")
-
+    # results = open(output_filename+".photcal", "w")
 
     odi_sdss_matched = podi_matchcatalogs.match_catalogs(source_cat, std_stars, matching_radius=matching_radius)
     if (verbose):
         print "ODI+SDSS matched:",odi_sdss_matched.shape
 
-    if (odi_sdss_matched != None):
-        numpy.savetxt(results, odi_sdss_matched, delimiter=" ")
+    # if (odi_sdss_matched != None):
+    #     numpy.savetxt(results, odi_sdss_matched, delimiter=" ")
 
     # Stars without match in SDSS have RA=-9999, let's sort them out
     found_sdss_match = odi_sdss_matched[:,2] >= 0
@@ -534,7 +533,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         zp_std_ = numpy.std(zp)
         zp_exptime = zp_median + zp_correction_exptime
 
-    print "zeropoint (un-clipped)",zp_median_," +/-", zp_std_
+        print "zeropoint (un-clipped)",zp_median_," +/-", zp_std_
 
     # Make plots
     if (diagplots):
@@ -570,7 +569,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                                                       options=options,
                                                       also_plot_singleOTAs=options['otalevelplots'])
 
-    results.close()
+    # results.close()
 
     return zp_median, zp_std, odi_sdss_matched, zp_exptime
 
@@ -681,6 +680,85 @@ if __name__ == "__main__":
         zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = pc
         print zeropoint_median
         print zeropoint_std
+
+    elif (cmdline_arg_isset("-aucap")):
+
+        import podi_collectcells
+        import podi_sitesetup as sitesetup
+        options = podi_collectcells.read_options_from_commandline()
+
+        print "Starting phot-calib..."
+        for inputfile in get_clean_cmdline()[1:]:
+
+            print "Working on",inputfile
+
+            if (inputfile[-3:] == ".fz"):
+                if (os.path.isfile(inputfile[-3:])):
+                    print "given fz-compressed file, but uncompressed file also exists..."
+                    inputfile = inputfile[:-3]
+                else:
+                    print "found fz-compressed file, unpacking..."
+                    os.system("funpack -v "+inputfile)
+                    inputfile = inputfile[:-3]
+
+                print "continuing work on",inputfile
+                if (not os.path.isfile(inputfile)):
+                    print "file not found, something must have gone wrong with funpack"
+                    continue
+                          
+            # Run SourceExtractor
+            print "Running source-extractor"
+            sex_config_file = "%s/.config/wcsfix.sex" % (options['exec_dir'])
+            parameters_file = "%s/.config/wcsfix.sexparam" % (options['exec_dir'])
+            catfile = "%s.cat" % (inputfile[:-5])
+            sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s %s" % (
+                        sitesetup.sextractor, sex_config_file, parameters_file, catfile, 
+                        inputfile, sitesetup.sex_redirect)
+            print sexcmd
+            if (os.path.isfile(catfile) and not cmdline_arg_isset("-resex")):
+                print "catalog exists, re-using it"
+                if (not cmdline_arg_isset("-replot")):
+                    continue
+
+            else:
+                if (options['verbose']): print sexcmd
+                os.system(sexcmd)
+
+            hdulist = pyfits.open(inputfile)
+            filter_name = hdulist[0].header['FILTER']
+            exptime = hdulist[0].header['EXPTIME']
+
+            plottitle = "%s\nMAGZERO=%.3f/%.3f MAGZSIG=%.3f MAGZERR=%.3f" % (inputfile,
+                                                                        hdulist[0].header['MAGZERO'],
+                                                                        hdulist[0].header['MAGZERO']-2.5*math.log10(exptime),
+                                                                        hdulist[0].header['MAGZSIG'],
+                                                                        hdulist[0].header['MAGZERR'])
+            hdulist.close()
+
+            # Load the catalog
+            src_catalog = numpy.loadtxt(catfile)
+            print "Found",src_catalog.shape[0],"stars in frame"
+
+            # Now eliminate all frames with magnitude 99
+            good_photometry = src_catalog[:,16] < 0
+            src_catalog = src_catalog[good_photometry]
+            print src_catalog.shape[0],"stars with good photometry"
+
+
+            outputfile = inputfile #[:-5]+".photcalib"
+            pc =  photcalib(src_catalog, 
+                            output_filename=outputfile, 
+                            filtername=filter_name, 
+                            exptime=exptime,
+                            diagplots=True,
+                            plottitle=plottitle,
+                            otalist=None,
+                            options=options,
+                            verbose=False,
+                            eliminate_flags=True)
+            zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = pc
+            print zeropoint_median
+            print zeropoint_std
 
     else:
         fitsfile = get_clean_cmdline()[1]
