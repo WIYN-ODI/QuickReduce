@@ -256,6 +256,10 @@ else:
 
 
 
+
+
+
+
 def collect_reduce_ota(filename,
                        verbose=False,
                        options=None):
@@ -906,6 +910,18 @@ def collect_reduce_ota(filename,
     return data_products #hdu, fixwcs_data
     
 
+
+
+
+
+
+
+
+
+
+
+
+
 def collect_reduction_files_used(masterlist, files_this_frame):
     """
     Keeps track of all files used during the reduction. This function maintains 
@@ -950,6 +966,13 @@ def collect_reduction_files_used(masterlist, files_this_frame):
 
     # print masterlist
     return masterlist
+
+
+
+
+
+
+
 
 
 
@@ -1015,12 +1038,16 @@ def create_association_table(master, verbose=False):
     return tbhdu
 
 
-#########
-#
-# This routine is a wrapper around the actual collect_reduce_ota routine,
-# mainly dealing with the parallelization and inter-process communication
-#
-#########
+
+
+
+
+
+
+
+
+
+
 def parallel_collect_reduce_ota(queue, return_queue,
                                 options=None):
     """
@@ -1065,6 +1092,15 @@ def parallel_collect_reduce_ota(queue, return_queue,
 
 
 
+
+
+
+
+
+
+
+
+
 def kill_all_child_processes(process_tracker):
     """
     Small function to clean up after collectcells timeouts. It receives a list 
@@ -1092,6 +1128,15 @@ def kill_all_child_processes(process_tracker):
         stdout_write("\n   all child processes terminated!")
 
     return
+
+
+
+
+
+
+
+
+
 
 def collectcells_with_timeout(input, outputfile,
                               batchmode=False,
@@ -1150,13 +1195,18 @@ def collectcells_with_timeout(input, outputfile,
     return
 
 
-#########
-#
-# collectcells:
-# Handles all filename operations, ensuring all required files exist, and hands the work on
-# each OTA off to the suite of worker processes. Finally assembles all results and writes the output-file.
-#
-#########
+
+
+
+
+
+
+
+
+
+
+
+
 def collectcells(input, outputfile,
                  process_tracker,
                  batchmode=False,
@@ -2232,6 +2282,15 @@ def sexcat_to_tablehdu(fixwcs_ref_ra, fixwcs_ref_dec):
     return tbhdu
 
 
+
+
+
+
+
+
+
+
+
 def odi_sources_to_tablehdu(ota_list, fixwcs_odi_sourcecat):
 
     """
@@ -2319,6 +2378,16 @@ def odi_sources_to_tablehdu(ota_list, fixwcs_odi_sourcecat):
     return tbhdu, source_cat
 
 
+
+
+
+
+
+
+
+
+
+
 def set_default_options(options_in=None):
     """
     Initialize the options dictionary by defining all available options and
@@ -2396,6 +2465,16 @@ def set_default_options(options_in=None):
     return options
 
 
+
+
+
+
+
+
+
+
+
+
 def check_filename_directory(given, default_filename):
     """
     Some of the options support either a directory or a filename. This function
@@ -2436,6 +2515,15 @@ def check_filename_directory(given, default_filename):
         return "%s/%s" % (given, default_filename)
 
     return ""
+
+
+
+
+
+
+
+
+
 
 
 def read_options_from_commandline(options=None):
@@ -2578,6 +2666,18 @@ Calibration data:
             options['additional_fits_headers'][key] = value
 
     return options
+
+
+
+
+
+
+
+
+
+
+
+
 
 if __name__ == "__main__":
 
