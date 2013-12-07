@@ -22,10 +22,182 @@
 #
 
 """
-How-to use:
+Function
+--------------------------------------------------------------------------------
+**podi_collectcells** is the main script of the pODI QuickReduce pipeline. As
+such, it handles all reduction steps, combining all cells from all available 
+OTAs into a single FITS-file. If invoked with the respective command line flags,
+it also performs the astrometric and photometric calibration.
 
-./podi_collectcells.py 
+How to run podi_collectcells
+--------------------------------------------------------------------------------
+``podi_collectcells input output.fits (flags)``
+Input here can be either
+- a directory containing all OTA fits files. In this case, the directory has to
+  contain the basename of the files, for example ``o20130101T123456.0/``.
+- the filename of a single OTA FITS file. It is then assumed that all other OTA
+  files reside in the same directory
 
+Available flags
+--------------------------------------------------------------------------------
+* **-cals=/dir/to/cals**
+
+  Specifies the directory that holds the calibration data. -cals is processed 
+  first, but you can change the path to individual calibration frames with any 
+  of the next options.
+
+
+* **-bias=/dir/to/bias**
+
+  Overwrites the -cals path to specify a different directory for the bias frames
+
+
+* **-dark=/dir/to/darks**
+
+  Same for darks
+
+* **-flat=/dir/to/flats**
+
+  Same for flats -
+
+* **-bpm=/dir/to/bpms**
+
+  Same as above. Alternatively, you can specify "auto" (without the " ) as 
+  directory. In that case the script looks for the bad pixel masks in the 
+  directory of the script.
+
+* **-pupilghost=/dir**
+
+  same as above for the pupil ghost file
+
+* **-fringe=/dir**
+
+  same as above for the fringing templates
+
+* **-fringevectors**
+
+  Fringe correction needs special "vector" frames marking dark and bright 
+  regions. These are stored in a set of ds9 region files, with one file for each
+  detector, and this option allows to specify the directory holding all these 
+  files.
+
+* **-persistency=/dir**
+
+  same as above. However, since persistency files are both read (from the 
+  earlier exposures) AND written (to keep track of saturated stars in the 
+  current exposure) make sure you have permission to write into the specified 
+  directory as well as sufficient disk-space.
+
+* **-wcs=some/file.fits**
+
+  Give the filename of the canned WCS solution that specifies the detector 
+  distortion. See scamp2minifits on a way to create the necessary input file.
+
+* **-fixwcs**
+
+  Activates the automatic WCS correction routine. If enabled, collectcells run 
+  a source detection (podi_findstars), obtains a catalog of reference star 
+  positions (podi_ipprefcat) and corrects telescope pointing errors (using 
+  functions from podi_fixwcs).
+
+* **-simplewcs**
+
+  Modifies the WCS solution that remains in the fits-frame. With this option, 
+  the RA-ZPX solution is changed into a simple RA-TAN system without any 
+  distortion factors. Mostly for debugging and testing.
+
+* **-pointing**
+
+* **-dither**
+
+* **-target**
+
+  Now defunct
+
+* **-prep4sex**
+
+  Changes the value of undefined pixels (those in the cell-gaps and the detector
+  edges) from the default NaN (Not a Number) value to -1e31, a value exceeding 
+  the SExtractor value for bad pixels, telling SExtractor to ignore them
+
+* **-singleota=XX**
+
+  Limits the output to only a specific OTA. For example, to only extract OTA42, 
+  give -singleota=42.
+
+* **-noclobber**
+
+  Skip the data reduction if the output file already exists
+
+* **-wcsoffset=d_ra,d_dec**
+
+  Apply WCS offset in degrees to WCS solution before files are fed to 
+  SourceExtractor. Use this option if the telescope pointing is WAY off.
+
+* **-centralonly**
+
+  Only collect cells from the central 3x3 array, and ignore all data from the 
+  outlying OTAs
+
+* **-bgmode**
+
+  Disable the initial welcome splash screen
+
+* **-photcalib**
+
+  Enable the photometric calibration of the output frames.
+
+* **-nonlinearity=/some/dir/nonlinearity_coefficients.fits**
+
+  Activate the non-linearity correction and use the specified file as source 
+  for all correction coefficients.
+
+* **-plotformat=format1,format2**
+
+  Generate the diagnostic plots in the specified formats. All formats supported
+  by matplotlib are available - these are typically png, jpg, ps, pdf, svg
+
+* **-nootalevelplots**
+
+  By default, all diagnostic plots are created for the full focalplane and for 
+  each OTA individually. Adding this option disables the OTA level, restricting
+  diagnostic plots to only the focalplane views.
+
+* **-qasubdirs**
+
+  Creates a directory structure parallel to the output file and sorts the 
+  diagnostic plots into (sub-)directories. The default directory structure is:
+
+  output.fits
+  QA/
+  wcs1.png
+  wcs1/
+  OTA00.png
+  OTA22.png
+  seeing.png
+  seeing/
+  OTA00.png
+  OTA22.png
+
+* **-qasubdirname**
+
+  Allows to specify the name of the "QA" directory as shown above.
+
+* **-noqaplots**
+
+  Disable the creation of the QA plots.
+
+* **-addfitskey=KEY,value**
+
+  Add a user-defined fits header entry to the primary header of the output file.
+  KEY needs to be fits-conform, i.e. 8 characters or less without spaces or 
+  special characters. value is stored as a string in the output file. If value 
+  contains spaces, the value needs to be quoted (eg. -addfitskey=WIYN,"greatest 
+  of the universe")
+
+
+Methods
+--------------------------------------------------------------------------------
 
 """
 
@@ -87,6 +259,38 @@ else:
 def collect_reduce_ota(filename,
                        verbose=False,
                        options=None):
+    """
+    collect_reduce_ota does work relating to the initial instrument 
+    detrending **for a single OTA** from cross-talk correction, overscan-
+    subtraction, bias & dark correction and flat-fielding. It also derives a 
+    sky-background level and creates a source catalog using SourceExtractor.
+
+    Parameters
+    ----------
+    filename : string
+
+        Filename of the raw OTA FITS file to be reduced
+
+    verbose : Bool
+
+        Output more detailed progress information during execution. Mostly made
+        for debugging and error tracking.
+
+    options : struct/dictionary
+
+        This dictionary contains all configuration parameters necessary for the
+        reduction, such as flat-field directories and specified reduction flags
+        read from the command-line.
+
+    Returns
+    -------
+    data_products : dictionary
+
+        The returned dictionary contains all information generated during the 
+        reduction, such as the reduced ImageHDU, the source catalog, 
+        data about background levels, etc.
+
+    """
 
     data_products = {
         "hdu": None,
@@ -703,6 +907,31 @@ def collect_reduce_ota(filename,
     
 
 def collect_reduction_files_used(masterlist, files_this_frame):
+    """
+    Keeps track of all files used during the reduction. This function maintains 
+    a list of files and their corresponding reduction step, and properly handles
+    individual files as well as list of filenames.
+    
+    This routine is called during reduction to keep track of all file 
+    associations.
+
+    Parameters
+    ----------
+    masterlist : dictionary
+
+        Dictionary of all reduction steps that have external files associated. 
+        For each step it maintains a list of files.
+
+    files_this_frame : dictionary
+
+        Like the master_list, just for only one step. 
+
+
+    Returns
+    -------
+    the updated master_list
+
+    """
 
     for key, value in files_this_frame.iteritems():
         if (key in masterlist):
@@ -722,8 +951,35 @@ def collect_reduction_files_used(masterlist, files_this_frame):
     # print masterlist
     return masterlist
 
+
+
 def create_association_table(master, verbose=False):
-    
+    """
+
+    Convert the association dictionary maintained and updated by 
+    :proc:collect_reduction_files_used and creates a FITS-compatible 
+    associations table that will be stored in the resulting output FITS file.
+
+    Parameters
+    ----------
+    master : dictionary
+
+        the master associations dictionary 
+
+    verbose : Bool
+
+        Activate some debugging output
+
+    Returns
+    -------
+    tbhdu : TableHDU
+
+        A FITS TableHDU containing the assocations table. Each entry in this 
+        table contains the reduction step, the name of the associated file, and 
+        the full path of this file.
+
+    """
+
     reduction_step = []
     full_filename = []
     short_filename = []
@@ -767,6 +1023,28 @@ def create_association_table(master, verbose=False):
 #########
 def parallel_collect_reduce_ota(queue, return_queue,
                                 options=None):
+    """
+    A minimal wrapper handling the parallel execution of collectcells.
+
+    Parameters
+    ----------
+    queue : Queue
+
+        Input Queue containing names of raw OTA frames to be reduced
+
+    return_queue : Queue
+
+        Queue to report the reduced data back to the main process
+
+    options : dictionary
+
+        containing all reduction parameters and settings
+
+    Returns
+    -------
+    no return values, all returns are handled via the return_queue
+
+    """
 
     while (True):
         cmd_quit, filename, ota_id = queue.get()
@@ -788,6 +1066,18 @@ def parallel_collect_reduce_ota(queue, return_queue,
 
 
 def kill_all_child_processes(process_tracker):
+    """
+    Small function to clean up after collectcells timeouts. It receives a list 
+    of processes IDs of all child processes initiated during execution and kills
+    them one after the other.
+
+    Parameters
+    ----------
+    process_tracker : Queue
+
+        A queue of process-IDs of all child processes
+
+    """
 
     try:
         while (True):
@@ -810,6 +1100,28 @@ def collectcells_with_timeout(input, outputfile,
                               showsplash=True,
                               timeout=None,
                               process_tracker=None):
+
+    """ 
+    Minimal wrapper to enable a timeout feature for collectcells. The actual 
+    collectcells is started as a sub-process that can be joined for a specified
+    time. If this time is up but the process is still running, it has exceeded
+    its lifetime and will be terminated.
+
+    Parameters
+    ----------
+    timeout : float
+
+        Allowed maximum execution time before the task will be terminated
+
+    process_tracker : Queue
+
+        Forwarded from the main process, this queue will contain process IDs of 
+        all sub-processes to allow for cleaning up process children after the
+        timeout
+
+    See collectcells for information about parameters.
+    
+    """
 
     # Start a collectcells as subprocess
     
@@ -852,6 +1164,54 @@ def collectcells(input, outputfile,
                  options=None,
                  showsplash=True,
                  ):
+
+    """
+    collectcells handles all filename operations, ensuring all required files 
+    exist, and hands the work on each OTA off to the suite of worker processes. 
+    Finally assembles all results and writes the output-file.
+
+    The actual basic reduction steps are done in collect_reduce_ota, but 
+    collectcells take the output of collect_reduce_ota and finishes the 
+    reduction, creating diagnostic plots, as well as performing reduction steps
+    that require data from multiple OTAs, such as for the astrometric or 
+    photometric calibration, removal of the pupil ghost, fringe removal with a 
+    global scaling factor, etc.
+
+    Parameters
+    ----------
+    input : string
+
+        Either the name of a directory or filename that allows to construct the 
+        name of all OTA FITS files of this exposure.
+
+    outputfile : string
+
+        Name of the output file
+
+    batchmode : Bool
+
+    verbose : Bool
+
+        write extra progress updates to console
+
+    options : dictionary
+
+        Contains all reduction parameters and settings.
+
+    showsplash : Bool
+
+        Write a small splash screen with the name of the program, copyright
+        notice and author information to console before starting the actual work.
+
+    Returns
+    -------
+    ImageHDU
+
+        If batchmode is set to True, collectcells will return the output HDU in 
+        memory without writing it to disk, enabling post-processing without
+        I/O overhead.
+
+    """
 
     if (showsplash):
         stdout_write("""\
@@ -1874,6 +2234,25 @@ def sexcat_to_tablehdu(fixwcs_ref_ra, fixwcs_ref_dec):
 
 def odi_sources_to_tablehdu(ota_list, fixwcs_odi_sourcecat):
 
+    """
+    Create a FITS table containing the source catalog created during reduction.
+
+    Parameters
+    ----------
+    fixwcs_odi_sourcecat : numpy array
+
+        Global ODI source catalog collected from the source catalog of the 
+        individual OTA catalogs
+
+    Returns
+    -------
+    tbhdu : pyfits.TableHDU
+
+        Binary FITS table extension
+
+    """
+
+
     # # First of all update all Ra/Dec values
     # final_cat = None
     # for ext in range(1, len(ota_list)):
@@ -1941,7 +2320,24 @@ def odi_sources_to_tablehdu(ota_list, fixwcs_odi_sourcecat):
 
 
 def set_default_options(options_in=None):
+    """
+    Initialize the options dictionary by defining all available options and
+    assigning safe and reasonable default values.
 
+    Parameters
+    ----------
+    options_in : dictionary
+
+        If a directory already exists, add to it, otherwise create a new one.
+
+    Returns
+    -------
+    options : dictionary
+
+        The options dictionary with default values set.
+
+    """
+    
     options = {}
     if (options_in != None):
         options = options_in
@@ -2001,6 +2397,37 @@ def set_default_options(options_in=None):
 
 
 def check_filename_directory(given, default_filename):
+    """
+    Some of the options support either a directory or a filename. This function
+    checks if the input is a directory or a filename. In the first case, add 
+    the specified default filename and return the filename. In the latter case, 
+    simply return the filename.
+
+    Parameters
+    ----------
+    given : string
+
+        The value specified by the user, either a directory or filename
+
+    default_filename : string
+
+        In the case the user specified only a directory, append the name of this
+        filename
+
+    Returns
+    -------
+    filename
+
+    Example
+    -------
+    This function is called e.g. during bias-subtraction. Using the -bias 
+    option, the user can specify the bias file to be used during the reduction.
+    However, the default way of specifying the bias file is to simply give the 
+    directory with the calibration files, and collectcells adds the 'bias.fits'
+    during execution.
+
+    """
+
     if (given == None):
         return None
     elif (os.path.isfile(given)):
@@ -2010,7 +2437,12 @@ def check_filename_directory(given, default_filename):
 
     return ""
 
+
 def read_options_from_commandline(options=None):
+    """
+    Read all command line options and store them in the options dictionary.
+
+    """
 
     if (options == None):
         options = set_default_options()
@@ -2148,6 +2580,12 @@ Calibration data:
     return options
 
 if __name__ == "__main__":
+
+    if (len(sys.argv) <= 1 or sys.argv[1] == "-help"):
+        #print help('podi_matchpupilghost')
+        import podi_collectcells as me
+        print me.__doc__
+        sys.exit(0)
 
     m = multiprocessing.Manager()
     process_tracker = m.Queue()
