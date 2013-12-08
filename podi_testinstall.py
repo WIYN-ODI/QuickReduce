@@ -21,12 +21,23 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
-print
-print "Testing if all packages are installed"
-print
+
+"""
+podi_testinstall is a small tool that checks if all package dependencies at met.
+
+See the podi-website at http://members.galev.org/rkotulla/research/podi-pipeline
+for a full list of currently required packages.
+
+"""
+
 
 
 def check_package(name):
+    """
+    Try to import a package and print feedback message for the user whether or
+    not the package has been found.
+    """
+
     try:
         import_cmd = "import %s" % (name)
         exec(import_cmd)
@@ -41,51 +52,55 @@ def check_package(name):
     return False
 
 
+if __name__ == "__main__":
+    print
+    print "Testing if all packages are installed"
+    print
 
-print "\nchecking standard packages ..."
-check_package('os')
-check_package('sys')
-check_package('math')
-check_package('time')
-check_package('types')
-check_package('ctypes')
-check_package('itertools')
+    print "\nchecking standard packages ..."
+    check_package('os')
+    check_package('sys')
+    check_package('math')
+    check_package('time')
+    check_package('types')
+    check_package('ctypes')
+    check_package('itertools')
 
-print "\nchecking multi-processor packages ..."
-check_package('multiprocessing')
-check_package('Queue')
-check_package('threading')
-check_package('subprocess')
-
-
-print "\nchecking numerical processing packages ..."
-check_package('numpy')
-check_package('scipy')
-check_package('scipy.stats')
-check_package('scipy.optimize')
-check_package('scipy.interpolate')
-check_package('scipy.ndimage')
-check_package('bottleneck')
-
-print "\nchecking plotting packages ..."
-check_package('matplotlib')
-check_package('Image')
-check_package('ImageDraw')
+    print "\nchecking multi-processor packages ..."
+    check_package('multiprocessing')
+    check_package('Queue')
+    check_package('threading')
+    check_package('subprocess')
 
 
-print "\nchecking astronomy-related packages ..."
-check_package('pyfits')
-check_package('ephem')
-check_package('astLib')
-check_package('pywcs')
+    print "\nchecking numerical processing packages ..."
+    check_package('numpy')
+    check_package('scipy')
+    check_package('scipy.stats')
+    check_package('scipy.optimize')
+    check_package('scipy.interpolate')
+    check_package('scipy.ndimage')
+    check_package('bottleneck')
 
-if (not check_package('podi_sitesetup')):
-    print """\
-    Module podi_sitesetup is a global configuration file for
-    this podi pipeline. Copy the existing file
-    podi_sitesetup.py.example to podi_sitesetup.py, open it
-    in a text-editor and make sure the global settings for the 
-    WCS and photometric reference catalogs are set correctly.
-    Then re-run this program.
+    print "\nchecking plotting packages ..."
+    check_package('matplotlib')
+    check_package('Image')
+    check_package('ImageDraw')
 
-"""
+
+    print "\nchecking astronomy-related packages ..."
+    check_package('pyfits')
+    check_package('ephem')
+    check_package('astLib')
+    check_package('pywcs')
+
+    if (not check_package('podi_sitesetup')):
+        print """\
+        Module podi_sitesetup is a global configuration file for
+        this podi pipeline. Copy the existing file
+        podi_sitesetup.py.example to podi_sitesetup.py, open it
+        in a text-editor and make sure the global settings for the 
+        WCS and photometric reference catalogs are set correctly.
+        Then re-run this program.
+
+    """
