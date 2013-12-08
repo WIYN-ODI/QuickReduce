@@ -22,9 +22,6 @@
 #
 
 """
-How-to use:
-
-./podi_collectcells.py 
 
 
 """
@@ -42,9 +39,66 @@ from podi_imcombine import *
 from podi_makeflatfield import *
 import podi_matchpupilghost
 
+
+"""
+podi_makecalibrations is the main tool to create typical calibration products
+(bias, dark, flat-field frames) from a list of raw frames. 
+
+To do so, podi_makecalibrations reads a list of input files, sorts them by the 
+type of frame (e.g. bias) and creates each calibration product in sequence, 
+using the newly generated bias frame to correct the dark-frame, etc. Internally,
+all work is done by podi_collectcells.
+
+It transparently handles binned and unbinned data. 
+
+Additional external calibration products to be used during the reduction
+(pupilghost templates, non-linearity coefficients) are specified in the same was
+as in podi_collectcells.
+
+Temporary and intermediate calibration products (such as individual, normalized 
+flat-field frames, are stored in a tmp sub-directory. By default, these files 
+are deleted if no longer needed, but can be retained with the -keeptemps flag.
+
+
+How to run podi_makecalibrations
+--------------------------------
+``podi_makecalibrations input.list calib_directory (options)``
+
+The typical way of execution is to create a calibration directory, and run 
+podi_makecalibrations from within this directory, specifying . as calib_dir.
+
+
+Command line options
+--------------------
+* **-keeptemps**
+
+  Do not delete the intermediate files once they are no longer needed. This 
+  option is handy when testing, e.g., the quality of a pupilghost subtraction, 
+  as the individual files do not need to be recomputed if podi_makecalibrations
+  is called for the second time.
+
+* **-only=(bias|dark|flat)**
+
+  Only compute the specified calibration products. This is most commonly used to 
+  inspect products as they are being created, e.g. making sure the bias-frame 
+  look good before using it to reduce the dark-frames.
+
+All other command-line options are handled by podi_collectcells, so see the full
+list of command line options for this task.
+
+Typical additional options are -nonlinearity and -pupilghost.
+
+
+Methods
+-------
+"""
+
+
 def strip_fits_extension_from_filename(filename):
-    #print filename[-5:]
-    #print filename[-8:]
+    """
+    Remove the trailing .fits or .fits.fz from the given filename.
+    """
+
     if (filename[-5:] == ".fits"):
         return filename[:-5]
     elif (filename[-8:] == ".fits.fz"):

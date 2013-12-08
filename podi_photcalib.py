@@ -39,6 +39,79 @@ import scipy.stats
 import podi_matchcatalogs
 import podi_sitesetup
 
+
+"""
+This module contains all functionality for performing a photometric calibration
+for a given frame. It does so by matching the ODI source catalog to a catalog
+of stars from the SDSS. The comparison between instrumental and reference 
+magnitudes then yields the calibration zeropoint.
+
+If requested, podi_photcalib also creates diagnostic plots that allow to easily
+judge the quality of the obtained calibration.
+
+The module also contains all required functionality to access local SDSS star
+catalogs or, if no local copies are available, query the SDSS online.
+
+Command line options
+--------------------
+
+* **-multi**
+
+  Deprecated for now, do not use
+
+* **-new**
+
+* **-querysdss**
+
+  Test-routine that queries the SDSS and prints the returned catalog
+
+  Run as:
+
+      ``podi_photcalib -querysdss ra_min ra_max dec_min dec_max (-print)``
+
+  If the -print option is given as well print the entire catalog to stdout,
+  otherwise only print the number of returned stars.
+
+
+* **-swarp**
+
+  Compute the photometric zeropoint for a frame created with swarp.
+
+  Run as:
+
+      ''podi_photcalib.py -swarp swarped_frame.fits swarp_input_frame.fits``
+
+  swarp_input_frame here is one of the frames that went into the swarped frame.
+  This is necessary to obtain the FILTER and EXPTIME keywords that are required
+  for the photometric calibration, but are typically not contained in the 
+  swarped frame any longer.
+
+* **-aucap**
+
+  Compute the photometric zeropoint for a frame created with the Automatic
+  Calibration Pipeline (AuCaP).
+
+  Run as:
+ 
+    ``podi_photcalib.py -aucap file1.fits file2.fits file3.fits ...``
+
+  In this mode, podi_photcalib can run on any number of input frames in sequence.
+
+Note for the -aucap and -swarp modi
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+To save time during programming, two additional flags are supported in these 
+modi. By default, if the source catalog for the specified input file already 
+exists, it is simply re-used and not created. To force re-running SExtractor,
+add the -resex flag. Additionally, in the ``-aucap`` mode, if the source catalog
+exists, podi_photcalib also does not re-create the diagnostic plots. To change
+this behavior and re-create the plots, add the ``-replot`` flag.
+
+Methods
+-------
+
+"""
+
+
 arcsec = 1./3600.
 number_bright_stars = 100
 max_offset = 0.1
@@ -54,6 +127,30 @@ blocksize = 100
 
 
 def load_catalog_from_stripe82cat(ra, dec, calib_directory, sdss_filter):
+    """
+    Load the source catalog from the custom pODI Stripe82 catalog.
+
+    Parameters
+    ----------
+    ra, dec -- float
+
+        Center position of the search area. The search radius is set to 0.6 deg.
+
+    calib_directory - string
+
+        directory that contains the Stripe82 catalog
+
+    sdss_filter - string
+
+        Name of the filter for which the magnitudes should be returned.
+
+
+    Returns
+    -------
+    A catalog of sources within the search area, stored in an array. Columns
+    are as follows. Ra, Dec, mag_median, mag_mean, mag_std, mag_var
+
+    """
 
     # Load the standard star catalog
     sdss_cat_filename = "%s/stripe82__%s.cat.npy" % (calib_directory, sdss_filter)
@@ -83,6 +180,45 @@ def load_catalog_from_stripe82cat(ra, dec, calib_directory, sdss_filter):
 
 
 def load_catalog_from_sdss(ra, dec, sdss_filter, verbose=False, return_query=False, max_catsize=-1):
+    """
+    Query the SDSS online and return a catalog of sources within the specified 
+    area
+
+    Parameters
+    ----------
+    ra : float[2] (e.g. [165.5, 165.9]
+
+        Min and max values for RA
+
+    dec : float[2]
+
+        Same as ra, just for declination
+
+    sdss_filter : string (allowed are u,g,r,i,z)
+
+        Name of the SDSS filter for which to return magnitudes
+
+    verbose : Bool
+
+        Add debugging output
+
+    return_query : Bool
+
+        If set to false, the return value also contains the SQL query used to 
+        query the SDSS catalog
+
+    max_catsize : int
+
+        Maximum number of SDSS stars to be returned
+
+    Returns
+    -------
+        The SDSS catalog, in the format
+
+        Ra, Dec, mag_u, magerr_u, mag_g, magerr_g, ..r, ..i, ..z
+
+    """
+
 
     #import sqlcl
 
@@ -196,6 +332,9 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
     
     
 def photcalib_old(fitsfile, output_filename, calib_directory, overwrite_cat=None):
+    """
+    Deprecated, do not use.
+    """
 
     tmp, dummy = os.path.split(sys.argv[0])
     dot_config_dir = tmp + "/.config/"
@@ -301,7 +440,40 @@ def photcalib_old(fitsfile, output_filename, calib_directory, overwrite_cat=None
 
 
 def load_sdss_catalog_from_fits(sdss_ref_dir, ra_range, dec_range, verbose=True):
+    """
+    Retrieve the SDSS catalog for the specified area, using the local FITS-based
+    catalog of the SDSS.
 
+    Parameters
+    ----------
+
+    sdss_ref_dir : string
+
+        Directory containing the local copy of the SDSS star catalog. This 
+        directory has to contain the catalog index in a file named 
+        "SkyTable.fits"
+
+    ra_range : float[2] (e.g. [165.5, 165.9])
+
+        Minimum and maximum RA range, in degrees
+
+    dec_range : float[2]
+
+        as ra_range, just for declination
+
+    verbose : Bool
+
+        add some debugging output useful for error tracking
+
+
+    Returns
+    -------
+   
+    source-catalog
+
+        contains the following columns: ra, dec, mag_u, magerr_u, g, r, i, z
+
+    """
     #print "# Loading catalog from SDSS offline fits catalog..."
 
     # Load the SkyTable so we know in what files to look for the catalog"
@@ -394,6 +566,40 @@ def load_sdss_catalog_from_fits(sdss_ref_dir, ra_range, dec_range, verbose=True)
 
 
 def query_sdss_catalog(ra_range, dec_range, sdss_filter, verbose=False):
+    """
+    High-level interface to the SDSS catalog search. Depending on the settings
+    in podi_sitesetup (see sdss_ref_type) this forwards the query to search 
+    either the local Stripe82 catalog, the online SDSS catalog or the local FITS
+    catalog.
+
+    Parameters
+    ----------
+
+    sdss_ref_dir : string
+
+        Directory containing the local copy of the SDSS star catalog. This 
+        directory has to contain the catalog index in a file named 
+        "SkyTable.fits"
+
+    ra_range : float[2] (e.g. [165.5, 165.9])
+
+        Minimum and maximum RA range, in degrees
+
+    dec_range : float[2]
+
+        as ra_range, just for declination
+
+    verbose : Bool
+
+        add some debugging output useful for error tracking
+
+
+    Returns
+    -------
+   
+    source-catalog
+
+    """
 
     #
     # Get a photometric reference catalog one way or another
@@ -429,6 +635,90 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
               verbose=False,
               eliminate_flags=True,
               matching_radius=3):
+    """
+    Perform the photometric calibration, create the diagnostic plots and return
+    the results.
+
+    Parameters
+    ----------
+    source_cat : ndarray
+
+        Input source array containing the catalog output from the SExtractor 
+        run.
+
+    output_filename : string
+
+        Filename of the file containing the resulting image file. In the case of
+        collectcells, this is the output filename, hence the name. However, if 
+        photcalib is run on existing images, this is the image INPUT filename.
+
+    filtername : string
+
+        Name of the ODI filter. Based on this filter name photcalib will decide
+        the corresponding SDSS filter.
+
+    exptime : float
+
+        Exposure time of the frame, required to normalize the photometric zero-
+        point.
+
+    diagplots : Bool
+
+        If True, create the diagnostic plots for the photometric calibration.
+
+    calib_directory : string
+
+    overwrite_cat : Bool
+
+    plottitle : string
+
+        Title of the diagnostic plot, e.g. containing the filename, or some
+        information about the Object, etc.
+
+    otalist : HDUList
+
+        If given, photcalib uses the WCS information from the individual
+        extensions to add OTA outlines to the global, focal-plane wide diagnostic
+        plot.
+
+    options : dictionary
+
+        General options, containing information about some command line flags.
+
+    eliminate_flags : Bool
+
+        If set to True, only sources with no SourceExtractor flags (that might
+        indicate problems with the photometry) are used for the calibration. If 
+        set, fewer stars are used but these stars are of the best possible 
+        quality.
+
+    matching_radius : float
+
+        Matching radius to be used when matching the ODI source catalog to the
+        SDSS reference catalog.
+
+
+    Returns
+    -------
+
+    ZP-median : float
+
+        median zeropoint across the entire focal plane
+
+    ZP-Std : float
+
+        standard deviation of the photometric zeropoint
+
+    ODI-SDSS-matched : ndarray
+
+        matched catalog of ODI sources and SDSS reference stars.
+
+    ZP-normalized : float
+
+        photometric zeropoint, corrected and normalized to an exposure time
+        of 1 second.
+
+    """
 
     error_return_value = (99.9, 99.9, None, 99.9)
 

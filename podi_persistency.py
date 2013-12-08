@@ -21,6 +21,54 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
+
+
+"""
+This module handles all functionality related to saturation and persistency
+effects. Most functions are called during reduction from within collectcells.
+
+
+Standalone functions and command-line flags
+-------------------------------------------
+* **-makecat**
+
+  ``podi_persistency -makecat (-persistency=dir/) file1.fits file2.fits``
+
+  Create saturation catalogs for a number of files and write results to the
+  directory given with the -persistency flag.
+
+
+* **-masksattrails**
+
+  ``podi_persistency -masksattrails input.fits catalog.fits output.fits``
+
+  Apply the persistency masking to the specified input file, using the
+  saturation table from file catalog.fits and write the resulting file into
+  output.fits. This assumes that the input.fits file is a valid file created
+  with collectcells.
+
+* **-findclosemjds**
+
+  ``podi_persistency -findclosemjds (-persistency=/dir) input.fits``
+
+  Test-routine to find saturation catalogs within a fixed range of 
+  [-1,600] seconds around the MJD of the specified input frame.
+
+
+* **-fixpersistency**
+
+  ``podi_persistency -fixpersistency (-persistency=/dir) input.fits output.fits``
+
+  Similar to the -masksettrails functionality, but using all files within a
+  fixed MJD range ([-1,1800] seconds) around the MJD of the input frame. Results
+  are written to output.fits. As above it is assumed that input.fits is a valid
+  frame created with collectcells.
+
+Modules
+-------
+
+"""
+
 import sys
 import os
 import pyfits
@@ -43,25 +91,36 @@ except:
     import pickle
 
 
-if (sitesetup.number_cpus == "auto"):
-    try:
-        number_cpus = multiprocessing.cpu_count()
-        print "Yippie, found %d CPUs to use in parallel!" % (number_cpus)
-        if (number_cpus > sitesetup.max_cpu_count and sitesetup.max_cpu_count > 1):
-            number_cpus = sitesetup.max_cpu_count
-            print "... but using only %d of them!" % (number_cpus)
-    except:
-        pass
-else:
-    number_cpus = sitesetup.number_cpus
+# if (sitesetup.number_cpus == "auto"):
+#     try:
+#         number_cpus = multiprocessing.cpu_count()
+#         print "Yippie, found %d CPUs to use in parallel!" % (number_cpus)
+#         if (number_cpus > sitesetup.max_cpu_count and sitesetup.max_cpu_count > 1):
+#             number_cpus = sitesetup.max_cpu_count
+#             print "... but using only %d of them!" % (number_cpus)
+#     except:
+#         pass
+# else:
+#     number_cpus = sitesetup.number_cpus
 
 
 def mp_create_saturation_catalog(queue_in, queue_ret, verbose=False):
     """
-    This is a small helper routine for the process of creating the saturation catalogs.
-    It reads filenames from job queue, creates the arrays of pixel coordinates, and 
-    posts the results to a return queue. Actually creating the fits tables is then 
-    handled by the main process.
+    This is a small helper routine for the process of creating the saturation
+    catalogs.  It reads filenames from job queue, creates the arrays of pixel
+    coordinates, and posts the results to a return queue. Actually creating the
+    fits tables is then handled by the main process.
+
+    Parameters
+    ----------
+    queue_in : Queue
+
+        Holds all the input files
+
+    queue_ret : Queue
+
+        Queue to report results back to main process
+
     """
 
     while (True):
@@ -82,6 +141,39 @@ def mp_create_saturation_catalog(queue_in, queue_ret, verbose=False):
 
 
 def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo=False):
+
+    """
+    Create catalogs listing all saturated pixels to enable handling saturation
+    and persistency effects later-on.
+
+    The main purpose of this file is to call create_saturation_catalog_ota,
+    possibly wrapped for with mp_create_saturation_table for parallel
+    processing.
+
+    Parameters
+    ----------
+    filename : string
+    
+        One file of the exposure. This file is mainly used to obtain the
+        necessary information to create all the other filenames for this
+        exposure.
+
+    output_dir : string
+
+        Directory to hold all the saturation catalogs. This is the directory
+        that will be fed into collectcells via the -persistency command line
+        flag.
+
+    mp : bool - not used
+
+    redo : bool
+
+        Recreate the saturation catalog if it already exists
+
+    Returns
+    -------
+
+    """
 
     stdout_write(filename)
 
@@ -193,6 +285,36 @@ def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo
 
 
 def create_saturation_catalog_ota(filename, output_dir, verbose=True, return_numpy_catalog=False):
+    """
+    Create a saturation table for a given OTA exposure.
+
+    Parameters
+    ----------
+    filename : string
+    
+        Filename of the OTA FITS file.
+
+    output_dir : string
+
+        If return_numpy_catalog is not set, write the saturation catalog into
+        this directory.
+
+    return_numpy_catalog : bool
+
+        If set, return the results as numpy array instead of writing individual
+        files to disk.
+    
+
+    Returns
+    -------
+    None - if no saturated pixels are found in this frame
+    
+    ndarray, extname - if return_numpy_catalog is set
+
+    Nothing - if return_numpy_array is not set
+
+    """
+
 
     # Open filename
     if (verbose):
@@ -298,8 +420,36 @@ def create_saturation_catalog_ota(filename, output_dir, verbose=True, return_num
 
 def mask_saturation_defects(catfilename, ota, data):
     """
-    Create a map, for the specified OTA, where are pixels affected by trailing are flagged.
-    These pixels are then set to NaN to hopefully be removed during stacking.
+    Create a map, for the specified OTA, where are pixels affected by trailing
+    are flagged.  These pixels are then set to NaN to hopefully be removed
+    during stacking.
+
+    Parameters
+    ----------
+    
+    catfilename : string
+        
+        name of the saturation catalog file
+
+    ota : int
+
+        OTA ID of this OTA data block
+
+    data : ndarray
+
+        Input ndarray holding the data for this OTA
+
+    Returns
+    -------
+
+    ndarray with all pixels affected by saturation masked out.
+
+    Warning
+    -------
+
+    This function does not yet handle binned data!
+
+    
     """
 
     # Open the catalog file
@@ -390,7 +540,7 @@ def load_saturation_table_list(indexfile, mjd_catalog_list):
     if (os.path.isfile(pickled_file)):
         with open(pickled_file, "rb") as pickle_dict:
             # print "Reading pickled file..."
-            mjd_ctalog_list = pickle.load(pickle_dict)
+            mjd_catalog_list = pickle.load(pickle_dict)
         pass
 
     if (mjd_catalog_list == None):
@@ -481,8 +631,36 @@ def get_list_of_saturation_tables(directory, mjd_catalog_list=None):
 def select_from_saturation_tables(mjd_catalog_list, search_mjd, delta_mjd_range=[0,600]):
     """
     This routine filters the list of saturation maps to select only files within
-    the specified delta_mjd window. Intervals are given in second, and both the upper 
-    and lower limit are considered to be within the window.
+    the specified delta_mjd window. Intervals are given in second, and both the
+    upper and lower limit are considered to be within the window.
+
+    Parameters
+    ----------
+    
+    mjd_catalog_list : dictionary
+
+        List of all known saturation tables and their respective MJD (modified
+        julian date) times.
+
+    search_mjd : float
+
+        MJD of the frame currently being processes
+
+    delta_mjd_range : float[2]
+    
+        Search range of MJDs. If a saturation catalog is within the search 
+        range, its filename is returned for further processing. 
+
+        If delta_mjd_range is ``None``, only the saturation catalog with an MJD
+        identical to search_mjd is returned.
+
+    Returns
+    -------
+    close_mjd_files : dictionary
+
+        Dictionary containing the filenames of all saturation catalogs with MJD
+        in the search range and their respective MJD times.
+
     """
 
     close_mjd_files = {}
@@ -514,12 +692,47 @@ def select_from_saturation_tables(mjd_catalog_list, search_mjd, delta_mjd_range=
 
 def correct_persistency_effects(ota, data, mjd, filelist):
     """
-    Create a map, for the specified OTA, where are pixels affected by persistency are 
-    flagged with the MJD ob their last saturation. From this we can then derive the 
-    required correction.
+    Create a map, for the specified OTA, where are pixels affected by
+    persistency are flagged with the MJD of their last saturation. From this we
+    can then derive the required correction.
 
-    The detailed prescription for the amplitude of the correction is still unknown, so 
-    for the time being all persistent pixels are simply masked out (set to NaN).
+    The detailed prescription for the amplitude of the correction is still
+    unknown, so for the time being all persistent pixels are simply masked out
+    (set to NaN).
+
+    At the present, this function is more complicated than it would need to be,
+    but it is prepared for future improvements that correct and not just mask 
+    out the persistency effect.
+
+    Parameters
+    ----------
+    ota : int
+
+        Which OTA does the data belong to
+
+    data : ndarray
+
+        ndarray with the data for this OTA
+
+    mjd : float
+
+        MJD of this exposure, so we can correct the effect based on the time-
+        difference between this exposure and the time of last saturation.
+
+    filelist : dictionary
+
+        dictionary of all saturation catalogs and their respective MJDs.
+
+
+    Returns
+    -------
+    corrected data : ndarray
+        Returns the data with affected pixels being masked out (set to NaNs)
+
+    Warning
+    -------
+    This routine likely does not handle binning correctly.
+
     """
 
     # First of all, create a frame for the mask
@@ -621,6 +834,9 @@ def correct_persistency_effects(ota, data, mjd, filelist):
 
 
 def map_persistency_effects(hdulist, verbose=False):
+    """
+    outdated - do not use
+    """
 
     mask_thisframe_list = {}
     mask_timeseries_list = {}

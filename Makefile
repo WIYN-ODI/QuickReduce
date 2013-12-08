@@ -4,6 +4,7 @@
 
 doc:
 	sphinx-apidoc . -o doc/source/podi/
+#	sphinx-apidoc . -o doc/source/
 
 
 all: doc html latex
