@@ -154,7 +154,7 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filtername, pupil_hd
 
     see also
     --------
-    dev_pgcenter.find_pupilghost_center
+    `dev_pgcenter.find_pupilghost_center`
 
     """
 
@@ -382,6 +382,43 @@ def create_azimuthal_template(filename, outputfilename):
 def get_pupilghost_scaling(science_frame, pupilghost_frame, 
                 n_samples=750, boxwidth=20, 
                 verbose=True):
+    """Find the optimum scaling for the pupil ghost. This is done by sampling the
+    image frame and the pupil ghost template at a range of identical
+    positions. The median ratio between these measurements then yields the
+    scaling ratio.
+
+    Parameters
+    ----------
+    
+    science_frame : string or HDUList
+
+        If science frame is a string, it is interpreted as the filename of the
+        science frame for which we are to obtain the scaling. Alternatively you
+        can also pass the HDUList of the science frame.
+
+    pupilghost_template : string of HDUList
+
+        same as above, just for the pupil-ghost template
+
+    n_samples : int
+
+        Number of intensity samples to take *from each OTA* when deriving the
+        optimum scaling factor.
+
+    boxwidth : int
+ 
+        Size of the sample box, in pixels
+
+    Returns
+    -------
+
+    median_scaling_factor
+
+    standard deviation of scaling factor
+
+    """
+
+
 
     sci_hdulist = pyfits.open(science_frame) if (type(science_frame) == str) else science_frame
     pg_hdulist = pyfits.open(pupilghost_frame) if (type(pupilghost_frame) == str) else pupilghost_frame
@@ -490,6 +527,12 @@ def get_pupilghost_scaling(science_frame, pupilghost_frame,
     clipped_median = numpy.median(good_ratios)
     clipped_std = numpy.std(good_ratios)
     return clipped_median, clipped_std
+
+
+
+
+
+
 
 if __name__ == "__main__":
 
