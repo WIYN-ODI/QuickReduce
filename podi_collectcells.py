@@ -1296,8 +1296,13 @@ def collectcells(input, outputfile,
 
     """
 
+    if (options == None): options = set_default_options()
+
+    logger = logging.getLogger('CollectCells')
+    logger.debug("Starting --collectcells--")
+
     if (showsplash):
-        stdout_write("""\
+        splash = """\
 
     **********************************************************************
     * This is podi_collectcells                                          *
@@ -1310,10 +1315,10 @@ def collectcells(input, outputfile,
     * please send an email to kotulla@uwm.edu. Thank you!                *
     **********************************************************************
 
-""")
+"""
+        stdout_write(splash)
 
     # print "Received options:", options
-    if (options == None): options = set_default_options()
 
     if (options['verbose']):
         stdout_write("\nThese are the options we are using:\n")
@@ -1500,6 +1505,7 @@ def collectcells(input, outputfile,
 
         queue.put( (False, filename, ota_id+1) )
 
+    logger.info("Performing instrumental detrending")
     # Create all processes to handle the actual reduction and combination
     #print "Creating",number_cpus,"worker processes"
     if ('profile' in options or number_cpus == 1):
@@ -1682,7 +1688,8 @@ def collectcells(input, outputfile,
         #cur_process.terminate()
         #del cur_process
 
-    stdout_write(" done!\n")
+    logger.debug("all data received fromworker processes!")
+    logger.info("Starting post-processing")
 
     if (options['fixwcs'] and verbose):
         print fixwcs_extension
@@ -2111,6 +2118,7 @@ def collectcells(input, outputfile,
     #
     if (options['fixwcs']):
 
+        logger.info("Performing astrometric calibration")
         # The entire source catalog is located in: --> global_source_cat
         # Current HDUList is in: --> ota_list
 

@@ -390,10 +390,10 @@ def find_best_guess(src_cat, ref_cat,
 
         for cur_angle in range(n_angles):
             angle = all_results[cur_angle,0]
-            print "\n\n\nWorking on angle",angle,angle*60,"(deg/arcmin)\n\n\n"
+            logger.debug("Working on angle %f deg / %f arcmin" % (angle,angle*60))
 
             src_rotated = rotate_shift_catalog(src_cat, (center_ra, center_dec), angle, None)
-            print "Angle:",angle*60.," --> ",
+            logger.debug("Angle: %f -->" % (angle*60.))
             n_matches, offset = count_matches(src_rotated, ref_cat, matching_radius, 
                                               fine_radius=fine_radius,
                                               debugangle=angle)
@@ -428,6 +428,8 @@ def fit_best_rotation_shift(src_cat, ref_cat,
                             center_ra, center_dec,
                             matching_radius=(6./3600.)
                             ):
+
+    logger = logging.getLogger("OptimizeShiftRotation")
 
     src_rotated = rotate_shift_catalog(src_cat, 
                                        (center_ra, center_dec), 
@@ -485,7 +487,6 @@ def fit_best_rotation_shift(src_cat, ref_cat,
     r_mismatch = difference_ref_src_catalogs(src_ref_pairs[:,0:2], src_ref_pairs[:,2:4], center_dec)
 
     p_init = [best_guess[0], best_guess[2], best_guess[3]]
-    print p_init
 
     x_rotated = rotate_shift_catalog(src_cat, (center_ra, center_dec), 
                                      angle=best_guess[0], shift=best_guess[1:3])
@@ -536,6 +537,8 @@ def fit_best_rotation_shift(src_cat, ref_cat,
                                  full_output=1)
 
     best_fit = fit[0]
+
+    logger.debug("optimized parameters: " + str(best_fit))
 
     # print "\n\nbefore/after fit"
     # print p_init
