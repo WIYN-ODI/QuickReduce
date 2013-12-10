@@ -1106,7 +1106,14 @@ def parallel_collect_reduce_ota(queue, return_queue,
             return
 
         # Do the work
-        data_products = collect_reduce_ota(filename, options=options)
+        try:
+            data_products = collect_reduce_ota(filename, options=options)
+        except (KeyboardInterrupt, SystemExit):
+            queue.task_done()
+            while (not queue.empty()):
+                queue.get()
+                queue.task_done()
+            break
 
         # Add the results to the return_queue so the master process can assemble the result file
         # print "Adding results for OTA",ota_id,"to return queue"
@@ -1570,7 +1577,14 @@ def collectcells(input, outputfile,
     global_gain_sum, global_gain_count = 0, 0
     for i in range(len(list_of_otas_being_reduced)):
         #hdu, ota_id, wcsfix_data = return_queue.get()
-        ota_id, data_products = return_queue.get()
+        try:
+            ota_id, data_products = return_queue.get()
+        except (KeyboardInterrupt, SystemExit):
+            while (not return_queue.empty()):
+                return_queue.get()
+            raise
+            return
+
 
         hdu = data_products['hdu']
         wcsfix_data = data_products['wcsdata']
@@ -1648,6 +1662,7 @@ def collectcells(input, outputfile,
             global_source_cat = data_products['sourcecat'] if (global_source_cat == None) \
                 else numpy.append(global_source_cat, data_products['sourcecat'], axis=0)
 
+
     #
     # Update the global gain variables
     #
@@ -1663,8 +1678,9 @@ def collectcells(input, outputfile,
     # Now all processes have returned their results, terminate them 
     # and delete all instances to free up memory
     for cur_process in processes:
-        cur_process.terminate()
-        del cur_process
+        cur_process.join()
+        #cur_process.terminate()
+        #del cur_process
 
     stdout_write(" done!\n")
 
@@ -2770,6 +2786,5 @@ if __name__ == "__main__":
         stdout_write("#  ==> %s\n" % (error))
         print traceback.format_exc()
         stdout_write("#\n##############################\n")
-
-
-    podi_logging.podi_log_master_quit(log_master_info)
+    finally:
+        podi_logging.podi_log_master_quit(log_master_info)
