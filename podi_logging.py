@@ -49,8 +49,6 @@ MESSAGES = [
 # The print messages are just so you know it's doing something!
 def test_worker_process(log_setup):
 
-#    configurer(queue)
-#    log_setup
     name = multiprocessing.current_process().name
     print('Worker started xxx: %s' % name)
     podi_logger_setup(log_setup)
@@ -58,14 +56,12 @@ def test_worker_process(log_setup):
     #logger = podi_getlogger(name, log_setup)
     for i in range(10):
         time.sleep(random())
-        print "in worker ."
-#        logger = podi_getlogger(name, log_setup)
+        # print "in worker ."
         logger = logging.getLogger(choice(LOGGERS))
-        level = logging.DEBUG #choice(LEVELS)
+        level = choice(LEVELS)
         message = "msg %d: %s" % (i+1, choice(MESSAGES))
         # print message
         logger.log(level, message)
-        del logger 
     print('Worker finished: %s' % name)
 
 
@@ -414,47 +410,49 @@ if __name__ == "__main__":
         try:
             channel.start_consuming()
         except (KeyboardInterrupt, SystemExit):
-            print "\nShutting down listener"
+            print "\nShutting down listener, good bye!"
         except:
             pass
 
         sys.exit(0)
 
+    else:
+
+        import podi_collectcells
+        options = podi_collectcells.read_options_from_commandline()
+
+        log_master_info, log_setup = podi_log_master_start(options)
+
+        # Setup the multi-processing-safe logging
+        podi_logger_setup(options['log_setup'])
+
+        workers = []
+        # for i in range(10):
+        #     worker = multiprocessing.Process(target=worker_process, kwargs=worker_log)
+        #     workers.append(worker)
+        #     worker.start()
+        # for w in workers:
+        #     w.join()
+
+        print log_setup
+
+        for i in range(1):
+            worker = multiprocessing.Process(target=test_worker_process, 
+                                             kwargs={"log_setup": log_setup})
+    #                                         args=(worker_log))
+            workers.append(worker)
+            worker.start()
+        for w in workers:
+            w.join()
+
+        logger = logging.getLogger("main process")
+
+        logger.info('test info')
+        logger.debug('test debug')
+        logger.critical('test critical')
+        logger.error('test error')
 
 
-
-    import podi_collectcells
-    options = podi_collectcells.read_options_from_commandline()
-
-    log_master_info, log_setup = podi_log_master_start(options)
-
-    workers = []
-    # for i in range(10):
-    #     worker = multiprocessing.Process(target=worker_process, kwargs=worker_log)
-    #     workers.append(worker)
-    #     worker.start()
-    # for w in workers:
-    #     w.join()
-
-    print log_setup
-
-    for i in range(1):
-        worker = multiprocessing.Process(target=test_worker_process, 
-                                         kwargs={"log_setup": log_setup})
-#                                         args=(worker_log))
-        workers.append(worker)
-        worker.start()
-    for w in workers:
-        w.join()
-
-    logger = podi_getlogger("main process", log_setup)
-
-    logger.info('test info')
-    logger.debug('test debug')
-    logger.critical('test critical')
-    logger.error('test error')
-
-
-    podi_log_master_quit(log_master_info)
-#    queue.put_nowait(None)
-#    listener.join()
+        podi_log_master_quit(log_master_info)
+    #    queue.put_nowait(None)
+    #    listener.join()
