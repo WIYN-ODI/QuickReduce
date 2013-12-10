@@ -23,6 +23,7 @@ import multiprocessing
 
 max_pointing_error = 5.
 
+import podi_logging
 import logging
 
 create_debug_files = True
@@ -46,6 +47,8 @@ def select_brightest(radec, mags, n):
 def count_matches(src_cat, ref_cat, 
                   pointing_error=(max_pointing_error/60.), 
                   matching_radius=(4./3600.), debugangle=None):
+
+    logger = logging.getLogger()
 
     # 
     # Now loop over all stars in the source catalog and find nearby stars in the reference catalog
@@ -136,7 +139,9 @@ def count_matches(src_cat, ref_cat,
     max_coincidence_count = numpy.argmax(search_weights[:,0])
 
     best_offset = all_offsets[max_coincidence_count,:]
-    print "best offset", best_offset, "matching in",search_weights[max_coincidence_count][0],"fields"
+    #print "best offset", best_offset, "matching in",search_weights[max_coincidence_count][0],"fields"
+    logger.debug("best offset %s matching in %d fields" % (
+        best_offset, search_weights[max_coincidence_count][0]))
 
     if (not debugangle == None):
         if (create_debug_files): numpy.savetxt("ccmatch.offsetcount.%d" % int(round((debugangle*60),0)), search_weights)
@@ -258,6 +263,7 @@ def count_matches_parallelwrapper(work_queue, return_queue,
                                   debugangle=None
                                   ):
 
+    logger = logging.getLogger()
     while (True):
         task = work_queue.get()
         if (task == None):
@@ -265,11 +271,12 @@ def count_matches_parallelwrapper(work_queue, return_queue,
 
         angle_id, angle = task
 
-        print "Starting work on angle",angle,angle*60,"(deg/arcmin)"
+        logger.debug("Starting work on angle %f deg / %f arcmin" % (angle,angle*60))
+        # print "Starting work on angle",angle,angle*60,"(deg/arcmin)"
 
         src_rotated = rotate_shift_catalog(src_cat, (center_ra, center_dec), angle, None)
 
-        print "Angle:",angle*60.," --> ",
+        # print "Angle:",angle*60.," --> ",
         n_matches, offset = count_matches(src_rotated, ref_cat, 
                                           pointing_error=pointing_error, 
                                           matching_radius=matching_radius,
@@ -299,7 +306,8 @@ def find_best_guess(src_cat, ref_cat,
     #angle_max = 2.
     #d_angle = 5.
 
-    
+    logger = logging.getLogger('findbestguess')
+
     if (angle_max == None):
         # This means there's no rotation at all
         n_angles = 1
@@ -354,7 +362,7 @@ def find_best_guess(src_cat, ref_cat,
                                   
 
         number_cpus = sitesetup.number_cpus
-        print "Running ccmatch on %d CPUs, hold on ..." % (number_cpus)
+        logger.debug("Running ccmatch on %d CPUs, hold on ..." % (number_cpus))
         for i in range(number_cpus):
             p = multiprocessing.Process(target=count_matches_parallelwrapper, kwargs=worker_args)
             p.start()
@@ -393,7 +401,8 @@ def find_best_guess(src_cat, ref_cat,
             all_results[cur_angle,1:3] = offset
             all_results[cur_angle,3] = n_matches
 
-    numpy.savetxt(sys.stdout, all_results)
+    
+    logger.debug(all_results)
     if (create_debug_files): numpy.savetxt("ccmatch.allresults", all_results)
 
 
@@ -403,7 +412,9 @@ def find_best_guess(src_cat, ref_cat,
     idx_best_angle = numpy.argmax(all_results[:,3])
 
     best_guess = all_results[idx_best_angle]
-    print best_guess, "angle=",best_guess[0]*60.,"arcmin"
+    logger.debug("Best guess: angle=%f arcmin" % (best_guess[0]*60.))
+    logger.debug(best_guess)
+    # print best_guess, "angle=",best_guess[0]*60.,"arcmin"
 
 
     return best_guess
@@ -697,10 +708,10 @@ def ccmatch_shift(source_cat,
                                  allow_parallel=False,
                                  )
 
-    print "\n\n\n\n\n found best guess:"
-    print best_guess
-    print "offset=",best_guess[1:3]*3600.
-    print "\n\n\n\n\n"
+    logger = logging.getLogger("CCMatchShift")
+    logger.debug("found best guess:")
+    logger.debug(best_guess)
+    logger.debug("offset="+str(best_guess[1:3]*3600.))
 
     return best_guess
 
@@ -806,6 +817,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             max_pointing_error=5,
             max_rotator_error=[-0.5,1.5]):
 
+    logger = logging.getLogger("CCMatch")
 
     if (type(source_catalog) == str):
         # Load the source catalog file
@@ -845,14 +857,14 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # eliminate all flagged stars
     #
     full_src_cat = src_raw[src_raw[:,7] == 0]
-    print "src_cat:",full_src_cat.shape
+    logger.debug("src_cat: "+str(full_src_cat.shape))
 
     #
     # compute the center of the field
     #
     center_ra = hdulist[1].header['CRVAL1'] #numpy.median(src_cat[:,0])
     center_dec = hdulist[1].header['CRVAL2'] #numpy.median(src_cat[:,1])
-    print "field center at ", center_ra, center_dec
+    logger.debug("field center at %f   %f" % (center_ra, center_dec))
 
 
     # 
@@ -869,14 +881,14 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         ref_raw = ref_raw[:,0:2]
     else:
         ref_raw = reference_catalog #numpy.loadtxt(ref_catfile)[:,0:2]
-    print "ref. cat (raw) =",ref_raw.shape
+    logger.debug("ref. cat (raw) ="+str(ref_raw.shape))
 
 
     #
     # Reduce the reference catalog to approx. the coverage of the source catalog
     #
     ref_cat = match_catalog_areas(full_src_cat, ref_raw, max_pointing_error/60.)
-    print "area matched ref. catalog:", ref_cat.shape
+    logger.debug("area matched ref. catalog: "+str(ref_cat.shape))
     if (create_debug_files): numpy.savetxt("ccmatch.matched_ref_cat", ref_cat)
     if (create_debug_files): numpy.savetxt("ccmatch.src_cat", full_src_cat[:,0:2])
 
@@ -885,12 +897,13 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     only_isolated_stars = True
     if (only_isolated_stars):
-        print "\n\n\n\n\n\n\n\nFinding Isolated stars\n\n\n\n\n\n"
+        logger.debug("Selecting isolated stars - reference catalog")
         numpy.savetxt("ccmatch.2mass_full", ref_cat)
         ref_cat = pick_isolated_stars(ref_cat, radius=10)
         numpy.savetxt("ccmatch.2mass_isolated", ref_cat)
 
         
+        logger.debug("Selecting isolated stars - ODI source catalog")
         numpy.savetxt("ccmatch.odi_full", full_src_cat)
         full_src_cat = pick_isolated_stars(full_src_cat, radius=10)
         numpy.savetxt("ccmatch.odi_isolated", full_src_cat)
@@ -995,10 +1008,11 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                                     d_angle=10, # arcmin
                                     allow_parallel=True
                                     )
-    print "\n\n\n\n\n found best guess:"
-    print initial_guess
-    print initial_guess[1:3]*3600.
-    print "\n\n\n\n\n"
+
+    logger = logging.getLogger("CCMatchShift")
+    logger.debug("found initial best guess:")
+    logger.debug(initial_guess)
+    logger.debug("offset = "+str(initial_guess[1:3]*3600.)+" arcsec in Ra/Dec")
 
     # Add the best fit shift to outut header to keep track 
     # of the changes we are making
@@ -1008,7 +1022,6 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     # Apply the best guess transformation to the input catalog
     #
-    print "\n\n\n\n\nbest guess:\n",initial_guess,"\n\n\n\n\n"
     current_best_rotation = initial_guess[0]
     current_best_shift = initial_guess[1:3]
     guessed_cat = rotate_shift_catalog(full_src_cat, (center_ra, center_dec), 
@@ -1029,6 +1042,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     # Now optimize the shift and rotation
     #
+    logger.debug("Starting minimization routine to optimze shift & rotation")
     best_shift_rotation_solution = fit_best_rotation_shift(
          src_cat, ref_cat, initial_guess,
          center_ra, center_dec,
@@ -1038,14 +1052,12 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # print "Alternative method:\n"
     # print "best fit:",best_shift_rotation_solution
 
-    print "\n\n\n\n\nresulting fit solution:\n",best_shift_rotation_solution,"\n\n\n\n\n"
-    print full_src_cat.shape
+    logger.debug("resulting fit solution: "+str(best_shift_rotation_solution))
 
     src_rotated = rotate_shift_catalog(full_src_cat, (center_ra, center_dec), 
                                        angle=best_shift_rotation_solution[0],
                                        shift=best_shift_rotation_solution[1:3],
                                        verbose=False)
-    print src_rotated.shape
     matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(2./3600.), max_count=1)
     if (create_debug_files): numpy.savetxt("ccmatch.after_shift+rot", matched)
 
@@ -1073,6 +1085,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     if (mode == "rotation"):
         # We only asked for rotation optimization, so 
         # end the processing right here
+        logger.debug("Writing shift/rotation to output file")
         for ext in range(len(hdulist)):
             if (not is_image_extension(hdulist[ext])):
                 continue
@@ -1108,6 +1121,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         return_value['calibrated_src_cat'] = src_rotated
         return_value['2mass-catalog'] = ref_cat
 
+        logger.debug("All done here, returning")
         return return_value 
 
 
