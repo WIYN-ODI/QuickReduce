@@ -25,7 +25,7 @@ max_pointing_error = 5.
 
 import logging
 
-create_debug_files = False
+create_debug_files = True
 
 def select_brightest(radec, mags, n):
     # print mags
@@ -44,8 +44,8 @@ def select_brightest(radec, mags, n):
 
 
 def count_matches(src_cat, ref_cat, 
-                  matching_radius=(max_pointing_error/60.), 
-                  fine_radius=(4./3600.), debugangle=None):
+                  pointing_error=(max_pointing_error/60.), 
+                  matching_radius=(4./3600.), debugangle=None):
 
     # 
     # Now loop over all stars in the source catalog and find nearby stars in the reference catalog
@@ -60,10 +60,13 @@ def count_matches(src_cat, ref_cat,
     # print "src-cat:",src_cat.shape
     # print "ref-cat:",ref_cat.shape
 
+    #
+    # First create a catalog of nearby reference stars for each source star
+    #
     # find all matches
-    matches = src_tree.query_ball_tree(ref_tree, matching_radius, p=2)
+    matches = src_tree.query_ball_tree(ref_tree, pointing_error, p=2)
     # also count how many matches in total we have found
-    n_matches = src_tree.count_neighbors(ref_tree, matching_radius, p=2)
+    n_matches = src_tree.count_neighbors(ref_tree, pointing_error, p=2)
 
     all_offsets = numpy.zeros(shape=(n_matches,2))
     cur_pair = 0
@@ -109,13 +112,11 @@ def count_matches(src_cat, ref_cat,
     # so we now need to figure out which one is the most likely,
     # i.e. the most frequently occuring
     #
-
     candidate_offset_tree = scipy.spatial.cKDTree(all_offsets)
-
-    # print all_offsets.shape
-
-    n_coincidences = candidate_offset_tree.count_neighbors(candidate_offset_tree, fine_radius, p=2)
-    coincidences = candidate_offset_tree.query_ball_tree(candidate_offset_tree, fine_radius, p=2)
+    n_coincidences = candidate_offset_tree.count_neighbors(
+        candidate_offset_tree, matching_radius, p=2)
+    coincidences = candidate_offset_tree.query_ball_tree(
+        candidate_offset_tree, matching_radius, p=2)
 
     search_weights = numpy.zeros(shape=(len(coincidences),3))
 
@@ -250,9 +251,11 @@ def kd_match_catalogs(src_cat, ref_cat, matching_radius, max_count=1):
 
 
 def count_matches_parallelwrapper(work_queue, return_queue,
-                                  src_cat, ref_cat, center_ra, center_dec,
-                                  matching_radius=(max_pointing_error/60.), 
-                                  fine_radius=(4./3600.), debugangle=None
+                                  src_cat, ref_cat, 
+                                  center_ra, center_dec,
+                                  pointing_error=(max_pointing_error/60.), 
+                                  matching_radius=(4./3600.), 
+                                  debugangle=None
                                   ):
 
     while (True):
@@ -267,8 +270,9 @@ def count_matches_parallelwrapper(work_queue, return_queue,
         src_rotated = rotate_shift_catalog(src_cat, (center_ra, center_dec), angle, None)
 
         print "Angle:",angle*60.," --> ",
-        n_matches, offset = count_matches(src_rotated, ref_cat, matching_radius, 
-                                          fine_radius=fine_radius,
+        n_matches, offset = count_matches(src_rotated, ref_cat, 
+                                          pointing_error=pointing_error, 
+                                          matching_radius=matching_radius,
                                           debugangle=angle)
 
         return_queue.put((angle_id, n_matches, offset))
@@ -278,10 +282,10 @@ def count_matches_parallelwrapper(work_queue, return_queue,
 
 def find_best_guess(src_cat, ref_cat,
                     center_ra, center_dec,
-                    matching_radius=(max_pointing_error/60.),
+                    pointing_error=(max_pointing_error/60.),
                     angle_max=5., #degrees
                     d_angle=3, # arcmin
-                    fine_radius=2./3600.,
+                    matching_radius=5./3600.,
                     allow_parallel=True,
                     ):
 
@@ -331,16 +335,28 @@ def find_best_guess(src_cat, ref_cat,
             angle = all_results[cur_angle,0]
             queue.put((cur_angle, angle))
 
-        worker_args = (queue, return_queue,
-                       src_cat, ref_cat, center_ra, center_dec,
-                       matching_radius,
-                       fine_radius, 
-                       angle)
+        # worker_args = (queue, return_queue,
+        #                src_cat, ref_cat, center_ra, center_dec,
+        #                matching_radius,
+        #                fine_radius, 
+        #                angle)
+        worker_args = {
+            "work_queue": queue, 
+            "return_queue": return_queue,
+            "src_cat": src_cat, 
+            "ref_cat": ref_cat, 
+            "center_ra": center_ra, 
+            "center_dec": center_dec,
+            "pointing_error": pointing_error,
+            "matching_radius": matching_radius,
+            "debugangle": None,
+        }
+                                  
 
         number_cpus = sitesetup.number_cpus
         print "Running ccmatch on %d CPUs, hold on ..." % (number_cpus)
         for i in range(number_cpus):
-            p = multiprocessing.Process(target=count_matches_parallelwrapper, args=worker_args)
+            p = multiprocessing.Process(target=count_matches_parallelwrapper, kwargs=worker_args)
             p.start()
             processes.append(p)
 
@@ -663,7 +679,7 @@ def verify_wcs_model(cat, hdulist):
 def ccmatch_shift(source_cat, 
                   reference_cat,
                   center=None, #[center_ra, center_dec],
-                  matching_radius=(max_pointing_error/60.), #(max_pointing_error/60.)
+                  pointing_error=(max_pointing_error/60.), #(max_pointing_error/60.)
                   ):
 
 
@@ -676,7 +692,7 @@ def ccmatch_shift(source_cat,
     best_guess = find_best_guess(source_cat, 
                                  reference_cat,
                                  center_ra, center_dec,
-                                 matching_radius=matching_radius,
+                                 pointing_error=pointing_error,
                                  angle_max=None,
                                  allow_parallel=False,
                                  )
@@ -736,6 +752,48 @@ def apply_correction_to_header(hdulist, best_guess, verbose=False):
 
 
 
+def pick_isolated_stars(catalog, radius=10.):
+    """
+
+    Break down the catalog and eliminate all sources with nearby neighbors.
+
+    """
+
+    kdtree = scipy.spatial.cKDTree(catalog[:,0:2])
+
+    # Create an array holding for which sources we found a match
+    isolated = numpy.zeros(shape=(catalog.shape[0]))
+    
+    # match the catalogs using a kD-tree
+    matching_radius = radius / 3600.
+    match_indices = kdtree.query_ball_tree(kdtree, matching_radius, p=2)
+    #match_count = kdtree.count_neighbors(kdtree, matching_radius, p=2)
+
+    # print match_count
+
+    # Now loop over all matches and merge the found matches
+    for cur_src in range(catalog.shape[0]):
+
+        # Determine how many reference stars are close to this source
+        # Do not keep match if none or too many reference stars are nearby
+        #
+        # Keep in mind that each source has at least 1 nearby source: itself
+        # so only neighbor counts > 1 count as having a real neighbor
+        n_matches = len(match_indices[cur_src])
+        if (n_matches <= 1):
+            isolated[cur_src] = 1
+
+        # print cur_src, catalog[cur_src, 0], catalog[cur_src,1], n_matches
+    
+    # Now eliminate all sources without matches
+    # final_cat = catalog[match_count < 1] #isolated == 1]
+    final_cat = catalog[isolated == 1]
+
+    return final_cat
+
+
+
+
 #############################################################################
 #############################################################################
 #
@@ -745,8 +803,8 @@ def apply_correction_to_header(hdulist, best_guess, verbose=False):
 #############################################################################
 
 def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
-            max_pointing_error=4,
-            max_rotator_error=[-1,2]):
+            max_pointing_error=5,
+            max_rotator_error=[-0.5,1.5]):
 
 
     if (type(source_catalog) == str):
@@ -783,17 +841,11 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #     src_xxx = rotate_shift_catalog(src_raw[:,0:2], (center_ra, center_dec), angle, [0.01, -0.005])
     #     src_raw[:,0:2] = src_xxx
 
+    #
     # eliminate all flagged stars
+    #
     full_src_cat = src_raw[src_raw[:,7] == 0]
-    n_max = 750
-    if (full_src_cat.shape[0] > n_max):
-        print "truncating src_cat:",full_src_cat.shape,"-->",n_max
-        # That's more than we need, limited the catalog to the brightest n stars
-        full_src_cat, bright_mags = select_brightest(full_src_cat, full_src_cat[:,10:13], n_max)
-
-    src_cat = full_src_cat[:,0:2]
-
-    print "src_cat:",src_cat.shape
+    print "src_cat:",full_src_cat.shape
 
     #
     # compute the center of the field
@@ -823,12 +875,39 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     # Reduce the reference catalog to approx. the coverage of the source catalog
     #
-    ref_cat = match_catalog_areas(src_cat, ref_raw, max_pointing_error/60.)
+    ref_cat = match_catalog_areas(full_src_cat, ref_raw, max_pointing_error/60.)
     print "area matched ref. catalog:", ref_cat.shape
     if (create_debug_files): numpy.savetxt("ccmatch.matched_ref_cat", ref_cat)
-    if (create_debug_files): numpy.savetxt("ccmatch.src_cat", src_cat)
+    if (create_debug_files): numpy.savetxt("ccmatch.src_cat", full_src_cat[:,0:2])
 
+    #
+    # Exclude all stars with nearby neighbors to limit confusion
+    #
+    only_isolated_stars = True
+    if (only_isolated_stars):
+        print "\n\n\n\n\n\n\n\nFinding Isolated stars\n\n\n\n\n\n"
+        numpy.savetxt("ccmatch.2mass_full", ref_cat)
+        ref_cat = pick_isolated_stars(ref_cat, radius=10)
+        numpy.savetxt("ccmatch.2mass_isolated", ref_cat)
 
+        
+        numpy.savetxt("ccmatch.odi_full", full_src_cat)
+        full_src_cat = pick_isolated_stars(full_src_cat, radius=10)
+        numpy.savetxt("ccmatch.odi_isolated", full_src_cat)
+
+    #
+    # Cut down the catalog size to the brightest n stars
+    #
+    n_max = 5000 #750
+    if (full_src_cat.shape[0] > n_max):
+        print "truncating src_cat:",full_src_cat.shape,"-->",n_max
+        # That's more than we need, limited the catalog to the brightest n stars
+        full_src_cat, bright_mags = select_brightest(full_src_cat, full_src_cat[:,10:13], n_max)
+
+    #
+    # Get rid of all data except the coordinates
+    # 
+    src_cat = full_src_cat[:,0:2]
 
 
     current_best_rotation = 0
@@ -848,7 +927,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         wcs_correction = ccmatch_shift(source_cat=src_cat,
                                        reference_cat=ref_cat,
                                        center=(center_ra, center_dec),
-                                       matching_radius=(max_pointing_error/60.)
+                                       pointing_error=(max_pointing_error/60.)
                                        )
 
         print wcs_correction
@@ -911,7 +990,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     center_dec = hdulist[1].header['CRVAL2']
     initial_guess = find_best_guess(src_cat, ref_cat,
                                     center_ra, center_dec,
-                                    matching_radius=(max_pointing_error/60.),
+                                    pointing_error=(max_pointing_error/60.),
                                     angle_max=max_rotator_error, #[-2,2], #degrees
                                     d_angle=10, # arcmin
                                     allow_parallel=True
@@ -1229,6 +1308,15 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
 
 if __name__ == "__main__":
     verbose=False
+
+    if (cmdline_arg_isset('-isolate')):
+        source_catalog = get_clean_cmdline()[1]
+        radius = float(get_clean_cmdline()[2])
+        catalog = numpy.loadtxt(source_catalog)
+        isolated = pick_isolated_stars(catalog, radius=radius)
+        numpy.savetxt(source_catalog+".isolated", isolated)
+        sys.exit(0)
+
 
     mode = cmdline_arg_set_or_default('-mode', 'xxx')
     print mode
