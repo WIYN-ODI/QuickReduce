@@ -57,6 +57,9 @@ diagplot__zeropoint_magrange = [11,21]
 diagplot__zerpointmap_range = [0.2,0.2]
 
 
+
+debug_log_filename = None
+
 if __name__ == "__main__":
     print "This file defines some site properties, mostly paths."
     print "Feel free to edit it to adapt directories to your site"

@@ -217,6 +217,7 @@ import threading
 import multiprocessing
 import ctypes
 import time
+import logging
 
 from podi_plotting import *
 
@@ -236,6 +237,8 @@ import podi_matchpupilghost
 import podi_fringing
 import podi_photcalib
 import podi_nonlinearity
+import podi_logging
+
 
 from astLib import astWCS
 
@@ -302,7 +305,7 @@ def collect_reduce_ota(filename,
         "sky-samples": None,
         "sky": None,
         }
-
+    
     if (not os.path.isfile(filename)):
         stdout_write("Couldn't find file %s ..." % (filename))
     else:
@@ -318,7 +321,7 @@ def collect_reduce_ota(filename,
         except:
             # This happed with corrupt files
             return data_products
-
+            
         reduction_files_used['raw'] = filename
 
         # Get the binning factor
@@ -337,6 +340,9 @@ def collect_reduce_ota(filename,
         extname = "OTA%02d.SCI" % ota
         hdu.update_ext_name(extname)
         hdu.header['OTA'] = (ota, "OTA designation")
+
+        # podi_logging.podi_getlogger("%s - %s" % (obsid, extname), options['log_setup'])
+        logger = logging.getLogger("%s - %s" % (obsid, extname))
 
         # Now copy the headers from the original file into the new one
         cards = hdulist[0].header.cards
@@ -359,6 +365,7 @@ def collect_reduce_ota(filename,
         xtalk_corr = [None] * 8
 
         # Now go through each of the 8 lines
+        logger.debug("Starting crosstalk correction")
         for row in range(8):
             for column in range(8):
                 
@@ -387,6 +394,7 @@ def collect_reduce_ota(filename,
                 # back into the hdulist so can can continue with the overscan subtraction etc.
                 xy_name = "xy%d%d" % (column, row)
                 hdulist[xy_name].data = xtalk_corr[column]
+        logger.debug("Done with crosstalk correction")
 
         #
         # Allocate memory for the merged frame, and set all pixels by default to NaN.
@@ -395,8 +403,9 @@ def collect_reduce_ota(filename,
         merged = numpy.ones(shape=(size_x, size_y), dtype=numpy.float32)
         merged[:,:] = options['indef_pixelvalue']
         
-        if (options['bgmode']):
-            stdout_write("\r%s: Starting work on OTA %02d ...\n" % (obsid, ota))
+        #if (options['bgmode']):
+        #    stdout_write("\r%s: Starting work on OTA %02d ...\n" % (obsid, ota))
+        logger.info("Starting work on OTA %02d of %s ..." % (ota, obsid))
 
         nonlin_data = None
         if (options['nonlinearity-set']):
@@ -407,13 +416,14 @@ def collect_reduce_ota(filename,
                 nonlinearity_file = podi_nonlinearity.find_nonlinearity_coefficient_file(mjd, options)
             if (options['verbose']):
                 print "Using non-linearity coefficients from",nonlinearity_file
+            logger.debug("Using non-linearity coefficients from file %s"  % (nonlinearity_file))
             nonlin_data = podi_nonlinearity.load_nonlinearity_correction_table(nonlinearity_file, ota)
             reduction_files_used['nonlinearity'] = nonlinearity_file
 
         all_gains = numpy.zeros(shape=(64))
         for cell in range(1,65):
-            if (not options['bgmode']):
-                stdout_write("\r%s:   OTA %02d, cell %s ..." % (obsid, ota, hdulist[cell].header['EXTNAME']))
+            #if (not options['bgmode']):
+            #    stdout_write("\r%s:   OTA %02d, cell %s ..." % (obsid, ota, hdulist[cell].header['EXTNAME']))
             wm_cellx, wm_celly = hdulist[cell].header['WN_CELLX'], hdulist[cell].header['WN_CELLY']
 
             #
@@ -451,6 +461,8 @@ def collect_reduce_ota(filename,
 
             datasec -= overscan_level
 
+            logger.debug("cell %s: gain=%.2f overscan=%6.1f" % (hdulist[cell].header['EXTNAME'], gain, overscan_level))
+
             if (options['nonlinearity-set']):
                 nonlin_correction = podi_nonlinearity.compute_cell_nonlinearity_correction(
                     datasec, wm_cellx, wm_celly, nonlin_data)
@@ -471,6 +483,8 @@ def collect_reduce_ota(filename,
             bx, tx, by, ty = cell2ota__get_target_region(wm_cellx, wm_celly, binning)
             # print bx, tx, by, ty, datasec.shape
             merged[by:ty,bx:tx] = datasec
+
+        logger.debug("Collected all cells for OTA %02d of %s" % (ota, obsid))
 
         # 
         # At this point we have a 4x4 Kpixel array with all cells merged
@@ -514,6 +528,7 @@ def collect_reduce_ota(filename,
                     if (fppos_bias == fppos):
                         # This is the one
                         merged -= bias_ext.data
+                        logger.debug("Subtracting bias: %s" % (bias_filename))
                         break
 
                 bias.close()
@@ -543,7 +558,9 @@ def collect_reduce_ota(filename,
                     fppos_dark = dark_ext.header['FPPOS']
                     if (fppos_dark == fppos):
                         # This is the one
-                        merged -= (dark_ext.data * exposure_time / darktime)
+                        dark_scaling = exposure_time / darktime
+                        logger.debug("Subtracting dark: %s (scaling=%.2f)" % (dark_filename, dark_scaling))
+                        merged -= (dark_ext.data * dark_scaling)
                         break
 
                 dark.close()
@@ -566,11 +583,12 @@ def collect_reduce_ota(filename,
                     if (fppos_flatfield == fppos):
                         # This is the one
                         merged /= ff_ext.data
+                        logger.debug("Diving by flatfield: %s" % (flat_filename))
 
                         # If normalizing with the flat-field, overwrite the gain
                         # keyword with the average gain value of the flatfield.
                         hdu.header['GAIN'] = flatfield[0].header['GAIN']
-
+                        logger.debug("Overwriting GAIN keyword: %f" % (flatfield[0].header['GAIN']))
                         
                         if ('PGAFCTD' in ff_ext.header and ff_ext.header['PGAFCTD']):
                             # Also copy the center position of the pupilghost
@@ -610,6 +628,7 @@ def collect_reduce_ota(filename,
             if (os.path.isfile(region_file)):
                 # Apply the bad pixel regions to file, marking
                 # all bad pixels as NaNs
+                logger.debug("Applying BPM file: %s" % (region_file))
                 mask_broken_regions(merged, region_file)
                 hdu.header.add_history("CC-BPM: %s" % (os.path.abspath(region_file)))
                 reduction_files_used['bpm'] = region_file
@@ -618,6 +637,7 @@ def collect_reduce_ota(filename,
         # If persistency correction is requested, perform it now
         #
         if (options['persistency_dir'] != None):
+            logger.debug("Applying persistency correction")
             if (options['verbose']): stdout_write("Applying persistency correction\n")
 
             # Get a list of all saturation catalogs
@@ -627,7 +647,8 @@ def collect_reduce_ota(filename,
             # Search for the saturation map for this frame and, if found,
             # mask out all saturated pixels
             #if (verbose): 
-            print "MJD of this frame:", mjd
+            logger.debug("MJD of this frame: %f" % (mjd))
+
             saturated_thisframe = podi_persistency.select_from_saturation_tables(full_filelist, mjd, None)
             reduction_files_used['saturation'] = saturated_thisframe
             #print "this frame=",saturated_thisframe,mjd
@@ -663,6 +684,8 @@ def collect_reduce_ota(filename,
             fringe_vector_file = "%s/fringevectors__%s__OTA%02d.reg" % (options['fringe_vectors'], filter_name, ota)
             reduction_files_used['fringemap'] = fringe_filename
             reduction_files_used['fringevector'] = fringe_vector_file
+            logger.debug("fringe file %s found: %s" % (fringe_filename, os.path.isfile(fringe_filename)))
+            logger.debug("fringe vector %s found: %s" % (fringe_vector_file, os.path.isfile(fringe_vector_file)))
             if (options['verbose']):
                 print "fringe file:",fringe_filename, "    found:",os.path.isfile(fringe_filename)
                 print "fringe vector:",fringe_vector_file, "    found:",os.path.isfile(fringe_vector_file)
@@ -1072,6 +1095,9 @@ def parallel_collect_reduce_ota(queue, return_queue,
     no return values, all returns are handled via the return_queue
 
     """
+
+    # Setup the multi-processing-safe logging
+    podi_logging.podi_logger_setup(options['log_setup'])
 
     while (True):
         cmd_quit, filename, ota_id = queue.get()
@@ -2462,6 +2488,8 @@ def set_default_options(options_in=None):
 
     options['skip_guide_ota'] = False
 
+    options['log_setup'] = None
+
     return options
 
 
@@ -2707,6 +2735,11 @@ if __name__ == "__main__":
     # Then read the actual given parameters from the command line
     options = read_options_from_commandline(options)
 
+    # Setup everything we need for logging
+    log_master_info, log_setup = podi_logging.podi_log_master_start(options)
+
+    options['log_setup'] = log_setup
+
     # Collect all cells, perform reduction and write result file
     try:
         if (cmdline_arg_isset('-profile')):
@@ -2738,3 +2771,5 @@ if __name__ == "__main__":
         print traceback.format_exc()
         stdout_write("#\n##############################\n")
 
+
+    podi_logging.podi_log_master_quit(log_master_info)
