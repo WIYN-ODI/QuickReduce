@@ -583,7 +583,7 @@ def collect_reduce_ota(filename,
                     if (fppos_flatfield == fppos):
                         # This is the one
                         merged /= ff_ext.data
-                        logger.debug("Diving by flatfield: %s" % (flat_filename))
+                        logger.debug("Dividing by flatfield: %s" % (flatfield_filename))
 
                         # If normalizing with the flat-field, overwrite the gain
                         # keyword with the average gain value of the flatfield.
