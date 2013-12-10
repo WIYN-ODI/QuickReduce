@@ -411,7 +411,12 @@ if __name__ == "__main__":
                               no_ack=True)
 
         print ' [*] Waiting for messages. To exit press CTRL+C'
-        channel.start_consuming()
+        try:
+            channel.start_consuming()
+        except (KeyboardInterrupt, SystemExit):
+            print "\nShutting down listener"
+        except:
+            pass
 
         sys.exit(0)
 
