@@ -12,7 +12,6 @@ Contents:
    :maxdepth: 2
 
 
-
 Indices and tables
 ==================
 
@@ -20,6 +19,7 @@ Indices and tables
 * :ref:`modindex`
 * :ref:`search`
 
+.. include:: podi/modules.rst
 
 Copyright 2012-2013
 ------------------------------------
