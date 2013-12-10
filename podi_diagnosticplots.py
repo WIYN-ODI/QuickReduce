@@ -49,6 +49,7 @@ import podi_sitesetup as sitesetup
 
 import Queue
 import multiprocessing
+import podi_logging, logging
 
 
 #####################################################################################
@@ -64,6 +65,8 @@ import multiprocessing
 def plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list, 
                          title="WCS Scatter",
                          ota_stats = None, ota_global_stats = None):
+
+    logger = logging.getLogger("DiagPlot_WCSScatter")
 
     #fig = matplotlib.pyplot.figure()
     fig, ax = matplotlib.pyplot.subplots()
@@ -131,6 +134,7 @@ R.M.S. %0.3f / %.3f (DEC)
         fig.show()
     else:
         for ext in extension_list:
+            logger.debug("saving file: %s.%s" % (filename, ext))
             fig.savefig(filename+"."+ext)
 
     matplotlib.pyplot.close()
@@ -146,7 +150,8 @@ def wcsdiag_scatter(#matched_cat,
                     also_plot_singleOTAs=True
                     ):
 
-    stdout_write("Creating the WCS scatter plot ...")
+    logger = logging.getLogger("DiagPlot_WCSScatter")
+    logger.info("Creating the WCS scatter plot ...")
 
     # Eliminate all matches with somehow illegal coordinates
     good_matches = numpy.isfinite(matched_radec_odi[:,0]) & numpy.isfinite(matched_radec_2mass[:,0])
@@ -204,7 +209,7 @@ def wcsdiag_scatter(#matched_cat,
 
             title = "WSC Scatter - OTA %02d" % (this_ota)
                 
-            print extname, ota_stats
+            logger.debug(extname+" -> "+str(ota_stats))
 
             ota_plotfile = create_qa_otaplot_filename(filename, this_ota, options['structure_qa_subdirs'])
             # ota_plotfile = "%s_OTA%02d" % (filename, this_ota)
@@ -231,7 +236,7 @@ def wcsdiag_scatter(#matched_cat,
         p.join()
 
     # Create some plots for WCS diagnosis
-    stdout_write(" done!\n")
+    logger.debug("done!")
 
 
 
@@ -268,6 +273,7 @@ def plot_wcsdiag_shift(radec, d_radec,
                        title=None,
                        ):
 
+    logger = logging.getLogger("DiagPlot_WCSShift")
     fig, ax = matplotlib.pyplot.subplots()
     
 #    d_ra  = matched_cat[:,0] - matched_cat[:,2]
@@ -308,7 +314,7 @@ def plot_wcsdiag_shift(radec, d_radec,
     #           angles='xy', scale_units='xy', scale=1, pivot='middle',
     #           headwidth=0)
 
-    print "Adding quiverkey at pos"#, arrow_x, arrow_y
+    logger.debug("Adding quiverkey at pos") #, arrow_x, arrow_y
     # qk = ax.quiverkey(Q, arrow_x, arrow_y, arrow_length, 
     #                   label="1''", labelpos='S',
     #                   coordinates='data'
@@ -339,10 +345,11 @@ def plot_wcsdiag_shift(radec, d_radec,
         fig.show()
     else:
         for ext in extension_list:
+            logger.debug("saving file: %s.%s" % (filename, ext))
             fig.savefig(filename+"."+ext)
 
     matplotlib.pyplot.close()
-    stdout_write(" done!\n")
+    logger.debug("done!")
 
     return
 
@@ -358,7 +365,8 @@ def wcsdiag_shift(matched_radec_odi,
                   also_plot_singleOTAs=True
                   ):
 
-    stdout_write("Creating the WCS offset/shift plot ...")
+    logger = logging.getLogger("DiagPlot_WCSShift")
+    logger.info("Creating the WCS offset/shift plot ...")
 
     # Eliminate all matches with somehow illegal coordinates
     good_matches = numpy.isfinite(matched_radec_odi[:,0]) & numpy.isfinite(matched_radec_2mass[:,0])
@@ -534,7 +542,8 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
                          ):
 
 
-    stdout_write("Creating the photometric calibration plot ...")
+    logger = logging.getLogger("DiagPlot_PhotZP")
+    logger.info("Creating the photometric calibration plot ...")
 
     fig, ax = matplotlib.pyplot.subplots()
 
@@ -647,12 +656,12 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
             for ext in options['plotformat']:
                 if (ext != ''):
                     fig.savefig(output_filename+"."+ext)
-                    print "plot saved as ",output_filename+"."+ext
+                    logger.debug("plot saved as %s.%s" % (output_filename, ext))
         else:
             fig.savefig(output_filename+".png")
 
     matplotlib.pyplot.close()
-    stdout_write(" done!\n")
+    logger.debug("done!")
 
 
 
@@ -686,6 +695,8 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
 #####################################################################################
 
 def plot_zeropoint_map(ra, dec, zp, ota_outlines, output_filename, options, zp_range):
+
+    logger = logging.getLogger("DiagPlot_ZPmap")
 
     fig, ax = matplotlib.pyplot.subplots()
     zp_min, zp_max = zp_range
@@ -726,7 +737,7 @@ def plot_zeropoint_map(ra, dec, zp, ota_outlines, output_filename, options, zp_r
             for ext in options['plotformat']:
                 if (ext != ''):
                     fig.savefig(output_filename+"."+ext)
-                    print "saving plot to",output_filename+"."+ext
+                    logger.debug("saving plot to %s.%s" % (output_filename, ext))
         else:
             fig.savefig(output_filename+".png")
 
@@ -743,7 +754,8 @@ def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
                              ):
 
 
-    stdout_write("Creating the photometric calibration per OTA plot ...")
+    logger = logging.getLogger("DiagPlot_ZPmap")
+    logger.info("Creating the photometric calibration per OTA plot ...")
 
     zp_raw = sdss_mag - odi_mag
 
@@ -759,7 +771,7 @@ def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
     # Create one plot for the full focal plane, using boxes to outlines OTAs
     zp_range = (zp_min, zp_max)
     plot_zeropoint_map(ra, dec, zp_raw, ota_outlines, output_filename, options, zp_range)
-    print ota_outlines
+    logger.debug(ota_outlines)
 
     # If requested, do the same for the individual OTAs
     if (also_plot_singleOTAs):
@@ -780,7 +792,7 @@ def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
             ota_plotfile = create_qa_otaplot_filename(output_filename, this_ota, options['structure_qa_subdirs'])
             plot_zeropoint_map(ra_ota, dec_ota, zp_ota, None, ota_plotfile, options, zp_range)
     
-    stdout_write(" done!\n")
+    logger.debug("done!")
 
     return
 
@@ -809,7 +821,9 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
                      ota_outlines=None,
                      options=None,
                      ):
-                       
+   
+    logger = logging.getLogger("DiagPlot_PSFSize")
+                    
     fig, ax = matplotlib.pyplot.subplots()
 
     fwhm_min, fwhm_max = fwhm_range
@@ -838,7 +852,7 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
             for ext in options['plotformat']:
                 if (ext != ''):
                     fig.savefig(output_filename+"."+ext)
-                    print "saving plot to",output_filename+"."+ext
+                    logger.debug("saving plot to %s.%s" % (output_filename, ext))
         else:
             fig.savefig(output_filename+".png")
 
@@ -854,7 +868,9 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
                          ):
 
 
-    stdout_write("Creating the PSF size as heatmap plot ...")
+    logger = logging.getLogger("DiagPlot_PSFSize")
+    logger.info("Creating the PSF size as heatmap plot ...")
+
     fwhm_scale_arcsec = 3600.0 * 0.11
 
     fwhm *= fwhm_scale_arcsec
@@ -886,7 +902,8 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
     #                  ota_outlines=ota_outlines,
     #                  options=options)
 
-    print ota_outlines
+    logger.debug("OTA-outlines:")
+    logger.debug(ota_outlines)
 
     # If requested, do the same for the individual OTAs
     if (also_plot_singleOTAs):
@@ -930,7 +947,7 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
     for p in processes:
         p.join()
 
-    stdout_write(" done!\n")
+    logger.debug("done!")
 
     return
 
