@@ -6,3 +6,13 @@ user = "guest"
 password = "guest"
 
 
+def format_msg(log_record):
+
+    from podi_definitions import cmdline_arg_set_or_default
+
+    jobid = cmdline_arg_set_or_default("-jobid", "???")
+
+    formatted = "<Request><JobID>%s</JobID><Status>RUNNING</Status><Note>%s</Note></Request>" % (
+        jobid, log_record.msg)
+
+    return formatted

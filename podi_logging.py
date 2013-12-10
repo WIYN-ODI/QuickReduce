@@ -259,15 +259,25 @@ def log_master(queue, options):
 
             #print "done with record.\n"
 
+            #
+            # only sent select message via Pika, and only if Pika has been 
+            # initialized successfully
+            #
             if (enable_pika and 
                 (record.levelno >= logging.INFO)):
-                # only sent select message via Pika
 
                 pika_msg = "%s: %s" % (record.name, record.msg)
+                try:
+                    # use the optional formating routine to make the message
+                    # compatible with e.g. the IU-PPA system
+                    pika_msg = podi_pikasetup.format_msg(record)
+                except:
+                    pass
+                    
                 channel.basic_publish(exchange='',
                                       routing_key=podi_pikasetup.jobstatus_queue,
                                       properties=pika.BasicProperties(delivery_mode = 2),#persistent
-                                      body=str(record.msg)
+                                      body=str(pika_msg)
                 )
              
             queue.task_done()
