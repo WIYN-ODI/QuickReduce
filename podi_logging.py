@@ -246,9 +246,9 @@ def log_master(queue, options):
             traceback.print_exc(file=sys.stderr)
 
     if (enable_debug):
+        print >>debugfile, "done with logging, closing file"
         debugfile.close()
 
-    print "done with logging"
 
 
 
@@ -289,7 +289,10 @@ def podi_log_master_quit(log_master_info):
     """
 
     log_master_info['queue'].put_nowait(None)
-    log_master_info['listener'].join()
+    try:
+        log_master_info['listener'].join()
+    except (KeyboardInterrupt, SystemExit):
+        pass
 
     return
 
