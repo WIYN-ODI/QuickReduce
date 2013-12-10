@@ -192,6 +192,8 @@ def log_master(queue, options):
             debug_logger.propagate=False
         except:
             pass
+    else:
+        debug_logger = root
 
     info = logging.getLogger('info')
     h = logging.StreamHandler(stream=sys.stdout)
@@ -206,6 +208,30 @@ def log_master(queue, options):
     info.addHandler(h)
     info.propagate = False
             
+    #
+    # Check if we can connect to a RabbitMQ server
+    #
+    enable_pika = False
+    try:
+        debug_logger.debug("Trying to establish PIKA connection")
+        import pika
+        import podi_pikasetup
+        credentials = pika.PlainCredentials(podi_pikasetup.user, podi_pikasetup.password)
+        connection = pika.BlockingConnection(
+            pika.ConnectionParameters( 
+                credentials=credentials, 
+                host=podi_pikasetup.host, 
+                virtual_host=podi_pikasetup.vhost)
+        )
+        channel = connection.channel()
+        channel.queue_declare(queue=podi_pikasetup.jobstatus_queue, durable=True)
+
+        debug_logger.debug("PIKA connection established!")
+        enable_pika = True
+    except:
+        debug_logger.debug("No PIKA connection available")
+        pass
+        
     
     msg_received = 0
     while True:
@@ -237,6 +263,17 @@ def log_master(queue, options):
 
             #print "done with record.\n"
 
+            if (enable_pika and 
+                (record.levelno >= logging.INFO)):
+                # only sent select message via Pika
+
+                pika_msg = "%s: %s" % (record.name, record.msg)
+                channel.basic_publish(exchange='',
+                                      routing_key=podi_pikasetup.jobstatus_queue,
+                                      properties=pika.BasicProperties(delivery_mode = 2),#persistent
+                                      body=str(record.msg)
+                )
+             
             queue.task_done()
         except (KeyboardInterrupt, SystemExit):
             raise
@@ -248,6 +285,9 @@ def log_master(queue, options):
     if (enable_debug):
         print >>debugfile, "done with logging, closing file"
         debugfile.close()
+
+    if (enable_pika):
+        connection.close()
 
 
 
@@ -346,6 +386,37 @@ def podi_logger_setup(setup):
 
 
 if __name__ == "__main__":
+
+    if (cmdline_arg_isset("-pikalisten")):
+        
+        import pika
+        import podi_pikasetup
+        credentials = pika.PlainCredentials(podi_pikasetup.user, podi_pikasetup.password)
+        connection = pika.BlockingConnection(
+            pika.ConnectionParameters( 
+                credentials=credentials, 
+                host=podi_pikasetup.host, 
+                virtual_host=podi_pikasetup.vhost)
+        )
+        channel = connection.channel()
+        channel.queue_declare(queue=podi_pikasetup.jobstatus_queue, durable=True)
+
+        print "PIKA connection established!"
+
+        def callback(ch, method, properties, body):
+            print " [o] %r" % (body,)
+
+        channel.basic_consume(callback,
+                              queue=podi_pikasetup.jobstatus_queue,
+                              no_ack=True)
+
+        print ' [*] Waiting for messages. To exit press CTRL+C'
+        channel.start_consuming()
+
+        sys.exit(0)
+
+
+
 
     import podi_collectcells
     options = podi_collectcells.read_options_from_commandline()

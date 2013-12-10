@@ -1,0 +1,8 @@
+runjob_queue="workernode.runjob"
+jobstatus_queue="workernode.jobstatus"
+host = "localhost"
+vhost = None
+user = "guest"
+password = "guest"
+
+
