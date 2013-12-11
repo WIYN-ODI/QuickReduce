@@ -1271,39 +1271,39 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # hdulist[0].header['WCS2_N']   = (n_matches, "WCS rot refi n_matches")
 
 
+    logger.debug("Writing shift/rotation to output file")
+    for ext in range(len(hdulist)):
+        if (not is_image_extension(hdulist[ext])):
+            continue
+        ota_extension = hdulist[ext]
+        wcs_poly = header_to_polynomial(ota_extension.header)
+        wcs_poly = wcs_apply_rotation(wcs_poly, current_best_rotation)
+        wcs_poly = wcs_apply_shift(wcs_poly, current_best_shift)
+        wcs_wcspoly_to_header(wcs_poly, ota_extension.header)
+
+    # For testing, apply correction to the input catalog, 
+    # match it to the reference catalog and output both to file
+    src_rotated = rotate_shift_catalog(src_raw, (center_ra, center_dec), 
+                                       angle=current_best_rotation,
+                                       shift=current_best_shift,
+                                       verbose=False)
+    matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(2./3600.), max_count=1)
+    if (create_debug_files): numpy.savetxt("ccmatch.after_rotation", matched)
+
+    # src_raw_rotated = rotate_shift_catalog(src_raw, (center_ra, center_dec), 
+    #                                        angle=current_best_rotation,
+    #                                        shift=current_best_shift,
+    #                                        verbose=False)
+
+    #print "writing results ..."
+    #hduout = pyfits.HDUList(hdulist[0:3])
+    #hduout.append(hdulist[13])
+    #hduout = pyfits.HDUList(hdulist)
+    #hduout.writeto(outputfile, clobber=True)
+
+    # We only asked for rotation optimization, so 
+    # end the processing right here
     if (mode == "rotation"):
-        # We only asked for rotation optimization, so 
-        # end the processing right here
-        logger.debug("Writing shift/rotation to output file")
-        for ext in range(len(hdulist)):
-            if (not is_image_extension(hdulist[ext])):
-                continue
-            ota_extension = hdulist[ext]
-            wcs_poly = header_to_polynomial(ota_extension.header)
-            wcs_poly = wcs_apply_rotation(wcs_poly, current_best_rotation)
-            wcs_poly = wcs_apply_shift(wcs_poly, current_best_shift)
-            wcs_wcspoly_to_header(wcs_poly, ota_extension.header)
-
-        # For testing, apply correction to the input catalog, 
-        # match it to the reference catalog and output both to file
-        src_rotated = rotate_shift_catalog(src_raw, (center_ra, center_dec), 
-                                           angle=current_best_rotation,
-                                           shift=current_best_shift,
-                                           verbose=False)
-        matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(2./3600.), max_count=1)
-        if (create_debug_files): numpy.savetxt("ccmatch.after_rotation", matched)
-
-        # src_raw_rotated = rotate_shift_catalog(src_raw, (center_ra, center_dec), 
-        #                                        angle=current_best_rotation,
-        #                                        shift=current_best_shift,
-        #                                        verbose=False)
-
-        #print "writing results ..."
-        #hduout = pyfits.HDUList(hdulist[0:3])
-        #hduout.append(hdulist[13])
-        #hduout = pyfits.HDUList(hdulist)
-        #hduout.writeto(outputfile, clobber=True)
-
         return_value['hdulist'] = hdulist
         return_value['transformation'] = best_shift_rotation_solution
         return_value['matched_src+2mass'] = matched
@@ -1312,6 +1312,18 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
 
         logger.debug("All done here, returning")
         return return_value 
+
+
+    #
+    #   |
+    #   |     All code below is allowing a OTA-level optimization.
+    #   |     Proceed with caution !!
+    #  \1/
+    #   "
+
+    logger.debug("Optimizing each OTA separately")
+
+
 
 
 
