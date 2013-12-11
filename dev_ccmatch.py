@@ -242,8 +242,7 @@ def kd_match_catalogs(src_cat, ref_cat, matching_radius, max_count=1):
 
     Match two catalogs using kD-trees.
 
-    Parameters
-    ----------
+    Parameters:
 
     src_cat : ndarray
 
@@ -767,7 +766,7 @@ def verify_wcs_model(cat, hdulist):
     """
     for debugging only, don't use
     """
-    comp = numpy.zeros(shape=(cat.shape[0],6))
+    comp = numpy.zeros(shape=(cat.shape[0],8))
 
     n_start = 0
 
@@ -776,6 +775,7 @@ def verify_wcs_model(cat, hdulist):
             continue
 
         ota_extension = hdulist[ext]
+        extname = hdulist[ext].header['EXTNAME']
         ota = int(ota_extension.header['FPPOS'][2:4])
 
         # sources from this OTA
@@ -788,27 +788,32 @@ def verify_wcs_model(cat, hdulist):
         # Read the WCS imformation from the fits file
         wcs_poly = header_to_polynomial(ota_extension.header)
 
-        wcs_poly = wcs_clear_distortion(wcs_poly)
+        # wcs_poly = wcs_clear_distortion(wcs_poly)
 
 
         # Extract only the stars in this OTA - 
         # only for these is the WCS solution applicable
         ota_cat = cat[in_this_ota]
+        ota_cat[:,2:4] -= [1,1]
 
         # Convert pixel coordinates into Ra/Dec
         ra_dec = wcs_pix2wcs(ota_cat[:,2:4], wcs_poly)
         
-        comp[n_start:n_start+number_src_in_this_ota,0:2] = ota_cat[:,0:2]
-        comp[n_start:n_start+number_src_in_this_ota,2:4] = ra_dec[:,0:2]
+        comp[n_start:n_start+number_src_in_this_ota,0:4] = ota_cat[:,0:4]
+        comp[n_start:n_start+number_src_in_this_ota,4:6] = ra_dec[:,0:2]
 
         ota_extension.header['CTYPE1'] = 'RA---TPV'
         ota_extension.header['CTYPE2'] = 'DEC--TPV'
         wcs = astWCS.WCS(ota_extension.header, mode='pyfits')
         wcs2 = numpy.array(wcs.pix2wcs(ota_cat[:,2], ota_cat[:,3]))
         
-        print wcs2.shape
-        print wcs2[0:4,0:2]
-        comp[n_start:n_start+number_src_in_this_ota,4:6] = wcs2[:,0:2]
+        #print wcs2.shape
+        #print wcs2[0:4,0:2]
+        comp[n_start:n_start+number_src_in_this_ota,6:8] = wcs2[:,0:2]
+
+        dump_file = "debug.verifywcs."+extname
+        print "writing",dump_file
+        numpy.savetxt(dump_file, comp[n_start:n_start+number_src_in_this_ota,:])
 
         n_start += number_src_in_this_ota
 
@@ -966,8 +971,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
 
     Perform the astrometric correction.
 
-    Paramters
-    ---------
+    Parameters
+    ----------
 
     source_catalog : ndarray
 
@@ -1515,30 +1520,37 @@ if __name__ == "__main__":
         numpy.savetxt(source_catalog+".isolated", isolated)
         sys.exit(0)
 
+    elif (cmdline_arg_isset('-verify')):
+        source_catalog = numpy.loadtxt(get_clean_cmdline()[1])
+        input_hdu = get_clean_cmdline()[2]
+        hdulist = pyfits.open(input_hdu)
 
-    mode = cmdline_arg_set_or_default('-mode', 'xxx')
-    print mode
+        verify_wcs_model(source_catalog, hdulist)
 
-    valid_mode = (mode == "shift" or mode == "rotation" or mode == "distortion")
-    if (not valid_mode):
-        print """\
+    else:
+        mode = cmdline_arg_set_or_default('-mode', 'xxx')
+        print mode
+
+        valid_mode = (mode == "shift" or mode == "rotation" or mode == "distortion")
+        if (not valid_mode):
+            print """\
 This mode is not known.
 Valid modes are only
   * shift
   * rotation
   * distortion
 """
-        sys.exit(0)
+            sys.exit(0)
 
-
-    source_catalog = sys.argv[1]
+        source_catalog = get_clean_cmdline()[1]
     
-    reference_catalog = None
+        reference_catalog = None
     
-    input_hdu = sys.argv[3]
+        input_hdu = get_clean_cmdline()[2]
 
-    output_hdu = ccmatch(source_catalog, reference_catalog, input_hdu, mode)
+        ccmatched = ccmatch(source_catalog, reference_catalog, input_hdu, mode)
 
-    outputfile = sys.argv[4]
+        output_hdu = ccmatched['hdulist']
+        outputfile = get_clean_cmdline()[3]
     
-    output_hdu.writeto(outputfile, clobber=True)
+        output_hdu.writeto(outputfile, clobber=True)
