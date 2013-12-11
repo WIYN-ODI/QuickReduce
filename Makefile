@@ -12,18 +12,28 @@ build_latex = doc/build/latex/
 build_html = doc/build/html/
 build_singlehtml = doc/build/single_html/
 
-doc:
-	@- sphinx-apidoc . --force --full -H QuickReduce -A "Ralf Kotulla" -V "0.9" -R 1234.3 -o $(srcdir)
 
-latex:
-	@- sphinx-build -b latex $(srcdir) $(build_latex)
-	@- cd $(build_latex); pwd; pdflatex -interaction=nonstopmode QuickReduce.tex; pdflatex -interaction=nonstopmode QuickReduce.tex
+sphinxbuild_options = 
+# -D extensions=['sphinxcontrib.napoleon','sphinx.ext.autodoc','sphinx.ext.viewcode',]
+sphinx_build = sphinx-build $(sphinxbuild_options)
+
+
+SVNREV = $(shell svn info | grep Revision | awk '{print $$2;}')
+
+doc:
+	@- sphinx-apidoc . --force  -H QuickReduce -R $(SVNREV) -o $(srcdir)
+
+latex: doc
+	@- $(sphinx_build) -b latex $(srcdir) $(build_latex)
+# 	Run latex twice to get the table of contents right
+	@- cd $(build_latex); pwd; pdflatex -interaction=nonstopmode QuickReduce.tex; 
+	@- cd $(build_latex); pwd; pdflatex -interaction=nonstopmode QuickReduce.tex; 
 	@- cp $(build_latex)/QuickReduce.pdf $(docdir)
 
-html:
+html: doc
 	@- sphinx-build -b html $(srcdir) $(build_html)
 
-single_html:
+single_html: doc
 	@- sphinx-build -b singlehtml $(srcdir) $(build_singlehtml)
 
 all: doc html latex single_html
