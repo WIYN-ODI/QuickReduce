@@ -1,5 +1,11 @@
 #!/usr/bin/env python
 
+"""
+
+This module contains all functionality to perform the astrometric correction of
+a frame by matching the source catalog to a catalog of reference stars.
+
+"""
 
 import sys
 import numpy
@@ -29,6 +35,13 @@ import logging
 create_debug_files = True
 
 def select_brightest(radec, mags, n):
+    """ 
+
+    Create a new catalog containing only the n brightest members of the input 
+    catalog.
+
+    """
+
     # print mags
     si = numpy.argsort(mags[:,0])
     # print si
@@ -47,6 +60,14 @@ def select_brightest(radec, mags, n):
 def count_matches(src_cat, ref_cat, 
                   pointing_error=(max_pointing_error/60.), 
                   matching_radius=(4./3600.), debugangle=None):
+
+    """
+
+    This is the main routine in ccmatch. First, find for each source in catalog
+    1 all nearby sources in catalog 2. In a second step, determine the
+    approximate relative position that occurs the most frequently.
+
+    """
 
     logger = logging.getLogger()
 
@@ -150,7 +171,11 @@ def count_matches(src_cat, ref_cat,
 
 
 def rotate_shift_catalog(src_cat, center, angle, shift=None, verbose = False):
-    
+    """
+
+    Apply a rotation and shift to a catalog.
+
+    """
     if (verbose):
         print "\n\n\nIn rotate_shift_catalog"
         print "angle =", angle
@@ -213,7 +238,42 @@ def rotate_shift_catalog(src_cat, center, angle, shift=None, verbose = False):
     return src_output
 
 def kd_match_catalogs(src_cat, ref_cat, matching_radius, max_count=1):
+    """
 
+    Match two catalogs using kD-trees.
+
+    Parameters
+    ----------
+
+    src_cat : ndarray
+
+        input catalog 1. first two columns have to be Ra/Dec
+
+    ref_cat : ndarray
+
+        input catalog 2. again, columns 1 &2 have to be Ra/Dec.
+
+    matching_radius : float
+
+        matching radius in arcsec. If two sources are closer than this, they are 
+        considered a match.
+
+    max_count : int
+
+        Exclude all sources that have more than (max_count) matches.
+
+    Returns
+    -------
+
+        The matched catalog. The columns of this output catalog first contain
+        all columns from the input catalog 1, followed by all columns of the
+        matched sources in catalog 2. If no counterpart is found in catalog 2,
+        this source is omitted from the output catalog.
+
+    Currently only the first match is returned for each input source.
+
+    """
+    
     src_tree = scipy.spatial.cKDTree(src_cat[:,0:2])
     ref_tree = scipy.spatial.cKDTree(ref_cat[:,0:2])
 
@@ -262,6 +322,11 @@ def count_matches_parallelwrapper(work_queue, return_queue,
                                   matching_radius=(4./3600.), 
                                   debugangle=None
                                   ):
+    """
+    
+    Just a small wrapper to enable parallel execution of `count_matches`.
+
+    """
 
     logger = logging.getLogger()
     while (True):
@@ -295,6 +360,56 @@ def find_best_guess(src_cat, ref_cat,
                     matching_radius=5./3600.,
                     allow_parallel=True,
                     ):
+    """Find the best-guess astrometric correction by finding the shift and rotation 
+    angle that yields the most matching stars by iterating over a number of 
+    possible rotator angles.
+
+    Parameters
+    ----------
+
+    src_cat : ndarray
+    
+        Catalog of sources in ODI image
+
+    ref_cat : ndarray
+
+        Reference catalog of stars from, e.g., 2MASS
+
+    center_ra : double
+
+        center of rotation in RA - this has to be CRVAL1 to make the solution
+        compatible with the FITS WCS convention
+
+    center_dec : double
+    
+        center of rotation in Dec - has to be CRVAL2
+
+    pointing_error : double
+
+        Maximum positional uncertainty, in degrees. Larger is safer, but takes
+        more time to compute and doesn't help if pointing errors are small.
+
+    angle_max : double or double[2]
+
+        Maximum uncertainty in the rotator angle position, in degrees. Can
+        either be a single angle or a float[2], e.g. [-1,2].
+
+    matching_radius : double
+
+        radius to use when computing the density of overlapping points. Smaller
+        numbers give slightly more accurate results, but larger values are 
+        more reliable when frames show some distortion.
+
+    allow_parallel : Bool
+
+        Run the catalog matching in parallel (faster, recommended) or as a 
+        single process (slower, needs fewer resources)
+
+    Returns
+    -------
+    The best_guess shift and rotation angle
+    
+    """
 
     # 
     # Now loop over all stars in the source catalog and find nearby stars in the reference catalog
@@ -429,6 +544,12 @@ def fit_best_rotation_shift(src_cat, ref_cat,
                             matching_radius=(6./3600.)
                             ):
 
+    """
+
+    optimize the astroemtric solution by minimizing the difference betweeen 
+    source and reference positions in a matched catalog.
+
+    """
     logger = logging.getLogger("OptimizeShiftRotation")
 
     src_rotated = rotate_shift_catalog(src_cat, 
@@ -567,6 +688,10 @@ def fit_best_rotation_shift(src_cat, ref_cat,
 
 
 def optimize_shift_rotation(p, guessed_match, hdulist, fitting=True):
+    
+    """
+    outdated, don't use.
+    """
 
     diff = numpy.zeros(shape=(guessed_match.shape[0],2))
 
@@ -639,7 +764,9 @@ def optimize_shift_rotation(p, guessed_match, hdulist, fitting=True):
 
 
 def verify_wcs_model(cat, hdulist):
-
+    """
+    for debugging only, don't use
+    """
     comp = numpy.zeros(shape=(cat.shape[0],6))
 
     n_start = 0
@@ -696,7 +823,11 @@ def ccmatch_shift(source_cat,
                   pointing_error=(max_pointing_error/60.), #(max_pointing_error/60.)
                   ):
 
+    """
 
+    Perform a simple astrometric calibration, allowing for a shift only
+
+    """
     if (center == None):
         center_ra = numpy.median(source_cat[:,0])
         center_dec = numpy.median(source_cat[:,1])
@@ -725,7 +856,12 @@ def ccmatch_shift(source_cat,
 
  
 def log_shift_rotation(hdulist, params, n_step=1, description=""):
+    """
 
+    Add some additional keywords to primary FITS header to keep track of the 
+    shift and rotation found during astrometric calibration of the frame.
+
+    """
     hdulist[0].header['WCS%d_DA'  % n_step] = (params[0], "%s angle [deg]" % (description))
     hdulist[0].header['WCS%d_DRA' % n_step] = (params[1]*3600., "%s d_RA [arcsec]" % (description))
     hdulist[0].header['WCS%d_DDE' % n_step] = (params[2]*3600, "%s d_DEC [arcsec]" % (description))
@@ -737,7 +873,13 @@ def log_shift_rotation(hdulist, params, n_step=1, description=""):
 
 
 def apply_correction_to_header(hdulist, best_guess, verbose=False):
+    """
 
+    Apply the optimzied shift and rotation found during astrometric calibration 
+    to the output FITS header.
+
+    """
+    
     for ext in range(len(hdulist)):
         if (not is_image_extension(hdulist[ext])):
             continue
@@ -819,6 +961,45 @@ def pick_isolated_stars(catalog, radius=10.):
 def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             max_pointing_error=5,
             max_rotator_error=[-0.5,1.5]):
+
+    """
+
+    Perform the astrometric correction.
+
+    Paramters
+    ---------
+
+    source_catalog : ndarray
+
+        Catalog of sources in the ODI frames. This needs to be in the 
+        proper format, as ccmatch splits the catalog by OTA and eliminates 
+        sources with flags.
+
+    reference_catalog : ndarray
+
+        Astrometric reference catalog. The first two columns have to be Ra/Dec.
+
+    input_hdu : HDUList
+
+        HDUlist containing the frame to be calibrated.
+
+    mode : string
+
+        Calibration mode for ccmatch. Currently available are:
+        * "shift"
+        * "rotation"
+        * "distortion"
+
+    max_pointing_error : double
+
+        maximum position uncertainty that can be tolerated. If the data exceeds
+        this value the astrometric calibration is likely to yield wrong results.
+
+    max_rotator_error : float[2]
+
+        maximum error for the rotator angle.
+
+    """
 
     logger = logging.getLogger("CCMatch")
 
