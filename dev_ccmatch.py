@@ -822,6 +822,59 @@ def verify_wcs_model(cat, hdulist):
 
 
 
+def optimize_shear_and_position(ota_cat, hdr):
+    """
+
+    Optimize the WCS by allowing the CRVAL and CD matrix as free parameters
+
+    """
+
+    # Create a astLib WCS class to handle the conversion from X/Y to Ra/Dec
+    astwcs = astWCS.WCS(hdr, mode='pyfits')
+
+    keyword_order = ('CRVAL1', 'CRVAL2',
+                     'CD1_1', 'CD1_2', 'CD2_1', 'CD2_2')
+
+    def fit_shear_and_position(p, src_xy, ref_radec, astwcs):
+
+        # Transfer all fitting parameters to astWCS
+        for i in range(6):
+            astwcs.header[keyword_order[i]] = p[i]
+        # and update astWCS so the changes take effect
+        astwcs.updateFromHeader()
+
+        # Now compute all Ra/Dec values based on the new WCS solution
+        src_radec = numpy.array(astwcs.pix2wcs(src_xy[:,0], src_xy[:,1]))
+
+        # This gives us the Ra/Dec values as 2-d array
+        # compute difference from the Ra/Dec of the reference system
+        src_ref = src_radec - ref_radec
+
+        # return the 1-d version for optimization
+        return src_ref.ravel()
+
+    # Prepare all values we need for fitting
+    src_xy = ota_cat[:,2:4] - [1.,1.]
+    ref_radec = ota_cat[:,-2:]
+
+    p_init = [0] * 6
+    for i in range(6):
+        p_init[i] = hdr[keyword_order[i]]
+
+    fit_args = (src_xy, ref_radec, astwcs)
+    fit = scipy.optimize.leastsq(fit_shear_and_position,
+                                 p_init, 
+                                 args=fit_args, 
+                                 full_output=1)
+
+    # New, optimized values are in fit[0]
+    better_wcs = fit[0]
+    # Copy the optimized values into the header
+    for i in range(6):
+        hdr[keyword_order[i]] = better_wcs[i]
+
+    return
+
 def ccmatch_shift(source_cat, 
                   reference_cat,
                   center=None, #[center_ra, center_dec],
@@ -1323,8 +1376,59 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
 
     logger.debug("Optimizing each OTA separately")
 
+    # Match the entire input catalog with the reference catalog
+    # Allow a matching radius of 3'', but only unique matches
+    matched_global = kd_match_catalogs(src_rotated, 
+                                       ref_cat, 
+                                       matching_radius=(3./3600.), 
+                                       max_count=1)
 
+    global_cat = None
+    for ext in range(len(hdulist)):
+        if (not is_image_extension(hdulist[ext])):
+            continue
 
+        ota = hdulist[ext].header['OTA']
+        in_this_ota = matched_global[:,8] == ota
+
+        ota_cat = matched_global[in_this_ota]
+
+        if (ota_cat.shape[0] < 5):
+            # Only optimize the shift of this OTA
+            continue
+
+        else:
+
+            optimize_shear_and_position(ota_cat, hdulist[ext].header)
+
+        # Now that we have the optimized WCS solution, recompute the source 
+        # Ra/Dec values with the better system
+        astwcs = astWCS.WCS(hdulist[ext].header, mode='pyfits')
+        
+        ota_xy = ota_cat[:,2:4] - [1.,1.]
+        ota_radec = numpy.array(astwcs.pix2wcs(ota_xy[:,0], ota_xy[:,1]))
+
+        ota_cat[:,0:2] = ota_radec
+        
+        global_cat = ota_cat if (global_cat == None) else numpy.append(global_cat, ota_cat, axis=0)
+
+    
+    # Match the new, improved catalog with the reference catalog
+    # Allow a matching radius of 2'', but only unique matches
+    matched_global = kd_match_catalogs(global_cat, 
+                                       ref_cat, 
+                                       matching_radius=(2./3600.), 
+                                       max_count=1)
+    numpy.savetxt("ccmatch.after_shear", matched_global)
+
+    return_value['hdulist'] = hdulist
+    return_value['transformation'] = best_shift_rotation_solution
+    return_value['matched_src+2mass'] = matched_global
+    return_value['calibrated_src_cat'] = global_cat
+    return_value['2mass-catalog'] = ref_cat
+    
+    logger.debug("All done here, returning")
+    return return_value 
 
 
 
