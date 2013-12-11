@@ -22,10 +22,8 @@
 #
 
 """
-How-to use:
 
-./podi_collectcells.py 
-
+Rename the source directories to match the OBSID of the files contained within.
 
 """
 

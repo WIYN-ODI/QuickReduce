@@ -21,6 +21,17 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
+"""
+
+Collection of routines used to perform the astrometric correction.
+
+Warning:
+--------
+
+    Most functionality is now superseded by ccmatch.
+
+"""
+
 
 import sys
 import numpy

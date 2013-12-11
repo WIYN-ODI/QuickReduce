@@ -21,6 +21,12 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
+"""
+
+This module handles the normalization of flat-fields.
+
+"""
+
 import sys
 import os
 import pyfits

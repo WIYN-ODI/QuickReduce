@@ -21,11 +21,52 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
-"""
-How-to use:
+"""podi_multicollect is a wrapper around podi_collectcells that allows to
+batch-reduce a number of files consecutively.
 
-./podi_collectcells.py 
+Usage:
+-----------
 
+    ``podi_multicollect.py -fromfile=file.list -formatout=(format) (options)``
+
+file.list is list of either directories named after the OBSID of the frames it
+contains (e.g. ``/some/dir/o20131212T012345.1/``) or a list of files, with one file
+per exposure (e.g. ``/some/dir/o20131212T012345.1/o20131212T012345.1.33.fits``). In
+both cases, multicollect or collectcells automatically determines the name of
+all other FITS files for this exposure.
+
+Warning
+-------
+
+    If the input file-list contains two FITS files of the same exposure 
+    (e.g. xxx.33.fits and xxx.00.fits), this results in this frame being 
+    reduced twice. No harm done, just a waste of time.
+
+**-formatout=format** 
+
+    This allows to put information from the FITS header into the filename to 
+    form informative, human-readable filenames.
+
+    Valid format string include
+
+        * %OBJECT
+        * %OBSID
+        * %FILTER
+        * %EXPTIME
+
+    These can be assembled in any order.  for example into
+    ``-formatout=%OBSID___%OBJECT___%FILTER___%EXPTIME.fits``. This would be
+    translated during execution into:
+    ``o20131112T012345.0___M51_pointing1___odi_r___1200.fits``
+
+    **Note** If the formatout-string contains directories, these will be created
+    during execution.
+
+
+**(options)**
+   
+    All other options are handled by collectcells, thus all collectcells 
+    options can also be given to podi_multicollect.
 
 """
 

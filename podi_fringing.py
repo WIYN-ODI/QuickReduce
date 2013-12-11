@@ -21,6 +21,35 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
+"""
+
+This module contains all functionality related to fringin in ODI frames, from
+creating the fringe templates, to finding the ideal fringe scaling factor to
+actually subtracting the fringe frame.
+
+Standalone routines
+----------------------
+
+* **-make_template**
+
+  Create a fringe template from collectcells-reduced frames
+
+  ``./podi_fringing.py -make_template (-op=nanmedian.bn) output_template.fits file1.fits file2.fits``
+
+* **-esomethod**
+
+  Determine the optimal fringe scaling and perform fringe removal
+
+  ``./podi_fringing.py -esomethod fringe_template.fits input.fits output.fits``
+
+
+Methods
+---------------------------
+
+"""
+
+
+
 import sys
 import os
 import pyfits
@@ -50,6 +79,22 @@ avg_sky_countrates = {
 number_cpus = 4
 
 def make_fringing_template(input_filelist, outputfile, return_hdu=False, skymode='local'):
+    """
+
+    Create a fringe template from the given list of suitable input frames. 
+
+    For each frame, compute the sky-level and the sky-countrate. Frames with
+    sky-countrates exceeding a filter-specific level are ignored, as the sky is
+    very likely contaminated by stray light. This also eliminates frames with
+    background gradients. Each frame is then background-subtracted and
+    normalized by its background-level, leaving only the fringe amplitude
+    behind.
+
+    To eliminate sources, all data for a given extension are then
+    median-combined. Once this is complete for all available extensions, the
+    resulting fringe maps are written to the output FITS file.
+
+    """
 
     # First loop over all filenames and make sure all files exist
     hdu_filelist = []
@@ -169,6 +214,11 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False, skymode
 
 
 def compute_fringe_scale(datahdu, fringehdu):
+    """
+
+    Outdated, do not use
+
+    """
 
     extname = datahdu.header['EXTNAME']
     print "\n\n\n",extname,"\n"
@@ -202,6 +252,11 @@ def compute_fringe_scale(datahdu, fringehdu):
     return res_fits
 
 def mpworker_fringe_scale(queue_jobs, queue_return): #datahdu, fringehdu):
+    """
+
+    Outdated, do not use
+
+    """
 
     while (True):
         cmd_quit, data = queue_jobs.get()
@@ -234,7 +289,11 @@ def mpworker_fringe_scale(queue_jobs, queue_return): #datahdu, fringehdu):
 
 
 def match_subtract_fringing(data_filename, fringe_filename, verbose=True, output=None):
+    """
 
+    Outdated, do not use
+
+    """
 #    if (not type(fringe_hdulist) is pyfits.HDUList):
 #        # The fringe variable is a filename
 #        fringe_filename = fringe_hdulist
@@ -330,12 +389,22 @@ def get_fringe_scaling(data, fringe, region_file):
     informing about the fringe amplitude in the data frame. The ratio between
     the two amplitudes represents the required fringe scaling factor.
 
-    Input variables are:
-    - the data frame as 2-d numpy array
-    - the fringe map as 2-d numpy array
-    - the filename of a ds9 region file defining the regions
+    Parameters
+    ----------
+    data : ndarray
 
-    Output:
+        the data frame as 2-d numpy array
+
+    fringe : ndarray
+    
+        the fringe map as 2-d numpy array
+
+    region_file : string
+
+        the filename of a ds9 region file defining the fringe vector regions
+
+    Returns
+    -------
     A vector of measurements, column 6 of which is the scaling factor for
     each region.
     """
@@ -434,7 +503,7 @@ if __name__ == "__main__":
         sys.exit(0)
                                
     
-    if (cmdline_arg_isset("-make_template")):
+    elif (cmdline_arg_isset("-make_template")):
         outputfile = get_clean_cmdline()[1]
         filelist = get_clean_cmdline()[2:]
         operation = cmdline_arg_set_or_default("-op", "mean")
@@ -443,7 +512,7 @@ if __name__ == "__main__":
 
         sys.exit(0)
 
-    if (cmdline_arg_isset("-samplesky")):
+    elif (cmdline_arg_isset("-samplesky")):
         import podi_fitskybackground
         boxsize = int(cmdline_arg_set_or_default("-boxsize", "15"))
         count = int(cmdline_arg_set_or_default("-count", "12500"))
@@ -490,7 +559,7 @@ if __name__ == "__main__":
                 df.close()
             
 
-    if (cmdline_arg_isset("-correct")):
+    elif (cmdline_arg_isset("-correct")):
 
         inputframe = get_clean_cmdline()[1]
         template = get_clean_cmdline()[2]
@@ -521,7 +590,7 @@ if __name__ == "__main__":
         
         stdout_write(" done!\n")
 
-    if (cmdline_arg_isset("-optimize")):
+    elif (cmdline_arg_isset("-optimize")):
         dataframe = get_clean_cmdline()[1]
         fringemap = get_clean_cmdline()[2]
         
@@ -650,7 +719,7 @@ if __name__ == "__main__":
 
 
 
-    if (cmdline_arg_isset("-rmfringe")):
+    elif (cmdline_arg_isset("-rmfringe")):
         dataframe = get_clean_cmdline()[1]
         fringemap = get_clean_cmdline()[2]
         
@@ -724,7 +793,7 @@ if __name__ == "__main__":
 
 
 
-    if (cmdline_arg_isset("-matchsubtract")):
+    elif (cmdline_arg_isset("-matchsubtract")):
         dataframe = get_clean_cmdline()[1]
         fringemap = get_clean_cmdline()[2]
         
@@ -737,7 +806,7 @@ if __name__ == "__main__":
         #datahdu.writeto("matchsubtract.out.fits", clobber=True)
 
 
-    if (cmdline_arg_isset("-esomethod")):
+    elif (cmdline_arg_isset("-esomethod")):
         fringe_frame = get_clean_cmdline()[1]
         data_frame = get_clean_cmdline()[2]
         output_filename = get_clean_cmdline()[3]

@@ -23,7 +23,10 @@
 
 
 """
-Some general definitions useful in a number of podi scripts
+
+This module contains a number of global constants required during reduction, as
+well as functions that are widely used throughout the other modules.  Some
+general definitions useful in a number of podi scripts
 
 """
 
@@ -257,7 +260,17 @@ list_of_valid_filter_ids = {
 #    "1": "Us_solid",
     }
 
+
+
+
 def get_valid_filter_name(hdr):
+    """
+
+    Convert the header FILTERID entry into a valid filtername. This is necessary
+    as some of the filter names change over time, but the filter-id should
+    remain unchanged.
+
+    """
 
     try:
         filter_id = hdr['FILTERID'].strip()
@@ -277,7 +290,13 @@ def get_valid_filter_name(hdr):
 
 
 def get_cellmode(primhdr, cellhdr):
-    
+    """
+
+    Check if the specified cell, identified by OTA and CELL-ID, is either broken
+    or marked as a guide/video cell.
+
+    """
+
     ota = int(primhdr['FPPOS'][2:4])
 
     ota_name = "OTA%02d" % ota
@@ -305,11 +324,24 @@ def get_cellmode(primhdr, cellhdr):
 
 
 def stdout_write(str):
+    """
+
+    Write a given text to stdout and flush the terminal. Pretty much what print
+    does, but flushing the output afterwards.
+
+    """
+
     sys.stdout.write(str)
     sys.stdout.flush()
     return
 
 def clobberfile(filename):
+    """
+
+    Delete a file if it already exists, otherwise do nothing.
+
+    """
+
     if (os.path.isfile(filename)):
         os.remove(filename)
     return
@@ -318,6 +350,11 @@ def clobberfile(filename):
 
 from types import *   
 def shmem_as_ndarray( raw_array ):
+    """
+
+    Helper function needed to allocate shared memory numpy-arrays.
+
+    """
     _ctypes_to_numpy = {
         ctypes.c_char : numpy.int8,
         ctypes.c_wchar : numpy.int16,
@@ -350,6 +387,11 @@ def shmem_as_ndarray( raw_array ):
 
 
 def cmdline_arg_isset(arg):
+    """
+
+    Check if the given argument was given on the command line
+
+    """
     # Go through all command line arguments and check
     # if the requested argument is one of them
     for cur in sys.argv[1:]:
@@ -360,6 +402,12 @@ def cmdline_arg_isset(arg):
 
 
 def get_cmdline_arg(arg):
+    """
+
+    Retreive the value of a command-line argument
+
+    """
+
     # Check all arguments if 
     for cur in sys.argv[1:]:
         name,sep,value = cur.partition("=")
@@ -369,6 +417,20 @@ def get_cmdline_arg(arg):
 
 
 def get_clean_cmdline():
+    """
+    
+    Return all values entered on the command line with all command-line flags
+    removed.
+
+    Example:
+        
+        The user called a program ``./podi_something param1 -flag1 -flag2 param2``
+
+        This function would then return a list containing
+        ['./podi_something', 'param1', 'param2']
+
+    """
+    
     list = []
     for cur in sys.argv:
         if (cur[0] != "-" or cur[1].isdigit()):
@@ -377,6 +439,13 @@ def get_clean_cmdline():
 
 
 def cmdline_arg_set_or_default(name, defvalue):
+    """
+
+    Return the value of a command line argument. If no argument was passed (for
+    example -flag= ), assign the specified default value instead.
+
+    """
+
     if (cmdline_arg_isset(name)):
         return get_cmdline_arg(name)
     return defvalue
@@ -384,6 +453,13 @@ def cmdline_arg_set_or_default(name, defvalue):
 
 
 def sexa2deg(sexa):
+    """
+
+    Convert a sexa-decimal coordinate string (e.g. 12:30:00.0") into a float
+    (12.5 in the example).
+
+    """
+
     components = sexa.split(":")
     
     if (len(components) != 3):
@@ -396,6 +472,11 @@ def sexa2deg(sexa):
     return math.copysign(math.fabs(deg) + math.fabs(min/60.0) + math.fabs(sec/3600.0), deg)
 
 def deg2sexa(deg, signed=False):
+    """
+
+    Convert a float coordinate into the more user-friednly sexa-decimal format
+
+    """
 
     unsigned = math.fabs(deg)
 
@@ -467,11 +548,11 @@ pupilghost_centers = {"OTA33.SCI": (4190, 4150),
                       "OTA43.SCI": (  10, 4130),
                       }
 
-for ext in pupilghost_centers:
-    cx, cy = pupilghost_centers[ext]
-    cx += -9
-    cy += +4
-    pupilghost_centers[ext] = (cx, cy)
+# for ext in pupilghost_centers:
+#     cx, cy = pupilghost_centers[ext]
+#     cx += -9
+#     cy += +4
+#     pupilghost_centers[ext] = (cx, cy)
 #    pupilghost_centers[ext][0] += 1
 #    pupilghost_centers[ext][1] += 1
 
@@ -1075,6 +1156,10 @@ pupilghost_centers = {
 
 
 def inherit_headers(header, primary_header):
+    """Copy all headers from the primary header into the current header
+
+    """
+
     for header in headers_to_inherit:
         if (not header in primary_header):
             print "Problem with header ",header
@@ -1086,7 +1171,39 @@ def inherit_headers(header, primary_header):
         
 
 def rebin_image(data, binfac, operation=numpy.mean):
+    """
 
+    Apply a binning factor to a data array.
+
+    Parameters
+    ----------
+        
+    data : ndarray
+
+        Input data array. Only tested to work on two-dimensional data.
+
+    binfac : int
+
+        binning factor, e.g. 2 for 2xw binning. Only identical binning in both
+        dimensions is supported at the present.
+
+    operation : function (default: numpy.mean)
+
+        What operation to use when combining the pixels. All functions operating
+        on ndarrays are supported, but typical cases are likely one of the
+        following:
+
+        * numpy.mean
+        * numpy.average
+        * numpy.sum
+        * numpy.median
+
+        Or from the bottleneck package:
+
+        * bottleneck.nanmean
+        * bottleneck.nanmedian
+
+    """
     if (binfac < 1):
         stdout_write("Rebinning at the moment only supports binning to larger pixels with binfac>1\n")
         return None
@@ -1122,7 +1239,13 @@ def rebin_image(data, binfac, operation=numpy.mean):
 
 
 def center_coords(hdr):
-        
+    """
+
+    Return the center coordinates of a given HDU, based on the WCS information
+    (does not include distortion).
+
+    """
+    
     try:
         centerx, centery = hdr['NAXIS1']/2, hdr['NAXIS2']/2
     except:
@@ -1136,6 +1259,12 @@ def center_coords(hdr):
     
 
 def break_region_string(str_region):
+    """
+
+    Break down a IRAF-like string (e.g. [0:100,0:200]) into its four components
+    and return them separately.
+
+    """
     reg = str_region[1:-1]
     x,dummy,y = reg.partition(",")
     x1,dummy,x2 = x.partition(":")
@@ -1143,12 +1272,24 @@ def break_region_string(str_region):
     return int(x1)-1, int(x2)-1, int(y1)-1, int(y2)-1
 
 def extract_region(data, str_region):
+    """Extract a region based on the a IRAF-like region definition.
+
+    See also
+    --------
+    `break_region_string`
+
+    """
     x1,x2,y1,y2 = break_region_string(str_region)
     return data[y1:y2+1, x1:x2+1]
 
 
 def insert_into_array(data, from_region, target, target_region):
+    """
 
+    Copy data from one array into another array, with source and target
+    coordinates specified in the IRAF-style format.
+
+    """
     fx1, fx2, fy1, fy2 = break_region_string(from_region)
     tx1, tx2, ty1, ty2 = break_region_string(target_region)
 
@@ -1160,6 +1301,14 @@ def insert_into_array(data, from_region, target, target_region):
     return 0
 
 def mask_broken_regions(datablock, regionfile, verbose=False):
+    """
+
+    Mask out broken regions in a data array. Regions are defined via a ds9
+    region file to allow for ay creation by the user.
+
+    """
+
+
 
     counter = 0
     file = open(regionfile)
@@ -1189,12 +1338,23 @@ def mask_broken_regions(datablock, regionfile, verbose=False):
 
 
 def is_image_extension(hdu):
+    """
+
+    Check if a given HDU is a Image extension
+
+    """
+    
     return (type(hdu) == pyfits.hdu.image.ImageHDU or
             type(hdu) == pyfits.hdu.compressed.CompImageHDU)
 
 
 
 def get_svn_version():
+    """
+
+    Return current SVN version as given by the `svnversion` command.
+
+    """
 
     try:
         p = subprocess.Popen('svnversion -n', shell=True, stdout=subprocess.PIPE)
@@ -1208,6 +1368,11 @@ def get_svn_version():
     return svn_version
 
 def log_svn_version(hdr):
+    """
+
+    Add SVN version number to FITS header.
+
+    """
     svn = get_svn_version()
     hdr["QPIPESVN"] = (svn, "QuickReduce Revision")
     return
@@ -1215,7 +1380,11 @@ def log_svn_version(hdr):
 
 
 def rotate_around_center(data, angle, mask_limit = 0.1, verbose=True, safety=1, mask_nans=True, spline_order=3):
+    """
 
+    Rotate a given data array. Rotation center is the center of the data frame.
+
+    """
     if (verbose):
         stdout_write("Rotating data block by %.1f deg ..." % (angle))
 
@@ -1253,7 +1422,13 @@ def rotate_around_center(data, angle, mask_limit = 0.1, verbose=True, safety=1, 
 
 
 def get_filter_level(header):
-    
+    """
+
+    Return the level of the installed filter, based on the information in the
+    FLTARM header keywords. If more than one filter is active, this function
+    returns the level of the lowest populated filter arm.
+
+    """
     filter_level = 0
     filter_count = 0
  
@@ -1277,14 +1452,21 @@ def get_filter_level(header):
 
 
 def cell2ota__extract_data_from_cell(data_in=None):
-
+    """
+    Don't use anymore!
+    """
     if (data_in == None):
         return numpy.zeros(shape=(494,480))
 
     return data_in[0:494, 0:480]
 
 def cell2ota__get_target_region(x, y, binning=1):
+    """
 
+    Get the location of a given cell in the monolithic OTA array, accounting for
+    binning (only 1x1 and 2x2 supported).
+
+    """
     #taken from ODI OTA Technical Datasheet (det area 480x494, streets 11/28 px)
 
     # Y-coordinates of cell numbers are counted top down,
@@ -1308,7 +1490,11 @@ def cell2ota__get_target_region(x, y, binning=1):
 
 
 def three_sigma_clip(input, ranges=[-1e9,1e9], nrep=3, return_mask=False):
+    """
 
+    Perfom an iterative 3-sigma clipping on the passed data array. 
+
+    """
     valid = (input > ranges[0]) & (input < ranges[1])
                 
     for rep in range(nrep):
@@ -1330,6 +1516,12 @@ def three_sigma_clip(input, ranges=[-1e9,1e9], nrep=3, return_mask=False):
 
 
 def derive_ota_outlines(otalist):
+    """
+
+    For each OTA (extension) in the pased list, derive the sky-position of all 4
+    corners.
+
+    """
     from astLib import astWCS
 
     all_corners = []
@@ -1350,7 +1542,12 @@ def derive_ota_outlines(otalist):
 
 
 def create_qa_filename(outputfile, plotname, options):
+    """
 
+    Return the filename for a given diagnostic plot, accounting for
+    user-specified preferences.
+
+    """
     if (options['structure_qa_subdirs']):
         dirname, basename = os.path.split(outputfile)
         if (dirname == None or dirname == ''): 
@@ -1365,6 +1562,12 @@ def create_qa_filename(outputfile, plotname, options):
     return qa_plotfile
 
 def create_qa_otaplot_filename(plotname, ota, structure_qa_subdirs):
+    """
+
+    Return the filename for a given OTA-level diagnostic plot, accounting for
+    user-specified preferences.
+
+    """
 
     if (structure_qa_subdirs):
         # in this case, plotname is to be taken as directory
@@ -1388,7 +1591,11 @@ def create_qa_otaplot_filename(plotname, ota, structure_qa_subdirs):
 # Additional functions to handle binned data more elegantly
 #
 def get_binning(hdr):
+    """
 
+    Get the binning factor of a given frame/cell based on its header.
+
+    """
     # print "determining binning factor"
     
     # The CCDBIN1 keyword should be foung in primary header, so try this one first
@@ -1418,7 +1625,11 @@ def get_binning(hdr):
 
 
 def get_collected_image_dimensions(binning):
+    """
 
+    Return the dimension of the monolithic OTA frame, accounting for binning
+
+    """
     if (binning == 1):
         sizex, sizey = 4096, 4096
     elif (binning == 2):
@@ -1428,6 +1639,11 @@ def get_collected_image_dimensions(binning):
 
 
 def extract_datasec_from_cell(data, binning):
+    """
+
+    Return the science region of a given cell, accounting for binning
+
+    """
 
     if (binning == 1):
         dx, dy = 480, 494
@@ -1439,6 +1655,11 @@ def extract_datasec_from_cell(data, binning):
 
 
 def extract_biassec_from_cell(data, binning):
+    """
+
+    Return the overscan region of a given cell, accounting for binning
+
+    """
 
     if (binning == 1):
         dx1, dx2, dy1, dy2 = 500, 550, 0, 494
@@ -1451,7 +1672,12 @@ def extract_biassec_from_cell(data, binning):
 
 
 def match_catalog_areas(src, to_match, radius):
+    """
 
+    Match the area coverage of two catalogs, allowing for some extra coverage
+    around the edges.
+
+    """
 
     src_radec = src[:,0:2].copy()
     #src_radec[:,0] *= numpy.cos(numpy.radians(src_radec[:,1]))

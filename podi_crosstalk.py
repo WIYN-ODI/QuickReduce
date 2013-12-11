@@ -20,6 +20,15 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
+"""This module contains all data and most functionality to correct raw pODI
+frames for the effects of cross-talk amongst cells.
+
+For now, the crosstalk coefficient is defined globally, but the data structure
+supports a more sophisticated system specifying the cross-talk coefficients
+based on source and target-cell.
+
+"""
+
 x0 =  5.6E-5 #1.2e-4
 
 xtalk_saturated_correction = 8
@@ -133,6 +142,14 @@ xtalk_matrix = {}
 import numpy
 
 def invert_all_xtalk():
+    """
+
+    By default, the crosstalk coefficients are specified as the amplitude of the
+    target cell. However, fto correct for cross-talk, we need to onvert the
+    linear algebra system. This function handles all required steps.
+
+    """
+    
     global xtalk_matrix
 
     for ota in xtalk_coeffs:

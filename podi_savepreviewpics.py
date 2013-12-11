@@ -21,6 +21,20 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
+"""
+
+This module contains a small tool to create preview JPGs to be used and 
+displayed in the ODI observing GUI.
+
+It's using multiple processes to speed up execution.
+
+How to use
+----------
+``./podi_savepreviewpics.py /some/output/dir input1.fits input2.fits \
+input....fits -z1=0 -z2=65000 -ncpus=4``
+
+"""
+
 import sys
 import os
 import pyfits
@@ -37,11 +51,6 @@ import time
 
 numpy.seterr(divide='ignore', invalid='ignore')
 
-"""
-How to use: 
-./podi_savepreviewpics.py /some/output/dir input1.fits input2.fits input....fits -z1=0 -z2=65000 -ncpus=4
-
-"""
 
 limit_overexposed = 55000
 overexposed = [1.0, 0.0, 0.0]

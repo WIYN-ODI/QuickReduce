@@ -21,6 +21,25 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
+"""How to use:
+ 
+``./podi_createquickview file.fits output_dir/``
+
+What it does:
+
+    The script opens the input file and first bins each OTA extension by 8x8.
+    For some OTAs, depending on filter (also see the makeflatfield routine) the
+    image data is used to derive some best-fit intensity level with which best
+    to display the frame. Once these levels are known, each OTA is exported as
+    jpeg-file, and all OTAs are also exported as one combined jpeg. All jpegs
+    are written into the specified output folder and labeled by their OTA ID and
+    the unique observation ID (essentially the date of observation).
+
+    If specified by the 'crossout_missing_otas' variable, all non-existing OTAs
+    can be crossed out in the full focalplane jpeg.
+
+"""
+
 import sys
 import os
 import pyfits
@@ -30,24 +49,6 @@ import math
 
 import Image
 import ImageDraw
-
-"""
-How to use: 
-./podi_createquickview file.fits output_dir/
-
-What it does:
-The script opens the input file and first bins each OTA extension by 8x8. 
-For some OTAs, depending on filter (also see the makeflatfield routine) the 
-image data is used to derive some best-fit intensity level with which best to 
-display the frame. Once these levels are known, each OTA is exported as jpeg-file,
-and all OTAs are also exported as one combined jpeg. All jpegs are written into 
-the specified output folder and labeled by their OTA ID and the unique observation
-ID (essentially the date of observation).
-
-If specified by the 'crossout_missing_otas' variable, all non-existing OTAs can
-be crossed out in the full focalplane jpeg.
-
-"""
 
 limit_overexposed = 55000
 overexposed = [1.0, 0.0, 0.0]

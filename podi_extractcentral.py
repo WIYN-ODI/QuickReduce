@@ -21,6 +21,19 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
+"""
+
+Extract only the central 3x3 extensions frm the input FITS file and write to
+output FITS file.
+
+How to run:
+-----------
+
+``podi_extractcentral.py /some/output/directory file1.fits file2.fits ...``
+
+"""
+
+
 import sys
 import os
 import pyfits
@@ -59,5 +72,3 @@ if __name__ == "__main__":
         out_hdulist.writeto(outfits, clobber=True)
         #print "-->",outfits
         stdout_write(" done!\n")
-
-

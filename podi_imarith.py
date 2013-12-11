@@ -21,6 +21,27 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
+
+"""
+
+Provide basic support for image manipulations. 
+
+The syntax is largely based on the IRAF task imarith:
+
+    ``podi_imarith.py frame1.fits (op) frame2.fits output.fits
+
+Note that instead of frame2.fits you can also specify a numeric value.
+
+Operations currently supported are:
+* **+** addition
+* **-** subtraction
+* **x** multiplication
+* **/** division
+* **^** raise to the n-th power. This only works with numerical values as 
+  second parameter.
+
+"""
+
 import sys
 import os
 import pyfits

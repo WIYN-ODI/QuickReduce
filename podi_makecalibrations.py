@@ -21,24 +21,6 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
-"""
-
-
-"""
-
-import sys
-import os
-import pyfits
-import numpy
-import scipy
-
-gain_correct_frames = False
-from podi_definitions import *
-from podi_collectcells import *
-from podi_imcombine import *
-from podi_makeflatfield import *
-import podi_matchpupilghost
-
 
 """
 podi_makecalibrations is the main tool to create typical calibration products
@@ -92,6 +74,20 @@ Typical additional options are -nonlinearity and -pupilghost.
 Methods
 -------
 """
+
+import sys
+import os
+import pyfits
+import numpy
+import scipy
+
+gain_correct_frames = False
+from podi_definitions import *
+from podi_collectcells import *
+from podi_imcombine import *
+from podi_makeflatfield import *
+import podi_matchpupilghost
+
 
 
 def strip_fits_extension_from_filename(filename):

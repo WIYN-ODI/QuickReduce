@@ -21,6 +21,17 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
+"""
+
+Small tool to delete one or more extensions from a FITS file.
+
+Usage:
+-----------------
+
+``podi_deleteextension.py input.fits output.fits extension1 extension2 ...``
+
+"""
+
 import sys
 import os
 import pyfits

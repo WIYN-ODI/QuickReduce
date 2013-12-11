@@ -21,6 +21,17 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
+"""
+
+Extract a single extension from the input FITS file.
+
+Usage:
+---------
+
+``podi_extractextension input.fits EXT.NAME output.fits``
+
+"""
+
 import sys
 import os
 import pyfits

@@ -21,6 +21,21 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
+"""
+
+Small tool to display the associations table in a collectcells-reduced frame.
+
+
+Run as
+-----------
+
+``podi_showassociations.py (-full) input.fits``
+
+By default, only the filenames of the associated input files are shown. With the
+-full option, show_associations displays the full filenames of these files.
+
+"""
+
 import sys
 import os
 import pyfits

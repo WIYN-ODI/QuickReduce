@@ -21,10 +21,11 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
+"""
 
-#
-# This file contains all information, routines and imports dealing with plotting
-#
+This module contains all information and imports dealing with plotting
+
+"""
 
 
 #################################3

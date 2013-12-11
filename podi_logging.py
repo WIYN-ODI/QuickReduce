@@ -1,5 +1,13 @@
 #!/usr/bin/env python
 
+"""
+
+This module contains all routines to configure and start the multi-processing
+safe logging. All log output is queued, and handled in sequence by a separate
+logging process.
+
+"""
+
 
 import sys
 import numpy

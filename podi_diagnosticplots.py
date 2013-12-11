@@ -22,10 +22,8 @@
 #
 
 """
-How-to use:
 
-./podi_collectcells.py 
-
+Module containing all code pertaining to creating the diagnostic plots.
 
 """
 
@@ -65,7 +63,12 @@ import podi_logging, logging
 def plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list, 
                          title="WCS Scatter",
                          ota_stats = None, ota_global_stats = None):
+    """
 
+    Function generating the WCS scatter plot from the given data.
+
+    """
+    
     logger = logging.getLogger("DiagPlot_WCSScatter")
 
     #fig = matplotlib.pyplot.figure()
@@ -149,6 +152,12 @@ def wcsdiag_scatter(#matched_cat,
                     filename, options=None, ota_wcs_stats=None,
                     also_plot_singleOTAs=True
                     ):
+    """
+
+    Function preparing the data for WCS scatter plot and forwarding all plotting
+    tasks to `plot_wcsdiag_scatter`
+
+    """
 
     logger = logging.getLogger("DiagPlot_WCSScatter")
     logger.info("Creating the WCS scatter plot ...")
@@ -272,6 +281,11 @@ def plot_wcsdiag_shift(radec, d_radec,
                        ota_outlines=None, 
                        title=None,
                        ):
+    """
+
+    Function generating the WCS shift plot from the given data.
+
+    """
 
     logger = logging.getLogger("DiagPlot_WCSShift")
     fig, ax = matplotlib.pyplot.subplots()
@@ -364,6 +378,12 @@ def wcsdiag_shift(matched_radec_odi,
                   ota_wcs_stats=None,
                   also_plot_singleOTAs=True
                   ):
+    """
+
+    Function preparing the data for WCS shift plot and forwarding all plotting
+    tasks to `plot_wcsdiag_shift`
+
+    """
 
     logger = logging.getLogger("DiagPlot_WCSShift")
     logger.info("Creating the WCS offset/shift plot ...")
@@ -541,6 +561,11 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
                          also_plot_singleOTAs=False,
                          ):
 
+    """
+
+    Generate the photometric zeropoint plot
+
+    """
 
     logger = logging.getLogger("DiagPlot_PhotZP")
     logger.info("Creating the photometric calibration plot ...")
@@ -695,6 +720,11 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
 #####################################################################################
 
 def plot_zeropoint_map(ra, dec, zp, ota_outlines, output_filename, options, zp_range):
+    """
+
+    Plot the photometric zeropoint, color-coded, as function of position
+
+    """
 
     logger = logging.getLogger("DiagPlot_ZPmap")
 
@@ -753,7 +783,11 @@ def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
                              also_plot_singleOTAs=True
                              ):
 
+    """
 
+    Prepare all necessary data and generate all photometric zeropoint maps.
+
+    """
     logger = logging.getLogger("DiagPlot_ZPmap")
     logger.info("Creating the photometric calibration per OTA plot ...")
 
@@ -821,7 +855,12 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
                      ota_outlines=None,
                      options=None,
                      ):
-   
+    """
+
+    Generate a PSF size map, with points representing sources. The color of the 
+    point encodes the image quality / PSF FWHM.
+
+    """
     logger = logging.getLogger("DiagPlot_PSFSize")
                     
     fig, ax = matplotlib.pyplot.subplots()
@@ -867,6 +906,12 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
                          also_plot_singleOTAs=True,
                          ):
 
+    """
+
+    Generate all PSF FWHM plots for the entire flocalplane and, optioanlly, for
+    each OTA.
+
+    """
 
     logger = logging.getLogger("DiagPlot_PSFSize")
     logger.info("Creating the PSF size as heatmap plot ...")

@@ -21,6 +21,36 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
+"""
+
+This module contains all functionality for combining a number of input frames
+into one output frame by performing a user-sdefined function on the range of
+input values of each pixel.
+
+To improve performance, the actual image-combination step is executed in
+parallel, split by line. Furthermore, each extension is computed in a new
+process, enabling better memory management by the operating system. This enables
+memory-limited operation with very little memory loss/leakage between
+extensions.
+
+Example:
+--------
+    For unbinned pODI (13 OTAs) frames, memory demand is roughly 
+    1 GB + 65MB x numer of frames. Assuming 6 GB of available memory, this would
+    practically (avoiding memory swapping) to 75 input frames.
+
+
+Standalone option:
+------------------
+
+    Combine a set of input images and write output to disk
+
+    ``podi_imcombine.py (-op=xxx) output.fits file1.fits file2.fits ...``
+
+
+"""
+
+
 import sys
 import os
 import pyfits

@@ -22,10 +22,21 @@
 #
 
 """
-How-to use:
 
-./podi_collectcells.py 
+Create a night-log for a given list of input frame. 
 
+This log lists, for each frame 
+* filename
+* type of observation: bias/dark/flat/science 
+* binning
+* filter name
+* exposure time
+* Object/target name as specified during the observation (this is not necessarily
+  the real name of the target, rather what the user entered)
+* pointing coordinates: Ra/Dec
+
+The output of this file is compatible with the file-list requirements of, for 
+example, podi_makecalibrations.
 
 """
 

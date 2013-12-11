@@ -1,5 +1,11 @@
 #!/usr/bin/env python
 
+"""
+
+This module contains a set of routines to read, manipulaten and write the
+scamp-generated WCS system in ODI frames.
+
+"""
 
 import sys
 import numpy

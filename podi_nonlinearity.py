@@ -21,12 +21,58 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
-"""
-How-to use:
+"""This module contains all functionality related to creating and applying
+non-linearity coefficients from and to data.
 
-./podi_collectcells.py 
+Standalone options
+------------------
+
+**Measure the intensity of each cell in each OTA in a number of 
+input files**
+
+  ``podi_nonlinearity.py file1.fits file2.fits``
 
 
+**Fit all data and compute non-linearity coefficients**
+
+  ``podi_nonlinearity.py -fit (-mint=0.0) (-maxt=100.0) (-minf=10.0) \
+(-maxf=59000.0) (-order=3) input.datafile output.fits``
+ 
+  *-mint=X* and *-maxt=X* specify the minimum and maximum exposure times to be
+    included in the fit
+
+  *-minf=X* and *-maxf* limit the intensity-range allowed during the fit. This
+    is useful to limit problematic andor saturated intensity ranges.
+
+  *-order=X* determines th epolynomial degree to be used in the fit.
+  
+
+**Load the coefficient file and print the coefficients for a given OTA**
+
+  ``podi_nonlinearity.py -load coefficients.fits OTA-number``
+
+**Apply the correction to a overscan-subtracted raw-frame**
+
+  ``podi_nonlinearity.py -correctraw input.fits coeffs.fits output.fits``
+
+
+**Apply the non-linearity correction to a collectcells-reduced frame**
+
+  ``podi_nonlinearity.py -correct input.fits coeffs.fits output.fits``
+
+**Create a diagnostic plot, showing data, fit, and fit-residuals, for a given 
+cell**
+
+  ``podi_nonlinearity.py -plotdatafit data.file ota cellx celly \
+coeffs.fits output.png``
+
+**Create a map, showing the relative amplitude of the non-linearity correction
+relative to the input intensity, at a given intensity-level.**
+
+  ``podi_nonlinearity.py -nonlinmap coeffs.fits output.png fluxlevel``
+
+Methods:
+---------------------------------
 """
 
 import sys
@@ -56,7 +102,16 @@ max_polyorder=0
 
 
 def create_nonlinearity_data(inputfiles):
+    """
 
+    Prepare the non-linearity data by measuring the mean/median intensity level
+    in each and all cells in each of the given files.
+
+    All this data is then returned. During execution, the generated data is also
+    written to disk into a file  named "alldata.tmp"
+
+    """
+    
     # Open all files, and loop over all cells in all extensions:
 
     all_data = []
@@ -124,7 +179,13 @@ def create_nonlinearity_data(inputfiles):
 
 
 def fit_nonlinearity_sequence(pinit, args):
+    """
 
+    Perform a polynomial fit to all data of a given cell. Mostly a wrapper
+    around scipy.optimize.leastsq.
+
+    """
+    
     def fit_fct(p, x):
         y = numpy.zeros(x.shape)
         for i in range(p.shape[0]):
@@ -154,6 +215,11 @@ def fit_nonlinearity_sequence(pinit, args):
 def create_nonlinearity_fits(data, outputfits, polyorder=3, 
                              exptime_range=[0.1,2.5], intensity_range=[100,59000],
                              verbose=False):
+    """
+
+    Fit all non-linearity data for all cells, based on data created earlier. 
+
+    """
 
     otas = set(data[:,0])
     #print otas
@@ -264,7 +330,13 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
 
 
 def load_nonlinearity_correction_table(filename, search_ota):
-    
+    """
+
+    Load the fits table with all non-linearity coefficients and down-select
+    coefficients for the specified OTA.
+
+    """
+
     # Load the catalog file
     hdulist = pyfits.open(filename)
 
@@ -298,18 +370,35 @@ def load_nonlinearity_correction_table(filename, search_ota):
 
 
 def compute_nonlinearity_correction(data, coeffs):
+    """
+
+    Evaluate the polynomial describing the non-linearity correction
+
+    """
     correction = numpy.zeros(data.shape)
     for i in range(coeffs.shape[0]):
         correction += coeffs[i] * data**(i+2)
     return correction
    
 def compute_cell_nonlinearity_correction(data, cellx, celly, all_coeffs):
+    """
+
+    Select the non-linearity coefficients for the specified cell and compute 
+    the correction.
+
+    """
     coeffs = all_coeffs[cellx, celly, :]
     return compute_nonlinearity_correction(data, coeffs)
 
 
 def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
+    """
 
+    Create a plot, for a given individual cell, showing the non-linearity
+    measurements, polynomial fits for various degrees and the difference between
+    data and fit,
+
+    """
     import podi_plotting
 
     this_cell = (data[:,0] == ota) & (data[:,3] == cellx) & (data[:,4] == celly)
@@ -447,6 +536,12 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
 
 
 def create_nonlinearity_map(fitfile, outputfile, fluxlevel, minmax, labels=True):
+    """
+
+    Create a non-linearity map, showing (color-coded) the ratio of non-linearity
+    correction to input data, for each cell across the entire focalplane.
+
+    """
 
     import podi_plotting
 
@@ -646,6 +741,12 @@ def plot_cellbycell_map(fitfile, outputfile, minmax, labels=True, fontsize=2):
 
 
 def find_nonlinearity_coefficient_file(target_mjd, options):
+    """
+
+    Select the appropriate non-linearity coefficient file based on a history 
+    file and a given MJD timestamp.
+
+    """
 
     # Construct the name of the history file
     history_filename = "%s/.nonlinearity/nonlinearity.history" % (options['exec_dir'])

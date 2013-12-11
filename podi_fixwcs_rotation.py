@@ -21,6 +21,17 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
+"""
+
+Collection of routines used to improve the astrometric correction derived by
+routines in podi_fixwcs by fitting and optimizing the rotator angle.
+
+Warning:
+--------
+
+    Most functionality is now superseded by ccmatch.
+
+"""
 
 import sys
 import numpy

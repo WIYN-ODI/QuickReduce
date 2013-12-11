@@ -22,24 +22,6 @@
 #
 
 
-import sys
-import numpy
-import os
-from query_usno import query_usno
-from podi_definitions import *
-import pyfits
-#import date
-import datetime
-#import pywcs  
-from astLib import astWCS
-import pdb
-import scipy
-import scipy.stats
-
-import podi_matchcatalogs
-import podi_sitesetup
-
-
 """
 This module contains all functionality for performing a photometric calibration
 for a given frame. It does so by matching the ODI source catalog to a catalog
@@ -110,6 +92,24 @@ Methods
 -------
 
 """
+
+
+import sys
+import numpy
+import os
+from query_usno import query_usno
+from podi_definitions import *
+import pyfits
+#import date
+import datetime
+#import pywcs  
+from astLib import astWCS
+import pdb
+import scipy
+import scipy.stats
+
+import podi_matchcatalogs
+import podi_sitesetup
 
 
 arcsec = 1./3600.

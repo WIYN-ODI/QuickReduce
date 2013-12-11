@@ -21,6 +21,14 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
+
+"""
+
+Experimental routine to fit and subtract a 2-d surface of the sky-background of
+a given input file.
+
+"""
+
 import sys
 import os
 import pyfits

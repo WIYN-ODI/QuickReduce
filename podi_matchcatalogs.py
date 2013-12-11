@@ -21,6 +21,11 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
+"""
+
+podi_matchcatalogs contains all functionality for matching source catalogs.
+
+"""
 
 import sys
 import numpy

@@ -22,9 +22,15 @@
 #
 
 """
-How-to use:
 
-./podi_pipeline2mef.py 
+Convert the multi-file output of the NOAO-supplied, official AuCaP pipeline into
+a single  multi-extension FITS file that more closely resembles the output of
+podi_collectcells.
+
+To run
+------
+
+``podi_aucap2mef.py output.fits aucap1.fits aucap2.fits ...``
 
 
 """
