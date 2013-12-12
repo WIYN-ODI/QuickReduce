@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #
 # Copyright 2012-2013 Ralf Kotulla
 #                     kotulla@uwm.edu
@@ -20,7 +21,10 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
-"""This module contains all data and most functionality to correct raw pODI
+
+"""
+
+This module contains all data and most functionality to correct raw pODI
 frames for the effects of cross-talk amongst cells.
 
 For now, the crosstalk coefficient is defined globally, but the data structure
@@ -28,6 +32,14 @@ supports a more sophisticated system specifying the cross-talk coefficients
 based on source and target-cell.
 
 """
+
+
+import os
+import sys
+from podi_definitions import *
+import pyfits
+import scipy
+import scipy.stats
 
 x0 =  5.6E-5 #1.2e-4
 
@@ -164,6 +176,69 @@ def invert_all_xtalk():
             
         xtalk_matrix[ota] = ota_matrices
 
-
-
 invert_all_xtalk()
+
+
+if __name__ == "__main__":
+    print "Hello!"
+
+    filename = sys.argv[1]
+    hdulist = pyfits.open(filename)
+
+    hdulist.info()
+
+    overscan = numpy.ones((8,8)) * -1e9
+    bglevel = numpy.ones((8,8)) * -1e9
+
+    for row in range(8):
+        for col in range(8):
+
+            cell_name = "xy%d%d" % (col, row)
+
+            data = extract_datasec_from_cell(hdulist[cell_name].data, binning=1)
+            saturated = data >= 65535
+            n_saturated = numpy.sum(saturated)
+
+            if (n_saturated <= 10):
+                # Nothing saturated in this cell, let's move on
+                continue
+
+            # We found at least a few saturated pixels
+            for othercol in range(8):
+                if (othercol == col):
+                    # No crosstalk to the source cell
+                    continue
+
+                other_cellname = "xy%d%d" % (othercol, row)
+                data = hdulist[other_cellname].data
+                
+                if (overscan[othercol,row] < 0):
+                    # Compute overscan subtracted image
+                    overscan_level = numpy.median(extract_biassec_from_cell(data, binning=1))
+                    overscan[othercol,row] = overscan_level
+                else:
+                    overscan_level = overscan[othercol,row]
+
+                image = extract_datasec_from_cell(data, binning=1) - overscan_level
+
+                if (bglevel[othercol,row] < 0):
+                    # Estimate the background level
+                    bg_pixels = three_sigma_clip(image)
+                    bgmedian = numpy.median(bg_pixels)
+                    bgmode = 3*numpy.median(bg_pixels) - 2*numpy.mean(bg_pixels)
+                    bglevel[othercol,row] = bgmode
+                else:
+                    bgmode = bglevel[othercol,row]
+
+                image -= bgmode
+
+                # Average the flux in the saturated pixels
+                xtalk_affected = image[saturated]
+                xtalk_cleaned, xtalk_mask = three_sigma_clip(xtalk_affected, return_mask=True)
+
+                xtalk_effect = numpy.mean(xtalk_cleaned)
+
+                print cell_name, other_cellname, overscan_level, bgmedian, numpy.mean(bg_pixels), bgmode, bgmode+overscan_level, xtalk_effect, numpy.sum(xtalk_mask), n_saturated
+
+            
+
