@@ -1495,9 +1495,15 @@ def three_sigma_clip(input, ranges=[-1e9,1e9], nrep=3, return_mask=False):
     Perfom an iterative 3-sigma clipping on the passed data array. 
 
     """
+
+    old_valid = numpy.isfinite(input)
     valid = (input > ranges[0]) & (input < ranges[1])
                 
     for rep in range(nrep):
+        if (numpy.sum(valid) < 1):
+            valid = old_valid
+            break
+
         lsig = scipy.stats.scoreatpercentile(input[valid], 16)
         hsig = scipy.stats.scoreatpercentile(input[valid], 84)
         median = numpy.median(input[valid])
@@ -1507,6 +1513,7 @@ def three_sigma_clip(input, ranges=[-1e9,1e9], nrep=3, return_mask=False):
         maxgood = numpy.min([median + 3*sigma, ranges[1]])
 
             #print median, sigma
+        old_valid = valid
         valid = (input > mingood) & (input < maxgood)
         
     if (return_mask):
