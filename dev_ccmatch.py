@@ -1421,14 +1421,15 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                                        max_count=1)
     numpy.savetxt("ccmatch.after_shear", matched_global)
 
-    return_value['hdulist'] = hdulist
-    return_value['transformation'] = best_shift_rotation_solution
-    return_value['matched_src+2mass'] = matched_global
-    return_value['calibrated_src_cat'] = global_cat
-    return_value['2mass-catalog'] = ref_cat
+    if (mode == "otashear"):
+        return_value['hdulist'] = hdulist
+        return_value['transformation'] = best_shift_rotation_solution
+        return_value['matched_src+2mass'] = matched_global
+        return_value['calibrated_src_cat'] = global_cat
+        return_value['2mass-catalog'] = ref_cat
     
-    logger.debug("All done here, returning")
-    return return_value 
+        logger.debug("All done here, returning")
+        return return_value 
 
 
 
@@ -1647,15 +1648,24 @@ if __name__ == "__main__":
         mode = cmdline_arg_set_or_default('-mode', 'xxx')
         print mode
 
-        valid_mode = (mode == "shift" or mode == "rotation" or mode == "distortion")
-        if (not valid_mode):
-            print """\
-This mode is not known.
-Valid modes are only
-  * shift
-  * rotation
-  * distortion
-"""
+        valid_modes = (
+            "shift",
+            "rotation",
+            "otashear",
+            "distortion"
+        )
+        # valid_mode = (mode == "shift" or mode == "rotation" or mode == "distortion")
+        if (not mode in valid_modes):
+            print "This mode is not known"
+            print "valid modes are:",valid_modes
+
+#             print """\
+# This mode is not known.
+# Valid modes are only
+#   * shift
+#   * rotation
+#   * distortion
+# """
             sys.exit(0)
 
         source_catalog = get_clean_cmdline()[1]
