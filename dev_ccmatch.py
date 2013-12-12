@@ -820,6 +820,58 @@ def verify_wcs_model(cat, hdulist):
     return comp
 
 
+def optimize_wcs_solution(ota_cat, hdr, optimize_header_keywords):
+
+    """
+
+    Optimize the WCS by allowing the given set of header keywords to vary.
+
+    """
+
+    # Create a astLib WCS class to handle the conversion from X/Y to Ra/Dec
+    astwcs = astWCS.WCS(hdr, mode='pyfits')
+
+    def minimize_wcs_error(p, src_xy, ref_radec, astwcs, optimize_header_keywords):
+
+        # Transfer all fitting parameters to astWCS
+        for i in range(len(optimize_header_keywords)):
+            astwcs.header[optimize_header_keywords[i]] = p[i]
+        # and update astWCS so the changes take effect
+        astwcs.updateFromHeader()
+
+        # Now compute all Ra/Dec values based on the new WCS solution
+        src_radec = numpy.array(astwcs.pix2wcs(src_xy[:,0], src_xy[:,1]))
+
+        # This gives us the Ra/Dec values as 2-d array
+        # compute difference from the Ra/Dec of the reference system
+        src_ref = src_radec - ref_radec
+
+        # return the 1-d version for optimization
+        return src_ref.ravel()
+
+    # Prepare all values we need for fitting
+    src_xy = ota_cat[:,2:4] - [1.,1.]
+    ref_radec = ota_cat[:,-2:]
+
+    p_init = [0] * len(optimize_header_keywords)
+    for i in range(len(optimize_header_keywords)):
+        p_init[i] = hdr[optimize_header_keywords[i]]
+
+    fit_args = (src_xy, ref_radec, astwcs, optimize_header_keywords)
+    fit = scipy.optimize.leastsq(minimize_wcs_error,
+                                 p_init, 
+                                 args=fit_args, 
+                                 full_output=1)
+
+    # New, optimized values are in fit[0]
+    better_wcs = fit[0]
+    # Copy the optimized values into the header
+    for i in range(len(optimize_header_keywords)):
+        hdr[optimize_header_keywords[i]] = better_wcs[i]
+
+    return
+
+
 
 
 def optimize_shear_and_position(ota_cat, hdr):
@@ -1398,8 +1450,10 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             continue
 
         else:
-
-            optimize_shear_and_position(ota_cat, hdulist[ext].header)
+            optimize_header = ('CRVAL1', 'CRVAL2',
+                               'CD1_1', 'CD1_2', 'CD2_1', 'CD2_2')
+#            optimize_shear_and_position(ota_cat, hdulist[ext].header)
+            optimize_wcs_solution(ota_cat, hdulist[ext].header, optimize_header)
 
         # Now that we have the optimized WCS solution, recompute the source 
         # Ra/Dec values with the better system
