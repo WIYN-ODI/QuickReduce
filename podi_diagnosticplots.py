@@ -306,10 +306,10 @@ def plot_wcsdiag_shift(radec, d_radec,
             )
     Q = ax.quiver(radec[:,0], radec[:,1], 
                   d_radec[:,0]*vector_scaling, d_radec[:,1]*vector_scaling,
-                  linewidth=0, edgecolor='red',
                   angles='xy', scale_units='xy', pivot='tail', zorder=99, 
-                  scale=1,
+                  scale=1, 
                   headwidth=2, headlength=2, headaxislength=1.8,
+                  width=1e-4, linewidth=1, edgecolor='#000000', color='#000000',
                   )
     # Determine min and max values
 
