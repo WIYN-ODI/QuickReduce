@@ -2123,11 +2123,11 @@ def collectcells(input, outputfile,
         # Current HDUList is in: --> ota_list
 
         import dev_ccmatch
-
+        numpy.savetxt("debug.wcs_raw", global_source_cat)
         ccmatched = dev_ccmatch.ccmatch(source_catalog=global_source_cat,
-                                       reference_catalog=None, # meaning ccamtch will obtain it
+                                       reference_catalog=None, # meaning ccmtch will obtain it
                                        input_hdu=ota_list, 
-                                       mode="rotation")
+                                       mode="otashear")
 
         # Use the fixed HDUList
         ota_list = ccmatched['hdulist']
@@ -2206,7 +2206,7 @@ def collectcells(input, outputfile,
 
     if (options['photcalib'] and options['fixwcs']):
         zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = 99., 99., None, 99.
-        stdout_write("\n\n\nExecuting photcalib...\n\n\n")
+        logger.info("Starting photometric calibration")
 
         exptime = ota_list[0].header['EXPTIME']
         titlestring = "%s\n(obsid: %s - filter: %s- exptime: %ds)" % (
