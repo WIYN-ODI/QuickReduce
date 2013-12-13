@@ -111,6 +111,8 @@ import scipy.stats
 import podi_matchcatalogs
 import podi_sitesetup
 
+import podi_logging
+import logging
 
 arcsec = 1./3600.
 number_bright_stars = 100
@@ -221,6 +223,7 @@ def load_catalog_from_sdss(ra, dec, sdss_filter, verbose=False, return_query=Fal
 
 
     #import sqlcl
+    logger = logging.getLogger("GetCatalogFromSDSS")
 
     #ra = 0
     #print "# Loading catalog from SDSS online..."
@@ -272,8 +275,10 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
        }
 
     if (verbose): print sql_query
-    
-    stdout_write("Downloading catalog from SDSS ...")
+    logger.debug("Downloading catalog from SDSS ...")
+    logger.debug(sql_query)
+
+    # stdout_write("Downloading catalog from SDSS ...")
 
     # Taken from Tomas Budavari's sqlcl script
     # see http://skyserver.sdss3.org/dr8/en/help/download/sqlcl/default.asp 
@@ -302,8 +307,9 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
             return numpy.zeros(shape=(0,12)), fsql #sql_query
         return numpy.zeros(shape=(0,12))
 
-    stdout_write(" found %d stars!\n" % (len(answer)-1))
-        
+    # stdout_write(" found %d stars!\n" % (len(answer)-1))
+    logger.debug(" found %d stars!\n" % (len(answer)-1))
+
     if (verbose):
         print "Returned from SDSS:"
         print "####################################################"
@@ -315,7 +321,7 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
     del answer[0]
 
     
-    if (verbose): print "Found %d results" % (len(answer))
+    # if (verbose): print "Found %d results" % (len(answer))
     results = numpy.zeros(shape=(len(answer),12))
     # Results are comma-separated, so split them up and save as numpy array
     for i in range(len(answer)):
@@ -475,6 +481,7 @@ def load_sdss_catalog_from_fits(sdss_ref_dir, ra_range, dec_range, verbose=True)
 
     """
     #print "# Loading catalog from SDSS offline fits catalog..."
+    logger = logging.getLogger("ReadSDSSCatalogFromFits")
 
     # Load the SkyTable so we know in what files to look for the catalog"
     skytable_filename = "%s/SkyTable.fits" % (sdss_ref_dir)
@@ -483,6 +490,8 @@ def load_sdss_catalog_from_fits(sdss_ref_dir, ra_range, dec_range, verbose=True)
     skytable = skytable_hdu['SKY_REGION'].data
     
     # Select entries that match our list
+    
+    logger.debug("# Searching for stars in sky with ra=%s, dec=%s" % (ra_range, dec_range))
     if (verbose): print "# Searching for stars in sky with ra=%s, dec=%s" % (ra_range, dec_range)
 
     min_dec = dec_range[0]
@@ -510,8 +519,9 @@ def load_sdss_catalog_from_fits(sdss_ref_dir, ra_range, dec_range, verbose=True)
                       (skytable['D_MAX'] > min_dec) & (skytable['D_MIN'] < max_dec)
 
     if (verbose): print skytable[needed_catalogs]
-    
+
     files_to_read = skytable['NAME'][needed_catalogs]
+    logger.debug(files_to_read)
 
     # Now we are with the skytable catalog, so close it
     skytable_hdu.close()
@@ -560,6 +570,8 @@ def load_sdss_catalog_from_fits(sdss_ref_dir, ra_range, dec_range, verbose=True)
         full_catalog = numpy.append(full_catalog, array_to_add, axis=0)
         
     if (verbose): print "# Read a total of %d stars from %d catalogs!" % (full_catalog.shape[0], len(files_to_read))
+    logger.debug("# Read a total of %d stars from %d catalogs!" % (full_catalog.shape[0], len(files_to_read)))
+
     return full_catalog
 
 
@@ -720,10 +732,13 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
     """
 
+    logger = logging.getLogger("PhotCalib")
+
     error_return_value = (99.9, 99.9, None, 99.9)
 
     # Figure out which SDSS to use for calibration
     sdss_filter = sdss_equivalents[filtername]
+    logger.debug("Translating filter: %s --> %s" % (filtername, sdss_filter))
     if (sdss_filter == None):
         # This filter is not covered by SDSS, can't perform photometric calibration
         return error_return_value
@@ -746,8 +761,8 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     dec_min = numpy.min(source_cat[:,1])
     dec_max = numpy.max(source_cat[:,1])
                  
-      
-    stdout_write("\nPreparing work ...\n\n")
+    logger.debug("Starting photometric calibration!")
+    #stdout_write("\nPreparing work ...\n\n")
     
     ra_range  = [ra_min, ra_max]
     dec_range = [dec_min, dec_max]
@@ -755,6 +770,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     std_stars = query_sdss_catalog(ra_range, dec_range, sdss_filter)
 
     if (std_stars.shape[0] <= 0):
+        logger.debug("No stars not found - looks like this region isn't covered by SDSS - sorry!")
         stdout_write("No stars not found - looks like this region isn't covered by SDSS - sorry!\n\n")
         return error_return_value
     if (verbose):
