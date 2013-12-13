@@ -1060,6 +1060,63 @@ def pick_isolated_stars(catalog, radius=10.):
 
 
 
+
+def improve_wcs_solution(src_catalog, 
+                         ref_catalog,
+                         hdulist,
+                         headers_to_optimize,
+                         matching_radius=(3./3600),
+                         min_ota_catalog_size=15,
+                         output_catalog = None,
+                         ):
+
+    # Match the entire input catalog with the reference catalog
+    # Allow a matching radius of 3'', but only unique matches
+    matched_global = kd_match_catalogs(src_catalog, 
+                                       ref_catalog, 
+                                       matching_radius=matching_radius, 
+                                       max_count=1)
+
+    global_cat = None
+    for ext in range(len(hdulist)):
+        if (not is_image_extension(hdulist[ext])):
+            continue
+
+        ota = hdulist[ext].header['OTA']
+        in_this_ota = matched_global[:,8] == ota
+
+        ota_cat = matched_global[in_this_ota]
+
+        # Don't optimize if we have to few stars to constrain solution
+        if (ota_cat.shape[0] > min_ota_catalog_size):
+            
+            optimize_wcs_solution(ota_cat, hdulist[ext].header, headers_to_optimize)
+
+            # Now that we have the optimized WCS solution, recompute the source 
+            # Ra/Dec values with the better system
+            astwcs = astWCS.WCS(hdulist[ext].header, mode='pyfits')
+
+            ota_xy = ota_cat[:,2:4] - [1.,1.]
+            ota_radec = numpy.array(astwcs.pix2wcs(ota_xy[:,0], ota_xy[:,1]))
+
+            ota_cat[:,0:2] = ota_radec
+        
+        global_cat = ota_cat if (global_cat == None) else numpy.append(global_cat, ota_cat, axis=0)
+
+    
+    # Match the new, improved catalog with the reference catalog
+    # Allow a matching radius of 2'', but only unique matches
+    matched_global = kd_match_catalogs(global_cat, 
+                                       ref_catalog, 
+                                       matching_radius=(2./3600.), 
+                                       max_count=1)
+
+    if (not output_catalog == None):
+        numpy.savetxt(output_catalog, matched_global)
+
+    return global_cat, hdulist, matched_global
+
+
 #############################################################################
 #############################################################################
 #
@@ -1428,52 +1485,64 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
 
     logger.debug("Optimizing each OTA separately")
 
-    # Match the entire input catalog with the reference catalog
-    # Allow a matching radius of 3'', but only unique matches
-    matched_global = kd_match_catalogs(src_rotated, 
-                                       ref_cat, 
-                                       matching_radius=(3./3600.), 
-                                       max_count=1)
+    global_cat, hdulist, matched_global = \
+        improve_wcs_solution(src_rotated, 
+                             ref_cat,
+                             hdulist,
+                             headers_to_optimize=(
+                                 'CRVAL1', 'CRVAL2',
+                                 'CD1_1', 'CD1_2', 'CD2_1', 'CD2_2'
+                             ),
+                             matching_radius=(3./3600),
+                             min_ota_catalog_size=9,
+                             output_catalog = "ccmatch.after_shear2",
+                         )
 
-    global_cat = None
-    for ext in range(len(hdulist)):
-        if (not is_image_extension(hdulist[ext])):
-            continue
+    # # Match the entire input catalog with the reference catalog
+    # # Allow a matching radius of 3'', but only unique matches
+    # matched_global = kd_match_catalogs(src_rotated, 
+    #                                    ref_cat, 
+    #                                    matching_radius=(3./3600.), 
+    #                                    max_count=1)
 
-        ota = hdulist[ext].header['OTA']
-        in_this_ota = matched_global[:,8] == ota
+    # global_cat = None
+    # for ext in range(len(hdulist)):
+    #     if (not is_image_extension(hdulist[ext])):
+    #         continue
 
-        ota_cat = matched_global[in_this_ota]
+    #     ota = hdulist[ext].header['OTA']
+    #     in_this_ota = matched_global[:,8] == ota
 
-        if (ota_cat.shape[0] < 5):
-            # Only optimize the shift of this OTA
-            continue
+    #     ota_cat = matched_global[in_this_ota]
 
-        else:
-            optimize_header = ('CRVAL1', 'CRVAL2',
-                               'CD1_1', 'CD1_2', 'CD2_1', 'CD2_2')
-#            optimize_shear_and_position(ota_cat, hdulist[ext].header)
-            optimize_wcs_solution(ota_cat, hdulist[ext].header, optimize_header)
+    #     if (ota_cat.shape[0] < 5):
+    #         # Only optimize the shift of this OTA
+    #         continue
 
-        # Now that we have the optimized WCS solution, recompute the source 
-        # Ra/Dec values with the better system
-        astwcs = astWCS.WCS(hdulist[ext].header, mode='pyfits')
+    #     else:
+    #         optimize_header = ('CRVAL1', 'CRVAL2',
+    #                            'CD1_1', 'CD1_2', 'CD2_1', 'CD2_2')
+    #         optimize_wcs_solution(ota_cat, hdulist[ext].header, optimize_header)
+
+    #     # Now that we have the optimized WCS solution, recompute the source 
+    #     # Ra/Dec values with the better system
+    #     astwcs = astWCS.WCS(hdulist[ext].header, mode='pyfits')
         
-        ota_xy = ota_cat[:,2:4] - [1.,1.]
-        ota_radec = numpy.array(astwcs.pix2wcs(ota_xy[:,0], ota_xy[:,1]))
+    #     ota_xy = ota_cat[:,2:4] - [1.,1.]
+    #     ota_radec = numpy.array(astwcs.pix2wcs(ota_xy[:,0], ota_xy[:,1]))
 
-        ota_cat[:,0:2] = ota_radec
+    #     ota_cat[:,0:2] = ota_radec
         
-        global_cat = ota_cat if (global_cat == None) else numpy.append(global_cat, ota_cat, axis=0)
+    #     global_cat = ota_cat if (global_cat == None) else numpy.append(global_cat, ota_cat, axis=0)
 
     
-    # Match the new, improved catalog with the reference catalog
-    # Allow a matching radius of 2'', but only unique matches
-    matched_global = kd_match_catalogs(global_cat, 
-                                       ref_cat, 
-                                       matching_radius=(2./3600.), 
-                                       max_count=1)
-    numpy.savetxt("ccmatch.after_shear", matched_global)
+    # # Match the new, improved catalog with the reference catalog
+    # # Allow a matching radius of 2'', but only unique matches
+    # matched_global = kd_match_catalogs(global_cat, 
+    #                                    ref_cat, 
+    #                                    matching_radius=(2./3600.), 
+    #                                    max_count=1)
+    # numpy.savetxt("ccmatch.after_shear", matched_global)
 
     if (mode == "otashear"):
         return_value['hdulist'] = hdulist
@@ -1484,6 +1553,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     
         logger.debug("All done here, returning")
         return return_value 
+
 
 
 
