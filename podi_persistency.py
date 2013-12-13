@@ -538,10 +538,13 @@ def load_saturation_table_list(indexfile, mjd_catalog_list):
     pickled_file = indexfile+".pickle"
     mdj_catalog_list = None
     if (os.path.isfile(pickled_file)):
-        with open(pickled_file, "rb") as pickle_dict:
-            # print "Reading pickled file..."
+        try:
+            pickle_dict = open(pickled_file, "rb")
+            #print "Reading pickled file..."
             mjd_catalog_list = pickle.load(pickle_dict)
-        pass
+            close(pickle_dict)
+        except:
+            pass
 
     if (mjd_catalog_list == None):
         # This means we couldn't find or read the pickled catalog
