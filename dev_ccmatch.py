@@ -860,7 +860,8 @@ def optimize_wcs_solution(ota_cat, hdr, optimize_header_keywords):
     fit_args = (src_xy, ref_radec, astwcs, optimize_header_keywords)
     fit = scipy.optimize.leastsq(minimize_wcs_error,
                                  p_init, 
-                                 args=fit_args, 
+                                 args=fit_args,
+                                 maxfev=1000,
                                  full_output=1)
 
     # New, optimized values are in fit[0]
@@ -869,7 +870,7 @@ def optimize_wcs_solution(ota_cat, hdr, optimize_header_keywords):
     for i in range(len(optimize_header_keywords)):
         hdr[optimize_header_keywords[i]] = better_wcs[i]
 
-    return
+    return p_init, better_wcs
 
 
 
@@ -1069,6 +1070,7 @@ def improve_wcs_solution(src_catalog,
                          min_ota_catalog_size=15,
                          output_catalog = None,
                          ):
+    logger = logging.getLogger("ImproveWCSSolutionOTA")
 
     # Match the entire input catalog with the reference catalog
     # Allow a matching radius of 3'', but only unique matches
@@ -1086,6 +1088,9 @@ def improve_wcs_solution(src_catalog,
         in_this_ota = matched_global[:,8] == ota
 
         ota_cat = matched_global[in_this_ota]
+        logger.debug("OTA %d: % 4d sources, have >= % 4d for this step : %s" % (
+            ota, ota_cat.shape[0], min_ota_catalog_size, "yes" if ota_cat.shape[0] > min_ota_catalog_size else "no"))
+
 
         # Don't optimize if we have to few stars to constrain solution
         if (ota_cat.shape[0] > min_ota_catalog_size):
@@ -1106,6 +1111,7 @@ def improve_wcs_solution(src_catalog,
     
     # Match the new, improved catalog with the reference catalog
     # Allow a matching radius of 2'', but only unique matches
+    logger.debug("Matching optimized source catalog to reference catalog")
     matched_global = kd_match_catalogs(global_cat, 
                                        ref_catalog, 
                                        matching_radius=(2./3600.), 
@@ -1243,31 +1249,44 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     if (create_debug_files): numpy.savetxt("ccmatch.matched_ref_cat", ref_cat)
     if (create_debug_files): numpy.savetxt("ccmatch.src_cat", full_src_cat[:,0:2])
 
+    
+
     #
     # Exclude all stars with nearby neighbors to limit confusion
     #
     only_isolated_stars = True
     if (only_isolated_stars):
-        logger.debug("Selecting isolated stars - reference catalog")
-        numpy.savetxt("ccmatch.2mass_full", ref_cat)
-        ref_cat = pick_isolated_stars(ref_cat, radius=10)
-        numpy.savetxt("ccmatch.2mass_isolated", ref_cat)
-
-        
         logger.debug("Selecting isolated stars - ODI source catalog")
         numpy.savetxt("ccmatch.odi_full", full_src_cat)
         full_src_cat = pick_isolated_stars(full_src_cat, radius=10)
         numpy.savetxt("ccmatch.odi_isolated", full_src_cat)
+        logger.debug("Down-selected source catalog to %d isolated stars" % (full_src_cat.shape[0]))
 
+    
     #
     # Cut down the catalog size to the brightest n stars
     #
-    n_max = 5000 #750
+    n_max = 1000 #750
     if (full_src_cat.shape[0] > n_max):
-        print "truncating src_cat:",full_src_cat.shape,"-->",n_max
+        logger.debug("truncating src_cat:"+str(full_src_cat.shape)+"--> "+str(n_max))
         # That's more than we need, limited the catalog to the brightest n stars
         full_src_cat, bright_mags = select_brightest(full_src_cat, full_src_cat[:,10:13], n_max)
 
+    n_max_ref = 2000
+    if (ref_cat.shape[0] > n_max_ref):
+        logger.debug("Lots of stars (%d) in the reference catalog" % (ref_cat.shape[0]))
+
+    min_distance = 8
+    logger.debug("Selecting isolated stars - reference catalog")
+    numpy.savetxt("ccmatch.2mass_full", ref_cat)
+    while (ref_cat.shape[0] > n_max_ref or min_distance < 10):
+        min_distance += 2
+        ref_cat = pick_isolated_stars(ref_cat, radius=min_distance)
+        numpy.savetxt("ccmatch.2mass_isolated", ref_cat)
+        logger.debug("Down-selected reference catalog to %d isolated stars (min_d=%d)" % (ref_cat.shape[0], min_distance))
+    logger.debug("Final reference catalog: %d sources, isolated by >%d" % (ref_cat.shape[0], min_distance))
+
+        # 
     #
     # Get rid of all data except the coordinates
     # 
@@ -1514,6 +1533,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # Next refinement step, allow for smaller scale distortion by allowing for 
     # shear in the CD matrix
     #
+    logger.debug("Optimizing each OTA separately, shift+shear")
     global_cat, hdulist, matched_global = \
         improve_wcs_solution(src_rotated, 
                              ref_cat,
