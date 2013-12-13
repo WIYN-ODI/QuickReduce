@@ -1483,8 +1483,37 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #  \1/
     #   "
 
-    logger.debug("Optimizing each OTA separately")
 
+    # First, most simple step: Refine the location of each OTA to account
+    # for some large-scale distortion
+    logger.debug("Optimizing each OTA separately, shift only")
+    global_cat, hdulist, matched_global = \
+        improve_wcs_solution(src_rotated, 
+                             ref_cat,
+                             hdulist,
+                             headers_to_optimize=(
+                                 'CRVAL1', 'CRVAL2',
+                             ),
+                             matching_radius=(3./3600),
+                             min_ota_catalog_size=4,
+                             output_catalog = "ccmatch.after_otashift",
+                         )
+
+    if (mode == "otashift"):
+        return_value['hdulist'] = hdulist
+        return_value['transformation'] = best_shift_rotation_solution
+        return_value['matched_src+2mass'] = matched_global
+        return_value['calibrated_src_cat'] = global_cat
+        return_value['2mass-catalog'] = ref_cat
+    
+        logger.debug("All done here, returning")
+        return return_value 
+
+
+    #
+    # Next refinement step, allow for smaller scale distortion by allowing for 
+    # shear in the CD matrix
+    #
     global_cat, hdulist, matched_global = \
         improve_wcs_solution(src_rotated, 
                              ref_cat,
@@ -1498,52 +1527,6 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                              output_catalog = "ccmatch.after_shear2",
                          )
 
-    # # Match the entire input catalog with the reference catalog
-    # # Allow a matching radius of 3'', but only unique matches
-    # matched_global = kd_match_catalogs(src_rotated, 
-    #                                    ref_cat, 
-    #                                    matching_radius=(3./3600.), 
-    #                                    max_count=1)
-
-    # global_cat = None
-    # for ext in range(len(hdulist)):
-    #     if (not is_image_extension(hdulist[ext])):
-    #         continue
-
-    #     ota = hdulist[ext].header['OTA']
-    #     in_this_ota = matched_global[:,8] == ota
-
-    #     ota_cat = matched_global[in_this_ota]
-
-    #     if (ota_cat.shape[0] < 5):
-    #         # Only optimize the shift of this OTA
-    #         continue
-
-    #     else:
-    #         optimize_header = ('CRVAL1', 'CRVAL2',
-    #                            'CD1_1', 'CD1_2', 'CD2_1', 'CD2_2')
-    #         optimize_wcs_solution(ota_cat, hdulist[ext].header, optimize_header)
-
-    #     # Now that we have the optimized WCS solution, recompute the source 
-    #     # Ra/Dec values with the better system
-    #     astwcs = astWCS.WCS(hdulist[ext].header, mode='pyfits')
-        
-    #     ota_xy = ota_cat[:,2:4] - [1.,1.]
-    #     ota_radec = numpy.array(astwcs.pix2wcs(ota_xy[:,0], ota_xy[:,1]))
-
-    #     ota_cat[:,0:2] = ota_radec
-        
-    #     global_cat = ota_cat if (global_cat == None) else numpy.append(global_cat, ota_cat, axis=0)
-
-    
-    # # Match the new, improved catalog with the reference catalog
-    # # Allow a matching radius of 2'', but only unique matches
-    # matched_global = kd_match_catalogs(global_cat, 
-    #                                    ref_cat, 
-    #                                    matching_radius=(2./3600.), 
-    #                                    max_count=1)
-    # numpy.savetxt("ccmatch.after_shear", matched_global)
-
     if (mode == "otashear"):
         return_value['hdulist'] = hdulist
         return_value['transformation'] = best_shift_rotation_solution
@@ -1555,8 +1538,6 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         return return_value 
 
 
-
-
     #
     #   |
     #   |     All code below is to optimize
@@ -1565,6 +1546,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #  \1/
     #   "
 
+    
     # 
     # Now we have the best fitting rotation and shift position.
     # In a next step, go ahead and refine the distortion in the frame
@@ -1775,6 +1757,7 @@ if __name__ == "__main__":
         valid_modes = (
             "shift",
             "rotation",
+            "otashift",
             "otashear",
             "distortion"
         )
