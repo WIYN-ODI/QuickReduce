@@ -190,7 +190,7 @@ def log_master(queue, options):
             debug_logger = logging.getLogger('debug')
             # debug_logger = logging.getLogger()
             h = logging.StreamHandler(stream=debugfile)
-            f = logging.Formatter('DEBUGHANDLER %(processName)-10s %(asctime)s %(name)s %(levelname)-8s %(message)s')
+            f = logging.Formatter('%(asctime)s -- %(levelname)-8s [ %(filename)30s : %(lineno)4s - %(funcName)30s() in %(processName)-12s] %(name)30s :: %(message)s')
             h.setFormatter(f)
             debug_logger.addHandler(h)
             debug_logger.propagate=False
