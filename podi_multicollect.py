@@ -90,6 +90,14 @@ if __name__ == "__main__":
     output_directory = None
     keeppath = False
     
+    # Read all options from command line. This is 100% compatible 
+    # with an individual call to podi_collectcells.
+    options = read_options_from_commandline(None)
+
+    # Setup everything we need for logging
+    log_master_info, log_setup = podi_logging.podi_log_master_start(options)
+    options['log_setup'] = log_setup
+
     output_directory = cmdline_arg_set_or_default("-output", None)
     if (output_directory != None):
         if (not os.path.isdir(output_directory)):
@@ -111,10 +119,6 @@ if __name__ == "__main__":
         #sys.exit(0)
     else:
         filelist = get_clean_cmdline()[1:]
-
-    # Read all options from command line. This is 100% compatible 
-    # with an individual call to podi_collectcells.
-    options = read_options_from_commandline(None)
 
     # Now loop over all files and run collectcells
     for folder in filelist:
