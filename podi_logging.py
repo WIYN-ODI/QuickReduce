@@ -402,18 +402,36 @@ def podi_logger_setup(setup):
 if __name__ == "__main__":
 
     if (cmdline_arg_isset("-pikalisten")):
+
+        try:
+            import pika
+            print "Found PIKA module!"
+        except ImportError:
+            print "There's no pika package installed, quitting"
+            sys.exit(0)
         
-        import pika
-        import podi_pikasetup
-        credentials = pika.PlainCredentials(podi_pikasetup.user, podi_pikasetup.password)
-        connection = pika.BlockingConnection(
-            pika.ConnectionParameters( 
-                credentials=credentials, 
-                host=podi_pikasetup.host, 
-                virtual_host=podi_pikasetup.vhost)
-        )
-        channel = connection.channel()
-        channel.queue_declare(queue=podi_pikasetup.jobstatus_queue, durable=True)
+        try:
+            import podi_pikasetup
+            print "Found podi-setup for PIKA!"
+        except ImportError:
+            print "No podi-setup found."
+            print "Maybe you need to run `cp podi_pikasetup.py.example podi_pikasetup.py ?"
+            sys.exit(0)
+
+        print "Trying to connect to AMQP server"
+        try:
+            credentials = pika.PlainCredentials(podi_pikasetup.user, podi_pikasetup.password)
+            connection = pika.BlockingConnection(
+                pika.ConnectionParameters( 
+                    credentials=credentials, 
+                    host=podi_pikasetup.host, 
+                    virtual_host=podi_pikasetup.vhost)
+            )
+            channel = connection.channel()
+            channel.queue_declare(queue=podi_pikasetup.jobstatus_queue, durable=True)
+        except:
+            print "Connection failed!"
+            sys.exit(0)
 
         print "PIKA connection established!"
 
