@@ -96,6 +96,7 @@ def fit_wcs_model(p, xy, radec, wcspoly, min_fit_order = 2):
 
     return diff.ravel()
 
+import dev_ccmatch
 
 if __name__ == "__main__":
 
@@ -108,188 +109,169 @@ if __name__ == "__main__":
     d_crval1, d_crval2 = None, None
 
     dummyfile = open("simplify.debug", "w")
+    n_stars = 5000
 
     for ext in range(len(hdulist)):
         if (not type(hdulist[ext])== pyfits.hdu.image.ImageHDU):
             continue
 
-        print hdulist[ext].header['EXTNAME']
+        imghdu = pyfits.ImageHDU(header=hdulist[ext].header, data=numpy.array((4000,4000)))
+        imghdu.header['NAXIS'] = 2
+        imghdu.header['NAXIS1'] = 4000
+        imghdu.header['NAXIS2'] = 4000
+        imghdu.header['CTYPE1'] = "RA---TPV"
+        imghdu.header['CTYPE2'] = "DEC--TPV"
+        imghdu.header['CRVAL1'] += 70
+        imghdu.header['CRVAL2'] += 30
+
+        newhdu = pyfits.ImageHDU(header=hdulist[ext].header, data=numpy.array((4000,4000)))
+        newhdu.header['NAXIS'] = 2
+        newhdu.header['NAXIS1'] = 4000
+        newhdu.header['NAXIS2'] = 4000
+        newhdu.header['CTYPE1'] = "RA---TPV"
+        newhdu.header['CTYPE2'] = "DEC--TPV"
+        newhdu.header['CRVAL1'] += 70
+        newhdu.header['CRVAL2'] += 30
+
+        #print imghdu.header
+        #print "="*100
+
         hdr = hdulist[ext].header
 
-        wcs_in = astWCS.WCS(hdr, mode='pyfits')
-        print "CHIP CENTER:",wcs_in.getCentreWCSCoords()
+        extname = hdr['EXTNAME']
+        print extname
 
-        wcspoly_before = header_to_polynomial(hdr)
+        #hdr['NAXIS'] = 2
+        #hdr['NAXIS1'] = 4000
+        #hdr['NAXIS2'] = 4000
+        
+        wcs_in = astWCS.WCS(imghdu.header, mode='pyfits')
 
-        # Now read all values we might need
-        crval_1 = hdr['CRVAL1']
-        crval_2 = hdr['CRVAL2']
-
-        crpix_1 = hdr['CRPIX1']
-        crpix_2 = hdr['CRPIX2']
-
-        cd_11 = hdr['CD1_1']
-        cd_12 = hdr['CD1_2']
-        cd_21 = hdr['CD2_1']
-        cd_22 = hdr['CD2_2']
-
-        # Also read the first three distortion factors if available
-        pv_10, pv_20 = 0., 0.
-        pv_11, pv_21 = 1., 1.,
-        pv_12, pv_22 = 0., 0.,
-        if ('PV1_0' in hdr): pv_10 = hdr['PV1_0']
-        if ('PV1_1' in hdr): pv_11 = hdr['PV1_1']
-        if ('PV1_2' in hdr): pv_12 = hdr['PV1_2']
-        if ('PV2_0' in hdr): pv_20 = hdr['PV2_0']
-        if ('PV2_1' in hdr): pv_21 = hdr['PV2_1']
-        if ('PV2_2' in hdr): pv_22 = hdr['PV2_2']
-
-        cd = numpy.matrix([[cd_11, cd_12], [cd_21, cd_22]])
-
-        pv0 = numpy.array([[pv_10],[pv_20]])
-        print "\nPV_0=\n", pv0
-
-        #print cd.dot(pv_10_20)
-
-        pv = numpy.matrix([[pv_11, pv_12], [pv_21, pv_22]])
-        print "\nPV=",pv
-
-        cd_prime = cd.dot(pv)
-
-        print "\nCD =\n",cd
-        print "\nCD'=\n",cd_prime
-
-        # Compute the new CD matrix, folding in the lowest order PV factors
-        # (11  12)'  (11  12)   (11  12)   (cd11.pv11+cd12.pv22   cd11.pv12+cd12.pv21)
-        # (  CD  ) = (  CD  ) x (  PV  ) = (                                         )
-        # (21  22)   (21  22)   (22  21)   (cd21.pv11+cd22.pv22   cd21.pv12+cd22.pv21)
-
-        # product (cd) x (pv)
-        cd_11_prime = cd_11 * pv_11 + cd_12 * pv_22
-        cd_12_prime = cd_11 * pv_12 + cd_12 * pv_21
-        cd_21_prime = cd_21 * pv_11 + cd_22 * pv_22
-        cd_22_prime = cd_21 * pv_12 + cd_22 * pv_21
-
-        # # product (pv) x (cd)
-        # cd_11_prime = cd_11 * pv_11 + cd_21 * pv_12
-        # cd_12_prime = cd_12 * pv_11 + cd_22 * pv_12
-        # cd_21_prime = cd_11 * pv_22 + cd_21 * pv_21
-        # cd_22_prime = cd_12 * pv_22 + cd_22 * pv_21
-
-        cd_prime = numpy.matrix([[cd_11_prime, cd_12_prime], [cd_21_prime, cd_22_prime]])
-        print "\nCD' (#2) =\n",cd_prime
+        # Create a bunch of random x/y coordinates
+        xy = numpy.random.random((n_stars,2)) * 4000.
+        print xy.shape
+        print xy[:5,:]
 
 
-        # invert CD matrix
-        cd_inverse = cd.I
+        # From the x/y, compute Ra/decs
+        radec = numpy.array(wcs_in.pix2wcs(xy[:,0]-1, xy[:,1]-1))
 
-        UV_diff = cd_inverse.dot(pv0)
-        print "\nUV-diff=\n",UV_diff
+        # Now create a new WCS, with the most simple PV distortion 
+        # parameters disabled
+        newhdu.header['PV1_0'] = 0.
+        newhdu.header['PV1_1'] = 1.
+        newhdu.header['PV1_2'] = 0.
+        newhdu.header['PV2_0'] = 0.
+        newhdu.header['PV2_1'] = 1.
+        newhdu.header['PV2_2'] = 0.
 
-        # # Also compute the offset to the CRVAL values
-        # crval_1_prime = crval_1 + cd_11 * pv_10 + cd_12 * pv_20
-        # crval_2_prime = crval_2 + cd_21 * pv_10 + cd_22 * pv_20
+        # if ('PV1_0' in newhdu.header): del newhdu.header['PV1_0']
+        # if ('PV1_1' in newhdu.header): del newhdu.header['PV1_1']
+        # if ('PV1_2' in newhdu.header): del newhdu.header['PV1_2']
 
-        # Compute XY_diff
-        XY_diff = cd_prime.dot(UV_diff)
-        print "\nXY_diff=\n",XY_diff
+        # if ('PV2_0' in newhdu.header): del newhdu.header['PV2_0']
+        # if ('PV2_1' in newhdu.header): del newhdu.header['PV2_1']
+        # if ('PV2_2' in newhdu.header): del newhdu.header['PV2_2']
 
-        crval_1_shift = XY_diff[0,0]/math.cos(math.radians(crval_2))
-        crval_2_shift = XY_diff[1,0]
+        # print "before=",newhdu.header['CRPIX1']
+        # # newhdu.header['CRPIX1'] += 100
+        # # newhdu.header['CRVAL1'] += 0.2
+        # print "after =",newhdu.header['CRPIX1']
 
-        # Compute a delta_CRVAL from the first encountered OTA header
-        d_crval1 = crval_1_shift if (d_crval1 == None) else d_crval1
-        d_crval2 = crval_2_shift if (d_crval2 == None) else d_crval2
+        # print "\n"*5,"="*140
+        # print "newhdu="
+        # print newhdu.header
+        # print "\n"*5,"="*140
+        # print "oldhdu="
+        # print imghdu.header
 
-        # and apply it to the output header
-        crval_1_prime = crval_1 + d_crval1 
-        crval_2_prime = crval_2 + d_crval2 
+        wcs_out = astWCS.WCS(newhdu.header, mode='pyfits')
 
-        #  _
-        # /!\  So far that part is largely taken directly from
-        #  |   the SPIE paper, the next part is more ODI specific
-        #  |
-        #  |   We need to ensure all CRVAL parameters are the same
-        #  |   small differences in the relative position should go 
-        #  |   into differences in the CRPIX keywords.
-        #
+        # wcs_out.header['PV1_0'] = 0.
+        # wcs_out.header['PV1_1'] = 1.
+        # wcs_out.header['PV1_2'] = 0.
+        # wcs_out.header['PV2_0'] = 0.
+        # wcs_out.header['PV2_1'] = 1.
+        # wcs_out.header['PV2_2'] = 0.
 
-        # Now write all headers back to file
-        hdr['CRVAL1'] = crval_1_prime
-        hdr['CRVAL2'] = crval_2_prime
+        # wcs_out.updateFromHeader()
+        radec_new = numpy.array(wcs_out.pix2wcs(xy[:,0]-1, xy[:,1]-1))
 
-        hdr['CD1_1' ] = cd_prime[0,0]
-        hdr['CD1_2' ] = cd_prime[0,1]
-        hdr['CD2_1' ] = cd_prime[1,0]
-        hdr['CD2_2' ] = cd_prime[1,1]
+        # Now fit the new WCS system to absorb the changed values into the 
+        # CRVAL and CD matrix
+        catalog = numpy.zeros((n_stars, 6))
 
-        # And reset all distortion parameters
-        hdr['PV1_0' ] = 0.
-        hdr['PV1_1' ] = 1.
-        hdr['PV1_2' ] = 0.
-        hdr['PV2_0' ] = 0.
-        hdr['PV2_1' ] = 1.
-        hdr['PV2_2' ] = 0.
+        # Columns of catalog to be compatible with optimize_wcs_solution
+        # 3/4: x/y
+        # last 2 columns: reference ra/dec
 
-        # Create a wcs-poly structure for the simplified WCS system
-        wcspoly_simplified = header_to_polynomial(hdr)        
+        catalog[:,0:2] = radec[:,:]
+        catalog[:,2:4] = xy[:,:]
+        catalog[:,4:6] = radec[:,:]
 
-        # Now create a random pattern of points so we can re-fit 
-        # the polynomial distortion factors
+        numpy.savetxt("optimize.%s.x" % (extname), catalog)
 
-        xy = numpy.random.random((1000,2)) * 4000.
-        # Compute the Ra/Dec values using the input WCS system
-        radec_in = wcs_pix2wcs(xy, wcspoly_before, False)
+        print "imghdu -> \n",radec[:5,:]
+        print "newhdu -> \n",radec_new[:5,:]
 
-        # The introduced rotation is likely small, so let's obtain
-        # a starting value for the fit of the new coefficients from 
-        # the current distortion coefficients
-        min_fit_order = 2
-        p_init = wcspoly_to_p_array(wcspoly_before, min_fit_order)
+#        header_keywords  = ('CRPIX1', 'CRPIX2',
+#                            'CD1_1', 'CD1_2', 'CD2_1', 'CD2_2',)
+#'CRVAL1', 'CRVAL2',
+                            
+        header_keywords  = ('CRPIX1', 'CRPIX2',
+                            'CRVAL1', 'CRVAL2',
+                            'CD1_1', 'CD1_2', 'CD2_1', 'CD2_2',
+                            'PV1_4', 'PV1_5', 'PV1_6', 'PV1_7', 'PV1_8', 'PV1_9',
+                            'PV1_10', 'PV1_12', 'PV1_13', 'PV1_14', 'PV1_15', 'PV1_16', 
+                            'PV1_17', 'PV1_18', 'PV1_19', 'PV1_20', 'PV1_21', 'PV1_22', 
+                            'PV2_4', 'PV2_5', 'PV2_6', 'PV2_7', 'PV2_8', 'PV2_9',
+                            'PV2_10', 'PV2_12', 'PV2_13', 'PV2_14', 'PV2_15', 'PV2_16', 
+                            'PV2_17', 'PV2_18', 'PV2_19', 'PV2_20', 'PV2_21', 'PV2_22', 
+        )
+        header_keywords  = ('CRPIX1', 'CRPIX2',
+                            'CRVAL1', 'CRVAL2',
+                            'CD1_1', 'CD1_2', 'CD2_1', 'CD2_2',)
 
+        # Find the best solution.
+        # The new header values are still in the wcs_out class
+        #print "before xxx", wcs_out.header['CRPIX1']
+        #wcs_out.header['CRPIX1'] += 100
+        print "before fit", wcs_out.header['CRPIX1']
+        dev_ccmatch.optimize_wcs_solution(catalog, wcs_out.header, header_keywords)
+        print "after  fit", wcs_out.header['CRPIX1']
 
+        # Activate the changes to the WCS headers
+        # print "\n"*20
+        # print "updateFromHeader\n"
+        # print wcs_out.header
+        wcs_out.updateFromHeader()
+        # print "="*140
+        # print wcs_out.header
+        
+        # compute new catalog
+        radec_new = numpy.array(wcs_out.pix2wcs(xy[:,0]-1, xy[:,1]-1))
+        #print radec[:5,:]
 
-        # And finally, start the optimization
-        # fit_wcs_model(p, xy, radec, wcspoly, min_fit_order = 2)
-        print "Starting fitting the new distortion..."
-        args = (xy, radec_in, wcspoly_simplified, 2)
-        fit = scipy.optimize.leastsq(fit_wcs_model,
-                                     p_init, 
-                                     args=args, 
-                                     full_output=1)
-        print "Yippie, done fitting"
+        catalog[:,0:2] = radec_new[:,:]
 
-        p_final = fit[0]
-        print "before-fit:\n",p_init
-        print "after fit:\n",fit[0]
+        catalog_out = numpy.append(radec, radec_new, axis=1)
+        numpy.savetxt("optimize.%s" % (extname), catalog_out)
 
-        # Apply the best-fit parameter to the simplified wcs-poly structure
-        wcspoly_after = update_wcspoly(p_final, wcspoly_simplified, min_fit_order)
+        dradec = radec - radec_new #catalog[:,0:2]  - catalog[:,4:6]
+        print dradec[:5,:] * 3600. * 1000.
 
-        # Update the header
-        wcs_wcspoly_to_header(wcspoly_after, hdr)
-
-        # And put header back into hdulist
-        hdulist[ext].header = hdr
-
-        wcs_out = astWCS.WCS(hdr, mode='pyfits')
-        print "CHIP CENTER:",wcs_out.getCentreWCSCoords()
-        print wcs_out.pix2wcs(4000,4000)
-        # print hdr
-
-#        wcspoly_after = header_to_polynomial(hdr)
-
-
-        xy = numpy.random.random((1000,2)) * 4000
-        radec_before = wcs_pix2wcs(xy, wcspoly_before)
-        radec_after  = wcs_pix2wcs(xy, wcspoly_after)
-        radecs = numpy.append(radec_before, radec_after, axis=1)
-
-        numpy.savetxt(dummyfile, radecs)
-        print >>dummyfile, "\n\n\n\n\n"
+        # Update all headers with the new fitted values
+        for keyname in hdr:
+            # print keyname, hdr[keyname]
+            if (keyname in wcs_out.header):
+                hdulist[ext].header[keyname] = wcs_out.header[keyname]
+                if (wcs_out.header[keyname] != wcs_in.header[keyname]):
+                    print "found change in key",keyname,", was:",wcs_in.header[keyname],"  now: ",wcs_out.header[keyname]
 
 
-    hdulist.writeto(output_wcs, clobber=True)
+        # hdulist[ext].data = numpy.ones((4000,4000))
+        
+        hdulist.writeto(output_wcs, clobber=True)
 
 
 
