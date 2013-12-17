@@ -1060,6 +1060,51 @@ def pick_isolated_stars(catalog, radius=10.):
 
 
 
+def parallel_optimize_wcs_solution(queue_in, queue_out):
+    """
+
+    This is a minimal wrapper around optimize_wcs_solution to enable parallel
+    execution.
+
+    All input commands are received via a multiprocessing.JoinableQueue and 
+    reported back via a separate multiprocessing.Queue.
+
+    """
+
+    logger = logging.getLogger("ParallelOptimizeWCS")
+
+    while (True):
+
+        data_in = queue_in.get()
+        if (data_in == None):
+            logger.debug("Received end signal, shutting down")
+            queue_in.task_done()
+            return
+            
+        # Extract all necessary data from command queue
+        catalog, header, headers_to_optimize, extension_id = data_in
+
+        logger.debug("Starting work for OTA %s..." % (header['EXTNAME']))
+
+        optimize_wcs_solution(catalog, header, headers_to_optimize)
+
+        # Now that we have the optimized WCS solution, recompute the source 
+        # Ra/Dec values with the better system
+        astwcs = astWCS.WCS(header, mode='pyfits')
+
+        ota_xy = catalog[:,2:4] - [1.,1.]
+        ota_radec = numpy.array(astwcs.pix2wcs(ota_xy[:,0], ota_xy[:,1]))
+
+        catalog[:,0:2] = ota_radec
+
+        # Prepare and return results to main process
+        return_data = catalog, header, extension_id
+        queue_out.put(return_data)
+        queue_in.task_done()
+        logger.debug("Down with work for OTA %s..." % (header['EXTNAME']))
+
+    return
+
 
 
 def improve_wcs_solution(src_catalog, 
@@ -1069,7 +1114,17 @@ def improve_wcs_solution(src_catalog,
                          matching_radius=(3./3600),
                          min_ota_catalog_size=15,
                          output_catalog = None,
+                         allow_parallel = True,
                          ):
+    """
+
+    This function is a wrapper around the optimize_wcs_solution routine. It
+    splits up the full catalog into sub-catalogs for each OTA, and optimizes
+    each catalog by fiddling with some of the WCS keywords until the distance
+    between source coordiantes and reference coordiantes is minimized.
+
+    """
+
     logger = logging.getLogger("ImproveWCSSolutionOTA")
 
     # Match the entire input catalog with the reference catalog
@@ -1080,6 +1135,15 @@ def improve_wcs_solution(src_catalog,
                                        max_count=1)
 
     global_cat = None
+
+    # Prepare what we need for the parallel execution
+    processes = []
+    queue_cmd = multiprocessing.JoinableQueue()
+    queue_return = multiprocessing.Queue()
+    number_tasks = 0
+
+    logger.debug("Running improve_wcs_solution in %s mode!" % ("parallel" if allow_parallel else "serial"))
+
     for ext in range(len(hdulist)):
         if (not is_image_extension(hdulist[ext])):
             continue
@@ -1092,21 +1156,63 @@ def improve_wcs_solution(src_catalog,
             ota, ota_cat.shape[0], min_ota_catalog_size, "yes" if ota_cat.shape[0] > min_ota_catalog_size else "no"))
 
 
-        # Don't optimize if we have to few stars to constrain solution
-        if (ota_cat.shape[0] > min_ota_catalog_size):
+        if (not allow_parallel):
+            #
+            # This is the work to be done serially
+            #
+
+            # Don't optimize if we have to few stars to constrain solution
+            if (ota_cat.shape[0] > min_ota_catalog_size):
             
-            optimize_wcs_solution(ota_cat, hdulist[ext].header, headers_to_optimize)
+                optimize_wcs_solution(ota_cat, hdulist[ext].header, headers_to_optimize)
 
-            # Now that we have the optimized WCS solution, recompute the source 
-            # Ra/Dec values with the better system
-            astwcs = astWCS.WCS(hdulist[ext].header, mode='pyfits')
+                # Now that we have the optimized WCS solution, recompute the source 
+                # Ra/Dec values with the better system
+                astwcs = astWCS.WCS(hdulist[ext].header, mode='pyfits')
 
-            ota_xy = ota_cat[:,2:4] - [1.,1.]
-            ota_radec = numpy.array(astwcs.pix2wcs(ota_xy[:,0], ota_xy[:,1]))
+                ota_xy = ota_cat[:,2:4] - [1.,1.]
+                ota_radec = numpy.array(astwcs.pix2wcs(ota_xy[:,0], ota_xy[:,1]))
 
-            ota_cat[:,0:2] = ota_radec
-        
-        global_cat = ota_cat if (global_cat == None) else numpy.append(global_cat, ota_cat, axis=0)
+                ota_cat[:,0:2] = ota_radec
+
+            global_cat = ota_cat if (global_cat == None) else numpy.append(global_cat, ota_cat, axis=0)
+
+        else:
+            
+            #
+            # Do the work in parallel
+            #
+            task = (ota_cat, hdulist[ext].header, headers_to_optimize, ext)
+            queue_cmd.put(task)
+            number_tasks += 1
+
+
+    if (allow_parallel):
+        worker_args = {'queue_in': queue_cmd,
+                       'queue_out': queue_return,
+                       }
+        # All work is queued, start the processes to do the work
+        for i in range(sitesetup.number_cpus):
+            p = multiprocessing.Process(target=parallel_optimize_wcs_solution, kwargs=worker_args)
+            p.start()
+            processes.append(p)
+
+            # Also send a quit signal to each process
+            queue_cmd.put(None)
+
+        # Receive all results
+        for i_results in range(number_tasks):
+            catalog, header, extension_id = queue_return.get()
+
+            # Merge the catalogs
+            global_cat = catalog if (global_cat == None) else numpy.append(global_cat, catalog, axis=0)
+
+            # And re-insert the updated header
+            hdulist[extension_id].header = header
+
+        # Wait until all work is complete
+        for p in processes:
+            p.join()
 
     
     # Match the new, improved catalog with the reference catalog
