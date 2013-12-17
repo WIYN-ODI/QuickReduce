@@ -2596,6 +2596,8 @@ def read_options_from_commandline(options=None):
 
     """
 
+    logger = logging.getLogger("ReadOptions")
+
     if (options == None):
         options = set_default_options()
 
@@ -2604,6 +2606,11 @@ def read_options_from_commandline(options=None):
     # Handle all reduction flags from command line
     if (cmdline_arg_isset("-cals")):
         cals_dir = get_cmdline_arg("-cals")
+        if (not os.path.isdir(cals_dir)):
+            logger.critical("The specified cals-directory (%s) does not exist!!!" % (cals_dir))
+            stdout_write("\n\n   The specified cals-directory (%s) does not exist!!!\n\n\n" % (cals_dir))
+            sys.exit(0)
+
         options['bias_dir'] = cals_dir
         options['dark_dir'] = cals_dir
         options['flat_dir'] = cals_dir
