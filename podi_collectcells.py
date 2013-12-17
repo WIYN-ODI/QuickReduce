@@ -727,6 +727,7 @@ def collect_reduce_ota(filename,
         hdu.header["DETSEC"] = (detsec_str, "position of OTA in focal plane")
                 
         if (cmdline_arg_isset("-simplewcs") or options['wcs_distortion'] != None):
+            logger.debug("Running simplewcs")
             #
             # Fudge with the WCS headers, largely undoing what's in the fits file right now,
             # and replacing it with a simpler version that hopefully works better
@@ -748,6 +749,7 @@ def collect_reduce_ota(filename,
         hdu.header["CUNIT1"] = ("deg", "")
         hdu.header["CUNIT2"] = ("deg", "")
 
+        logger.debug("Converting coordinates to J2000")
         coord_j2000 = ephem.Equatorial(hdu.header['RA'], hdu.header['DEC'], epoch=ephem.J2000)
         if (not options['target_coords'] == None):
             if (options['verbose']): print "Overwriting target positions",options['target_coords']
@@ -830,6 +832,7 @@ def collect_reduce_ota(filename,
                                                    max_starcount=150,
                                                    extension_id=ota)
             else:
+                logger.debug("Running SourceExtractor")
                 hdulist = pyfits.HDUList([pyfits.PrimaryHDU(header=hdu.header, data=hdu.data)])
                 obsid = hdulist[0].header['OBSID']
                 process_id = os.getpid()
@@ -844,7 +847,12 @@ def collect_reduce_ota(filename,
                     sitesetup.sextractor, sex_config_file, parameters_file, catfile, 
                     fitsfile, sitesetup.sex_redirect)
                 if (options['verbose']): print sexcmd
+                
+                start_time = time.time()
                 os.system(sexcmd)
+                end_time = time.time()
+                logger.debug("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
+
                 try:
                     try:
                         source_cat = numpy.loadtxt(catfile)
@@ -857,9 +865,8 @@ def collect_reduce_ota(filename,
                         else:
                             source_cat[:,8] = ota
                             flags = source_cat[:,7]
-                            valid = (flags != 3)
-                            if (verbose): print "source-cat:", source_cat.shape, numpy.sum(valid)
-                            source_cat = source_cat[valid]
+                            no_flags = (flags == 0)
+                            logger.debug("Found %d sources, %d with no flags" % (source_cat.shape[0], numpy.sum(no_flags)))
                 except:
                     source_cat = None
                 if (sitesetup.sex_delete_tmps):
@@ -1691,7 +1698,7 @@ def collectcells(input, outputfile,
         #cur_process.terminate()
         #del cur_process
 
-    logger.debug("all data received fromworker processes!")
+    logger.debug("all data received from worker processes!")
     logger.info("Starting post-processing")
     additional_reduction_files = {}
 
