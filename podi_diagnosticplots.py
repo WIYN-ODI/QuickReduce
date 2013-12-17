@@ -397,7 +397,7 @@ def wcsdiag_shift(matched_radec_odi,
 
     cos_declination = numpy.cos(numpy.radians(0.5 * (matched_radec_odi[:,1] + matched_radec_2mass[:,1])))
     d_radec = matched_radec_odi - matched_radec_2mass
-    d_radec[:,1] *= cos_declination
+    d_radec[:,0] *= cos_declination
     ota = matched_ota
 
 #    d_ra  = matched_radec_odi[:,0] - matched_radec_2mass[:,0]
