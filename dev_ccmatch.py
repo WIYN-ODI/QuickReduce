@@ -1213,7 +1213,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     # eliminate all flagged stars
     #
-    full_src_cat = src_raw[src_raw[:,7] == 0]
+    flags = numpy.array(src_raw[:,7], dtype=numpy.int8) & sexflag_wcs
+    full_src_cat = src_raw[flags == 0]
     logger.debug("src_cat: "+str(full_src_cat.shape))
 
     #

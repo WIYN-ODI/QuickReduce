@@ -262,6 +262,26 @@ list_of_valid_filter_ids = {
 
 
 
+#
+# Source Extractor flags
+# 
+# 0b00000001 =   1: near neighbor
+# 0b00000010 =   2: deblended source
+# 0b00000100 =   4: >1 pixel saturated
+# 0b00001000 =   8: truncated / image boundary
+# 0b00010000 =  16: aperture data incomplete/corrupted
+# 0b00100000 =  32: isophotal data incomplete/corrupted
+# 0b01000000 =  64: memory overflow during deblending
+# 0b10000000 = 128: memory overflow during extraction
+#
+# The following flags define the FLAGS that exclude a source
+#
+# WCS can handle saturated/deblended/crowded sources
+sexflag_wcs  = 0b11111000
+#
+# Photometric calibration needs perfect stars
+sexflag_phot = 0b11111111
+
 
 def get_valid_filter_name(hdr):
     """
