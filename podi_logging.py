@@ -172,11 +172,18 @@ def log_master(queue, options):
 
     import sys
     root = logging.getLogger()
-    h = logging.NullHandler() #StreamHandler(stream=sys.stdout)
-    f = logging.Formatter('ROOTHANDLER %(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s')
-    h.setFormatter(f)
-    root.addHandler(h)
-    root.propagete = False
+    try:
+        h = logging.NullHandler() #StreamHandler(stream=sys.stdout)
+        f = logging.Formatter('ROOTHANDLER %(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s')
+        h.setFormatter(f)
+        root.addHandler(h)
+    except AttributeError:
+        # This happens in older Python versions that don't have a NULLHandler
+        pass
+    except:
+        raise
+
+    root.propagate = False
 
     enable_debug = False
     if (cmdline_arg_isset("-debugfile") or sitesetup.debug_log_filename != None):
