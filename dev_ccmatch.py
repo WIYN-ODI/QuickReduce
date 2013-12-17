@@ -1194,24 +1194,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     else:
         hdulist = input_hdu
 
-    # wcs_verify = verify_wcs_model(src_raw, hdulist)
-    # numpy.savetxt("ccmatch.wcs_verify", wcs_verify)
-    # sys.exit(0)
-
-
-    # #
-    # # For testing purposes, rotate the field by a little
-    # #
-    # testing = False
-    # if (testing):
-    #     angle = 7./60. # 10 arcmin
-    #     center_ra = numpy.median(src_raw[:,0])
-    #     center_dec = numpy.median(src_raw[:,1])
-    #     src_xxx = rotate_shift_catalog(src_raw[:,0:2], (center_ra, center_dec), angle, [0.01, -0.005])
-    #     src_raw[:,0:2] = src_xxx
-
     #
-    # eliminate all flagged stars
+    # eliminate all stars with problematic flags
     #
     flags = numpy.array(src_raw[:,7], dtype=numpy.int8) & sexflag_wcs
     full_src_cat = src_raw[flags == 0]
@@ -1220,16 +1204,13 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     # compute the center of the field
     #
-    center_ra = hdulist[1].header['CRVAL1'] #numpy.median(src_cat[:,0])
-    center_dec = hdulist[1].header['CRVAL2'] #numpy.median(src_cat[:,1])
+    center_ra = hdulist[1].header['CRVAL1']
+    center_dec = hdulist[1].header['CRVAL2']
     logger.debug("field center at %f   %f" % (center_ra, center_dec))
 
 
     # 
     # Create the reference catalog
-    #
-    # ref_catfile = sys.argv[2]
-    # if (ref_catfile == "-"):
     #
     if (reference_catalog == None):
         search_size = 0.8
@@ -1287,7 +1268,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         logger.debug("Down-selected reference catalog to %d isolated stars (min_d=%d)" % (ref_cat.shape[0], min_distance))
     logger.debug("Final reference catalog: %d sources, isolated by >%d" % (ref_cat.shape[0], min_distance))
 
-        # 
+    # 
     #
     # Get rid of all data except the coordinates
     # 
@@ -1437,21 +1418,10 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     current_best_shift = best_shift_rotation_solution[1:3]
     n_matches = numpy.sum(numpy.isfinite(matched[:,2]))
 
-    # hdulist[0].header['WCS1_DA'] = (best_guess[0], "WCS calib best guess angle")
-    # hdulist[0].header['WCS1_DRA'] = (best_guess[2], "WCS calib best guess d_RA")
-    # hdulist[0].header['WCS1_DDE'] = (best_guess[3], "WCS calib best guess d_DEC")
-    # hdulist[0].header['WCS1_N'] = (best_guess[1], "WCS calib best guess # matches")
-
     # Add the refined shift and rotation to output header to keep track 
     # of the changes we are making
     log_shift_rotation(hdulist, params=best_shift_rotation_solution, n_step=2, 
                        description="WCS rot refi")
-
-    # hdulist[0].header['WCS2_DA']  = (current_best_rotation, "WCS rot refi d_angle")
-    # hdulist[0].header['WCS2_DRA'] = (current_best_shift[0], "WCS rot refi r_RA")
-    # hdulist[0].header['WCS2_DDE'] = (current_best_shift[1], "WCS rot refi r_DEC")
-    # hdulist[0].header['WCS2_N']   = (n_matches, "WCS rot refi n_matches")
-
 
     logger.debug("Writing shift/rotation to output file")
     for ext in range(len(hdulist)):
@@ -1471,17 +1441,6 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                                        verbose=False)
     matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(2./3600.), max_count=1)
     if (create_debug_files): numpy.savetxt("ccmatch.after_rotation", matched)
-
-    # src_raw_rotated = rotate_shift_catalog(src_raw, (center_ra, center_dec), 
-    #                                        angle=current_best_rotation,
-    #                                        shift=current_best_shift,
-    #                                        verbose=False)
-
-    #print "writing results ..."
-    #hduout = pyfits.HDUList(hdulist[0:3])
-    #hduout.append(hdulist[13])
-    #hduout = pyfits.HDUList(hdulist)
-    #hduout.writeto(outputfile, clobber=True)
 
     # We only asked for rotation optimization, so 
     # end the processing right here
@@ -1503,7 +1462,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #  \1/
     #   "
 
-
+    #
     # First, most simple step: Refine the location of each OTA to account
     # for some large-scale distortion
     logger.debug("Optimizing each OTA separately, shift only")
