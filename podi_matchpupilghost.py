@@ -425,11 +425,34 @@ def get_pupilghost_scaling(science_frame, pupilghost_frame,
 
     merged_all = numpy.zeros(shape=(0,6))
 
+    any_affected = False
+
     for ext in range(1,5):
         extname = sci_hdulist[ext].header['EXTNAME']
         filter = sci_hdulist[0].header['FILTER']
         
-        center = pupilghost_centers[filter][extname]
+        if (not 'PGAFCTD' in sci_hdulist[ext].header):
+            # This frame does not contain the keyword labeling it as affected by
+            # the pupilghost. In that case we don't need to do anything
+            continue
+
+        pupilghost_affected = sci_hdulist[ext].header['PGAFCTD']
+        if (not pupilghost_affected):
+            continue
+
+        # Try to find the center position of the pupilghost from the science
+        # frame. The necessary headers should have been inserted during 
+        # flat-field correction
+        if ('PGEFCTVX' in sci_hdulist[ext].header and 
+            'PGEFCTVY' in sci_hdulist[ext].header):
+            
+            center = (sci_hdulist[ext].header['PGEFCTVX'], 
+                      sci_hdulist[ext].header['PGEFCTVY'])
+
+        else:
+            continue
+
+        any_affected = True
 
         data = sci_hdulist[ext].data
         pg = pg_hdulist[extname].data
@@ -505,30 +528,31 @@ def get_pupilghost_scaling(science_frame, pupilghost_frame,
         numpy.savetxt("merged%d" % (ext), merged[strong_pg_signal])
 
 
-    print "\n\n============================\n\n"
-    ratio = merged_all[:,4] / merged_all[:,5]
-        
-    pg_max = numpy.max(merged_all[:,5])
-    strong_pg_signal = merged_all[:,5] > 0.4*pg_max
+    if (any_affected):
+        print "\n\n============================\n\n"
+        ratio = merged_all[:,4] / merged_all[:,5]
 
-    valid_ratios = ratio[strong_pg_signal]
+        pg_max = numpy.max(merged_all[:,5])
+        strong_pg_signal = merged_all[:,5] > 0.4*pg_max
 
-    import podi_collectcells
-    good_ratios = podi_collectcells.three_sigma_clip(ratio[strong_pg_signal])
+        valid_ratios = ratio[strong_pg_signal]
 
-    median_ratio = numpy.median(valid_ratios)
-    print "median_ratio =",median_ratio
-    print "error = ",numpy.std(valid_ratios)
-    print "clipped median",numpy.median(good_ratios)
-    print "clipped std",numpy.std(good_ratios)
-    numpy.savetxt("merged_all", merged_all[strong_pg_signal])
-    numpy.savetxt("merged_clipped", good_ratios)
+        import podi_collectcells
+        good_ratios = podi_collectcells.three_sigma_clip(ratio[strong_pg_signal])
 
-    clipped_median = numpy.median(good_ratios)
-    clipped_std = numpy.std(good_ratios)
-    return clipped_median, clipped_std
+        median_ratio = numpy.median(valid_ratios)
+        print "median_ratio =",median_ratio
+        print "error = ",numpy.std(valid_ratios)
+        print "clipped median",numpy.median(good_ratios)
+        print "clipped std",numpy.std(good_ratios)
+        numpy.savetxt("merged_all", merged_all[strong_pg_signal])
+        numpy.savetxt("merged_clipped", good_ratios)
 
+        clipped_median = numpy.median(good_ratios)
+        clipped_std = numpy.std(good_ratios)
+        return any_affected, clipped_median, clipped_std
 
+    return any_affected, -1., -1.
 
 
 

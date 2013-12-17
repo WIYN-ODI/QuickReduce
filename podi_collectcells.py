@@ -567,6 +567,9 @@ def collect_reduce_ota(filename,
                 hdu.header.add_history("CC-DARK: %s" % (os.path.abspath(dark_filename)))
                 del dark
  
+        # By default, mark the frame as not affected by the pupilghost. This
+        # might be overwritten if the flat-field has PG specifications.
+        hdu.header['PGAFCTD'] = False
 
         # If the third parameter points to a directory with flat-fields
         if (not options['flat_dir'] == None):
@@ -1690,6 +1693,8 @@ def collectcells(input, outputfile,
 
     logger.debug("all data received fromworker processes!")
     logger.info("Starting post-processing")
+    additional_reduction_files = {}
+
 
     if (options['fixwcs'] and verbose):
         print fixwcs_extension
@@ -1700,7 +1705,7 @@ def collectcells(input, outputfile,
         
     if(verbose):
         print master_reduction_files_used
-
+        
     #
     # Now do some post-processing:
     # 1) Add or overwrite some headers with values from an external wcs minifits file
@@ -1806,19 +1811,21 @@ def collectcells(input, outputfile,
             pg_hdu = pyfits.open(pg_template)
 
             # Find the optimal scaling factor
-            scaling, scaling_std = podi_matchpupilghost.get_pupilghost_scaling(ota_list, pg_hdu)
+            any_affected, scaling, scaling_std = podi_matchpupilghost.get_pupilghost_scaling(ota_list, pg_hdu)
 
-            # And subtract the scaled pupilghost templates.
-            podi_matchpupilghost.subtract_pupilghost(ota_list, pg_hdu, scaling, 
-                                                     # rotate=False,
-                                                     rotate=True,
-                                                     source_center_coords='header')
+            if (any_affected):
+                # And subtract the scaled pupilghost templates.
+                podi_matchpupilghost.subtract_pupilghost(ota_list, pg_hdu, scaling, 
+                                                         # rotate=False,
+                                                         rotate=True,
+                                                         source_center_coords='header')
 
-            ota_list[0].header["PUPLGOST"] = (pg_template, "p.g. template")
-            ota_list[0].header["PUPLGFAC"] = (scaling, "pupilghost scaling")
-            bg_scaled = podi_matchpupilghost.scaling_factors[filter_name]*sky_global_median
-            ota_list[0].header["PUPLGFA2"] = (bg_scaled, "analytical pupilghost scaling")
-            stdout_write(" done!\n")
+                ota_list[0].header["PUPLGOST"] = (pg_template, "p.g. template")
+                ota_list[0].header["PUPLGFAC"] = (scaling, "pupilghost scaling")
+                bg_scaled = podi_matchpupilghost.scaling_factors[filter_name]*sky_global_median
+                ota_list[0].header["PUPLGFA2"] = (bg_scaled, "analytical pupilghost scaling")
+                stdout_write(" done!\n")
+                additional_reduction_files['pupilghost'] = pg_template
 
             pg_hdu.close()
         else:
@@ -2256,6 +2263,7 @@ def collectcells(input, outputfile,
         fringe_filename = check_filename_directory(options['fringe_dir'], "fringe__%s.fits" % (filter_name))
         # print fringe_filename
         if (os.path.isfile(fringe_filename)):
+            additional_reduction_files['fringemap'] = fringe_filename
             fringe_hdulist = pyfits.open(fringe_filename)
 
             # Now do the correction
@@ -2266,9 +2274,13 @@ def collectcells(input, outputfile,
                 # print "subtracting",extname
                 ota_list[ext].data -= (fringe_hdulist[extname].data * fringe_scaling_median)
 
+
     #
     # Create an association table from the master reduction files used.
     # 
+    
+    master_reduction_files_used = collect_reduction_files_used(master_reduction_files_used, 
+                                                               additional_reduction_files)
     assoc_table = create_association_table(master_reduction_files_used)
     ota_list.append(assoc_table)
 
