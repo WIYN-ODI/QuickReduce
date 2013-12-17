@@ -170,7 +170,8 @@ def wcsdiag_scatter(#matched_cat,
 
 #    matches_zeroed = matched_cat
 #    good_matches = matches_zeroed[matches_zeroed[:,2] >= 0]
-    d_ra  = matched_radec_odi[:,0] - matched_radec_2mass[:,0]
+    cos_declination = numpy.cos(numpy.radians(0.5 * (matched_radec_odi[:,1] + matched_radec_2mass[:,1])))
+    d_ra  = (matched_radec_odi[:,0] - matched_radec_2mass[:,0]) * cos_declination
     d_dec = matched_radec_odi[:,1] - matched_radec_2mass[:,1]
     ota = matched_ota
 
@@ -394,7 +395,9 @@ def wcsdiag_shift(matched_radec_odi,
     matched_radec_2mass = matched_radec_2mass[good_matches]
     matched_ota         = matched_ota[good_matches]
 
+    cos_declination = numpy.cos(numpy.radians(0.5 * (matched_radec_odi[:,1] + matched_radec_2mass[:,1])))
     d_radec = matched_radec_odi - matched_radec_2mass
+    d_radec[:,1] *= cos_declination
     ota = matched_ota
 
 #    d_ra  = matched_radec_odi[:,0] - matched_radec_2mass[:,0]
