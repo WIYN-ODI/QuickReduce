@@ -12,11 +12,11 @@ PARAMETERS_NAME  /work/podi_devel/.config/wcsfix.sexparam  # name of the file co
 #------------------------------- Extraction ----------------------------------
  
 DETECT_TYPE      CCD            # CCD (linear) or PHOTO (with gamma correction)
-DETECT_MINAREA   5              # minimum number of pixels above threshold
+DETECT_MINAREA   3              # minimum number of pixels above threshold
 THRESH_TYPE      RELATIVE       # threshold type: RELATIVE (in sigmas)
                                 # or ABSOLUTE (in ADUs)
-DETECT_THRESH    15            # <sigmas> or <threshold>,<ZP> in mag.arcsec-2
-ANALYSIS_THRESH  15            # <sigmas> or <threshold>,<ZP> in mag.arcsec-2
+DETECT_THRESH    6              # <sigmas> or <threshold>,<ZP> in mag.arcsec-2
+ANALYSIS_THRESH  6              # <sigmas> or <threshold>,<ZP> in mag.arcsec-2
  
 FILTER           N              # apply filter for detection (Y or N)?
 FILTER_NAME      default.conv   # name of the file containing the filter
@@ -112,7 +112,7 @@ WRITE_XML        N              # Write XML file (Y/N)?
 XML_NAME         sex.xml        # Filename for XML output
 XSL_URL          file:///usr/local/share/sextractor/sextractor.xsl
                                 # Filename for XSL style-sheet
-NTHREADS          0              # Number of simultaneous threads for
+NTHREADS         1              # Number of simultaneous threads for
                                 # the SMP version of SExtractor
                                 # 0 = automatic
 
@@ -125,7 +125,7 @@ INTERP_TYPE      ALL            # Interpolation type: NONE, VAR_ONLY or ALL
 
 PSF_NAME         default.psf    # File containing the PSF model
 PSF_NMAX         9              # Max.number of PSFs fitted simultaneously
-PSFDISPLAY_TYPE  SPLIT          # Catalog type for PSF-fitting: SPLIT or VECTOR
+#PSFDISPLAY_TYPE  SPLIT          # Catalog type for PSF-fitting: SPLIT or VECTOR
 PATTERN_TYPE     RINGS-HARMONIC # can RINGS-QUADPOLE, RINGS-OCTOPOLE,
                                 # RINGS-HARMONICS or GAUSS-LAGUERRE
 SOM_NAME         default.som    # File containing Self-Organizing Map weights
