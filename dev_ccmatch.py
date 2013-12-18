@@ -1282,6 +1282,9 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
 
     logger = logging.getLogger("CCMatch")
 
+    # Prepare the structure for the return values
+    return_value = {}
+
     if (type(source_catalog) == str):
         # Load the source catalog file
         src_catfile = source_catalog
@@ -1300,12 +1303,6 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     else:
         hdulist = input_hdu
 
-    #
-    # eliminate all stars with problematic flags
-    #
-    flags = numpy.array(src_raw[:,7], dtype=numpy.int8) & sexflag_wcs
-    full_src_cat = src_raw[flags == 0]
-    logger.debug("src_cat: "+str(full_src_cat.shape))
 
     #
     # compute the center of the field
@@ -1313,7 +1310,6 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     center_ra = hdulist[1].header['CRVAL1']
     center_dec = hdulist[1].header['CRVAL2']
     logger.debug("field center at %f   %f" % (center_ra, center_dec))
-
 
     # 
     # Create the reference catalog
@@ -1328,16 +1324,26 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         ref_raw = reference_catalog #numpy.loadtxt(ref_catfile)[:,0:2]
     logger.debug("ref. cat (raw) ="+str(ref_raw.shape))
 
-
     #
     # Reduce the reference catalog to approx. the coverage of the source catalog
     #
-    ref_cat = match_catalog_areas(full_src_cat, ref_raw, max_pointing_error/60.)
+    ref_cat = match_catalog_areas(src_raw, ref_raw, max_pointing_error/60.)
     logger.debug("area matched ref. catalog: "+str(ref_cat.shape))
+
+    # Save the matched 2MASS catalog as return data
+    return_value['2mass-catalog'] = ref_cat.copy()
+
+    
+    #
+    # eliminate all stars with problematic flags
+    #
+    flags = numpy.array(src_raw[:,7], dtype=numpy.int8) & sexflag_wcs
+    full_src_cat = src_raw[flags == 0]
+    logger.debug("src_cat: "+str(full_src_cat.shape))
     if (create_debug_files): numpy.savetxt("ccmatch.matched_ref_cat", ref_cat)
     if (create_debug_files): numpy.savetxt("ccmatch.src_cat", full_src_cat[:,0:2])
 
-    
+
 
     #
     # Exclude all stars with nearby neighbors to limit confusion
@@ -1383,8 +1389,6 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
 
     current_best_rotation = 0
     current_best_shift = [0.,0.]
-
-    return_value = {}
 
     if (mode == "shift"):
 
@@ -1432,7 +1436,6 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         return_value['transformation'] = wcs_correction
         return_value['matched_src+2mass'] = matched
         return_value['calibrated_src_cat'] = src_rotated
-        return_value['2mass-catalog'] = ref_cat
 
         return return_value #hdulist, wcs_correction, 
 
@@ -1555,7 +1558,6 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         return_value['transformation'] = best_shift_rotation_solution
         return_value['matched_src+2mass'] = matched
         return_value['calibrated_src_cat'] = src_rotated
-        return_value['2mass-catalog'] = ref_cat
 
         logger.debug("All done here, returning")
         return return_value 
@@ -1589,7 +1591,6 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         return_value['transformation'] = best_shift_rotation_solution
         return_value['matched_src+2mass'] = matched_global
         return_value['calibrated_src_cat'] = global_cat
-        return_value['2mass-catalog'] = ref_cat
     
         logger.debug("All done here, returning")
         return return_value 
@@ -1618,7 +1619,6 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         return_value['transformation'] = best_shift_rotation_solution
         return_value['matched_src+2mass'] = matched_global
         return_value['calibrated_src_cat'] = global_cat
-        return_value['2mass-catalog'] = ref_cat
     
         logger.debug("All done here, returning")
         return return_value 
