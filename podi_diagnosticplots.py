@@ -974,7 +974,6 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
             pass
 
     # Create one plot for the full focal plane, using boxes to outlines OTAs
-    print title
     plot_args = {"ra": ra, 
                  "dec": dec, 
                  "fwhm": fwhm, 
