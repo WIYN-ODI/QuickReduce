@@ -2124,12 +2124,18 @@ def collectcells(input, outputfile,
                                  array=odi_2mass_cat[:, -2], disp='2MASS right ascension'),
                    pyfits.Column(name='2MASS-DEC', format='E', unit='degrees', 
                                  array=odi_2mass_cat[:, -1], disp='2MASS declination'),
+                   pyfits.Column(name='OTA', format='E', unit='',
+                                 array=odi_2mass_cat[:, 8], disp='source OTA'),
         ]
         coldefs = pyfits.ColDefs(columns)
         matchedhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
         matchedhdu.update_ext_name("CAT.ODI+2MASS", comment=None)
         matchedhdu.header['MATCHRAD'] = (2., "matching radius in arcsec")
         ota_list.append(matchedhdu)
+
+        # Compute the WCS quality statistics
+        # This also writes to the Primary and OTA-level headers
+        wcs_quality = dev_ccmatch.global_wcs_quality(odi_2mass_cat, ota_list)
 
 
     if (options['fixwcs'] and options['create_qaplots']):
@@ -2143,7 +2149,7 @@ def collectcells(input, outputfile,
             int(ota_list[0].header['EXPTIME']),
             )
 
-        ota_wcs_stats = None #{}
+        ota_wcs_stats = wcs_quality #None #{}
         # for extension in range(1, len(ota_list)):
         #     if (ota_list[extension] == None):
         #         continue

@@ -1844,6 +1844,72 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
 
 
 
+def global_wcs_quality(odi_2mass_matched, ota_list):
+
+    wcs_quality = {}
+    logger = logging.getLogger("ComputeWCSQuality")
+
+    # compute global values
+    logger.debug("Global:")
+    q = compute_wcs_quality(odi_2mass_matched, ota_list[0].header)
+    wcs_quality['full'] = q
+
+    for ext in range(0, len(ota_list)):
+        if (not is_image_extension(ota_list[ext])):
+            continue
+
+        extname = ota_list[ext].header['EXTNAME']
+        ota = ota_list[ext].header['OTA']
+        in_this_ota = odi_2mass_matched[:,8] == ota
+
+        matched_ota = odi_2mass_matched[in_this_ota]
+
+        logger.debug(extname)
+        q = compute_wcs_quality(matched_ota, ota_list[ext].header)
+        wcs_quality[extname] = q
+
+    return wcs_quality
+
+
+def compute_wcs_quality(odi_2mass_matched, hdr=None):
+
+    logger = logging.getLogger("ComputeWCSQuality")
+
+    d_dec = (odi_2mass_matched[:,1] - odi_2mass_matched[:,-1])
+    d_ra  = ((odi_2mass_matched[:,0] - odi_2mass_matched[:,-2]) 
+             * numpy.cos(numpy.radians(odi_2mass_matched[:,1])))
+
+    numpy.savetxt("wcsquality.test", odi_2mass_matched)
+    d_total = numpy.hypot(d_ra, d_dec)
+    wcs_scatter = numpy.median(d_total)
+    wcs_scatter2 = numpy.std(d_total)
+    wcs_mean_dra = numpy.median(d_ra) * 3600.
+    wcs_mean_ddec = numpy.median(d_dec) * 3600.
+    rms_dra = numpy.sqrt(numpy.mean(d_ra**2)) * 3600.
+    rms_ddec = numpy.sqrt(numpy.mean(d_dec**2)) * 3600.
+
+    def make_valid(x):
+        return x if numpy.isfinite(x) else -9999
+
+    results = {}
+    results['RMS-RA'] = rms_dra
+    results['RMS-DEC'] = rms_ddec
+    results['RMS'] = numpy.hypot(rms_dra, rms_ddec)
+    results['MEDIAN-RA'] = wcs_mean_dra
+    results['MEDIAN-DEC'] = wcs_mean_ddec
+
+    logger.debug("WCS quality: mean-offset=%(MEDIAN-RA).3f  , %(MEDIAN-DEC).3f [arcsec]" % results)
+    logger.debug("WCS quality: mean-rms=%(RMS-RA).3f , %(RMS-DEC).3f , %(RMS).3f [arcsec]" % results)
+    # print "WCS quality:", ota, wcs_mean_dra*3600., wcs_mean_ddec*3600., wcs_scatter*3600., wcs_scatter2*3600., rms_dra, rms_ddec
+    
+    if (not hdr == None):
+        hdr["WCS_RMSA"] = (make_valid(results['RMS-RA']),     "RA r.m.s. of WCS matching [arcsec]")
+        hdr["WCS_RMSD"] = (make_valid(results['RMS-DEC']),    "DEC r.m.s. of WCS matching [arcsec]")
+        hdr["WCS_RMS"] =  (make_valid(results['RMS']),        "r.m.s. of WCS matching [arcsec]")
+        hdr["WCS_ERRA"] = (make_valid(results['MEDIAN-RA']),  "RA median error WCS matching [arcsec]")
+        hdr["WCS_ERRD"] = (make_valid(results['MEDIAN-DEC']), "DEC median error of WCS matching [arcsec]")
+ 
+    return results
 
 
 if __name__ == "__main__":
