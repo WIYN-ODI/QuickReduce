@@ -1107,6 +1107,33 @@ def parallel_optimize_wcs_solution(queue_in, queue_out):
 
 
 
+def recompute_radec_from_xy(hdulist, src_catalog):
+
+    global_cat = None
+
+    #
+    # Now re-compute the OTA source catalog including the updated WCS solution
+    #
+    for ext in range(len(hdulist)):
+        if (not is_image_extension(hdulist[ext])):
+            continue
+
+        ota = hdulist[ext].header['OTA']
+        in_this_ota = src_catalog[:,8] == ota
+
+        ota_full = src_catalog[in_this_ota]
+        astwcs = astWCS.WCS(hdulist[ext].header, mode='pyfits')
+
+        ota_xy = ota_full[:,2:4] - [1.,1.]
+        ota_radec = numpy.array(astwcs.pix2wcs(ota_xy[:,0], ota_xy[:,1]))
+
+        ota_full[:,0:2] = ota_radec
+
+        global_cat = ota_full if (global_cat == None) else numpy.append(global_cat, ota_full, axis=0)
+
+    return global_cat
+
+
 def improve_wcs_solution(src_catalog, 
                          ref_catalog,
                          hdulist,
@@ -1587,6 +1614,11 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         logger.debug("All done here, returning")
         return return_value 
 
+    #newcat = recompute_radec_from_xy(hdulist, src_rotated)
+    #numpy.savetxt("ccmatch.newcat-afterrot", newcat)
+    #matched_newcat = kd_match_catalogs(newcat, ref_close, matching_radius=(2./3600.), max_count=1)
+    #numpy.savetxt("ccmatch.newcat-afterrot2", matched_newcat)
+    
 
     #
     #   |
@@ -1887,6 +1919,21 @@ def compute_wcs_quality(odi_2mass_matched, hdr=None):
     wcs_mean_ddec = numpy.median(d_dec) * 3600.
     rms_dra = numpy.sqrt(numpy.mean(d_ra**2)) * 3600.
     rms_ddec = numpy.sqrt(numpy.mean(d_dec**2)) * 3600.
+    rms_comb = numpy.sqrt(numpy.mean(d_dec**2+d_ra**2)) * 3600.
+
+    try:
+        lsig_ra = scipy.stats.scoreatpercentile(d_ra, 16)
+        hsig_ra = scipy.stats.scoreatpercentile(d_ra, 84)
+        sigma_ra = 0.5 * (hsig_ra - lsig_ra) * 3600.
+        lsig_dec = scipy.stats.scoreatpercentile(d_dec, 16)
+        hsig_dec = scipy.stats.scoreatpercentile(d_dec, 84)
+        sigma_dec = 0.5 * (hsig_dec - lsig_dec) * 3600.
+        lsig_total = scipy.stats.scoreatpercentile(d_total, 16)
+        hsig_total = scipy.stats.scoreatpercentile(d_total, 84)
+        sigma_total = 0.5 * (hsig_total - lsig_total) * 3600.
+    except:
+        sigma_ra, sigma_dec, sigma_total = -99, -99, -99
+        pass
 
     def make_valid(x):
         return x if numpy.isfinite(x) else -9999
@@ -1894,12 +1941,17 @@ def compute_wcs_quality(odi_2mass_matched, hdr=None):
     results = {}
     results['RMS-RA'] = rms_dra
     results['RMS-DEC'] = rms_ddec
-    results['RMS'] = numpy.hypot(rms_dra, rms_ddec)
+    results['RMS'] = rms_comb #numpy.hypot(rms_dra, rms_ddec)
+    results['SIGMA-RA'] = sigma_ra
+    results['SIGMA-DEC'] = sigma_dec
+    results['SIGMA'] = sigma_total #numpy.hypot(rms_dra, rms_ddec)
     results['MEDIAN-RA'] = wcs_mean_dra
     results['MEDIAN-DEC'] = wcs_mean_ddec
+    results['STARCOUNT'] = d_ra.shape[0]
 
     logger.debug("WCS quality: mean-offset=%(MEDIAN-RA).3f  , %(MEDIAN-DEC).3f [arcsec]" % results)
     logger.debug("WCS quality: mean-rms=%(RMS-RA).3f , %(RMS-DEC).3f , %(RMS).3f [arcsec]" % results)
+    logger.debug("WCS quality: sigma=%(SIGMA-RA).3f , %(SIGMA-DEC).3f , %(SIGMA).3f [arcsec]" % results)
     # print "WCS quality:", ota, wcs_mean_dra*3600., wcs_mean_ddec*3600., wcs_scatter*3600., wcs_scatter2*3600., rms_dra, rms_ddec
     
     if (not hdr == None):
@@ -1908,6 +1960,10 @@ def compute_wcs_quality(odi_2mass_matched, hdr=None):
         hdr["WCS_RMS"] =  (make_valid(results['RMS']),        "r.m.s. of WCS matching [arcsec]")
         hdr["WCS_ERRA"] = (make_valid(results['MEDIAN-RA']),  "RA median error WCS matching [arcsec]")
         hdr["WCS_ERRD"] = (make_valid(results['MEDIAN-DEC']), "DEC median error of WCS matching [arcsec]")
+        hdr["WCS_NSRC"] = (results['STARCOUNT'],              "number of sources for WCS calibration")
+        hdr["WCS_SIGA"] = (sigma_ra,                          "1-sigma width of WCS error in Ra")
+        hdr["WCS_SIGD"] = (sigma_dec,                         "1-sigma width of WCS error in Dec")
+        hdr["WCS_SIG"]  = (sigma_total,                       "1-sigma width of WCS error combined")
  
     return results
 
