@@ -83,21 +83,25 @@ def plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list,
     # interpolation='nearest', 
     fig.colorbar(img, label='point density')
 
+
+    #
+    # Draw the rings in the center to outline the RMS of the OTA and focal-plane
+    #
     if (not ota_global_stats == None):
         x = ota_global_stats['MEDIAN-RA']
         y = ota_global_stats['MEDIAN-DEC']
         width = ota_global_stats['RMS-RA']
         height = ota_global_stats['RMS-DEC']
         ellipse = matplotlib.patches.Ellipse(xy=(x,y), width=width, height=height, 
-                                            edgecolor='r', fc='None', lw=2)
+                                             edgecolor='r', fc='None', lw=1)
         ax.add_patch(ellipse)
 
         global_text = """\
-Overall WCS:
-offset: %+0.3f'' / %+0.3f''
-R.M.S. %0.3f'' / %.3f''
-%.3f'' (combined)""" % (ota_global_stats['MEDIAN-RA'], ota_global_stats['MEDIAN-DEC'],
-            ota_global_stats['RMS-RA'], ota_global_stats['RMS-DEC'], ota_global_stats['RMS'])
+Overall WCS (N=%(STARCOUNT)d):
+offset: %(MEDIAN-RA)+0.3f'' / %(MEDIAN-DEC)+0.3f''
+R.M.S. %(RMS-RA)0.3f'' / %(RMS-DEC)0.3f''
+%(RMS).3f'' (combined)\
+""" % ota_global_stats
         ax.text(2.9, -2.9, global_text,
         horizontalalignment='right',
         verticalalignment='bottom',
@@ -109,15 +113,15 @@ R.M.S. %0.3f'' / %.3f''
         width = ota_stats['RMS-RA']
         height = ota_stats['RMS-DEC']
         ellipse = matplotlib.patches.Ellipse(xy=(x,y), width=width, height=height, 
-                                            edgecolor='b', fc='None', lw=2)
+                                             edgecolor='b', fc='None', lw=1)
         ax.add_patch(ellipse)
 
         local_text = """\
-This OTA:
-offset: %+0.3f'' / %+0.3f (DEC)
-R.M.S. %0.3f / %.3f (DEC) 
-%.3f'' (combined)""" % (ota_stats['MEDIAN-RA'], ota_stats['MEDIAN-DEC'],
-            ota_stats['RMS-RA'], ota_stats['RMS-DEC'], ota_stats['RMS'])
+This OTA (N=%(STARCOUNT)d):
+offset: %(MEDIAN-RA)+0.3f'' / %(MEDIAN-DEC)+0.3f''
+R.M.S. %(RMS-RA)0.3f'' / %(RMS-DEC)0.3f''
+%(RMS).3f'' (combined)\
+""" % ota_stats
         ax.text(-2.9, -2.9, local_text,
                  horizontalalignment='left',
                  verticalalignment='bottom',
@@ -965,8 +969,6 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
     processes = []
 
     title = "PSF map"
-    logger.debug("Title-info=")
-    logger.debug(title_info)
     if (not title_info == None):
         try:
             title = "FWHM map - %(OBSID)s (focal plane)\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec)" % title_info
@@ -1091,7 +1093,7 @@ if __name__ == "__main__":
                              )
         sys.exit(0)
 
-    if (cmdline_arg_isset("-zeropoint_map")):
+    elif (cmdline_arg_isset("-zeropoint_map")):
         fitsfile = get_clean_cmdline()[1]
         hdulist = pyfits.open(fitsfile)
         filtername = hdulist[0].header['FILTER']
@@ -1116,18 +1118,46 @@ if __name__ == "__main__":
         sys.exit(0)
 
 
-   
+    elif (cmdline_arg_isset("-wcstest")):
+        fitsfile = get_clean_cmdline()[1]
+        hdulist = pyfits.open(fitsfile)
+        
+        matched = hdulist['CAT.ODI+2MASS']
+        
+        table = matched.data
+        n_src = matched.header['NAXIS2']
 
+        ra = table['ODI_RA'].reshape((n_src,1))
+        dec = table['ODI_DEC'].reshape((n_src,1))
+        matched_radec_odi = numpy.append(ra, dec, axis=1)
+        print matched_radec_odi.shape
 
+        ra = table['TWOMASS_RA'].reshape((n_src,1))
+        dec = table['TWOMASS_DEC'].reshape((n_src,1))
+        matched_radec_2mass = numpy.append(ra, dec, axis=1)
+ 
+        matched_ota = table['OTA']
 
-    matched_cat = numpy.loadtxt("odi+2mass.matched")
+        import podi_collectcells
+        options = podi_collectcells.read_options_from_commandline()
 
-    filename = "output"
+        wcsdiag_scatter(matched_radec_odi, 
+                        matched_radec_2mass, 
+                        matched_ota,
+                        "wcs_test", options=options, ota_wcs_stats=None,
+                        also_plot_singleOTAs=True,
+                        title_info = None,
+                    )
 
-#    make_plots(matched_cat, filename)
-    wcsdiag_scatter(matched_cat, filename+".wcs1")
-    wcsdiag_shift(matched_cat, filename+".wcs2")
-#    wcsdiag_shift(matched_cat, None)
+    else:
+        matched_cat = numpy.loadtxt("odi+2mass.matched")
+
+        filename = "output"
+
+    #    make_plots(matched_cat, filename)
+        wcsdiag_scatter(matched_cat, filename+".wcs1")
+        wcsdiag_shift(matched_cat, filename+".wcs2")
+    #    wcsdiag_shift(matched_cat, None)
 
 
     
