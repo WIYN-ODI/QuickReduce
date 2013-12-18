@@ -1156,35 +1156,23 @@ def improve_wcs_solution(src_catalog,
             ota, ota_cat.shape[0], min_ota_catalog_size, "yes" if ota_cat.shape[0] > min_ota_catalog_size else "no"))
 
 
-        if (not allow_parallel):
-            #
-            # This is the work to be done serially
-            #
+        # Don't optimize if we have to few stars to constrain solution
+        if (ota_cat.shape[0] > min_ota_catalog_size):
 
-            # Don't optimize if we have to few stars to constrain solution
-            if (ota_cat.shape[0] > min_ota_catalog_size):
-            
+            if (not allow_parallel):
+                #
+                # This is the work to be done serially
+                #
+
                 optimize_wcs_solution(ota_cat, hdulist[ext].header, headers_to_optimize)
 
-                # Now that we have the optimized WCS solution, recompute the source 
-                # Ra/Dec values with the better system
-                astwcs = astWCS.WCS(hdulist[ext].header, mode='pyfits')
-
-                ota_xy = ota_cat[:,2:4] - [1.,1.]
-                ota_radec = numpy.array(astwcs.pix2wcs(ota_xy[:,0], ota_xy[:,1]))
-
-                ota_cat[:,0:2] = ota_radec
-
-            global_cat = ota_cat if (global_cat == None) else numpy.append(global_cat, ota_cat, axis=0)
-
-        else:
-            
-            #
-            # Do the work in parallel
-            #
-            task = (ota_cat, hdulist[ext].header, headers_to_optimize, ext)
-            queue_cmd.put(task)
-            number_tasks += 1
+            else:
+                #
+                # Do the work in parallel
+                #
+                task = (ota_cat, hdulist[ext].header, headers_to_optimize, ext)
+                queue_cmd.put(task)
+                number_tasks += 1
 
 
     if (allow_parallel):
@@ -1205,7 +1193,7 @@ def improve_wcs_solution(src_catalog,
             catalog, header, extension_id = queue_return.get()
 
             # Merge the catalogs
-            global_cat = catalog if (global_cat == None) else numpy.append(global_cat, catalog, axis=0)
+            # global_cat = catalog if (global_cat == None) else numpy.append(global_cat, catalog, axis=0)
 
             # And re-insert the updated header
             hdulist[extension_id].header = header
@@ -1214,7 +1202,28 @@ def improve_wcs_solution(src_catalog,
         for p in processes:
             p.join()
 
-    
+  
+    #
+    # Now re-compute the OTA source catalog including the updated WCS solution
+    #
+    for ext in range(len(hdulist)):
+        if (not is_image_extension(hdulist[ext])):
+            continue
+
+        ota = hdulist[ext].header['OTA']
+        in_this_ota = src_catalog[:,8] == ota
+
+        ota_full = src_catalog[in_this_ota]
+        astwcs = astWCS.WCS(hdulist[ext].header, mode='pyfits')
+
+        ota_xy = ota_full[:,2:4] - [1.,1.]
+        ota_radec = numpy.array(astwcs.pix2wcs(ota_xy[:,0], ota_xy[:,1]))
+
+        ota_full[:,0:2] = ota_radec
+
+        global_cat = ota_full if (global_cat == None) else numpy.append(global_cat, ota_full, axis=0)
+
+  
     # Match the new, improved catalog with the reference catalog
     # Allow a matching radius of 2'', but only unique matches
     logger.debug("Matching optimized source catalog to reference catalog")
@@ -1225,6 +1234,8 @@ def improve_wcs_solution(src_catalog,
 
     if (not output_catalog == None):
         numpy.savetxt(output_catalog, matched_global)
+
+    # print "Returning from improve_wcs_solution", src_catalog.shape, global_cat.shape, matched_global.shape
 
     return global_cat, hdulist, matched_global
 
@@ -1292,7 +1303,6 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     else:
         src_raw = source_catalog
 
-
     #
     # Make sure we have a valid input catalog
     #
@@ -1323,15 +1333,16 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     else:
         ref_raw = reference_catalog #numpy.loadtxt(ref_catfile)[:,0:2]
     logger.debug("ref. cat (raw) ="+str(ref_raw.shape))
-
+    
     #
     # Reduce the reference catalog to approx. the coverage of the source catalog
     #
-    ref_cat = match_catalog_areas(src_raw, ref_raw, max_pointing_error/60.)
-    logger.debug("area matched ref. catalog: "+str(ref_cat.shape))
+    ref_close = match_catalog_areas(src_raw, ref_raw, max_pointing_error/60.)
+    logger.debug("area matched ref. catalog: "+str(ref_close.shape))
+    if (create_debug_files): numpy.savetxt("ccmatch.matched_ref_cat", ref_close)
 
     # Save the matched 2MASS catalog as return data
-    return_value['2mass-catalog'] = ref_cat.copy()
+    return_value['2mass-catalog'] = ref_close
 
     
     #
@@ -1340,7 +1351,6 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     flags = numpy.array(src_raw[:,7], dtype=numpy.int8) & sexflag_wcs
     full_src_cat = src_raw[flags == 0]
     logger.debug("src_cat: "+str(full_src_cat.shape))
-    if (create_debug_files): numpy.savetxt("ccmatch.matched_ref_cat", ref_cat)
     if (create_debug_files): numpy.savetxt("ccmatch.src_cat", full_src_cat[:,0:2])
 
 
@@ -1352,24 +1362,29 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     if (only_isolated_stars):
         logger.debug("Selecting isolated stars - ODI source catalog")
         numpy.savetxt("ccmatch.odi_full", full_src_cat)
-        full_src_cat = pick_isolated_stars(full_src_cat, radius=10)
+        isolated_stars = pick_isolated_stars(full_src_cat, radius=10)
         numpy.savetxt("ccmatch.odi_isolated", full_src_cat)
         logger.debug("Down-selected source catalog to %d isolated stars" % (full_src_cat.shape[0]))
+    else:
+        isolated_stars = full_src_cat
 
     
     #
     # Cut down the catalog size to the brightest n stars
     #
     n_max = 1000 #750
-    if (full_src_cat.shape[0] > n_max):
-        logger.debug("truncating src_cat:"+str(full_src_cat.shape)+"--> "+str(n_max))
+    if (isolated_stars.shape[0] > n_max):
+        logger.debug("truncating src_cat:"+str(isolated_stars.shape)+"--> "+str(n_max))
         # That's more than we need, limited the catalog to the brightest n stars
-        full_src_cat, bright_mags = select_brightest(full_src_cat, full_src_cat[:,10:13], n_max)
+        src_cat, bright_mags = select_brightest(isolated_stars, isolated_stars[:,10:13], n_max)
+    else:
+        src_cat = isolated_stars
 
     n_max_ref = 2000
-    if (ref_cat.shape[0] > n_max_ref):
-        logger.debug("Lots of stars (%d) in the reference catalog" % (ref_cat.shape[0]))
+    if (ref_close.shape[0] > n_max_ref):
+        logger.debug("Lots of stars (%d) in the reference catalog" % (ref_close.shape[0]))
 
+    ref_cat = ref_close.copy()
     min_distance = 8
     logger.debug("Selecting isolated stars - reference catalog")
     numpy.savetxt("ccmatch.2mass_full", ref_cat)
@@ -1381,10 +1396,9 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     logger.debug("Final reference catalog: %d sources, isolated by >%d" % (ref_cat.shape[0], min_distance))
 
     # 
-    #
     # Get rid of all data except the coordinates
     # 
-    src_cat = full_src_cat[:,0:2]
+    src_cat = src_cat[:,0:2]
 
 
     current_best_rotation = 0
@@ -1405,7 +1419,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                                        pointing_error=(max_pointing_error/60.)
                                        )
 
-        print wcs_correction
+        logger.debug(wcs_correction)
 
         # For testing, apply correction to the input catalog, 
         # match it to the reference catalog and output both to file
@@ -1475,17 +1489,24 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     logger.debug(initial_guess)
     logger.debug("offset = "+str(initial_guess[1:3]*3600.)+" arcsec in Ra/Dec")
 
-    # Add the best fit shift to outut header to keep track 
+    #
+    # Add the best fit shift to output header to keep track 
     # of the changes we are making
+    #
     log_shift_rotation(hdulist, params=initial_guess, n_step=1,
                            description="WCS initial guess")
 
     #
-    # Apply the best guess transformation to the input catalog
+    # Apply the best guess transformation to the input catalog.
+    # use the larger source catalog (only problematic sources removed, no 
+    # selection for brightness or isolation) to have more sources for better 
+    # results
     #
     current_best_rotation = initial_guess[0]
     current_best_shift = initial_guess[1:3]
-    guessed_cat = rotate_shift_catalog(full_src_cat, (center_ra, center_dec), 
+    logger.debug("Improving global shift/rotation solution")
+    logger.debug("Full ODI source catalog: %d" % (full_src_cat.shape[0]))
+    guessed_cat = rotate_shift_catalog(full_src_cat[:,0:2], (center_ra, center_dec), 
                                        angle=current_best_rotation,
                                        shift=current_best_shift,
                                        verbose=False)
@@ -1493,11 +1514,15 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
 
     # 
     # With this best guess at hand, match each star in the source 
-    # catalog to a closest match in the reference catalog
+    # catalog to a closest match in the reference catalog.
+    # Use the full catalog of all close 2MASS stars to have a larger sample
     # 
+    logger.debug("2MASS reference stars nearby: %d" % (ref_close.shape[0]))
     crossmatch_radius = 5./3600. # 5 arcsec
-    guessed_match = kd_match_catalogs(guessed_cat, ref_cat, crossmatch_radius, max_count=1)
+    guessed_match = kd_match_catalogs(guessed_cat, ref_close, crossmatch_radius, max_count=1)
+    logger.debug("Matched ODI+2MASS: %d" % (guessed_match.shape[0]))
     if (create_debug_files): numpy.savetxt("ccmatch.guessed_match", guessed_match)
+
 
 
     #
@@ -1519,7 +1544,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                                        angle=best_shift_rotation_solution[0],
                                        shift=best_shift_rotation_solution[1:3],
                                        verbose=False)
-    matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(2./3600.), max_count=1)
+    matched = kd_match_catalogs(src_rotated, ref_close, matching_radius=(2./3600.), max_count=1)
     if (create_debug_files): numpy.savetxt("ccmatch.after_shift+rot", matched)
 
 
@@ -1548,7 +1573,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                                        angle=current_best_rotation,
                                        shift=current_best_shift,
                                        verbose=False)
-    matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(2./3600.), max_count=1)
+    matched = kd_match_catalogs(src_rotated, ref_close, matching_radius=(2./3600.), max_count=1)
     if (create_debug_files): numpy.savetxt("ccmatch.after_rotation", matched)
 
     # We only asked for rotation optimization, so 
@@ -1573,10 +1598,11 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     # First, most simple step: Refine the location of each OTA to account
     # for some large-scale distortion
-    logger.debug("Optimizing each OTA separately, shift only")
+    logger.debug("Optimizing each OTA separately, shift only (ODI: %d, 2MASS: %d)" % (
+        src_rotated.shape[0], ref_close.shape[0]))
     global_cat, hdulist, matched_global = \
         improve_wcs_solution(src_rotated, 
-                             ref_cat,
+                             ref_close,
                              hdulist,
                              headers_to_optimize=(
                                  'CRVAL1', 'CRVAL2',
@@ -1585,6 +1611,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                              min_ota_catalog_size=4,
                              output_catalog = "ccmatch.after_otashift",
                          )
+
 
     if (mode == "otashift"):
         return_value['hdulist'] = hdulist
@@ -1600,10 +1627,11 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # Next refinement step, allow for smaller scale distortion by allowing for 
     # shear in the CD matrix
     #
-    logger.debug("Optimizing each OTA separately, shift+shear")
+    logger.debug("Optimizing each OTA separately, shift+shear (ODI: %d, 2MASS: %d)" % (
+        global_cat.shape[0], ref_close.shape[0]))
     global_cat, hdulist, matched_global = \
-        improve_wcs_solution(src_rotated, 
-                             ref_cat,
+        improve_wcs_solution(global_cat, 
+                             ref_close,
                              hdulist,
                              headers_to_optimize=(
                                  'CRVAL1', 'CRVAL2',
