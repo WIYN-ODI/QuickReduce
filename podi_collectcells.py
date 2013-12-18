@@ -2205,7 +2205,7 @@ def collectcells(input, outputfile,
                                            ota_wcs_stats=ota_wcs_stats,
                                            ota_outlines=ota_outlines,
                                            also_plot_singleOTAs=options['otalevelplots'],
-                                             title_info=title_info)
+                                           title_info=title_info)
 
         # Create the image quality plot
         # This should be cleaned up to make the call for this plot nicer
@@ -2221,7 +2221,8 @@ def collectcells(input, outputfile,
                                                   title=diagnostic_plot_title,
                                                   ota_outlines=ota_outlines, 
                                                   options=options,
-                                                  also_plot_singleOTAs=options['otalevelplots'])
+                                                  also_plot_singleOTAs=options['otalevelplots'],
+                                                  title_info=title_info)
 
 
 

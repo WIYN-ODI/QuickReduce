@@ -762,6 +762,7 @@ def plot_zeropoint_map(ra, dec, zp, ota_outlines, output_filename, options, zp_r
     logger = logging.getLogger("DiagPlot_ZPmap")
 
     fig, ax = matplotlib.pyplot.subplots()
+    ax.ticklabel_format(useOffset=False)
     zp_min, zp_max = zp_range
 
     if (ra.shape[0] < 5):
@@ -886,7 +887,7 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
                      fwhm_range,
                      title=None,
                      ota_outlines=None,
-                     options=None,
+                     options=None
                      ):
     """
 
@@ -897,6 +898,7 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
     logger = logging.getLogger("DiagPlot_PSFSize")
                     
     fig, ax = matplotlib.pyplot.subplots()
+    ax.ticklabel_format(useOffset=False)
 
     fwhm_min, fwhm_max = fwhm_range
 
@@ -910,6 +912,7 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
                                                      linestyle='-', linewidth=0.5)
         ax.add_collection(coll)
 
+    ax.set_title(title)
     ax.set_xlabel("RA [degrees]")
     ax.set_ylabel("DEC [degrees]")
     ax.autoscale_view()
@@ -937,6 +940,7 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
                          ota_outlines=None,
                          options=None,
                          also_plot_singleOTAs=True,
+                         title_info=None,
                          ):
 
     """
@@ -960,7 +964,17 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
 
     processes = []
 
+    title = "PSF map"
+    logger.debug("Title-info=")
+    logger.debug(title_info)
+    if (not title_info == None):
+        try:
+            title = "FWHM map - %(OBSID)s (focal plane)\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec)" % title_info
+        except:
+            pass
+
     # Create one plot for the full focal plane, using boxes to outlines OTAs
+    print title
     plot_args = {"ra": ra, 
                  "dec": dec, 
                  "fwhm": fwhm, 
@@ -999,14 +1013,15 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
             ra_ota = ra[in_this_ota]
             dec_ota = dec[in_this_ota]
 
-            # ota_plotfile = "%s_OTA%02d" % (output_filename, this_ota)
+            title = "PSF map, OTA %02d" % (this_ota)
+            if (not title_info == None):
+                title_info['OTA'] = this_ota
+                try:
+                    title = "FWHM map - %(OBSID)s OTA %(OTA)02d\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec)" % title_info
+                except:
+                    pass
+
             ota_plotfile = create_qa_otaplot_filename(output_filename, this_ota, options['structure_qa_subdirs'])
-            # plot_psfsize_map(ra_ota, dec_ota, fwhm_ota, 
-            #                  output_filename=ota_plotfile, 
-            #                  fwhm_range=fwhm_range,
-            #                  title=title,
-            #                  ota_outlines=None,
-            #                  options=options)
 
             plot_args = {"ra": ra_ota, 
                          "dec": dec_ota, 
