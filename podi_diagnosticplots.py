@@ -127,6 +127,25 @@ R.M.S. %(RMS-RA)0.3f'' / %(RMS-DEC)0.3f''
                  verticalalignment='bottom',
                  fontsize=10, backgroundcolor='white')
 
+    #
+    # Add some histograms to the borders to illustrate the distribution
+    #
+
+    from scipy.stats import gaussian_kde
+    x = numpy.linspace(-3,3,600)
+    density_ra = gaussian_kde(d_ra*3600.)
+    density_ra.covariance_factor = lambda : .1
+    density_ra._compute_covariance()
+    peak_ra = numpy.max(density_ra(x))
+    ax.plot(x,3.-density_ra(x)/peak_ra, "-", color='black')
+
+    density_dec = gaussian_kde(d_dec*3600.)
+    density_dec.covariance_factor = lambda : .1
+    density_dec._compute_covariance()
+    peak_dec = numpy.max(density_dec(x))
+    ax.plot(density_dec(x)/peak_dec-3., x, "-", color='black')
+
+
 
     ax.plot(d_ra*3600., d_dec*3600., "b,", linewidth=0)
     ax.set_title(title)
