@@ -727,7 +727,7 @@ def collect_reduce_ota(filename,
         hdu.header["DETSEC"] = (detsec_str, "position of OTA in focal plane")
                 
         if (cmdline_arg_isset("-simplewcs") or options['wcs_distortion'] != None):
-            logger.debug("Running simplewcs")
+            logger.debug("Clearing existing WCS solution")
             #
             # Fudge with the WCS headers, largely undoing what's in the fits file right now,
             # and replacing it with a simpler version that hopefully works better
@@ -2073,67 +2073,12 @@ def collectcells(input, outputfile,
 
 
             
-        #
-        # Save the two catalogs to the output file
-        #
-
-        # Save a simple copy of the 2MASS reference catalog
-        ota_list.append( sexcat_to_tablehdu(fixwcs_ref_ra, fixwcs_ref_dec) )
-
-        # Re-compute all ODI star positions from their pixel positions to match the new WCS solution.
-        # Also return the catalog as TableHDU so we can add it to the output file
-        #RK odi_cat_hdu, odi_source_catalog = odi_sources_to_tablehdu(ota_list, fixwcs_odi_sourcecat)
-        odi_cat_hdu, odi_source_catalog = odi_sources_to_tablehdu(ota_list, global_source_cat)
-        ota_list.append(odi_cat_hdu)
-
-        print >>x, "\n\n\n\n\n"
-        dummy = numpy.ones(shape=(fixwcs_odi_ra.shape[0],2))
-        dummy[:,0] = fixwcs_odi_ra[:] + wcs_shift[0]
-        dummy[:,1] = fixwcs_odi_dec[:] + wcs_shift[1]
-        numpy.savetxt(x, dummy)
-
-        print >>x, "\n\n\n\n\n"
-        numpy.savetxt(x, odi_2mass_matched)
-
-        #print >>x, "\n\n\n\n\n"
-        #numpy.savetxt(x, fixwcs_odi_sourcecat)
-
-        x.close()
-
-        numpy.savetxt("matched_cat.cat", odi_2mass_matched)
-
-        zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = 99., 99., None, 99.
-        if (options['photcalib']):
-            stdout_write("\n\n\nExecuting photcalib...\n\n\n")
-            exptime = ota_list[0].header['EXPTIME']
-            titlestring = "%s\n(obsid: %s - filter: %s- exptime: %ds)" % (
-                ota_list[0].header['OBJECT'],
-                ota_list[0].header['OBSID'],
-                ota_list[0].header['FILTER'],
-                int(ota_list[0].header['EXPTIME']),
-                )
-            filter_name = get_valid_filter_name(ota_list[0].header)
-            zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = \
-                podi_photcalib.photcalib(global_source_cat, outputfile, filter_name, 
-                                         exptime=exptime,
-                                         diagplots=True,
-                                         plottitle=titlestring,
-                                         otalist=ota_list,
-                                         options=options)
-
-        ota_list[0].header["PHOTZP"] = (zeropoint_median, "phot. zeropoint corr for exptime")
-        ota_list[0].header["PHOTZPE"] = (zeropoint_std, "zeropoint std.dev.")
-        ota_list[0].header["PHOTZP_X"] = (zeropoint_exptime, "phot zeropoint for this frame")
-
-        ota_list[0].header["MAGZERO"] = (zeropoint_median, "phot. zeropoint corr for exptime")
-        ota_list[0].header["MAGZSIG"] = (zeropoint_std)
-        ota_list[0].header["MAGZERR"] = (zeropoint_std)
-
 
 
     #
     # New WCS matching using CCMatch
     #
+    ota_list[0].header['WCSFIXED'] = False
     if (options['fixwcs']):
 
         logger.info("Performing astrometric calibration")
@@ -2149,11 +2094,42 @@ def collectcells(input, outputfile,
 
         # Use the fixed HDUList
         ota_list = ccmatched['hdulist']
+        ota_list[0].header['WCSFIXED'] = True
 
         # Also extract some of the matched/calibrated catalogs
         odi_2mass_matched = ccmatched['matched_src+2mass']
-
         global_source_cat = ccmatched['calibrated_src_cat']
+
+        # Append the 2MASS reference catalog to output frame
+        logger.debug("Creating a FITS table for the full 2MASS reference catalog")
+        twomass_hdu = twomasscat_to_tablehdu(ccmatched['2mass-catalog']) #fixwcs_ref_ra, fixwcs_ref_dec)
+        ota_list.append(twomass_hdu)
+
+        logger.debug("Creating a FITS table for the full ODI catalog")
+        src_tbhdu = odi_sources_to_tablehdu(ccmatched['calibrated_src_cat'])
+        #logger.debug(src_tbhdu)
+        ota_list.append(src_tbhdu)
+
+
+        #
+        # Also create a TableHDU for the matched ODI+2MASS catalog
+        # 
+        logger.debug("Creating a FITS table for the matched ODI+2MASS catalog")
+        odi_2mass_cat = ccmatched['matched_src+2mass']
+        columns = [pyfits.Column(name='ODI-RA', format='E', unit='degrees', 
+                                 array=odi_2mass_cat[:,  0], disp='ODI right ascension'),
+                   pyfits.Column(name='ODI-DEC', format='E', unit='degrees', 
+                                 array=odi_2mass_cat[:,  1], disp='ODI declination'),
+                   pyfits.Column(name='2MASS-RA', format='E', unit='degrees', 
+                                 array=odi_2mass_cat[:, -2], disp='2MASS right ascension'),
+                   pyfits.Column(name='2MASS-DEC', format='E', unit='degrees', 
+                                 array=odi_2mass_cat[:, -1], disp='2MASS declination'),
+        ]
+        coldefs = pyfits.ColDefs(columns)
+        matchedhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
+        matchedhdu.update_ext_name("CAT.ODI+2MASS", comment=None)
+        matchedhdu.header['MATCHRAD'] = (2., "matching radius in arcsec")
+        ota_list.append(matchedhdu)
 
 
     if (options['fixwcs'] and options['create_qaplots']):
@@ -2345,11 +2321,11 @@ def wcs2odi(radec, wcs):
 
 
 
-def sexcat_to_tablehdu(fixwcs_ref_ra, fixwcs_ref_dec):
+def twomasscat_to_tablehdu(catalog): 
     
     columns = [\
-        pyfits.Column(name='ra',      format='E', array=fixwcs_ref_ra),
-        pyfits.Column(name='dec',     format='E', array=fixwcs_ref_dec),
+        pyfits.Column(name='ra',      format='E', array=catalog[:,0]),
+        pyfits.Column(name='dec',     format='E', array=catalog[:,1]),
         ]
 
     coldefs = pyfits.ColDefs(columns)
@@ -2368,14 +2344,14 @@ def sexcat_to_tablehdu(fixwcs_ref_ra, fixwcs_ref_dec):
 
 
 
-def odi_sources_to_tablehdu(ota_list, fixwcs_odi_sourcecat):
+def odi_sources_to_tablehdu(source_cat):
 
     """
     Create a FITS table containing the source catalog created during reduction.
 
     Parameters
     ----------
-    fixwcs_odi_sourcecat : numpy array
+    source_cat : numpy array
 
         Global ODI source catalog collected from the source catalog of the 
         individual OTA catalogs
@@ -2387,32 +2363,6 @@ def odi_sources_to_tablehdu(ota_list, fixwcs_odi_sourcecat):
         Binary FITS table extension
 
     """
-
-
-    # # First of all update all Ra/Dec values
-    # final_cat = None
-    # for ext in range(1, len(ota_list)):
-    #     extname = ota_list[ext].header['EXTNAME']
-    #     if (extname[0:3] == "OTA" and extname[5:] == ".SCI"):
-    #         ota = int(ota_list[ext].header['EXTNAME'][3:5])
-    #         wcs = astWCS.WCS(ota_list[ext].header, mode="pyfits")
-
-    #         in_this_ota = fixwcs_odi_sourcecat[:,12] == ota
-    #         sources_ota = fixwcs_odi_sourcecat[in_this_ota]
-
-    #         xy = sources_ota[:,2:4]
-            
-    #         sources_ota[:,0:2] = odi2wcs(xy, wcs)
-            
-    #         if (final_cat == None):
-    #             final_cat = sources_ota
-    #         else:
-    #             final_cat = numpy.append(final_cat, sources_ota, axis=0)
-
-    # source_info = [ ra, dec, center_x, center_y, fwhm_x, fwhm_y, amplitude, peak, 
-    #            bg_level, bg_variance, s_n, area, extension_id]
-
-    source_cat = fixwcs_odi_sourcecat
 
     columns = [\
         pyfits.Column(name='RA',             format='E', unit='degrees', array=source_cat[:, 0], disp='right ascension'),
@@ -2445,14 +2395,14 @@ def odi_sources_to_tablehdu(ota_list, fixwcs_odi_sourcecat):
         pyfits.Column(name='BWIN_IMAGE',     format='E', unit='pixel',   array=source_cat[:,27], disp='minor semi-axis'),
         pyfits.Column(name='THETAWIN_IMAGE', format='E', unit='degrees', array=source_cat[:,28], disp='position angle'),
         pyfits.Column(name='ELONGATION',     format='E', unit='',        array=source_cat[:,29], disp='elongation'),
-        pyfits.Column(name='ELlPTICITY',     format='E', unit='',        array=source_cat[:,30], disp='ellipticity'),
+        pyfits.Column(name='ELLIPTICITY',    format='E', unit='',        array=source_cat[:,30], disp='ellipticity'),
         ]
 
     coldefs = pyfits.ColDefs(columns)
     tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
 
     tbhdu.update_ext_name("CAT.ODI", comment=None)
-    return tbhdu, source_cat
+    return tbhdu
 
 
 
