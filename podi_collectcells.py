@@ -2116,13 +2116,13 @@ def collectcells(input, outputfile,
         # 
         logger.debug("Creating a FITS table for the matched ODI+2MASS catalog")
         odi_2mass_cat = ccmatched['matched_src+2mass']
-        columns = [pyfits.Column(name='ODI-RA', format='E', unit='degrees', 
+        columns = [pyfits.Column(name='ODI_RA', format='D', unit='degrees', 
                                  array=odi_2mass_cat[:,  0], disp='ODI right ascension'),
-                   pyfits.Column(name='ODI-DEC', format='E', unit='degrees', 
+                   pyfits.Column(name='ODI_DEC', format='D', unit='degrees', 
                                  array=odi_2mass_cat[:,  1], disp='ODI declination'),
-                   pyfits.Column(name='2MASS-RA', format='E', unit='degrees', 
+                   pyfits.Column(name='TWOMASS_RA', format='D', unit='degrees', 
                                  array=odi_2mass_cat[:, -2], disp='2MASS right ascension'),
-                   pyfits.Column(name='2MASS-DEC', format='E', unit='degrees', 
+                   pyfits.Column(name='TWOMASS_DEC', format='D', unit='degrees', 
                                  array=odi_2mass_cat[:, -1], disp='2MASS declination'),
                    pyfits.Column(name='OTA', format='E', unit='',
                                  array=odi_2mass_cat[:, 8], disp='source OTA'),
@@ -2330,8 +2330,8 @@ def wcs2odi(radec, wcs):
 def twomasscat_to_tablehdu(catalog): 
     
     columns = [\
-        pyfits.Column(name='ra',      format='E', array=catalog[:,0]),
-        pyfits.Column(name='dec',     format='E', array=catalog[:,1]),
+        pyfits.Column(name='RA',  format='D', array=catalog[:,0]),
+        pyfits.Column(name='DEC', format='D', array=catalog[:,1]),
         ]
 
     coldefs = pyfits.ColDefs(columns)
@@ -2371,15 +2371,15 @@ def odi_sources_to_tablehdu(source_cat):
     """
 
     columns = [\
-        pyfits.Column(name='RA',             format='E', unit='degrees', array=source_cat[:, 0], disp='right ascension'),
-        pyfits.Column(name='DEC',            format='E', unit='degrees', array=source_cat[:, 1], disp='declination'),
+        pyfits.Column(name='RA',             format='D', unit='degrees', array=source_cat[:, 0], disp='right ascension'),
+        pyfits.Column(name='DEC',            format='D', unit='degrees', array=source_cat[:, 1], disp='declination'),
         pyfits.Column(name='X',              format='E', unit='pixel',   array=source_cat[:, 2], disp='center x'),
         pyfits.Column(name='Y',              format='E', unit='pixel',   array=source_cat[:, 3], disp='center y'),
         pyfits.Column(name='FWHM_IMAGE',     format='E', unit='pixel',   array=source_cat[:, 4], disp='FWHM in pixels'),
         pyfits.Column(name='FWHM_WORLD',     format='E', unit='deg',     array=source_cat[:, 5], disp='FWHM in degrees'),
         pyfits.Column(name='BACKGROUND',     format='E', unit='counts',  array=source_cat[:, 6], disp='background level'),
-        pyfits.Column(name='FLAGS',          format='E', unit='',        array=source_cat[:, 7], disp='SExtractor flags'),
-        pyfits.Column(name='OTA',            format='E', unit='',        array=source_cat[:, 8], disp='source OTA'),
+        pyfits.Column(name='FLAGS',          format='I', unit='',        array=source_cat[:, 7], disp='SExtractor flags'),
+        pyfits.Column(name='OTA',            format='I', unit='',        array=source_cat[:, 8], disp='source OTA'),
         pyfits.Column(name='MAG_D05',        format='E', unit='mag',     array=source_cat[:, 9], disp='0.5 arcsec, 5 pixels'),
         pyfits.Column(name='MAGERR_D05',     format='E', unit='mag',     array=source_cat[:,17], disp=''),
         pyfits.Column(name='MAG_D08',        format='E', unit='mag',     array=source_cat[:,10], disp='0.8 arcsec, 7 pixels'),
