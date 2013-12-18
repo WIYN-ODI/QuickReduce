@@ -2012,11 +2012,15 @@ def collectcells(input, outputfile,
             import podi_diagnosticplots
             plotfilename = create_qa_filename(outputfile, "wcs1", options)
             print plotfilename
+            title_info = ota_list[0].header.copy()
+            print "passing title_info=",title_info
+
             podi_diagnosticplots.wcsdiag_scatter(odi_2mass_matched, 
                                                  plotfilename, # outputfile[:-5]+".wcs1", 
                                                  options=options,
                                                  ota_wcs_stats=ota_wcs_stats,
-                                                 also_plot_singleOTAs=options['otalevelplots'])
+                                                 also_plot_singleOTAs=options['otalevelplots'],
+                                                 title_info = title_info)
             plotfilename = create_qa_filename(outputfile, "wcs2", options)
             podi_diagnosticplots.wcsdiag_shift(odi_2mass_matched, 
                                                plotfilename, #outputfile[:-5]+".wcs2", 
@@ -2178,6 +2182,7 @@ def collectcells(input, outputfile,
         # ota_wcs_stats['full'] = results
         
         import podi_diagnosticplots
+        title_info = ota_list[0].header.copy()
 
         # Create the WCS scatter plot
         plotfilename = create_qa_filename(outputfile, "wcs1", options)
@@ -2187,7 +2192,8 @@ def collectcells(input, outputfile,
                                              filename=plotfilename, 
                                              options=options,
                                              ota_wcs_stats=ota_wcs_stats,
-                                             also_plot_singleOTAs=options['otalevelplots'])
+                                             also_plot_singleOTAs=options['otalevelplots'],
+                                             title_info=title_info)
 
         # Create the WCS shift plot
         plotfilename = create_qa_filename(outputfile, "wcs2", options)
@@ -2198,7 +2204,8 @@ def collectcells(input, outputfile,
                                            options=options,
                                            ota_wcs_stats=ota_wcs_stats,
                                            ota_outlines=ota_outlines,
-                                           also_plot_singleOTAs=options['otalevelplots'])
+                                           also_plot_singleOTAs=options['otalevelplots'],
+                                             title_info=title_info)
 
         # Create the image quality plot
         # This should be cleaned up to make the call for this plot nicer

@@ -81,7 +81,7 @@ def plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list,
                                    origin='lower', 
                                    cmap=cmap_bluewhite)
     # interpolation='nearest', 
-    fig.colorbar(img)
+    fig.colorbar(img, label='point density')
 
     if (not ota_global_stats == None):
         x = ota_global_stats['MEDIAN-RA']
@@ -126,8 +126,8 @@ R.M.S. %0.3f / %.3f (DEC)
 
     ax.plot(d_ra*3600., d_dec*3600., "b,", linewidth=0)
     ax.set_title(title)
-    ax.set_xlabel("error RA ['']")
-    ax.set_ylabel("error DEC ['']")
+    ax.set_xlabel("error RA * cos(DEC) [arcsec]")
+    ax.set_ylabel("error DEC [arcsec]")
     ax.set_xlim((-3,3))
     ax.set_ylim((-3,3))
     ax.grid(True)
@@ -145,12 +145,12 @@ R.M.S. %0.3f / %.3f (DEC)
     return
 
 
-def wcsdiag_scatter(#matched_cat, 
-                    matched_radec_odi, 
+def wcsdiag_scatter(matched_radec_odi, 
                     matched_radec_2mass, 
                     matched_ota,
                     filename, options=None, ota_wcs_stats=None,
-                    also_plot_singleOTAs=True
+                    also_plot_singleOTAs=True,
+                    title_info = None,
                     ):
     """
 
@@ -182,16 +182,24 @@ def wcsdiag_scatter(#matched_cat,
 
     # Create one plot for the full focalplane
     ota_global_stats = None if ota_wcs_stats == None else ota_wcs_stats['full']
+
     title = "WCS Scatter - full focal plane"
+    if (not title_info == None):
+        logger.debug("Received information for a more descriptive plot title for WCS scatter")
+        try:
+            title = "WCS Scatter - %(OBSID)s (focal-plane) \n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec" % title_info
+            logger.debug(title)
+        except:
+            pass
 
     processes = []
     plot_args= {"d_ra": d_ra, 
                 "d_dec": d_dec, 
                 "filename": filename, 
                 "extension_list": extension_list, 
-                "title": title,
                 "ota_stats": None,
                 "ota_global_stats": ota_global_stats,
+                "title": title,
             }
     p = multiprocessing.Process(target=plot_wcsdiag_scatter, kwargs=plot_args)
     p.start()
@@ -218,7 +226,13 @@ def wcsdiag_scatter(#matched_cat,
                     ota_stats = ota_wcs_stats[extname]
 
             title = "WSC Scatter - OTA %02d" % (this_ota)
-                
+            if (not title_info == None):
+                title_info['OTA'] = this_ota
+                try:
+                    title = "WCS Scatter - %(OBSID)s - OTA %(OTA)02d\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec" % title_info
+                except:
+                    pass
+               
             logger.debug(extname+" -> "+str(ota_stats))
 
             ota_plotfile = create_qa_otaplot_filename(filename, this_ota, options['structure_qa_subdirs'])
@@ -290,7 +304,8 @@ def plot_wcsdiag_shift(radec, d_radec,
 
     logger = logging.getLogger("DiagPlot_WCSShift")
     fig, ax = matplotlib.pyplot.subplots()
-    
+    ax.ticklabel_format(useOffset=False)
+
 #    d_ra  = matched_cat[:,0] - matched_cat[:,2]
 #    d_dec = matched_cat[:,1] - matched_cat[:,3]
 #    ramin, ramax = numpy.min(matched_cat[:,0]), numpy.max(matched_cat[:,0])
@@ -314,7 +329,7 @@ def plot_wcsdiag_shift(radec, d_radec,
                   )
     # Determine min and max values
 
-    ax.set_title("WCS misalignment")
+    ax.set_title(title)
     ax.set_xlim((ramin-0.02, ramax+0.02))
     ax.set_ylim((decmin-0.02, decmax+0.02))
     ax.set_xlabel("RA [degrees]")
@@ -377,7 +392,8 @@ def wcsdiag_shift(matched_radec_odi,
                   options=None, 
                   ota_outlines=None, 
                   ota_wcs_stats=None,
-                  also_plot_singleOTAs=True
+                  also_plot_singleOTAs=True,
+                  title_info = None,
                   ):
     """
 
@@ -418,7 +434,15 @@ def wcsdiag_shift(matched_radec_odi,
     processes = []
 
     # Create one plot for the full focalplane
-    title = "WCS Scatter - full focal plane"
+    title = "WCS errors - full focal plane"
+    if (not title_info == None):
+        logger.debug("Received information for a more descriptive plot title for WCS scatter")
+        try:
+            title = "WCS Errors - %(OBSID)s (focal-plane) \n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec" % title_info
+            logger.debug(title)
+        except:
+            pass
+
     plot_args = {"radec": matched_radec_2mass,
                  "d_radec": d_radec,
                  "filename": filename, 
@@ -443,7 +467,13 @@ def wcsdiag_shift(matched_radec_odi,
                 continue
 
             extname = "OTA%02d.SCI" % (this_ota)
-            title = "WSC Scatter - OTA %02d" % (this_ota)
+            title = "WSC Error - OTA %02d" % (this_ota)
+            if (not title_info == None):
+                title_info['OTA'] = this_ota
+                try:
+                    title = "WCS Errors - %(OBSID)s OTA %(OTA)02d\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec" % title_info
+                except:
+                    pass
                 
             ota_radec = matched_radec_2mass[in_this_ota]
             ota_d_radec = d_radec[in_this_ota]
