@@ -1399,8 +1399,17 @@ def collectcells(input, outputfile,
                 outputfile = outputfile[:start] + header['FILTER'] + outputfile[start+7:]
             elif (outputfile[start:start+7] == "%OBJECT"):
                 # The object name might contain spaces, replace them with underscores
+                # Also replace all other special characters with underscores
                 objectname = header['OBJECT'].replace(' ', '_')
                 objectname = objectname.replace(',', '_')
+                objectname = objectname.replace('(', '_')
+                objectname = objectname.replace(')', '_')
+                objectname = objectname.replace('/', '_')
+                objectname = objectname.replace('\\', '_')
+                objectname = objectname.replace('`', '_')
+                objectname = objectname.replace('"', '_')
+                objectname = objectname.replace('\'', '_')
+                objectname = objectname.replace(')', '_')
                 outputfile = outputfile[:start] + objectname  + outputfile[start+7:]
             elif (outputfile[start:start+6] == "%OBSID"):
                 outputfile = outputfile[:start] + header['OBSID'] + outputfile[start+6:]
@@ -2719,7 +2728,12 @@ Calibration data:
 
 
 
-
+def setup_logging(options):
+    # Setup everything we need for logging
+    log_master_info, log_setup = podi_logging.podi_log_master_start(options)
+    options['log_setup'] = log_setup
+    return options
+    
 
 if __name__ == "__main__":
 
@@ -2750,9 +2764,7 @@ if __name__ == "__main__":
     options = read_options_from_commandline(options)
 
     # Setup everything we need for logging
-    log_master_info, log_setup = podi_logging.podi_log_master_start(options)
-
-    options['log_setup'] = log_setup
+    setup_logging(options)
 
     # Collect all cells, perform reduction and write result file
     try:
