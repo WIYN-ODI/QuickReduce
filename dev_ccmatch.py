@@ -1240,6 +1240,9 @@ def improve_wcs_solution(src_catalog,
         ota = hdulist[ext].header['OTA']
         in_this_ota = src_catalog[:,8] == ota
 
+        if (numpy.sum(in_this_ota) <= 0):
+            continue
+
         ota_full = src_catalog[in_this_ota]
         astwcs = astWCS.WCS(hdulist[ext].header, mode='pyfits')
 
