@@ -129,21 +129,22 @@ R.M.S. %(RMS-RA)0.3f'' / %(RMS-DEC)0.3f''
 
     #
     # Add some histograms to the borders to illustrate the distribution
+    # Only do so if there are at least 5 stars
     #
+    if (d_ra.shape[0] > 5):
+        from scipy.stats import gaussian_kde
+        x = numpy.linspace(-3,3,600)
+        density_ra = gaussian_kde(d_ra*3600.)
+        density_ra.covariance_factor = lambda : .1
+        density_ra._compute_covariance()
+        peak_ra = numpy.max(density_ra(x))
+        ax.plot(x,3.-density_ra(x)/peak_ra, "-", color='black')
 
-    from scipy.stats import gaussian_kde
-    x = numpy.linspace(-3,3,600)
-    density_ra = gaussian_kde(d_ra*3600.)
-    density_ra.covariance_factor = lambda : .1
-    density_ra._compute_covariance()
-    peak_ra = numpy.max(density_ra(x))
-    ax.plot(x,3.-density_ra(x)/peak_ra, "-", color='black')
-
-    density_dec = gaussian_kde(d_dec*3600.)
-    density_dec.covariance_factor = lambda : .1
-    density_dec._compute_covariance()
-    peak_dec = numpy.max(density_dec(x))
-    ax.plot(density_dec(x)/peak_dec-3., x, "-", color='black')
+        density_dec = gaussian_kde(d_dec*3600.)
+        density_dec.covariance_factor = lambda : .1
+        density_dec._compute_covariance()
+        peak_dec = numpy.max(density_dec(x))
+        ax.plot(density_dec(x)/peak_dec-3., x, "-", color='black')
 
 
 
@@ -240,6 +241,8 @@ def wcsdiag_scatter(matched_radec_odi,
         for (otax, otay) in list_of_otas:
             this_ota = otax * 10 + otay
             in_this_ota = (ota == this_ota)
+            if (numpy.sum(in_this_ota) <= 0):
+                continue
 
             extname = "OTA%02d.SCI" % (this_ota)
 
@@ -837,7 +840,8 @@ def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
                              title=None,
                              ota_outlines=None,
                              options=None,
-                             also_plot_singleOTAs=True
+                             also_plot_singleOTAs=True,
+                             allow_parallel=True
                              ):
 
     """
@@ -847,6 +851,8 @@ def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
     """
     logger = logging.getLogger("DiagPlot_ZPmap")
     logger.info("Creating the photometric calibration per OTA plot ...")
+
+    processes = []
 
     zp_raw = sdss_mag - odi_mag
 
@@ -861,7 +867,22 @@ def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
 
     # Create one plot for the full focal plane, using boxes to outlines OTAs
     zp_range = (zp_min, zp_max)
-    plot_zeropoint_map(ra, dec, zp_raw, ota_outlines, output_filename, options, zp_range)
+    kwargs = {"ra": ra, 
+              "dec": dec, 
+              "zp": zp_raw, 
+              "ota_outlines": ota_outlines,
+              "output_filename": output_filename,
+              "options": options, 
+              "zp_range": zp_range,
+    }
+    if (not allow_parallel):
+        plot_zeropoint_map(ra, dec, zp_raw, ota_outlines, output_filename, options, zp_range)
+    else:
+        p = multiprocessing.Process(target=plot_zeropoint_map, 
+                                    kwargs=kwargs)
+        p.start()
+        processes.append(p)
+
     logger.debug(ota_outlines)
 
     # If requested, do the same for the individual OTAs
@@ -881,8 +902,27 @@ def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
 
             # ota_plotfile = "%s_OTA%02d" % (output_filename, this_ota)
             ota_plotfile = create_qa_otaplot_filename(output_filename, this_ota, options['structure_qa_subdirs'])
-            plot_zeropoint_map(ra_ota, dec_ota, zp_ota, None, ota_plotfile, options, zp_range)
-    
+
+
+            kwargs = {"ra": ra_ota, 
+                      "dec": dec_ota, 
+                      "zp": zp_ota, 
+                      "ota_outlines": None,
+                      "output_filename": ota_plotfile,
+                      "options": options, 
+                      "zp_range": zp_range,
+            }
+            if (not allow_parallel):
+                plot_zeropoint_map(ra_ota, dec_ota, zp_ota, None, ota_plotfile, options, zp_range)
+            else:
+                p = multiprocessing.Process(target=plot_zeropoint_map, 
+                                            kwargs=kwargs)
+                p.start()
+                processes.append(p)
+
+    for p in processes:
+        p.join()
+
     logger.debug("done!")
 
     return
