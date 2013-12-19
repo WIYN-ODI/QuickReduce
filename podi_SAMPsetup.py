@@ -1,3 +1,8 @@
+"""
+
+This file only contains the settings to be used in podi_SAMPListener.
+
+"""
 
 output_format = "/scratch/%OBSID.fits"
 
