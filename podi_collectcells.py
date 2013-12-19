@@ -2732,6 +2732,7 @@ def setup_logging(options):
     # Setup everything we need for logging
     log_master_info, log_setup = podi_logging.podi_log_master_start(options)
     options['log_setup'] = log_setup
+    options['log_master_info'] = log_master_info
     return options
     
 
@@ -2797,4 +2798,4 @@ if __name__ == "__main__":
         print traceback.format_exc()
         stdout_write("#\n##############################\n")
     finally:
-        podi_logging.podi_log_master_quit(log_master_info)
+        podi_logging.podi_log_master_quit(options['log_master_info'])
