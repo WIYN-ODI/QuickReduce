@@ -27,7 +27,7 @@ import podi_sitesetup as sitesetup
 import Queue
 import multiprocessing
 
-max_pointing_error = 5.
+max_pointing_error = 8.
 
 import podi_logging
 import logging
@@ -1279,8 +1279,8 @@ def improve_wcs_solution(src_catalog,
 #############################################################################
 
 def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
-            max_pointing_error=5,
-            max_rotator_error=[-0.5,1.5]):
+            max_pointing_error=7,
+            max_rotator_error=[-1,1.5]):
 
     """
 
@@ -1402,7 +1402,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     # Cut down the catalog size to the brightest n stars
     #
-    n_max = 1000 #750
+    n_max = 1500 #750
     if (isolated_stars.shape[0] > n_max):
         logger.debug("truncating src_cat:"+str(isolated_stars.shape)+"--> "+str(n_max))
         # That's more than we need, limited the catalog to the brightest n stars
