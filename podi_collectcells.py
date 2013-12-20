@@ -468,14 +468,32 @@ def collect_reduce_ota(filename,
                     datasec, wm_cellx, wm_celly, nonlin_data)
                 datasec += nonlin_correction
 
-            if (gain_correct_frames):
-            # Correct for the gain variations in each cell
-                try:
-                    gain = float(hdulist[cell].header['GAIN'])
-                    datasec *= gain
-                except:
-                    print "Couldn't find the GAIN header!"
+            if (options['gain_correct']):
+                # Correct for the gain variations in each cell
+
+                #
+                # Note that gain-correction needs to be done consistently for ALL
+                # calibration products, including in particular BIAS and DARKs to
+                # be correct.
+                #
+
+                if (options['nonlinearity-set']):
+                    # Find the relative gain correction factor based on the non-linearity correction data
+                    logger.debug("Apply gain correction from nonlinearity data to cell %d,%d" % (wm_cellx, wm_celly))
+                    datasec = podi_nonlinearity.apply_gain_correction(datasec, wm_cellx, wm_celly, nonlin_data)
                     pass
+
+                    
+                else:
+                    # Use what's in the header
+                    try:
+                        gain = float(hdulist[cell].header['GAIN'])
+                        datasec *= gain
+                        logger.debug("Applying gain correction from header (%.4f) to cell %d,%d" % (
+                            gain, wm_cellx, wm_celly))
+                    except:
+                        print "Couldn't find the GAIN header!"
+                        pass
 
             #
             # Insert the reduced data-section of this cell into the large OTA frame
@@ -676,6 +694,7 @@ def collect_reduce_ota(filename,
                     persistency_catalog_counter += 1
                     keyname = "PERSIS%02d" % (persistency_catalog_counter)
                     hdu.header[keyname] = filename
+
 
         #
         # If requested, determine the optimal fringe scaling
@@ -2472,6 +2491,7 @@ def set_default_options(options_in=None):
     options['dark_dir'] = None
     options['flat_dir'] = None
     options['bpm_dir']  = None
+    options['gain_correct'] = False
 
     options['nonlinearity'] = None
     options['nonlinearity-set'] = False
@@ -2611,6 +2631,8 @@ Calibration data:
       Flatfields: %s
   Bad pixel mask: %s
 """ % (options['bias_dir'], options['dark_dir'], options['flat_dir'], options['bpm_dir'])
+
+    options['gain_correct'] = cmdline_arg_isset("-gain")
 
     options['persistency_dir'] = cmdline_arg_set_or_default('-persistency', None)
     if (not options['persistency_dir'] == None):
