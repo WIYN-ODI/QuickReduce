@@ -23,15 +23,17 @@ import datetime
 
 import podi_definitions
 import podi_collectcells
+import podi_logging
+
 import podi_SAMPsetup as setup
 
 import subprocess
+import logging
 
 m = multiprocessing.Manager()
 process_tracker = m.Queue()
 
 worker_queue = multiprocessing.JoinableQueue()
-
 
 
 def worker_slave(queue):
@@ -44,11 +46,19 @@ def worker_slave(queue):
 
     print "Worker process started, ready for action..."
 
+    if (not setup.use_ssh):
+        # If we reduce frames locally, prepare the QR logging.
+        options = podi_collectcells.read_options_from_commandline()
+        options = podi_collectcells.setup_logging(options)
+        options['clobber'] = False
+
     while (True):
         try:
+            # print "\n\nWaiting for stuff to do\n\n"
             task = queue.get()
         except KeyboardInterrupt, SystemExit:
-            return
+            break
+            #return
 
         if (task == None):
             queue.task_done()
@@ -56,7 +66,7 @@ def worker_slave(queue):
 
         filename = task
 
-        # print "starting work on file",filename
+        print "starting work on file",filename
 
         ccopts = ""
         if (len(sys.argv) > 2):
@@ -79,31 +89,22 @@ def worker_slave(queue):
                 'filename': remote_inputfile,
                 'outputfile': setup.output_format, 
             }
-            #print kw
 
             ssh_command = "ssh %(user)s@%(host)s %(collectcells)s %(filename)s %(outputfile)s %(options)s -noclobber" % kw
             #print ssh_command
 
             cmd_items = ssh_command.split()
-            print "\nExecuting:\n%s\n" % (ssh_command)
+            # print "\nExecuting:\n%s\n" % (ssh_command)
 
             # Run ssh via a subprocess
             process = subprocess.Popen(cmd_items, stdout=subprocess.PIPE)
             _stdout, _stderr = process.communicate()
-            #print "\n\nstdout=\n",_stdout
-            #print "\n\nstderr=\n",_stderr
-            #print ssh_command
-            #print "done running ssh"
 
         else:
             #
             # Run collectcells locally
             #
-            # print "Reading configuration for CollectCells"
             print "\nRunning collectcells (%s)\n" % (filename)
-            options = podi_collectcells.read_options_from_commandline()
-            options = podi_collectcells.setup_logging(options)
-            options['clobber'] = False
 
             podi_collectcells.collectcells_with_timeout(input=filename, 
                                                         outputfile=setup.output_format,
@@ -111,12 +112,18 @@ def worker_slave(queue):
                                                         timeout=300,
                                                         process_tracker=process_tracker)
 
-            podi_logging.podi_log_master_quit(options['log_master_info'])
-
+ 
         #
         # Once the file is reduced, mark the current task as done.
         #
+        print "task done!"
         queue.task_done()
+
+    if (not setup.use_ssh):
+        print "Shutting down QuickReduce logging"
+        podi_logging.podi_log_master_quit(options['log_master_info'])
+
+    print "Terminating worker process..."
 
     return
         
@@ -186,7 +193,7 @@ if __name__ == "__main__":
     # Create client, connect to Hub, and install message listener
     cli1 = sampy.SAMPIntegratedClient(metadata = metadata)
     cli1.connect()
-    cli1.bindReceiveMessage("odi.image.load", receive_msg)
+    cli1.bindReceiveMessage(setup.message_queue, receive_msg)
 
     print "Starting execution process..."
     worker_process = multiprocessing.Process(target=worker_slave,

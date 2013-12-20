@@ -4,9 +4,11 @@ This file only contains the settings to be used in podi_SAMPListener.
 
 """
 
+message_queue = "odi.image.load"
+
 output_format = "/scratch/%OBSID.fits"
 
-use_ssh = False #True
+use_ssh = True
 ssh_user = "rkotulla"
 ssh_host = "localhost"
 ssh_executable = "/work/podi_devel/podi_collectcells.py"

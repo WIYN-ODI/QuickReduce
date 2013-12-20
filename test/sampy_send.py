@@ -6,6 +6,8 @@ import os
 import sys
 import time
 
+message_queue = "odi.image.load"
+
 if __name__ == "__main__":
     print "Starting SAMPY message sender"
 
@@ -30,7 +32,7 @@ if __name__ == "__main__":
     # cli1.notifyAll(msg)
 
     print "Sending message"
-    cli1.enotifyAll(mtype="odi.image.load", filename=sys.argv[1])
+    cli1.enotifyAll(mtype=message_queue, filename=sys.argv[1])
     print "message sent"
 
     # time.sleep(5)
