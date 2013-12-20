@@ -18,21 +18,27 @@ if __name__ == "__main__":
                 "cli1.version":"0.01"}
 
     cli1 = sampy.SAMPIntegratedClient(metadata = metadata)
-
     cli1.connect()
 
-    # Construct the message
-    # make sure this is compatible with ODIFileBrowser
-
-    # private_key = cli1.getPrivateKey()
-    # msg = {"samp.mtype": "odi.image.load",
-    #        "samp.params": {"filename": sys.argv[1],
-    #                        },
-    # }
-    # cli1.notifyAll(msg)
+    target = sys.argv[1]
 
     print "Sending message"
-    cli1.enotifyAll(mtype=message_queue, filename=sys.argv[1])
+
+    if (target == 'ds9'):
+        queue = 'ds9.set'
+        cmd = " ".join(sys.argv[2:])
+        print "queue=%s" % queue
+        cli1.enotifyAll(mtype=queue, cmd=cmd)
+
+    if (target == 'qr'):
+        filename = sys.argv[2]
+        cli1.enotifyAll(mtype=message_queue, filename=filename)
+
+    else:
+        # This is not understood
+        print "I don't understand this target: only qr and ds9 are known"
+        pass
+
     print "message sent"
 
     # time.sleep(5)
