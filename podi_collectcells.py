@@ -81,6 +81,15 @@ Available flags
   detector, and this option allows to specify the directory holding all these 
   files.
 
+* **-gain**
+
+  Apply a gain correction to all cells. If combined with the -nonlinearity 
+  option, the relative gain values from the non-linearity are used, otherwise it
+  uses the constants defined in each cell header. 
+
+  Note that for correct reduction, this flag needs to be applied consistently,
+  in particular when creating the bias, dark, and flat-field frames.
+
 * **-persistency=/dir**
 
   same as above. However, since persistency files are both read (from the 
