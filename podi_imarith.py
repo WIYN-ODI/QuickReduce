@@ -75,6 +75,9 @@ if __name__ == "__main__":
     
     # Now go though each extension and perform the operation
     for idx_img1 in range(1, len(hdu_1)):
+        if (not is_image_extension(hdu_1[idx_img1])):
+            continue
+
         img1 = hdu_1[idx_img1]
         
         fppos1 = img1.header['EXTNAME']
