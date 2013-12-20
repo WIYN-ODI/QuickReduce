@@ -157,8 +157,7 @@ def receive_msg(private_key, sender_id, msg_id, mtype, params, extra):
 
 
 
-if __name__ == "__main__":
-
+def SAMPListener():
     print """
 
    *******************************************************************
@@ -203,12 +202,12 @@ if __name__ == "__main__":
     )
     worker_process.start()
 
-    print "Setup complete, waiting for messages (press Crtl-C to quit)"
+    print "Setup complete, waiting for messages..."
 
     try:
         while (True):
             time.sleep(2)
-            sys.stdout.write("\rCurrent system-time: %s" % (datetime.datetime.now()))
+            sys.stdout.write("\rCurrent system-time: %s (press Crtl-C to quit)" % (datetime.datetime.now()))
             sys.stdout.flush()
 
             # try:
@@ -234,4 +233,26 @@ if __name__ == "__main__":
     worker_queue.put(None)
     worker_process.join()
 
-#    
+
+if __name__ == "__main__":
+
+
+    if (len(sys.argv) > 1 and sys.argv[1] == "-testconnect"):
+
+        try:
+            cli1 = sampy.SAMPIntegratedClient()
+            cli1.connect()
+            cli1.bindReceiveMessage(setup.message_queue, receive_msg)
+            cli1.disconnect()
+
+            print "\nConnection successful!\n"
+        except:
+            print "\nProblem connecting\n"
+            pass
+        
+        sys.exit(0)
+    else:
+
+        SAMPListener()
+
+    
