@@ -221,6 +221,10 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
 
     """
 
+    if (outputfits == None):
+        print "No output FITS filename given, not doing any work!"
+        return
+
     otas = set(data[:,0])
     #print otas
 
@@ -230,7 +234,8 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
     result_celly = numpy.zeros(shape=(data.shape[0]), dtype=numpy.int)
     result_coeffs = numpy.zeros(shape=(data.shape[0],polyorder-1))
     result_coeffuncert = numpy.zeros(shape=(data.shape[0],polyorder-1))
-    
+    result_lampgain = numpy.zeros(shape=(data.shape[0]))
+
     for ota in otas:
         for cellx in range(8):
             for celly in range(8):
@@ -280,7 +285,7 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
                 result_celly[result_count] = celly
                 result_coeffs[result_count] = coefficients_normalized
                 result_coeffuncert[result_count] = coefficient_errors_normalized
-
+                result_lampgain[result_count] = linear_factor
                 
                 result_count += 1
 
@@ -291,8 +296,10 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
     #print result_coeffs[:10,:]
     #print result_coeffuncert[:10,:]
 
-    if (outputfits == None):
-        return
+    # Compute a relative gain factor
+    mean_lampgain = numpy.mean(result_lampgain[:result_count])
+    print "mean lampgain =",mean_lampgain
+    result_relativegain = result_lampgain / mean_lampgain
 
     columns = [\
         pyfits.Column(name='OTA',    format='B', array=result_ota[:result_count], disp='ota'),
@@ -302,18 +309,25 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
 
     for i in range(polyorder-1):
         col = pyfits.Column(name="COEFF_X**%d" % (i+2), 
-                            format='E',
+                            format='D',
                             array=result_coeffs[:result_count,i],
                             disp="polynomial coeff x^%d" % (i+2)
                             )
         columns.append(col)
     for i in range(polyorder-1):
         col = pyfits.Column(name="UNCERT_COEFF_X**%d" % (i+2), 
-                            format='E',
+                            format='D',
                             array=result_coeffuncert[:result_count,i],
                             disp="uncertainty of polynomial coeff x^%d" % (i+2)
                             )
         columns.append(col)
+
+    col = pyfits.Column(name="RELATIVE_GAIN", 
+                            format='D',
+                            array=result_relativegain[:result_count],
+                            disp="relative gain factor, linear slope"
+                            )
+    columns.append(col)
 
     coldefs = pyfits.ColDefs(columns)
     tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
@@ -345,6 +359,7 @@ def load_nonlinearity_correction_table(filename, search_ota):
 
     # Create an array holding all coefficients
     nonlinearity_coeffs = numpy.zeros(shape=(8,8,polyorder-1))
+    relative_gains = numpy.zeros(shape=(8,8))
 
     # Now load the full catalog and sort the coefficients 
     # into the coefficient matrix
@@ -363,10 +378,18 @@ def load_nonlinearity_correction_table(filename, search_ota):
     celly = celly[in_this_ota]
     all_coeffs = all_coeffs[in_this_ota]
 
+    relative_gains_all = hdulist[1].data.field('RELATIVE_GAIN')
+    relative_gains_ota = relative_gains_all[in_this_ota]
+
     for i in range(cellx.shape[0]):
         nonlinearity_coeffs[cellx[i], celly[i], :] = all_coeffs[i]
+        relative_gains[cellx[i], celly[i]] = relative_gains_ota[i]
 
-    return nonlinearity_coeffs
+    nonlin_data = {'coeffs': nonlinearity_coeffs,
+                   'rel_gain': relative_gains,
+    }
+
+    return nonlin_data #nonlinearity_coeffs
 
 
 def compute_nonlinearity_correction(data, coeffs):
@@ -380,15 +403,27 @@ def compute_nonlinearity_correction(data, coeffs):
         correction += coeffs[i] * data**(i+2)
     return correction
    
-def compute_cell_nonlinearity_correction(data, cellx, celly, all_coeffs):
+#def compute_cell_nonlinearity_correction(data, cellx, celly, all_coeffs):
+def compute_cell_nonlinearity_correction(data, cellx, celly, nonlin_data):
     """
 
     Select the non-linearity coefficients for the specified cell and compute 
     the correction.
 
     """
-    coeffs = all_coeffs[cellx, celly, :]
+    coeffs = nonlin_data['coeffs'][cellx, celly, :]
     return compute_nonlinearity_correction(data, coeffs)
+
+
+def apply_gain_correction(data, cellx, celly, nonlin_data):
+    """
+
+    Apply the gain correction
+
+    """
+
+    gain = nonlin_data['rel_gain'][cellx,celly]
+    return data * gain
 
 
 def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
