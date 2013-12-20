@@ -247,9 +247,14 @@ def log_master(queue, options):
     msg_received = 0
     while True:
         try:
-            record = queue.get()
-            # print "received log entry",queue.qsize(),msg_received
-            if record is None: # We send this as a sentinel to tell the listener to quit.
+            try:
+                record = queue.get()
+            except KeyboardInterrupt, SystemExit:
+                record = None
+            except:
+                raise
+
+            if (record == None): 
                 break
 
             msg_received += 1
