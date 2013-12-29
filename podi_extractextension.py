@@ -46,7 +46,11 @@ if __name__ == "__main__":
 
     hdulist = pyfits.open(inputfile)
 
-    outlist = [pyfits.PrimaryHDU()]
+    primhdu = pyfits.PrimaryHDU()
+    if (cmdline_arg_isset("-keepprimary")):
+        primhdu = pyfits.PrimaryHDU(header=hdulist[0].header)
+
+    outlist = [primhdu]
     
     try:
         ext = hdulist[extension]
