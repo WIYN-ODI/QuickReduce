@@ -40,26 +40,34 @@ from podi_definitions import *
 
 if __name__ == "__main__":
 
-    inputfile = sys.argv[1]
-    extension = sys.argv[2]
-    outputfile = sys.argv[3]
+    inputfile = get_clean_cmdline()[1]
+    outputfile = get_clean_cmdline()[-1]
 
     hdulist = pyfits.open(inputfile)
 
-    primhdu = pyfits.PrimaryHDU()
-    if (cmdline_arg_isset("-keepprimary")):
+
+    if (cmdline_arg_isset("-cleanprimary")):
+        primhdu = pyfits.PrimaryHDU()
+    else:
         primhdu = pyfits.PrimaryHDU(header=hdulist[0].header)
 
     outlist = [primhdu]
-    
-    try:
-        ext = hdulist[extension]
-    except:
-        print "couldn't find extension"
-        sys.exit(0)
 
-    outlist.append(ext)
+    for extension in get_clean_cmdline()[2:-1]:
 
-    print "writing"
-    hdu_out = pyfits.HDUList(outlist)
-    hdu_out.writeto(outputfile, clobber=True)
+        try:
+            ext = hdulist[extension]
+        except KeyError:
+            print "couldn't find extension",extension
+            continue
+        except:
+            raise
+
+        outlist.append(ext)
+
+    if (len(outlist) > 1):
+        print "writing"
+        hdu_out = pyfits.HDUList(outlist)
+        hdu_out.writeto(outputfile, clobber=True)
+    else:
+        print "couldn't find any extension"
