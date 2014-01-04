@@ -31,10 +31,22 @@ sdss_ref_type = 'local' # can also be 'web' or 'stripe82'
 sdss_ref_dir = '/nas/wiyn/sdss_photcalib/'
 
 number_cpus = "auto"
-max_cpu_count = 6
+max_cpu_count = 14
 if (cmdline_arg_isset("-ncpus")):
     number_cpus = int(cmdline_arg_set_or_default("-ncpus", number_cpus))
     print "Using user-defined CPU count of",number_cpus
+else:
+    try:
+        import multiprocessing
+        number_cpus = multiprocessing.cpu_count()
+        print "Yippie, found %d CPUs to use in parallel!" % (number_cpus)
+        if (number_cpus > max_cpu_count and max_cpu_count > 1):
+            number_cpus = max_cpu_count
+            print "... but using only %d of them!" % (number_cpus)
+    except:
+        print "Problem figuring out how many CPUs to use, setting to 1"
+        number_cpus=1
+        pass
 
 
 #wcs_ref_dir = "/datax/2mass_fits/"
