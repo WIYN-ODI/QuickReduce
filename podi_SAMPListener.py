@@ -21,7 +21,7 @@ import time
 import multiprocessing
 import datetime
 
-import podi_definitions
+from podi_definitions import *
 import podi_collectcells
 import podi_logging
 
@@ -74,7 +74,10 @@ def worker_slave(queue):
             ccopts = " ".join(sys.argv[1:])
         # print "ccopts=",ccopts
 
-        if (setup.use_ssh):
+        if (cmdline_arg_isset("-dryrun")):
+            print "Sending off file",filename,"for reduction"
+
+        elif (setup.use_ssh):
             #
             # Run collectcells on a different machine
             #
@@ -91,7 +94,6 @@ def worker_slave(queue):
             }
 
             ssh_command = "ssh %(user)s@%(host)s %(collectcells)s %(filename)s %(outputfile)s %(options)s -noclobber" % kw
-            #print ssh_command
 
             cmd_items = ssh_command.split()
             # print "\nExecuting:\n%s\n" % (ssh_command)
