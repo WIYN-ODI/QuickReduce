@@ -125,7 +125,16 @@ def worker_slave(queue):
                 cmd = "mosaicimage iraf %s" % (local_filename)
             else:
                 cmd = "fits %s" % (local_filename)
-            cli1.enotifyAll(mtype=queue, cmd=cmd)
+
+            try:
+                cli1 = sampy.SAMPIntegratedClient(metadata = metadata)
+                cli1.connect()
+                cli1.enotifyAll(mtype=queue, cmd=cmd)
+                cli1.disconnect()
+            except:
+                print "Problems sending message to ds9"
+                pass
+
 
         #
         # Once the file is reduced, mark the current task as done.
