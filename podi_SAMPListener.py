@@ -114,7 +114,19 @@ def worker_slave(queue):
                                                         timeout=300,
                                                         process_tracker=process_tracker)
 
- 
+        #
+        # If requested, also send the command to ds9
+        #
+        local_filename = setup.translate_filename_remote2local(remote_inputfile, filename)
+        if (cmdline_arg_isset("-forward2ds9")):
+            forward2ds9_option = cmdline_arg_set_or_default("-forward2ds9", "image")
+            queue = 'ds9.set'
+            if (forward2ds9_option == "irafmosaic"):
+                cmd = "mosaicimage iraf %s" % (local_filename)
+            else:
+                cmd = "fits %s" % (local_filename)
+            cli1.enotifyAll(mtype=queue, cmd=cmd)
+
         #
         # Once the file is reduced, mark the current task as done.
         #
