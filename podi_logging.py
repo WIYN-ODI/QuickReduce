@@ -192,6 +192,8 @@ def log_master(queue, options):
         try:
             debugfile = open(debug_filename, "w")
             enable_debug = True
+            print >>debugfile, " ".join(sys.argv)
+            
             # print 'activating debug output'
 
             debug_logger = logging.getLogger('debug')
