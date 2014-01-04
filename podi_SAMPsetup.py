@@ -43,9 +43,9 @@ def translate_filename_remote2local(input_filename, remote_filename):
 
     if (remote_filename.startswith("/mnt")):
         # This is on a Linux Machine, convert to Mac
-        local_filename = filename.replace("/mnt/", "/Volumes/")
+        local_filename = remote_filename.replace("/mnt/", "/Volumes/")
     else:
-        local_filename = filename
+        local_filename = remote_filename
 
     if (local_filename.find("%") >= 0):
         # This filename contains some special formatting instructions
