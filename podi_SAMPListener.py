@@ -35,6 +35,25 @@ process_tracker = m.Queue()
 
 worker_queue = multiprocessing.JoinableQueue()
 
+metadata = {"samp.name":
+                "QR_listener",
+            "samp.description.text":
+                "QuickReduce SAMP Listener",
+            "samp.icon.url": 
+                "file:///work/podi_devel/test/qr.jpg",
+            "samp.documentation.url": 
+                "http://members.galev.org/rkotulla/research/podi-pipeline/",
+            "author.name": 
+                "Ralf Kotulla",
+            "author.email": 
+                "kotulla@uwm.edu",
+            "author.affiliation": 
+                "University of Wisconsin - Milwaukee",
+            "home.page": 
+                "http://members.galev.org/rkotulla/research/podi-pipeline",
+            "cli1.version":"0.01",
+}
+
 
 def worker_slave(queue):
     """
@@ -130,10 +149,6 @@ def worker_slave(queue):
             print "local file", local_filename
 
             try:
-                metadata = {"samp.name":"QR_sender",
-                            "samp.description.text":"QuickReduce SAMP Sender",
-                            "cli1.version":"0.01"}
-                
                 cli1 = sampy.SAMPIntegratedClient(metadata = metadata)
                 cli1.connect()
                 cli1.enotifyAll(mtype='ds9.set', cmd=cmd)
@@ -159,6 +174,28 @@ def worker_slave(queue):
         
 
 
+def get_filename_from_input(input):
+
+    if (os.path.isfile(input)):
+        return input
+    elif (os.path.isdir(input)):
+        if (input.endswith("/")):
+            input = input[:-1]
+        dirname, base = os.path.split(input)
+        filename = "%s/%s.33.fits" % (input, base)
+        if (not os.path.isfile(filename)):
+            filename += ".fz"
+            if (not os.path.isfile(filename)):
+                return None
+            return filename
+        return filename
+
+    return input
+
+def check_obstype(filename):
+    with pyfits.open(filename) as hdulist:
+        obstype = hdulist[0].header['OBSTYPE']
+    return obstype
 
 def receive_msg(private_key, sender_id, msg_id, mtype, params, extra):
     """
@@ -180,6 +217,20 @@ def receive_msg(private_key, sender_id, msg_id, mtype, params, extra):
         print "filename %s is not a valid directory" % (filename)
         return
         
+    if (cmdline_arg_isset("-onlyscienceframes")):
+        fits_file = get_filename_from_input(filename)
+        obstype = check_obstype(fits_file)
+        if (obstype != "OBJECT"):
+            print """
+
+Received input %s
+   (translated to %s) ...
+This is not a OBJECT frame.
+I was told to ignore non-OBJECT frames
+\
+""" % (filename, fits_file)
+            return
+
     worker_queue.put( (filename) )
 
     print "Done with this one, hungry for more!"
@@ -198,25 +249,6 @@ def SAMPListener():
 """
 
     # Create a client
-    metadata = {"samp.name":
-                    "QR_listener",
-                "samp.description.text":
-                    "QuickReduce SAMP Listener",
-                "samp.icon.url": 
-                    "file:///work/podi_devel/test/qr.jpg",
-                "samp.documentation.url": 
-                    "http://members.galev.org/rkotulla/research/podi-pipeline/",
-                "author.name": 
-                    "Ralf Kotulla",
-                "author.email": 
-                    "kotulla@uwm.edu",
-                "author.affiliation": 
-                    "University of Wisconsin - Milwaukee",
-                "home.page": 
-                    "http://members.galev.org/rkotulla/research/podi-pipeline",
-                "cli1.version":"0.01",
-    }
-
     print "Starting receiver ..."
 
     # Create client, connect to Hub, and install message listener
