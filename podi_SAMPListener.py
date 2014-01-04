@@ -117,19 +117,26 @@ def worker_slave(queue):
         #
         # If requested, also send the command to ds9
         #
-        local_filename = setup.translate_filename_remote2local(remote_inputfile, filename)
         if (cmdline_arg_isset("-forward2ds9")):
+            local_filename = setup.translate_filename_remote2local(filename, setup.output_format)
             forward2ds9_option = cmdline_arg_set_or_default("-forward2ds9", "image")
-            queue = 'ds9.set'
             if (forward2ds9_option == "irafmosaic"):
                 cmd = "mosaicimage iraf %s" % (local_filename)
             else:
                 cmd = "fits %s" % (local_filename)
 
+            print "filename", filename
+            print "remote file", remote_inputfile
+            print "local file", local_filename
+
             try:
+                metadata = {"samp.name":"QR_sender",
+                            "samp.description.text":"QuickReduce SAMP Sender",
+                            "cli1.version":"0.01"}
+                
                 cli1 = sampy.SAMPIntegratedClient(metadata = metadata)
                 cli1.connect()
-                cli1.enotifyAll(mtype=queue, cmd=cmd)
+                cli1.enotifyAll(mtype='ds9.set', cmd=cmd)
                 cli1.disconnect()
             except:
                 print "Problems sending message to ds9"
