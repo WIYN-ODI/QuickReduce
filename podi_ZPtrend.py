@@ -51,6 +51,9 @@ import matplotlib.pyplot
 from podi_observingplots import *
 from podi_definitions import *
 
+dzp_limit_max = 0.3
+dzp_limit_min = -3.
+
 if __name__ == "__main__":
 
     
@@ -165,8 +168,9 @@ if __name__ == "__main__":
     
     min_dzp = numpy.min((all_dzps-all_dzp_errs)[good_d_zp])
     max_dzp = numpy.max((all_dzps+all_dzp_errs)[good_d_zp])
+    min_dzp = min_dzp if min_dzp > dzp_limit_min else dzp_limit_min
+    max_dzp = max_dzp if max_dzp < dzp_limit_max else dzp_limit_max
 
-    ax.set_ylim((-5,0.3))
     ax.set_ylim((min_dzp-0.1,max_dzp+0.1))
     ax.legend(loc='best', borderaxespad=1)
 
