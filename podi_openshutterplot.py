@@ -50,104 +50,16 @@ import datetime
 import matplotlib
 import matplotlib.pyplot
 
-
-try:
-    import cPickle as pickle
-except:
-    import pickle
-
-
-def seconds2mjd(sec):
-    return sec/86400.
-
-
-known_filters = {
-    "odi_g": (26.1, "blue"),
-    "odi_r": (26.1, "green"),
-    "odi_i": (27.0, "orange"),
-    "odi_z": (25.0, "red"),
-    "Us_solid": (24.0, "purple"),
-}
+from podi_observingplots import *
+from podi_definitions import *
 
 
 
 if __name__ == "__main__":
 
-    
-    obstype, exptime, filtername, photzp, photzpe, mjd, dateobs = [], [], [], [], [], [], []
-
     print "Reading data"
-
-    # Open the file, read its content, and add to the existing filelist
-    pickled_file = "index.pickle"
-    direntry = {}
-    if (os.path.isfile(pickled_file)):
-        try:
-            pickle_dict = open(pickled_file, "rb")
-            print "Reading pickled file..."
-            direntry = pickle.load(pickle_dict)
-            close(pickle_dict)
-        except:
-            pass
-
-
-    for filename in sys.argv[1:]:
-
-        if (not os.path.isfile(filename)):
-            continue
-
-        if (filename in direntry):
-            # We know about this file from the pickle
-            file_dir = direntry[filename]
-            #(_obstype, _exptime, expmea_filtername, _photzp, _photzpe, _mjdobs, _dateobs) = direntry[filename]
-
-        else:
-            print "Getting info for file", filename
-            try:
-                hdulist = pyfits.open(filename)
-                hdr = hdulist[0].header
-            except:
-                continue
-
-
-            file_dir = {
-                "OBSTYPE" : "???", 
-                "EXPTIME" : -1, 
-                "EXPMEAS" : -1,
-                "FILTER"  : "???", 
-                "PHOTZP"  : -99, 
-                "PHOTZPE" : -99, 
-                "MJD-OBS" : -99, 
-                "DATE-OBS": "???",
-            }
-
-            for header in file_dir:
-                try:
-                    file_dir[header] = hdr[header]
-                except KeyError:
-                    pass
-                except:
-                    raise
-
-            direntry[filename] = file_dir
-
-        # print file_dir['OBSTYPE']
-        obstype.append(file_dir['OBSTYPE'])
-        exptime.append(file_dir['EXPTIME'])
-        filtername.append(file_dir['FILTER'])
-        photzp.append(file_dir['PHOTZP'])
-        photzpe.append(file_dir['PHOTZPE'])
-        mjd.append(file_dir['MJD-OBS'])
-        dateobs.append(file_dir['DATE-OBS'])
-
-
-    # Now pickle the dir_entry for later use
-    picklejar = "index.pickle"
-    print "Pickling data..."
-    with open(picklejar, "wb") as pf:
-        pickle.dump(direntry, pf)
-        pf.close()
-
+    direntry, arrays = read_data_from_files(get_clean_cmdline()[1:])
+    obstype, exptime, filtername, photzp, photzpe, mjd, dateobs, airmass = arrays
 
     # Now create the plots
 
@@ -254,7 +166,7 @@ if __name__ == "__main__":
 
         this_color = 'grey'
         if (this_file['FILTER'] in known_filters):
-            zp,col = known_filters[this_file['FILTER']]
+            zp,amt,col = known_filters[this_file['FILTER']]
             this_color = col
             
         if (math.floor(init*24.) < math.floor(complete*24.)):
@@ -306,10 +218,13 @@ if __name__ == "__main__":
 
     # Set output size to 900x500 pixels
     fig.set_size_inches(9,5)
-    fig.savefig("shutter_open.png",dpi=100)
+    output_filename = cmdline_arg_set_or_default("-output", "shutter_open.png")
+    print "Saving output to file",output_filename
+    fig.savefig(output_filename, dpi=100)
 
     #tfig.savefig("transparency_trend.png")
 
-    # matplotlib.pyplot.show()
+    if (cmdline_arg_isset("-show")):
+        matplotlib.pyplot.show()
 
 
