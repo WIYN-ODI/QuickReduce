@@ -49,7 +49,7 @@ import math
 import matplotlib
 import matplotlib.pyplot
 from podi_observingplots import *
-
+from podi_definitions import *
 
 if __name__ == "__main__":
 
@@ -57,8 +57,6 @@ if __name__ == "__main__":
     print "Reading data"
     direntry, arrays = read_data_from_files(sys.argv[1:])
     obstype, exptime, filtername, photzp, photzpe, mjd, dateobs = arrays
-
-    print mjd
 
     print "Plotting"
     fig, ax = matplotlib.pyplot.subplots()
@@ -72,6 +70,10 @@ if __name__ == "__main__":
     def dzp_to_transparency(d_zp):
         return 100.*numpy.power(10., 0.4*d_zp)
 
+    all_dzps = numpy.array([0.2, -0.3])
+    all_dzp_errs = numpy.array([0., 0.,])
+
+    print all_dzps
     for thisfilter in set(filtername):
 
         print thisfilter
@@ -97,19 +99,24 @@ if __name__ == "__main__":
             else:
                 d_zp = -999
 
+            d_zpx = d_zp
+
             if (d_zp > 0.5 or d_zp < -5):
                 d_zp = 0
                 zperr = 0
                 this_color = "grey"
 
-            this_data = [mjd[i], exptime[i], photzp[i], zperr, d_zp]
+            this_data = [mjd[i], exptime[i], photzp[i], zperr, d_zp, d_zpx]
             data.append(this_data)
             colors.append(this_color) #cc.to_rgba(this_color))
             #colors.append(this_color) #cc.to_rgba(this_color))
 
         data = numpy.array(data)
         timestamp = data[:,0] + 0.5 * data[:,1] / 86400.  - mjd_zeropoint# mjdobs + 0.5*exptime
-        
+        all_dzps = numpy.append(all_dzps, data[:,5])
+        all_dzp_errs = numpy.append(all_dzp_errs, data[:,3])
+        print all_dzps
+
         print colors
         print list(colors)
         print "\n\n\n\n"
@@ -152,7 +159,15 @@ if __name__ == "__main__":
 
     ax.set_xlim((time_start, time_end))
 
+    # Determine the min and max y-range
+    good_d_zp = (all_dzps < 50) & (all_dzps > -50)
+    #print all_dzps, numpy.array(all_dzps)
+    
+    min_dzp = numpy.min((all_dzps-all_dzp_errs)[good_d_zp])
+    max_dzp = numpy.max((all_dzps+all_dzp_errs)[good_d_zp])
+
     ax.set_ylim((-5,0.3))
+    ax.set_ylim((min_dzp-0.1,max_dzp+0.1))
     ax.legend(loc='best', borderaxespad=1)
 
     #
@@ -202,6 +217,7 @@ if __name__ == "__main__":
     fig.set_size_inches(9,5)
     fig.savefig("photzp_trend.png",dpi=100)
 
-    matplotlib.pyplot.show()
+    if (cmdline_arg_isset("-show")):
+        matplotlib.pyplot.show()
 
 
