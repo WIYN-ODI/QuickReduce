@@ -30,9 +30,17 @@ if __name__ == "__main__":
         print "queue=%s" % queue
         cli1.enotifyAll(mtype=queue, cmd=cmd)
 
-    if (target == 'qr'):
+    elif (target == 'qr'):
         filename = sys.argv[2]
         cli1.enotifyAll(mtype=message_queue, filename=filename)
+
+    elif (target == 'translate'):
+        input_filename = sys.argv[2]
+        formatstring = sys.argv[3]
+        import podi_collectcells
+        out = podi_collectcells.format_filename(input_filename, formatstring)
+
+        print out
 
     else:
         # This is not understood
