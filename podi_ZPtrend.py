@@ -217,13 +217,13 @@ if __name__ == "__main__":
     #locator = matplotlib.dates.AutoDateLocator()
     #hfmt = matplotlib.dates.AutoDateFormatter(locator)
 
-    ax.set_ylabel("ZP difference Ref-ODI [mag]")
+    ax.set_ylabel("ZP difference Ref-ODI / Throughput loss /\nCloud attenuation [mag]")
     #ax.xaxis.set_major_locator(matplotlib.dates.MinuteLocator())
     ax.xaxis.set_major_formatter(hfmt)
     ax.set_ylim(bottom = 0)
     matplotlib.pyplot.xticks(rotation='vertical')
     #ax.get_xaxis.set_xticks(rotation='vertical')
-    matplotlib.pyplot.subplots_adjust(bottom=.20, top=0.95, right=0.9)
+    matplotlib.pyplot.subplots_adjust(bottom=.22, top=0.95, right=0.9)
 
     #tax.set_ylabel("Transparency")
     #tax.xaxis.set_major_formatter(hfmt)
@@ -235,7 +235,7 @@ if __name__ == "__main__":
     #ax2.set_yscale('log')
 
     time_start = numpy.min(mjd)-mjd_zeropoint
-    time_end = numpy.max(mjd)-mjd_zeropoint
+    time_end = numpy.max(numpy.array(mjd)+numpy.array(exptime)/86400)-mjd_zeropoint
     frac_diff = 0.05 * (time_end - time_start)
     time_start, time_end = time_start - frac_diff, time_end + frac_diff
     matplotlib.pyplot.hlines(0,time_start, time_end)
@@ -301,6 +301,6 @@ if __name__ == "__main__":
 
     #tfig.savefig("transparency_trend.png")
 
-    matplotlib.pyplot.show()
+    #matplotlib.pyplot.show()
 
 
