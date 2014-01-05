@@ -58,8 +58,8 @@ if __name__ == "__main__":
 
     
     print "Reading data"
-    direntry, arrays = read_data_from_files(sys.argv[1:])
-    obstype, exptime, filtername, photzp, photzpe, mjd, dateobs = arrays
+    direntry, arrays = read_data_from_files(get_clean_cmdline()[1:])
+    obstype, exptime, filtername, photzp, photzpe, mjd, dateobs, airmass = arrays
 
     print "Plotting"
     fig, ax = matplotlib.pyplot.subplots()
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     all_dzps = numpy.array([0.2, -0.3])
     all_dzp_errs = numpy.array([0., 0.,])
 
-    print all_dzps
+    #print all_dzps
     for thisfilter in set(filtername):
 
         print thisfilter
@@ -85,7 +85,7 @@ if __name__ == "__main__":
         color='grey'
         if (thisfilter in known_filters):
             legendname = thisfilter
-            ref_zp, color = known_filters[thisfilter]
+            ref_zp, airmassterm, color = known_filters[thisfilter]
 
         # Select all datapoints for this filter
         data = []
@@ -95,8 +95,8 @@ if __name__ == "__main__":
                 continue
                 
             if (thisfilter in known_filters):
-                ref_zp, color = known_filters[thisfilter]
-                d_zp = photzp[i] - ref_zp
+                ref_zp, airmassterm, color = known_filters[thisfilter]
+                d_zp = photzp[i] - ref_zp + airmassterm * (airmass[i]-1)
                 zperr = photzpe[i]
                 this_color = color
             else:
@@ -115,14 +115,14 @@ if __name__ == "__main__":
             #colors.append(this_color) #cc.to_rgba(this_color))
 
         data = numpy.array(data)
-        timestamp = data[:,0] + 0.5 * data[:,1] / 86400.  - mjd_zeropoint# mjdobs + 0.5*exptime
+        timestamp = data[:,0] + 0.5 * data[:,1] / 86400. - mjd_zeropoint# mjdobs + 0.5*exptime
         all_dzps = numpy.append(all_dzps, data[:,5])
         all_dzp_errs = numpy.append(all_dzp_errs, data[:,3])
-        print all_dzps
+        #print all_dzps
 
-        print colors
-        print list(colors)
-        print "\n\n\n\n"
+        #print colors
+        #print list(colors)
+        #print "\n\n\n\n"
         ax.errorbar(x=timestamp, y=data[:,4], xerr = 0.5*data[:,1]/86400., yerr=data[:,3],
 #                    color=[colors[i] for i in range(len(colors))],
                     c=color,
@@ -151,14 +151,32 @@ if __name__ == "__main__":
     ax.set_ylim(bottom = 0)
     matplotlib.pyplot.xticks(rotation='vertical')
     #ax.get_xaxis.set_xticks(rotation='vertical')
-    matplotlib.pyplot.subplots_adjust(bottom=.22, top=0.95, right=0.9)
+    matplotlib.pyplot.subplots_adjust(bottom=.22, top=0.97, right=0.96)
 
     time_start = numpy.min(mjd)-mjd_zeropoint
     time_end = numpy.max(numpy.array(mjd)+numpy.array(exptime)/86400)-mjd_zeropoint
-    frac_diff = 0.05 * (time_end - time_start)
-    time_start, time_end = time_start - frac_diff, time_end + frac_diff
+
+    if ((time_end - time_start) > 8):
+        round_off = 24. # 1 hour
+    else:
+        round_off = 48.
+
+    # Round times to closest hours
+    time_start = math.floor(time_start * round_off) / round_off
+    time_end = math.ceil(time_end * round_off) / round_off
     matplotlib.pyplot.hlines(0,time_start, time_end)
 
+    if ((time_end - time_start) * 24. > 10): 
+        # if time-range exceeds 10 hours, plot labels every 2 hours
+        major = matplotlib.dates.HourLocator(interval=2)
+    else:
+        # otherwise every hour
+        major = matplotlib.dates.HourLocator(interval=1)
+    # Add minor ticks every 15 minutes
+    minor = matplotlib.dates.MinuteLocator(interval=15)
+
+    ax.xaxis.set_major_locator(major)
+    ax.xaxis.set_minor_locator(minor)
 
     ax.set_xlim((time_start, time_end))
 
@@ -202,7 +220,7 @@ if __name__ == "__main__":
 
         this_color = 'grey'
         if (this_file['FILTER'] in known_filters):
-            zp,col = known_filters[this_file['FILTER']]
+            zp,amt,col = known_filters[this_file['FILTER']]
             this_color = col
             
         efficiency_plot.append(this_poly)
@@ -219,7 +237,9 @@ if __name__ == "__main__":
 
     # Set output size to 900x500 pixels
     fig.set_size_inches(9,5)
-    fig.savefig("photzp_trend.png",dpi=100)
+    output_filename = cmdline_arg_set_or_default("-output", "photzp_trend.png")
+    print "Saving output to file",output_filename
+    fig.savefig(output_filename, dpi=100)
 
     if (cmdline_arg_isset("-show")):
         matplotlib.pyplot.show()

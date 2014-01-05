@@ -10,13 +10,17 @@ try:
 except:
     import pickle
 
-
+#
+# Airmass terms from Table 5 in Landolt 2007,
+# http://adsabs.harvard.edu/abs/2007ASPC..364...27L
+#
 
 known_filters = {
-    "odi_g": (26.1, "blue"),
-    "odi_r": (26.1, "green"),
-    "odi_i": (26.0, "orange"),
-    "odi_z": (24.8, "red"),
+    "Us_solid": (24.0, 0.586, "purple"),
+    "odi_g":    (26.20, 0.264, "blue"),
+    "odi_r":    (26.13, 0.122, "green"),
+    "odi_i":    (26.0, 0.077, "orange"),
+    "odi_z":    (24.8, 0.050, "red"),
 }
 
 
@@ -27,7 +31,7 @@ def seconds2mjd(sec):
 def read_data_from_files(filelist):
 
     
-    obstype, exptime, filtername, photzp, photzpe, mjd, dateobs = [], [], [], [], [], [], []
+    obstype, exptime, filtername, photzp, photzpe, mjd, dateobs, airmass = [], [], [], [], [], [], [], []
 
     
     # Open the file, read its content, and add to the existing filelist
@@ -65,7 +69,7 @@ def read_data_from_files(filelist):
             except:
                 raise
 
-            print "reading headers"
+            #print "reading headers"
 
             file_dir = {
                 "OBSTYPE" : "???", 
@@ -76,6 +80,7 @@ def read_data_from_files(filelist):
                 "PHOTZPE" : -99, 
                 "MJD-OBS" : -99, 
                 "DATE-OBS": "???",
+                "AIRMASS" : 1.0,
             }
 
             for header in file_dir:
@@ -88,7 +93,7 @@ def read_data_from_files(filelist):
 
             direntry[filename] = file_dir
 
-        print file_dir #['OBSTYPE']
+        #print file_dir #['OBSTYPE']
         obstype.append(file_dir['OBSTYPE'])
         exptime.append(file_dir['EXPTIME'])
         filtername.append(file_dir['FILTER'])
@@ -96,6 +101,7 @@ def read_data_from_files(filelist):
         photzpe.append(file_dir['PHOTZPE'])
         mjd.append(file_dir['MJD-OBS'])
         dateobs.append(file_dir['DATE-OBS'])
+        airmass.append(file_dir['AIRMASS'])
 
     # Now pickle the dir_entry for later use
     picklejar = "index.pickle"
@@ -104,6 +110,6 @@ def read_data_from_files(filelist):
         pickle.dump(direntry, pf)
         pf.close()
 
-    print mjd
+    #print mjd
 
-    return direntry, (obstype, exptime, filtername, photzp, photzpe, mjd, dateobs)
+    return direntry, (obstype, exptime, filtername, photzp, photzpe, mjd, dateobs, airmass)
