@@ -225,15 +225,6 @@ if __name__ == "__main__":
     #ax.get_xaxis.set_xticks(rotation='vertical')
     matplotlib.pyplot.subplots_adjust(bottom=.22, top=0.95, right=0.9)
 
-    #tax.set_ylabel("Transparency")
-    #tax.xaxis.set_major_formatter(hfmt)
-
-    # ax2 = ax.twinx()
-    # ax2.set_ylabel("Transparency")
-    # matplotlib.pyplot.yticks((0,-1,-2.5), (100, 40, 10))
-
-    #ax2.set_yscale('log')
-
     time_start = numpy.min(mjd)-mjd_zeropoint
     time_end = numpy.max(numpy.array(mjd)+numpy.array(exptime)/86400)-mjd_zeropoint
     frac_diff = 0.05 * (time_end - time_start)
@@ -242,7 +233,6 @@ if __name__ == "__main__":
 
 
     ax.set_xlim((time_start, time_end))
-    #tax.set_xlim((time_start, time_end))
 
     ax.set_ylim((-5,0.3))
     ax.legend(loc='best', borderaxespad=1)
@@ -290,16 +280,9 @@ if __name__ == "__main__":
                                                  linestyle='-')
     ax.add_collection(coll)
 
-
-    #tax.set_ylim((1,200))
-    #tax.set_yscale('log')
-    #tax.legend(loc='best', borderaxespad=1)
-
     # Set output size to 900x500 pixels
     fig.set_size_inches(9,5)
     fig.savefig("photzp_trend.png",dpi=100)
-
-    #tfig.savefig("transparency_trend.png")
 
     #matplotlib.pyplot.show()
 
