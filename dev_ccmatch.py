@@ -530,8 +530,22 @@ def find_best_guess(src_cat, ref_cat,
     logger.debug(best_guess)
     # print best_guess, "angle=",best_guess[0]*60.,"arcmin"
 
+    #
+    # Also determine a contrast as quality estimator 
+    #
+    best_angle = best_guess[0]
+    # select all results with rotator angles differing by >20 arcmin
+    wrong_angles = numpy.fabs(all_results[:,0]-best_angle) > 20./60.
 
-    return best_guess
+    # number random matches:
+    if (numpy.sum(wrong_angles) <= 0):
+        n_random_matches = 1
+    else:
+        n_random_matches = numpy.median(all_results[:,3][wrong_angles])
+
+    contrast = best_guess[3] / n_random_matches
+
+    return best_guess, n_random_matches, contrast
 
 
 
@@ -945,7 +959,7 @@ def ccmatch_shift(source_cat,
     else:
         center_ra, center_dec = center
 
-    best_guess = find_best_guess(source_cat, 
+    best_guess, n_random_matches, contrast = find_best_guess(source_cat, 
                                  reference_cat,
                                  center_ra, center_dec,
                                  pointing_error=pointing_error,
@@ -958,7 +972,7 @@ def ccmatch_shift(source_cat,
     logger.debug(best_guess)
     logger.debug("offset="+str(best_guess[1:3]*3600.))
 
-    return best_guess
+    return best_guess, n_random_matches, contrast
 
 
 
@@ -966,7 +980,10 @@ def ccmatch_shift(source_cat,
 
 
  
-def log_shift_rotation(hdulist, params, n_step=1, description=""):
+def log_shift_rotation(hdulist, params, n_step=1, description="",
+                       n_random_matches=None,
+                       wcs_contrast = None,
+                   ):
     """
 
     Add some additional keywords to primary FITS header to keep track of the 
@@ -977,6 +994,11 @@ def log_shift_rotation(hdulist, params, n_step=1, description=""):
     hdulist[0].header['WCS%d_DRA' % n_step] = (params[1]*3600., "%s d_RA [arcsec]" % (description))
     hdulist[0].header['WCS%d_DDE' % n_step] = (params[2]*3600, "%s d_DEC [arcsec]" % (description))
     hdulist[0].header['WCS%d_N'   % n_step] = (params[3], "%s n_matches" % (description))
+
+    if (not n_random_matches == None):
+        hdulist[0].header['WCS_NRND'] = (n_random_matches, "number of random matches")
+    if (not wcs_contrast == None):
+        hdulist[0].header['WCS_QUAL'] = (wcs_contrast, "WCS quality")
 
     return
 
@@ -1443,12 +1465,13 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         center_dec = hdulist[1].header['CRVAL2']
 
         # Compute the optimal shift vector
-        wcs_correction = ccmatch_shift(source_cat=src_cat,
-                                       reference_cat=ref_cat,
-                                       center=(center_ra, center_dec),
-                                       pointing_error=(max_pointing_error/60.)
-                                       )
-
+        wcs_correction, n_random_matches, contrast = \
+            ccmatch_shift(source_cat=src_cat,
+                          reference_cat=ref_cat,
+                          center=(center_ra, center_dec),
+                          pointing_error=(max_pointing_error/60.)
+            )
+        
         logger.debug(wcs_correction)
 
         # For testing, apply correction to the input catalog, 
@@ -1468,7 +1491,10 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         # Add the best fit shift to outut header to keep track 
         # of the changes we are making
         log_shift_rotation(hdulist, params=wcs_correction, n_step=1,
-                           description="WCS calib best guess")
+                           description="WCS calib best guess",
+                           n_random_matches=n_random_matches,
+                           wcs_contrast = contrast,
+        )
 
         # Now apply this shift to the output file and write results
         apply_correction_to_header(hdulist, wcs_correction, verbose=False)
@@ -1506,7 +1532,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     center_ra = hdulist[1].header['CRVAL1']
     center_dec = hdulist[1].header['CRVAL2']
-    initial_guess = find_best_guess(src_cat, ref_cat,
+    initial_guess, n_random_matches, contrast = find_best_guess(src_cat, ref_cat,
                                     center_ra, center_dec,
                                     pointing_error=(max_pointing_error/60.),
                                     angle_max=max_rotator_error, #[-2,2], #degrees
@@ -1524,7 +1550,10 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # of the changes we are making
     #
     log_shift_rotation(hdulist, params=initial_guess, n_step=1,
-                           description="WCS initial guess")
+                       description="WCS initial guess",
+                       n_random_matches=n_random_matches,
+                       wcs_contrast = contrast,
+    )
 
     #
     # Apply the best guess transformation to the input catalog.
@@ -1585,7 +1614,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # Add the refined shift and rotation to output header to keep track 
     # of the changes we are making
     log_shift_rotation(hdulist, params=best_shift_rotation_solution, n_step=2, 
-                       description="WCS rot refi")
+                       description="WCS rot refi",
+    )
 
     logger.debug("Writing shift/rotation to output file")
     for ext in range(len(hdulist)):
