@@ -1607,6 +1607,9 @@ def collectcells(input, outputfile,
                 # This file doesn't seem to exist, so don't ask the worker to do anything
                 continue
 
+        if (ota in options['skip_otas']):
+            continue
+
         #print "Commanding work for extension",ota
         list_of_otas_being_reduced.append(list_of_otas_to_collect[ota_id])
 
@@ -2595,6 +2598,8 @@ def set_default_options(options_in=None):
 
     options['log_setup'] = None
 
+    options['skip_otas'] = []
+
     return options
 
 
@@ -2806,6 +2811,13 @@ Calibration data:
             print "Adding fits keyword %s = %s" % (key, value) 
 
             options['additional_fits_headers'][key] = value
+
+    # Determine which, if any, OTAs are to be skipped
+    if (cmdline_arg_isset("-skipota")):
+        toskip = cmdline_arg_set_or_default("-skipota", "")
+        items = toskip.split(',')
+        for i in items:
+            options['skip_otas'].append(int(i))
 
     return options
 
