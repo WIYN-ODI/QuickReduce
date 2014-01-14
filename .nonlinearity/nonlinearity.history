@@ -7,5 +7,6 @@
 # Each file is valid from the given MJD date up to the MJD of the next entry, if
 # a next entry exists, or indefinitely if no next entry is given.
 # 
-00000.0 nonlinearity_pre20131014.fits
+#00000.0 nonlinearity_pre20131014.fits
+00000.0 nonlinearity_asis_20131011.fits
 56582.0 nonlinearity_gain_20131119.fits
