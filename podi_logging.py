@@ -190,7 +190,8 @@ def log_master(queue, options):
 
         debug_filename = cmdline_arg_set_or_default("-debugfile", sitesetup.debug_log_filename)
         try:
-            debugfile = open(debug_filename, "w")
+            open_mode = "a" if (sitesetup.debug_log_append) else "w"
+            debugfile = open(debug_filename, open_mode)
             enable_debug = True
             print >>debugfile, " ".join(sys.argv)
             

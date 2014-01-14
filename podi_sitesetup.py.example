@@ -71,6 +71,7 @@ diagplot__zerpointmap_range = [0.2,0.2]
 
 
 debug_log_filename = None
+debug_log_append = True
 
 if __name__ == "__main__":
     print "This file defines some site properties, mostly paths."
