@@ -1850,6 +1850,8 @@ def collectcells(input, outputfile,
         if (cmdline_arg_isset("-prep4sex")):
             continue
 
+        logger.debug("Updating header for extension %s..." % (ota.header['EXTNAME']))
+
         for header in headers_to_inherit:
             # Make sure the header we are about to move exists in the first place
             if (not header in ota.header):
@@ -1879,6 +1881,7 @@ def collectcells(input, outputfile,
     # Take care to exclude OTAs marked as guide-OTAs and those not covered 
     # by the narrow-band filters.
     # 
+    logger.debug("Combining sky-samples from all OTAs into global sky value")
     sky_samples_global = None #numpy.empty(0)
     valid_ext = otas_for_photometry[get_valid_filter_name(ota_list[0].header)]
     for ext in sky_samples:
@@ -1898,6 +1901,7 @@ def collectcells(input, outputfile,
 
     sky_global_median = numpy.median(sky_samples_global[:,4])
     ota_list[0].header["SKYLEVEL"] = sky_global_median
+    logger.debug("Found global median sky-value = %.1f" % (sky_global_median))
 
     #
     # Now that we have the global sky-level, subtract the 
@@ -1906,22 +1910,27 @@ def collectcells(input, outputfile,
     # profile here, and ignore rotation (not needed anyway) to speed things up.
     #
     if (options['pupilghost_dir'] != None):
+        logger.debug("Getting ready to subtract pupil ghost from science frame")
         filter_level = get_filter_level(ota_list[0].header)
         filter_name = get_valid_filter_name(ota_list[0].header)
         binning = ota_list[0].header['BINNING']
 #        pg_template = "%s/pupilghost_radial___level_%d__bin%d.fits" % (options['pupilghost_dir'], filter_level, binning)
         pg_template = "%s/pupilghost_template___level_%d__bin%d.fits" % (options['pupilghost_dir'], filter_level, binning)
-        stdout_write("looking for radial pupil ghost template %s...\n" % (pg_template))
+        logger.debug("looking for radial pupil ghost template %s...\n" % (pg_template))
         # If we have a template for this level
         if (os.path.isfile(pg_template)):
-            stdout_write("\n   Using pupilghost template %s, filter %s ... " % (pg_template, filter_name))
+            logger.debug("\n   Using pupilghost template %s, filter %s ... " % (pg_template, filter_name))
             pg_hdu = pyfits.open(pg_template)
 
             # Find the optimal scaling factor
+            logger.debug("Searching for optimal pupilghost scaling factor")
             any_affected, scaling, scaling_std = podi_matchpupilghost.get_pupilghost_scaling(ota_list, pg_hdu)
+            logger.debug("Check if any OTA is affected: %s" % ("yes" if any_affected else "no"))
+            logger.debug("Optimal scaling factor found: %.2f +/- %.2f" % (scaling, scaling_std))
 
             if (any_affected):
                 # And subtract the scaled pupilghost templates.
+                logger.debug("Commencing pupilghost subtraction")
                 podi_matchpupilghost.subtract_pupilghost(ota_list, pg_hdu, scaling, 
                                                          # rotate=False,
                                                          rotate=True,
@@ -1936,8 +1945,8 @@ def collectcells(input, outputfile,
 
             pg_hdu.close()
         else:
-            print "Pupilghost correction requested, but no template found:"
-            print "  was looking for filename",pg_template
+            logger.info("Pupilghost correction requested, but no template found:")
+            logger.info("  was looking for filename %s" % (pg_template))
 
     #
     # Fix the WCS if requested
