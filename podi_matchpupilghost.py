@@ -79,6 +79,8 @@ import pyfits
 import numpy
 import scipy
 import dev_pgcenter
+import podi_logging
+import logging
 
 gain_correct_frames = False
 from podi_definitions import *
@@ -418,7 +420,7 @@ def get_pupilghost_scaling(science_frame, pupilghost_frame,
 
     """
 
-
+    logger = logging.getLogger("GetPupilghostScaling")
 
     sci_hdulist = pyfits.open(science_frame) if (type(science_frame) == str) else science_frame
     pg_hdulist = pyfits.open(pupilghost_frame) if (type(pupilghost_frame) == str) else pupilghost_frame
@@ -427,18 +429,23 @@ def get_pupilghost_scaling(science_frame, pupilghost_frame,
 
     any_affected = False
 
-    for ext in range(1,5):
+    for ext in range(1,len(science_frame)):
         extname = sci_hdulist[ext].header['EXTNAME']
         filter = sci_hdulist[0].header['FILTER']
         
-        if (not 'PGAFCTD' in sci_hdulist[ext].header):
+        logger.debug("Checking extension %s (filter: %s) for pupilghost effects" % (extname, filter))
+
+        if (not 'PGAFCTD' in sci_hdulist[ext].header or not sci_hdulist[ext].header['PGAFCTD']):
             # This frame does not contain the keyword labeling it as affected by
             # the pupilghost. In that case we don't need to do anything
+            logger.debug("This extension (%s) does not have any pupilghost problem" % (extname))
             continue
 
-        pupilghost_affected = sci_hdulist[ext].header['PGAFCTD']
-        if (not pupilghost_affected):
-            continue
+#        pupilghost_affected = sci_hdulist[ext].header['PGAFCTD']
+#        if (not pupilghost_affected):
+#            continue
+
+        logger.debug("Checking pupilghost center position")
 
         # Try to find the center position of the pupilghost from the science
         # frame. The necessary headers should have been inserted during 
@@ -450,6 +457,7 @@ def get_pupilghost_scaling(science_frame, pupilghost_frame,
                       sci_hdulist[ext].header['PGEFCTVY'])
 
         else:
+            logger.debug("Couldn't find a pupilghost center, skipping rest of work")
             continue
 
         any_affected = True
@@ -458,12 +466,17 @@ def get_pupilghost_scaling(science_frame, pupilghost_frame,
         pg = pg_hdulist[extname].data
         
         #n_samples = 1750
+        logger.debug("Getting sky-samples for science frame")
         samples = numpy.array(podi_fitskybackground.sample_background(data, None, None, 
                                                           min_found=n_samples, fit_regions=[], 
                                                           boxwidth=boxwidth))
 
+        if (samples.shape[0] <= 0):
+            logger.debug("Couldn't find enough sky samples, skipping OTA %s" % (extname))
+            continue
+
         box_centers = samples[:,2:4]
-        print box_centers.shape
+        #print box_centers.shape
 
         # Now convert the x/y from the science frame 
         # into x/y in the pupil ghost frame
@@ -474,37 +487,42 @@ def get_pupilghost_scaling(science_frame, pupilghost_frame,
         #print pg_xy[0:10,:]
 
         #print pg_samples.shape
-        print pg_xy.shape
+        #print pg_xy.shape
+        logger.debug("Getting sky-samples for pupilghost template")
         pg_samples =  numpy.array(podi_fitskybackground.sample_background(pg, None, None, 
                                                                           fit_regions=[],
                                                              box_center=pg_xy))
+        if (pg_samples.shape[0] <= 0):
+            logger.debug("Couldn't find enough pg.template samples, skipping OTA %s" % (extname))
+            continue
+
 #        pg_samples = podi_fitskybackground.sample_background(pg, None, None, 
 #                                                             box_center=box_centers)
 
-        print pg_samples.shape
+        #print pg_samples.shape
 
         #continue
 
-        ri = 600
-        ro = 3000
+        ri = 400
+        ro = 3300
         radius = numpy.sqrt(numpy.sum( dxy**2, axis=1))
         #print radius[0:10]
 
-        print extname
-        print center
+        #print extname
+        #print center
 
-        numpy.savetxt("xxx", samples)
-        numpy.savetxt("yyy", pg_samples)
+        # numpy.savetxt("xxx", samples)
+        # numpy.savetxt("yyy", pg_samples)
 
         # unaffected data points inside or outside the pupil ghost
         unaffected = (radius < ri) | (radius > ro)
         skylevel = numpy.median(samples[:,4][unaffected])
-        print "skylevel=",skylevel
-        print numpy.median(samples[:,4])
+        logger.debug("Found background level not affected by PG: %.1f" % (skylevel))
 
         # derive maximum intensity of pupil ghost 
         # better: read from file
         pg_max = numpy.max(pg_samples[:,4])
+        logger.debug("Maximum intensity of pupilghost: %f" % (pg_max))
 
         # Now merge the two arrays:
         merged = numpy.empty(shape=(pg_xy.shape[0],6))
@@ -512,40 +530,49 @@ def get_pupilghost_scaling(science_frame, pupilghost_frame,
         merged[:,2:4] = pg_samples[:,2:4]
         merged[:,4] = numpy.array(samples)[:,4] - skylevel
         merged[:,5] = numpy.array(pg_samples)[:,4]
-        numpy.savetxt("zzz", merged)
-
-        merged_all = numpy.append(merged_all, merged, axis=0)
+        # numpy.savetxt("zzz", merged)
 
         ratio = merged[:,4] / merged[:,5]
-        
+        logger.debug("simple ratio science/template (ota %s): %f" % (extname, numpy.median(ratio)))
+
         strong_pg_signal = merged[:,5] > 0.4*pg_max
-
         valid_ratios = ratio[strong_pg_signal]
-
         median_ratio = numpy.median(valid_ratios)
-        print "median_ratio =",median_ratio
-        print "error = ",numpy.std(valid_ratios)
-        numpy.savetxt("merged%d" % (ext), merged[strong_pg_signal])
+        uncert_ratio = numpy.std(valid_ratios)
 
+        logger.debug("ratio for strong pg pixels (%d samples): %f +/- %f" % (
+            numpy.sum(strong_pg_signal), median_ratio, uncert_ratio))
+
+        # Only merge the samples with sufficient pupilghost signal
+        good_samples = merged[strong_pg_signal]
+        if (good_samples.shape[0] > 0):
+            logger.debug("Adding %d pg samples from ota %s to global list" % (good_samples.shape[0], extname))
+            merged_all = numpy.append(merged_all, good_samples, axis=0)
+
+        # numpy.savetxt("merged%s" % (extname), merged[strong_pg_signal])
 
     if (any_affected):
-        print "\n\n============================\n\n"
+        # print "\n\n============================\n\n"
         ratio = merged_all[:,4] / merged_all[:,5]
 
         pg_max = numpy.max(merged_all[:,5])
-        strong_pg_signal = merged_all[:,5] > 0.4*pg_max
+        # strong_pg_signal = merged_all[:,5] > 0.4*pg_max
 
-        valid_ratios = ratio[strong_pg_signal]
+        # valid_ratios = ratio[strong_pg_signal]
 
-        import podi_collectcells
-        good_ratios = podi_collectcells.three_sigma_clip(ratio[strong_pg_signal])
+        numpy.savetxt("pgsamples.all", merged_all)
+
+        good_ratios, valid = three_sigma_clip(ratio, return_mask=True) #[strong_pg_signal])
+        numpy.savetxt("pgsamples.valid", merged_all[valid])
+
 
         median_ratio = numpy.median(valid_ratios)
-        print "median_ratio =",median_ratio
-        print "error = ",numpy.std(valid_ratios)
-        print "clipped median",numpy.median(good_ratios)
-        print "clipped std",numpy.std(good_ratios)
-        numpy.savetxt("merged_all", merged_all[strong_pg_signal])
+        logger.debug("median_ratio = %f" % (median_ratio))
+        logger.debug("error = %f" % (numpy.std(valid_ratios)))
+        logger.debug("clipped median: %f" % (numpy.median(good_ratios)))
+        logger.debug("clipped std: %f" % (numpy.std(good_ratios)))
+
+        numpy.savetxt("merged_all", merged_all)
         numpy.savetxt("merged_clipped", good_ratios)
 
         clipped_median = numpy.median(good_ratios)
