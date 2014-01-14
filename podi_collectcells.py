@@ -620,10 +620,17 @@ def collect_reduce_ota(filename,
                         hdu.header['GAIN'] = flatfield[0].header['GAIN']
                         logger.debug("Overwriting GAIN keyword: %f" % (flatfield[0].header['GAIN']))
                         
+                        logger.debug("Checking if extension has PGAFCTD keyword: %s" % (str('PGAFCTD' in ff_ext.header)))
+                        if ('PGAFCTD' in ff_ext.header):
+                            logger.debug("Value of PGAFCTD header keyword: %s" % (str(ff_ext.header['PGAFCTD'])))
                         if ('PGAFCTD' in ff_ext.header and ff_ext.header['PGAFCTD']):
+                            # Mark this extension as having a pupilghost problem.
+                            hdu.header['PGAFCTD'] = True
+
                             # Also copy the center position of the pupilghost
                             # If this is not stored in the flat-field, assume some
                             # standard coordinates
+                            logger.debug("Found an extension affected by pupilghost: %s" % (extname))
                             if (extname in pupilghost_centers):
                                 pupilghost_center_x, pupilghost_center_y = pupilghost_centers[extname]
                                 hdu.header['PGCNTR_X'] = (pupilghost_center_x, "pupil ghost center position X")
