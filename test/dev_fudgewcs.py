@@ -12,6 +12,8 @@ import math
 import scipy.spatial
 import itertools
 
+sys.path.append("../")
+
 from  podi_definitions import *
 import podi_search_ipprefcat
 import podi_wcs

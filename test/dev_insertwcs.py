@@ -12,12 +12,10 @@ import math
 import scipy.spatial
 import itertools
 
-from  podi_definitions import *
-import podi_search_ipprefcat
-import podi_wcs
-
-
 import time
+sys.path.append("../")
+from podi_definitions import *
+
 
 
 
