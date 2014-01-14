@@ -99,8 +99,8 @@ def sample_background(data, wcs, starcat, min_found=200, boxwidth=30, fit_region
     skip_nan_boxes = True
     if (box_center == None):
         box_center = numpy.zeros(shape=(max_tried,2))
-        box_center[:,0] = numpy.random.randint(boxwidth, data.shape[0]-boxwidth, max_tried)
-        box_center[:,1] = numpy.random.randint(boxwidth, data.shape[1]-boxwidth, max_tried)
+        box_center[:,0] = numpy.random.randint(boxwidth, data.shape[1]-boxwidth, max_tried)
+        box_center[:,1] = numpy.random.randint(boxwidth, data.shape[0]-boxwidth, max_tried)
     else:
         min_found = max_tried = box_center.shape[0]
         skip_nan_boxes = False
