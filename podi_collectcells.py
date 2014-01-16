@@ -2354,7 +2354,36 @@ def collectcells(input, outputfile,
         ota_list[0].header["MAGZERR"] = (zeropoint_std)
 
 
+    if (not options['nonsidereal'] == None):
+        logger.info("Starting non-sidereal WCS modification")
+        # This WCS in this frame should be corrected for non-sidereal tracking
+        # Tracking rates are given in arcseconds per hour
+        # Note that d_ra is given as dRA*cos(dec)
+        mjd = ota_list[0].header['MJD-OBS']
+        delta_t_hours = (mjd - options['nonsidereal']['ref_mjd']) * 24.
+        dra_t = options['nonsidereal']['dra'] * delta_t_hours / 3600.
+        ddec_t = options['nonsidereal']['ddec'] * delta_t_hours / 3600.
 
+        ota_list[0].header['NSIDPMRA'] = options['nonsidereal']['dra']
+        ota_list[0].header['NSIDPMDE'] = options['nonsidereal']['ddec']
+        ota_list[0].header['NSIDBASE'] = options['nonsidereal']['ref_mjd']
+        logger.info("Tracking rates are dRA=%(dra)f dDEC=%(ddec)f arcsec/hour" % options['nonsidereal'])
+        logger.info("Time-offset to reference frame: %f hours" % (delta_t_hours))
+
+        for ext in range(len(ota_list)):
+            if (not is_image_extension(ota_list[ext])):
+                continue
+            declination = ota_list[ext].header['CRVAL2']
+            dra_corrected = dra_t / math.cos(math.radians(declination))
+
+            ota_list[ext].header['CRVAL1'] -= dra_corrected
+            ota_list[ext].header['CRVAL2'] -= ddec_t
+
+            ota_list[ext].header['NSIDDRA'] = dra_corrected
+            ota_list[ext].header['NSIDDDEC'] = ddec_t
+            logger.debug("Adding offset of %f %f arcsec to OTA %s" % (
+                dra_corrected*3600., ddec_t*3600, ota_list[ext].header['EXTNAME'])
+            )
 
     #
     # If requested by user via command line:
@@ -2616,6 +2645,8 @@ def set_default_options(options_in=None):
 
     options['skip_otas'] = []
 
+    options['nonsidereal'] = None
+
     return options
 
 
@@ -2835,6 +2866,34 @@ Calibration data:
         for i in items:
             options['skip_otas'].append(int(i))
 
+    if (cmdline_arg_isset("-nonsidereal")):
+        logger.debug("Found -nonsidereal command line flag")
+        value = cmdline_arg_set_or_default("-nonsidereal", None)
+        if (not value == None):
+            items = value.split(',')
+            if (len(items) == 3):
+                ns = {}
+                ns['dra'] = float(items[0])
+                ns['ddec'] = float(items[1])
+                ns['ref'] = items[2]
+                ns['ref_mjd'] = None
+                try:
+                    ns['ref_mjd'] = float(ns['ref'])
+                    logger.debug("Found reference MJD (%f) on command line" % (ns['ref_mjd']))
+                except:
+                    if (os.path.isfile(ns['ref'])):
+                        hdulist = pyfits.open(ns['ref'])
+                        if ("MJD-OBS" in hdulist[0].header):
+                            ns['ref_mjd'] = hdulist[0].header['MJD-OBS']
+                            logger.debug("Found reference MJD (%f) in file %s" % (ns['ref_mjd'], ns['ref']))
+                        hdulist.close()
+                    pass
+                if (not ns['ref_mjd'] == None):
+                    options['nonsidereal'] = ns
+            else:
+                logger.critical("I don't understand the -nonsidereal parameter")
+        logger.debug("non-sidereal setup: %s" % (str(ns)))
+
     return options
 
 
@@ -2880,11 +2939,11 @@ if __name__ == "__main__":
     # Set the options for collectcells to some reasonable start values
     options = set_default_options()
 
-    # Then read the actual given parameters from the command line
-    options = read_options_from_commandline(options)
-
     # Setup everything we need for logging
     setup_logging(options)
+
+    # Then read the actual given parameters from the command line
+    options = read_options_from_commandline(options)
 
     # Collect all cells, perform reduction and write result file
     try:
