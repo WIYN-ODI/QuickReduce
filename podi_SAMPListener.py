@@ -76,10 +76,13 @@ def worker_slave(queue):
             # print "\n\nWaiting for stuff to do\n\n"
             task = queue.get()
         except KeyboardInterrupt, SystemExit:
-            break
-            #return
+            # print "worker received termination notice"
+            # Ignore the shut-down command here, and wait for the official 
+            # shutdown command from main task
+            continue
 
         if (task == None):
+            print "Shutting down worker"
             queue.task_done()
             break
 
@@ -237,6 +240,26 @@ I was told to ignore non-OBJECT frames
     return
 
 
+def create_client(metadata, wait=0):
+
+    # Create client, connect to Hub, and install message listener
+    cli1 = sampy.SAMPIntegratedClient(metadata = metadata)
+
+    try:
+        cli1.connect()
+    except sampy.SAMPHubError, sampy.SAMPClientError:
+        if (wait>0): time.sleep(wait)
+        return None
+    except :
+        print "some other problem with connecting"
+        raise
+
+    try:
+        cli1.bindReceiveMessage(setup.message_queue, receive_msg)
+    except:
+        print "Problem with bindReceiveMessage"
+
+    return cli1
 
 def SAMPListener():
     print """
@@ -251,10 +274,18 @@ def SAMPListener():
     # Create a client
     print "Starting receiver ..."
 
-    # Create client, connect to Hub, and install message listener
-    cli1 = sampy.SAMPIntegratedClient(metadata = metadata)
-    cli1.connect()
-    cli1.bindReceiveMessage(setup.message_queue, receive_msg)
+    print "Trying to connect to Hub ..."
+    try:
+        while (True):
+            cli1 = create_client(metadata)
+            if (cli1 == None):
+                time.sleep(1)
+            else:
+                break
+
+    except KeyboardInterrupt, SystemExit:
+        print "\rAborting and shutting down SAMPListener ..."
+        sys.exit(0)
 
     print "Starting execution process..."
     worker_process = multiprocessing.Process(target=worker_slave,
@@ -268,32 +299,56 @@ def SAMPListener():
 
     try:
         while (True):
-            time.sleep(2)
+
+            # Ping the Hub
+            try:
+                ret = cli1.ecallAndWait("hub", "samp.app.ping", "5")
+                # if successful, wait a little and check again
+                time.sleep(1)
+            except KeyboardInterrupt, SystemExit:
+                #print "Received abort command, forwarding exception"
+                raise
+            except Exception as e:
+                # If timeout expires than a SAMPProxyError is returned
+
+                # Make sure to terminate the client to terminate the background 
+                # thread. Otherwise the program won't close as it's waiting for 
+                # the thread to finish.
+                cli1.client.stop() 
+                del cli1
+
+                # This means that most likely there's no Hub (anymore)
+                # Try to connect
+                print "\nLost connection to hub, trying to re-establish it ..."
+                while (True):
+                    cli1 = create_client(metadata)
+                    if (cli1 == None):
+                        time.sleep(1)
+                    else:
+                        break
+
             sys.stdout.write("\rCurrent system-time: %s (press Crtl-C to quit)" % (datetime.datetime.now()))
             sys.stdout.flush()
 
-            # try:
-            #     cli1.connect()
-            #     print "We were disconnected, connection re-established!"
-            # except sampy.SAMPClientError:
-            #     pass
-            #     #print "We are connected!"
-            # #print 
-
     except KeyboardInterrupt, SystemExit:
+        #print "Got termination notice"
         pass
 
         
+    print # to get off the "current system time" line
     try:
         # Disconnect from hub
+        print "Disconnecting from SAMP Hub ..."
         cli1.disconnect()
     except:
         pass
 
     # Finish up left over work
-    print "\nFinishing up work (%d jobs)" % (worker_queue.qsize())
+    print "Finishing up work (%d jobs), please wait ..." % (worker_queue.qsize())
     worker_queue.put(None)
-    worker_process.join()
+    worker_process.join(1)
+
+    print "All done, goodbye!"
 
 
 if __name__ == "__main__":
