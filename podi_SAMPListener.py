@@ -178,6 +178,12 @@ def worker_slave(queue):
 
 
 def get_filename_from_input(input):
+    """
+
+    Convert the input string, which can be either a FITS filename or a directory,
+    into a valid FITS filename of one OTA of the exposure.
+
+    """
 
     if (os.path.isfile(input)):
         return input
