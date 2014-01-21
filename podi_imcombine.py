@@ -59,6 +59,8 @@ numpy.seterr(divide='ignore', invalid='ignore')
 import scipy
 import scipy.stats
 
+import podi_logging
+import logging
 
 import Queue
 import threading
@@ -84,11 +86,41 @@ from podi_definitions import *
 import bottleneck
 verbose = cmdline_arg_isset("-verbose")
 
+
+def weighted_mean(_line):
+    max_weight = 50
+    
+    # print _line.shape
+    
+    median_2d = bottleneck.nanmedian(_line, axis=1).reshape(_line.shape[0],1).repeat(_line.shape[1], axis=1)
+    std = bottleneck.nanstd(_line, axis=1)
+    std_2d = std.reshape(_line.shape[0],1).repeat(_line.shape[1], axis=1)
+    
+    weight_2d = numpy.fabs(std_2d / (_line - median_2d))
+#    weight_2d[weight_2d > max_weight] = max_weight
+    weight_2d[numpy.isinf(weight_2d)] = max_weight
+    
+    for i in range(3):
+        avg = bottleneck.nansum(_line*weight_2d, axis=1)/bottleneck.nansum(weight_2d, axis=1)
+        avg_2d = avg.reshape(_line.shape[0],1).repeat(_line.shape[1], axis=1)
+        
+        std = numpy.sqrt(bottleneck.nansum(((_line - avg_2d)**2 * weight_2d), axis=1)/bottleneck.nansum(weight_2d, axis=1))
+        std_2d = std.reshape(_line.shape[0],1).repeat(_line.shape[1], axis=1)
+        
+        weight_2d = numpy.fabs(std_2d / (_line - avg_2d))
+        #weight_2d[weight_2d > max_weight] = max_weight
+        weight_2d[numpy.isinf(weight_2d)] = max_weight
+    
+    return bottleneck.nansum(_line*weight_2d, axis=1)/bottleneck.nansum(weight_2d, axis=1)
+
 def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_filelist, operation):
     #queue, shmem_buffer, shmem_results, size_x, size_y, len_filelist = worker_args
 
     buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len_filelist))
     result_buffer = shmem_as_ndarray(shmem_results).reshape((size_x, size_y))
+
+    logger = logging.getLogger("ParallelImcombine")
+    logger.debug("Operation: %s, #samples/pixel: %d" % (operation, len(filelist)))
 
     while (True):
         cmd_quit, line = queue.get()
@@ -137,6 +169,44 @@ def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_fil
                     _sigma_minus = _median - scipy.stats.scoreatpercentile(valid_pixels, 16) 
 
             result_buffer[line,:] = _median
+
+        elif (operation == "sigclipx"):
+            stdout_write(".")
+            rep_count = 2
+
+            _line = buffer[line,:,:].astype(numpy.float32)
+            # print _line.shape
+
+            mask = numpy.isfinite(_line)
+            #print "line.shape=",_line.shape
+            # numpy.savetxt("line_block_%d.dat" % (line), _line)
+
+            def sigclip_pixel(pixelvalue):
+                mask = numpy.isfinite(pixelvalue)
+                old_mask = mask
+                rep = 0
+                while (rep < rep_count and numpy.sum(mask) > 3):
+                    old_mask = mask
+
+                    mss = scipy.stats.scoreatpercentile(pixelvalue[mask], [16,50,84])
+                    
+                    lower = mss[1] - 3 * (mss[1] - mss[0]) # median - 3*sigma
+                    upper = mss[1] + 3 * (mss[2] - mss[1]) # median + 3*sigma
+
+                    mask = (pixelvalue > lower) & (pixelvalue < upper)
+
+                    rep += 1
+                    if (rep == rep_count or numpy.sum(mask) < 3):
+                        mask = old_mask
+
+                return numpy.mean(pixelvalue[mask])
+
+            result_buffer[line,:] = [sigclip_pixel(_line[x,:]) for x in range(_line.shape[0])]
+
+
+        elif (operation == "weightedmean"):
+            _line = buffer[line,:,:].astype(numpy.float32)
+            result_buffer[line,:] = weighted_mean(_line)
 
         elif (operation == "medclip"):
             intermediate = numpy.sort(buffer[line,:,:], axis=1)
@@ -286,7 +356,7 @@ def imcombine_subprocess(extension, filelist, shape, operation, queue, verbose):
         del hdulist
         if (verbose): stdout_write("\n   Added file %s ..." % (filename))
 
-    # stdout_write("\n   Starting imcombine for real ...")
+    stdout_write("\n   Starting imcombine for real ...")
     combined = imcombine_sharedmem_data(shmem_buffer, operation=operation, sizes=(size_x, size_y, len(filelist)))
 
     # put the imcombine'd data into the queue to return them to the main process
@@ -307,13 +377,13 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
     if (len(filelist) <= 0):
         stdout_write("No existing files found in input list, hence nothing to do!\n")
         return
-    elif (len(filelist) == 1):
-        # stdout_write("Only 1 file to combine, save the hassle and copy the file!\n")
-        hdulist = pyfits.open(filelist[0])
-        if (return_hdu):
-            return hdulist
-        hdulist.writeto(outputfile)
-        return
+    # elif (len(filelist) == 1):
+    #     # stdout_write("Only 1 file to combine, save the hassle and copy the file!\n")
+    #     hdulist = pyfits.open(filelist[0])
+    #     if (return_hdu):
+    #         return hdulist
+    #     hdulist.writeto(outputfile, clobber=True)
+    #     return
     
     # Read the input parameters
     # Note that file headers are copied from the first file
