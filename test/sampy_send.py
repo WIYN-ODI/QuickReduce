@@ -30,6 +30,27 @@ if __name__ == "__main__":
         print "queue=%s" % queue
         cli1.enotifyAll(mtype=queue, cmd=cmd)
 
+    elif (target == "ping"):
+        # Test the ping functionality
+        while (True):
+            try:
+                ret = cli1.ecallAndWait("hub", "samp.app.ping", "5")
+                print "SUCCESS\n",ret
+            except sampy.SAMPProxyError, e:
+                # If timeout expires than a SAMPProxyError is returned
+                print "Error (%s): %s" % (e.faultCode, e.faultString)
+                print "Ran into SAMPProxyError"
+                pass
+            except:
+                print "Problem with pinging"
+                pass
+
+            try:
+                time.sleep(2)
+            except KeyboardInterrupt, SystemExit:
+                break
+                pass
+
     elif (target == 'qr'):
         filename = sys.argv[2]
         cli1.enotifyAll(mtype=message_queue, filename=filename)
