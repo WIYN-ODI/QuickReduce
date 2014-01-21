@@ -204,6 +204,12 @@ Available flags
   contains spaces, the value needs to be quoted (eg. -addfitskey=WIYN,"greatest 
   of the universe")
 
+* **-nonlinearity=a,b,c**
+
+  a: proper motion of the object (dRA*cos(dec)) given in arcseconds per hour.
+  b: proper motion dDec in arcsec / hour
+  c: Reference. This can either be a MJD directly, or a FITS file containing the 
+     MJD-OBS header keyword which is then taken to be the reference MJD.
 
 Methods
 --------------------------------------------------------------------------------
