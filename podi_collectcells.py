@@ -2365,9 +2365,14 @@ def collectcells(input, outputfile,
         # Copy a bunch of headers so we can makes heads and tails of the catalog
         # even if it's separated from the rest of the file.
         for hdrname in ['AIRMASS',
-                        'FILTER',
+                        'FILTER', 'FILTERID',
                         'MJD-OBS',
-                        'OBSID'
+                        'OBSID',
+                        'EXPTIME', 'EXPMEAS',
+                        'TELFOCUS',
+                        'ROTSTART', 'ROTEND',
+                        'ADCMODE',
+                        'GAIN',
                     ]:
             match_tablehdu.header[hdrname] = ota_list[0].header[hdrname]
         ota_list.append(match_tablehdu)
