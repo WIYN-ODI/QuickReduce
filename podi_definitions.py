@@ -283,6 +283,47 @@ sexflag_wcs  = 0b11111000
 sexflag_phot = 0b11111111
 
 
+
+#
+# Define some names for the columns in the source extractor catalog
+#
+SXcolumn_names = [
+    'ra', 'dec',
+    'x', 'y', 
+    'fwhm_image', 'fwhm_world',
+    'background',
+    'flags',
+    'extension',
+    'mag_aper_0.5',
+    'mag_aper_0.8',
+    'mag_aper_1.0',
+    'mag_aper_1.4',
+    'mag_aper_2.0',
+    'mag_aper_2.5',
+    'mag_aper_3.0',
+    'mag_aper_3.5',
+    'mag_err_0.5',
+    'mag_err_0.8',
+    'mag_err_1.0',
+    'mag_err_1.5',
+    'mag_err_2.0',
+    'mag_err_2.5',
+    'mag_err_3.0',
+    'mag_err_3.5',
+    'flux_max',
+    'major_axis',
+    'minor_axis',
+    'position_angle',
+    'elongation',
+    'ellipticity',
+]
+# Convert columns into dictionary to make look-up easier
+SXcolumn = {}
+for name in SXcolumn_names:
+    SXcolumn[name] = len(SXcolumn)
+
+   
+
 def get_valid_filter_name(hdr):
     """
 
