@@ -121,7 +121,7 @@ def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_fil
     result_buffer = shmem_as_ndarray(shmem_results).reshape((size_x, size_y))
 
     logger = logging.getLogger("ParallelImcombine")
-    logger.debug("Operation: %s, #samples/pixel: %d" % (operation, len(filelist)))
+    logger.debug("Operation: %s, #samples/pixel: %d" % (operation, len_filelist))
 
     while (True):
         cmd_quit, line = queue.get()
