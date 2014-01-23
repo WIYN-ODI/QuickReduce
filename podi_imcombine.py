@@ -86,6 +86,7 @@ from podi_definitions import *
 import bottleneck
 verbose = cmdline_arg_isset("-verbose")
 
+import podi_cython
 
 def weighted_mean(_line):
     max_weight = 50
@@ -203,6 +204,13 @@ def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_fil
 
             result_buffer[line,:] = [sigclip_pixel(_line[x,:]) for x in range(_line.shape[0])]
 
+
+        elif (operation == "sigmaclipmean"):
+            _line = buffer[line,:,:].astype(numpy.float64)
+            output = numpy.zeros(shape=(_line.shape[0]))
+            # if (line == 270): 
+            podi_cython.sigma_clip_mean(_line, output)
+            result_buffer[line,:] = output
 
         elif (operation == "weightedmean"):
             _line = buffer[line,:,:].astype(numpy.float32)
