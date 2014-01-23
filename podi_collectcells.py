@@ -2919,6 +2919,10 @@ def setup_logging(options):
     options['log_master_info'] = log_master_info
     return options
     
+def shutdown_logging(options):
+    podi_logging.podi_log_master_quit(options['log_master_info'])
+    return
+
 
 if __name__ == "__main__":
 
@@ -2982,4 +2986,4 @@ if __name__ == "__main__":
         print traceback.format_exc()
         stdout_write("#\n##############################\n")
     finally:
-        podi_logging.podi_log_master_quit(options['log_master_info'])
+        shutdown_logging(options)

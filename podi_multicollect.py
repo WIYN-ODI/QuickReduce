@@ -95,8 +95,7 @@ if __name__ == "__main__":
     options = read_options_from_commandline(None)
 
     # Setup everything we need for logging
-    log_master_info, log_setup = podi_logging.podi_log_master_start(options)
-    options['log_setup'] = log_setup
+    setup_logging(options)
 
     output_directory = cmdline_arg_set_or_default("-output", None)
     if (output_directory != None):
@@ -161,5 +160,8 @@ if __name__ == "__main__":
 
         stdout_write("\n")
         
+    # Shutdown logging to shutdown cleanly
+    shutdown_logging(options)
+
     stdout_write("Yippie, completely done!\n")
     
