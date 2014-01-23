@@ -105,3 +105,13 @@ if __name__ == "__main__":
         Then re-run this program.
 
     """
+
+    print "\nChecking cython-optimized package for pODI"
+    if (not check_package('podi_cython')):
+        print """\
+ There was a problem import podi_cython. This module contains optimized
+ code that needs to be compiled first. To do so, simply run:
+
+ python setup.py build_ext --inplace
+
+"""
