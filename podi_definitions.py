@@ -297,7 +297,7 @@ SXcolumn_names = [
     'mag_aper_0.5',
     'mag_aper_0.8',
     'mag_aper_1.0',
-    'mag_aper_1.4',
+    'mag_aper_1.5',
     'mag_aper_2.0',
     'mag_aper_2.5',
     'mag_aper_3.0',
