@@ -2151,12 +2151,12 @@ def collectcells(input, outputfile,
                                                ota_outlines=ota_outlines,
                                                also_plot_singleOTAs=options['otalevelplots'])
         
-            flags = global_source_cat[:,7]
-            valid_flags = flags == 0
-            ra = global_source_cat[:,0][valid_flags]
-            dec= global_source_cat[:,1][valid_flags]
-            fwhm = global_source_cat[:,5][valid_flags]
-            ota = global_source_cat[:,8][valid_flags]
+            flags = global_source_cat[:,SXcolumn['flags']]
+            valid_flags = (flags == 0)
+            ra = global_source_cat[:,SXcolumn['ra']][valid_flags]
+            dec= global_source_cat[:,SXcolumn['dec']][valid_flags]
+            fwhm = global_source_cat[:,SXcolumn['fwhm_world']][valid_flags]
+            ota = global_source_cat[:,SXcolumn['ota']][valid_flags]
             plotfilename = create_qa_filename(outputfile, "seeing", options)
             podi_diagnosticplots.diagplot_psfsize_map(ra, dec, fwhm, ota, 
                                                       output_filename=plotfilename, #outputfile[:-5]+".seeing",
@@ -2292,7 +2292,7 @@ def collectcells(input, outputfile,
         plotfilename = create_qa_filename(outputfile, "wcs1", options)
         podi_diagnosticplots.wcsdiag_scatter(matched_radec_odi=odi_2mass_matched[:,0:2], 
                                              matched_radec_2mass=odi_2mass_matched[:,-2:],
-                                             matched_ota=odi_2mass_matched[:,8],
+                                             matched_ota=odi_2mass_matched[:,SXcolumn['ota']],
                                              filename=plotfilename, 
                                              options=options,
                                              ota_wcs_stats=ota_wcs_stats,
@@ -2303,7 +2303,7 @@ def collectcells(input, outputfile,
         plotfilename = create_qa_filename(outputfile, "wcs2", options)
         podi_diagnosticplots.wcsdiag_shift(matched_radec_odi=odi_2mass_matched[:,0:2],
                                            matched_radec_2mass=odi_2mass_matched[:,-2:],
-                                           matched_ota=odi_2mass_matched[:,8],
+                                           matched_ota=odi_2mass_matched[:,SXcolumn['ota']],
                                            filename=plotfilename, #outputfile[:-5]+".wcs2", 
                                            options=options,
                                            ota_wcs_stats=ota_wcs_stats,
@@ -2313,12 +2313,12 @@ def collectcells(input, outputfile,
 
         # Create the image quality plot
         # This should be cleaned up to make the call for this plot nicer
-        flags = global_source_cat[:,7]
+        flags = global_source_cat[:,SXcolumn['flags']]
         valid_flags = flags == 0
-        ra = global_source_cat[:,0][valid_flags]
-        dec= global_source_cat[:,1][valid_flags]
-        fwhm = global_source_cat[:,5][valid_flags]
-        ota = global_source_cat[:,8][valid_flags]
+        ra = global_source_cat[:,SXcolumn['ra']][valid_flags]
+        dec= global_source_cat[:,SXcolumn['dec']][valid_flags]
+        fwhm = global_source_cat[:,SXcolumn['fwhm_world']][valid_flags]
+        ota = global_source_cat[:,SXcolumn['ota']][valid_flags]
         plotfilename = create_qa_filename(outputfile, "seeing", options)
         podi_diagnosticplots.diagplot_psfsize_map(ra, dec, fwhm, ota, 
                                                   output_filename=plotfilename, #outputfile[:-5]+".seeing",
