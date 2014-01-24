@@ -747,7 +747,6 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
     pc = sdss_photometric_column[sdss_filter]
 
-
     # Eliminate all stars with flags
     if (eliminate_flags):
         flags = source_cat[:,7]
@@ -805,8 +804,32 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
     # Use photometry for the 3'' aperture
     odi_mag, odi_magerr = odi_sdss_matched[:,17], odi_sdss_matched[:,25]
+
+    # Compute the calibration magnitude from SDSS, 
+    # accounting for color-terms if needed
     sdss_mag = odi_sdss_matched[:,(source_cat.shape[1]+pc)]
     sdss_magerr = odi_sdss_matched[:,(source_cat.shape[1]+pc+1)]
+
+    if (filtername in photzp_colorterms):
+        logger.debug("Found color-term definition for this filter (%s)" % (filtername))
+        colorterm, filter1, filter2 = photzp_colorterms[filtername]
+
+        col1 = sdss_photometric_column[filter1]
+        col2 = sdss_photometric_column[filter2]
+        sdss_color = odi_sdss_matched[:,(source_cat.shape[1]+col1)] - odi_sdss_matched[:,(source_cat.shape[1]+col2)]
+        color_correction = colorterm * sdss_color
+
+        sdss_mag -= color_correction
+
+        if (not detailed_return == None):
+            detailed_return['colorterm'] = colorterm
+            detailed_return['colorcorrection'] = "sdss_%s - sdss_%s" % (filter1, filter2)
+    else:    
+        if (not detailed_return == None):
+            detailed_return['colorterm'] = None
+
+        logger.debug("No color-term definition for this filter (%s)" % (filtername))
+
 
     if (verbose):
         print "ODI/SDSS", odi_mag.shape, sdss_mag.shape

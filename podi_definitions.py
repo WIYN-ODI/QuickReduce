@@ -335,7 +335,16 @@ atm_extinction = {
     "odi_i": 0.058,
     "odi_z": 0.04,
 }
-
+photzp_colorterms = {
+    "odi_g": [ 0.1600, 'g', 'r'],
+#   "odi_r": [ 0.0047, 'g', 'i'],
+#   "odi_r": [ 0.0074, 'g', 'r'],
+#   "odi_r": [-0.0001, 'r', 'i'],
+#   "odi_i": [-0.0027, 'r', 'i'],
+#   "odi_i": [ 0.0022, 'i', 'z'],
+#   "odi_i": [-0.0006, 'r', 'z'],
+    "odi_z": [-0.1277, 'i', 'z'],
+}
 
 def get_valid_filter_name(hdr):
     """

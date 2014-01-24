@@ -2023,6 +2023,7 @@ def collectcells(input, outputfile,
         # Compute the WCS quality statistics
         # This also writes to the Primary and OTA-level headers
         wcs_quality = dev_ccmatch.global_wcs_quality(odi_2mass_cat, ota_list)
+        print "WCS quality =",wcs_quality
 
         # Compute the image quality using all detected sources
         # Make sure to only include round source (elongation < 1.3) and decent 
@@ -2152,6 +2153,12 @@ def collectcells(input, outputfile,
             zp_airmass1 = zeropoint_median + (ota_list[0].header['AIRMASS']-1) * atm_extinction[filter_name]
         ota_list[0].header['MAGZ_AM1'] = (zp_airmass1, "phot Zeropoint corrected for airmass")
             
+        # Add some information whether or not we performed a color-term correction
+        colorterm_correction = (not photcalib_details['colorterm'] == None)
+        ota_list[0].header['MAGZ_CT'] = colorterm_correction
+        ota_list[0].header['MAGZ_COL'] = photcalib_details['colorcorrection'] if colorterm_correction else ""
+        ota_list[0].header['MAGZ_CTC'] = photcalib_details['colorterm'] if colorterm_correction else 0.0
+
         # Now convert the matched source catalog into a valid FITS extension 
         # and add it to the output.
         match_tablehdu = create_odi_sdss_matched_tablehdu(odi_sdss_matched)
