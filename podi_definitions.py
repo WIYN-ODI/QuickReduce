@@ -293,7 +293,7 @@ SXcolumn_names = [
     'fwhm_image', 'fwhm_world',
     'background',
     'flags',
-    'extension',
+    'ota',
     'mag_aper_0.5',
     'mag_aper_0.8',
     'mag_aper_1.0',
