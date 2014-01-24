@@ -231,7 +231,7 @@ if __name__ == "__main__":
                 #print bias_list
 
                 stdout_write("Stacking %d frames into %s ..." % (len(bias_to_stack), bias_frame))
-                imcombine(bias_to_stack, bias_frame, "median")
+                imcombine(bias_to_stack, bias_frame, "sigmaclipmean")
                 stdout_write("done!\n")
             else:
                 stdout_write("Bias-frame already exists!\n")       
@@ -273,7 +273,7 @@ if __name__ == "__main__":
                 #print darks_to_stack
 
                 stdout_write("Stacking %d frames into %s ..." % (len(darks_to_stack), dark_frame))
-                imcombine(darks_to_stack, dark_frame, "median")
+                imcombine(darks_to_stack, dark_frame, "sigmaclipmean")
                 stdout_write("done!\n")
             else:
                 stdout_write("Darkframe already exists!\n")       
@@ -334,7 +334,7 @@ if __name__ == "__main__":
                     #print flats_to_stack
 
                     stdout_write("Stacking %d frames into %s ... " % (len(flats_to_stack), flat_frame))
-                    flat_hdus = imcombine(flats_to_stack, flat_frame, "median", return_hdu=True)
+                    flat_hdus = imcombine(flats_to_stack, flat_frame, "sigmaclipmean", return_hdu=True)
                     stdout_write(" done!\n")
 
                     #
