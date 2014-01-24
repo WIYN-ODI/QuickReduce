@@ -323,6 +323,19 @@ for name in SXcolumn_names:
     SXcolumn[name] = len(SXcolumn)
 
    
+reference_zeropoint = {
+    "odi_g": [26.0, 26.2],
+    "odi_r": [26.1, 26.3],
+    "odi_i": [25.6, 25.8],
+    "odi_z": [24.6, 24.8],
+}
+atm_extinction = {
+    "odi_g": 0.2,
+    "odi_r": 0.12,
+    "odi_i": 0.058,
+    "odi_z": 0.04,
+}
+
 
 def get_valid_filter_name(hdr):
     """
