@@ -2250,6 +2250,17 @@ def collectcells(input, outputfile,
 
 
     #
+    # Add some information about the filter bandpasses to the output file
+    #
+    filtername = ota_list[0].header['FILTER']
+    bandpass = [0.,0.] if (not filtername in filter_bandpass) else filter_bandpass[filtername]
+    ota_list[0].header['PHOTCLAM'] = (bandpass[0], "central wavelength of filter [nm]")
+    ota_list[0].header['PHOTBW'] = (bandpass[1], "RMS width of filter [nm]")
+    ota_list[0].header['PHOTFWHM'] = (bandpass[1], "FWHM of filter [nm]")
+
+
+
+    #
     # Create an association table from the master reduction files used.
     # 
     

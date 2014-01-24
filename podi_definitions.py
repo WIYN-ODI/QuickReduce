@@ -228,6 +228,20 @@ sdss_equivalents = {
     "WRC3": None,
     }	
 
+
+filter_bandpass = {
+    #
+    # Full ODI filters
+    #
+    "odi_g": [476., 74.],
+    "odi_r": [635., 75.],
+    "odi_i": [760., 60.],
+    "odi_z": [905., 75.],
+    #
+    # All other filters
+    #
+}
+
 sdss_photometric_column = {"u":  2,
                            "g":  4,
                            "r":  6,
