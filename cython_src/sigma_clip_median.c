@@ -19,8 +19,8 @@ typedef int bool;
 // #define printf //
 
 
-void sigma_clip_mean__cy(double* pixels, int n_pixels, int n_images, double* output,
-                         double nsigma, int max_repeat)
+void sigma_clip_median__cy(double* pixels, int n_pixels, int n_images, double* output,
+                           double nsigma, int max_repeat)
 {
     int x,y,l, repeat;
 
@@ -158,7 +158,7 @@ void sigma_clip_mean__cy(double* pixels, int n_pixels, int n_images, double* out
         // 3-sigma range for each pixel;  Now compute the mean value.
         //
         
-        output[x] = gsl_stats_mean(&pixelvalue[start], 1, (end-start));
+        output[x] = gsl_stats_median_from_sorted_data(&pixelvalue[start], 1, (end-start));
         // output[x] = (double)(end-start); //gsl_stats_mean(&pixelvalue[start], 1, (end-start));
         // printf("filtered output: %f (%d, %d)\n", output[x], start, end);
         

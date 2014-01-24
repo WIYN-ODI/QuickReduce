@@ -9,7 +9,10 @@ setup(
     cmdclass = {'build_ext': build_ext},
     ext_modules = [
         Extension("podi_cython", 
-                  sources=['cython_src/podi_cython.pyx', "cython_src/sigma_clip_mean.c"],
+                  sources=['cython_src/podi_cython.pyx', 
+                           "cython_src/sigma_clip_mean.c",
+                           "cython_src/sigma_clip_median.c",
+                       ],
                   include_dirs=["cython_src", numpy.get_include()],
                   libraries=['gslcblas', "gsl"]
                   )
