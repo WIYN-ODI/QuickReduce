@@ -646,7 +646,9 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
               options=None,
               verbose=False,
               eliminate_flags=True,
-              matching_radius=3):
+              matching_radius=3,
+              detailed_return=None):
+
     """
     Perform the photometric calibration, create the diagnostic plots and return
     the results.
@@ -781,7 +783,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     # Now go through each of the extension
     # Improve: Change execution to parallel !!!
     #
-    stdout_write("\nStarting work, results in %s ...\n\n" % output_filename)
+    logger.debug("Starting work, results in %s ..." % output_filename)
     # results = open(output_filename+".photcal", "w")
 
     odi_sdss_matched = podi_matchcatalogs.match_catalogs(source_cat, std_stars, matching_radius=matching_radius)
@@ -829,17 +831,27 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
         zp_upper1sigma = scipy.stats.scoreatpercentile(zp_clipped, 84)
         zp_lower1sigma = scipy.stats.scoreatpercentile(zp_clipped, 16)
-        print zp_lower1sigma, zp_upper1sigma, 0.5*(zp_upper1sigma-zp_lower1sigma)
+        # print zp_lower1sigma, zp_upper1sigma, 0.5*(zp_upper1sigma-zp_lower1sigma)
 
         zp_median = numpy.median(zp_clipped)
         zp_std = numpy.std(zp_clipped)
-        print "zeropoint (clipped)",zp_median," +/-", zp_std
+        # print "zeropoint (clipped)",zp_median," +/-", zp_std
 
         zp_median_ = numpy.median(zp)
         zp_std_ = numpy.std(zp)
         zp_exptime = zp_median + zp_correction_exptime
 
-        print "zeropoint (un-clipped)",zp_median_," +/-", zp_std_
+        # print "zeropoint (un-clipped)",zp_median_," +/-", zp_std_
+
+    if (not detailed_return == None):
+        detailed_return['median'] = zp_median
+        detailed_return['std'] = zp_std
+        detailed_return['zp_exptime'] = zp_exptime
+        detailed_return['stderrofmean'] = scipy.stats.sem(zp_clipped)
+        detailed_return['zp_upper1sigma'] = zp_upper1sigma
+        detailed_return['zp_lower1sigma'] = zp_lower1sigma
+        detailed_return['n_clipped'] = zp_clipped.shape[0]
+        detailed_return['n_raw'] = zp.shape[0]
 
     # Make plots
     if (diagplots):
@@ -855,7 +867,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                                                   options=options,
                                                   also_plot_singleOTAs=options['otalevelplots'])
 
-        print odi_sdss_matched[0,:]
+        # print odi_sdss_matched[0,:]
 
         ota = odi_sdss_matched[:,10]
         ra = odi_sdss_matched[:,0]

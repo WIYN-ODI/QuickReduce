@@ -2119,22 +2119,39 @@ def collectcells(input, outputfile,
             )
         filter_name = get_valid_filter_name(ota_list[0].header)
 
+        photcalib_details = {}
         zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = \
             podi_photcalib.photcalib(global_source_cat, outputfile, filter_name, 
-                                 exptime=exptime,
-                                 diagplots=True,
-                                 plottitle=titlestring,
-                                 otalist=ota_list,
-                                 options=options)
+                                     exptime=exptime,
+                                     diagplots=True,
+                                     plottitle=titlestring,
+                                     otalist=ota_list,
+                                     options=options,
+                                     detailed_return=photcalib_details)
+
 
         ota_list[0].header["PHOTZP"] = (zeropoint_median, "phot. zeropoint corr for exptime")
-        ota_list[0].header["PHOTZPE"] = (zeropoint_std, "zeropoint std.dev.")
+        ota_list[0].header["PHOTZPSD"] = (zeropoint_std, "zeropoint std.dev.")
         ota_list[0].header["PHOTZP_X"] = (zeropoint_exptime, "phot zeropoint for this frame")
+        ota_list[0].header["PHOTZPSP"] = (photcalib_details['zp_upper1sigma'], "phot ZP upper 1sigma limit")
+        ota_list[0].header["PHOTZPSM"] = (photcalib_details['zp_lower1sigma'], "phot ZP lower 1sigma limit")
+        ota_list[0].header["PHOTZPER"] = (photcalib_details['stderrofmean'], "phot ZP std.err of the mean")
+        ota_list[0].header["PHOTZP_N"] = (photcalib_details['n_clipped'], "number stars in clipped distrib.")
+        ota_list[0].header["PHOTZPN0"] = (photcalib_details['n_raw'], "total number of matched ref stars")
 
-        ota_list[0].header["MAGZERO"] = (zeropoint_median, "phot. zeropoint corr for exptime")
-        ota_list[0].header["MAGZSIG"] = (zeropoint_std)
-        ota_list[0].header["MAGZERR"] = (zeropoint_std)
+        ota_list[0].header["MAGZERO"] = (photcalib_details['median'], "phot. zeropoint corr for exptime")
+        ota_list[0].header["MAGZSIG"] = (photcalib_details['std'], "phot ZP dispersion")
+        ota_list[0].header["MAGZERR"] = (photcalib_details['stderrofmean'], "phot ZP uncertainty")
 
+        ref_ZP = -99. if not filter_name in reference_zeropoint else reference_zeropoint[filter_name][0]
+        ota_list[0].header['MAGZREF'] = (ref_ZP, "reference photometric zeropoint")
+
+        # Also compute the zeropoint after correction for airmass
+        zp_airmass1 = -99.
+        if (filter_name in atm_extinction):
+            zp_airmass1 = zeropoint_median + (ota_list[0].header['AIRMASS']-1) * atm_extinction[filter_name]
+        ota_list[0].header['MAGZ_AM1'] = (zp_airmass1, "phot Zeropoint corrected for airmass")
+            
         # Now convert the matched source catalog into a valid FITS extension 
         # and add it to the output.
         match_tablehdu = create_odi_sdss_matched_tablehdu(odi_sdss_matched)
