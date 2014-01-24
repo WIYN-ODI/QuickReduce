@@ -1016,7 +1016,7 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
     logger = logging.getLogger("DiagPlot_PSFSize")
     logger.info("Creating the PSF size as heatmap plot ...")
 
-    fwhm_scale_arcsec = 3600.0 * 0.11
+    fwhm_scale_arcsec = 3600.0 
 
     fwhm *= fwhm_scale_arcsec
     fwhm_min = scipy.stats.scoreatpercentile(fwhm,  5)
