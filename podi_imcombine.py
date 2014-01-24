@@ -208,8 +208,13 @@ def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_fil
         elif (operation == "sigmaclipmean"):
             _line = buffer[line,:,:].astype(numpy.float64)
             output = numpy.zeros(shape=(_line.shape[0]))
-            # if (line == 270): 
             podi_cython.sigma_clip_mean(_line, output)
+            result_buffer[line,:] = output
+
+        elif (operation == "sigmaclipmedian"):
+            _line = buffer[line,:,:].astype(numpy.float64)
+            output = numpy.zeros(shape=(_line.shape[0]))
+            podi_cython.sigma_clip_median(_line, output)
             result_buffer[line,:] = output
 
         elif (operation == "weightedmean"):
