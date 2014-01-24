@@ -78,7 +78,8 @@ avg_sky_countrates = {
 
 number_cpus = 4
 
-def make_fringing_template(input_filelist, outputfile, return_hdu=False, skymode='local'):
+def make_fringing_template(input_filelist, outputfile, return_hdu=False, 
+                           skymode='local', operation="nanmedian.bn"):
     """
 
     Create a fringe template from the given list of suitable input frames. 
@@ -176,7 +177,7 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False, skymode
 
         stdout_write(" combining ...")
         #combined = podi_imcombine.imcombine_data(data_blocks, "nanmedian")
-        combined = podi_imcombine.imcombine_data(data_blocks, "nanmedian.bn")
+        combined = podi_imcombine.imcombine_data(data_blocks, operation) #"nanmedian.bn")
 
         # Create new ImageHDU
         # Insert the imcombine'd frame into the output HDU
@@ -508,7 +509,8 @@ if __name__ == "__main__":
         filelist = get_clean_cmdline()[2:]
         operation = cmdline_arg_set_or_default("-op", "mean")
         operation = cmdline_arg_set_or_default("-op", "nanmedian.bn")
-        make_fringing_template(filelist, outputfile, operation)
+        print "Using imcombine with __%s__ operation" % (operation)
+        make_fringing_template(filelist, outputfile, operation=operation)
 
         sys.exit(0)
 
