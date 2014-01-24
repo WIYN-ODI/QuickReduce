@@ -862,7 +862,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
         zp_median_ = numpy.median(zp)
         zp_std_ = numpy.std(zp)
-        zp_exptime = zp_median + zp_correction_exptime
+        zp_exptime = zp_median - zp_correction_exptime
 
         # print "zeropoint (un-clipped)",zp_median_," +/-", zp_std_
 

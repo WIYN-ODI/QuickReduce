@@ -1914,6 +1914,8 @@ def collectcells(input, outputfile,
 
     sky_global_median = numpy.median(sky_samples_global[:,4])
     ota_list[0].header["SKYLEVEL"] = sky_global_median
+    ota_list[0].header["SKYBG"] = sky_global_median
+    ota_list[0].header["SKYNOISE"] = math.sqrt( 8.**2 + (sky_global_median*ota_list[0].header['GAIN'])**2 )
     logger.debug("Found global median sky-value = %.1f" % (sky_global_median))
 
     #
@@ -1966,6 +1968,11 @@ def collectcells(input, outputfile,
     # New WCS matching using CCMatch
     #
     ota_list[0].header['WCSFIXED'] = False
+    ota_list[0].header['WCSCAL'] = (False, "Was astrometric solution found")
+    ota_list[0].header['WCSXRMS'] = (-1., "RMS in x-dir of astrometric solution")
+    ota_list[0].header['WCSYRMS'] = (-1., "RMS in y-dir of astrometric solution")
+    ota_list[0].header['ASTRMCAT'] = ("", "astrometric reference catalog")
+
     if (options['fixwcs']):
 
         logger.info("Performing astrometric calibration")
@@ -1982,7 +1989,10 @@ def collectcells(input, outputfile,
         # Use the fixed HDUList
         ota_list = ccmatched['hdulist']
         ota_list[0].header['WCSFIXED'] = True
-
+        ota_list[0].header['ASTRMCAT'] = "2MASS"
+        if ("WCS_QUAL" in ota_list[0].header):
+            ota_list[0].header['WCSCAL'] = ota_list[0].header['WCS_QUAL'] > 1.5
+        
         # Also extract some of the matched/calibrated catalogs
         odi_2mass_matched = ccmatched['matched_src+2mass']
         global_source_cat = ccmatched['calibrated_src_cat']
@@ -2023,7 +2033,9 @@ def collectcells(input, outputfile,
         # Compute the WCS quality statistics
         # This also writes to the Primary and OTA-level headers
         wcs_quality = dev_ccmatch.global_wcs_quality(odi_2mass_cat, ota_list)
-        print "WCS quality =",wcs_quality
+        # print "WCS quality =",wcs_quality
+        ota_list[0].header['WCSXRMS'] = wcs_quality['full']['RMS-RA']
+        ota_list[0].header['WCSYRMS'] = wcs_quality['full']['RMS-DEC']
 
         # Compute the image quality using all detected sources
         # Make sure to only include round source (elongation < 1.3) and decent 
@@ -2039,6 +2051,7 @@ def collectcells(input, outputfile,
         ota_list[0].header['FWHM_FLT'] = (seeing_filtered, "median FWHM, 3sigma clipped")
         ota_list[0].header['FWHMNFLT'] = (seeing_clipped.shape[0], "number of src in FWHM comp")
 
+        
     if (options['fixwcs'] and options['create_qaplots']):
         ota_outlines = derive_ota_outlines(ota_list)
             # print "Creating some diagnostic plots"
@@ -2107,6 +2120,9 @@ def collectcells(input, outputfile,
                                                   also_plot_singleOTAs=options['otalevelplots'],
                                                   title_info=title_info)
 
+    ota_list[0].header['PHOTMCAT'] = (None, "catalog used for photometric calibration")
+    ota_list[0].header['SKYMAG'] = (-99., "magnitude of sky [mag/arcsec**2]")
+    ota_list[0].header['PHOTDPTH'] = (-99, "photometric depth [mag]")
     if (options['photcalib'] and options['fixwcs']):
         zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = 99., 99., None, 99.
         logger.info("Starting photometric calibration")
@@ -2130,6 +2146,7 @@ def collectcells(input, outputfile,
                                      options=options,
                                      detailed_return=photcalib_details)
 
+        ota_list[0].header['PHOTMCAT'] = ("SDSS")
 
         ota_list[0].header["PHOTZP"] = (zeropoint_median, "phot. zeropoint corr for exptime")
         ota_list[0].header["PHOTZPSD"] = (zeropoint_std, "zeropoint std.dev.")
@@ -2159,6 +2176,11 @@ def collectcells(input, outputfile,
         ota_list[0].header['MAGZ_COL'] = photcalib_details['colorcorrection'] if colorterm_correction else ""
         ota_list[0].header['MAGZ_CTC'] = photcalib_details['colorterm'] if colorterm_correction else 0.0
 
+        # Compute the sky-brightness 
+        sky_arcsec = sky_global_median / (0.11**2) # convert counts/pixel to counts/arcsec*2
+        sky_mag = -2.5 * math.log10(sky_arcsec) + zeropoint_exptime
+        ota_list[0].header['SKYMAG'] = sky_mag
+
         # Now convert the matched source catalog into a valid FITS extension 
         # and add it to the output.
         match_tablehdu = create_odi_sdss_matched_tablehdu(odi_sdss_matched)
@@ -2185,6 +2207,16 @@ def collectcells(input, outputfile,
         ota_list[0].header['FWHMSTAR'] = (seeing, "median FWHM of SDSS-matched stars")
         ota_list[0].header['SEEING'] = (seeing, "Seeing [arcsec]")
         ota_list[0].header['SEEING_N'] = (cleaned.shape[0], "number of stars in seeing comp")
+
+        # Compute a approximate detection limit
+        # This assumes an aperture with diameter of 2x the seeing 
+        # (i.e. radius = seeing).
+        aperture_area = (seeing / 0.11)**2 * math.pi
+        readnoise = 8.
+        bgcounts = aperture_area * (sky_global_median + readnoise**2)
+        counts_sn1 = math.sqrt(bgcounts)
+        limiting_mag = -2.5*math.log10(counts_sn1) + zeropoint_exptime
+        ota_list[0].header['PHOTDPTH'] = limiting_mag
 
     if (not options['nonsidereal'] == None):
         logger.info("Starting non-sidereal WCS modification")
