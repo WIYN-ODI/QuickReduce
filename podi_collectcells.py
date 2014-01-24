@@ -2024,6 +2024,19 @@ def collectcells(input, outputfile,
         # This also writes to the Primary and OTA-level headers
         wcs_quality = dev_ccmatch.global_wcs_quality(odi_2mass_cat, ota_list)
 
+        # Compute the image quality using all detected sources
+        # Make sure to only include round source (elongation < 1.3) and decent 
+        # photometry (i.e. high enoug S/N)
+        good_fwhm_values = (global_source_cat[:, SXcolumn['flags']] == 0) & \
+                           (global_source_cat[:, SXcolumn['elongation']] < 1.3) & \
+                           (global_source_cat[:, SXcolumn['mag_err_3.0']] <= 0.2)
+        seeing = global_source_cat[:, SXcolumn['fwhm_world']] * 3600. # convert to arcsec
+        seeing_all = numpy.median(seeing)
+        seeing_clipped = three_sigma_clip(seeing)
+        seeing_filtered = numpy.median(seeing_clipped)
+        ota_list[0].header['FWHM_ALL'] = (seeing_all, "median FWHM of all sources")
+        ota_list[0].header['FWHM_FLT'] = (seeing_filtered, "median FWHM, 3sigma clipped")
+        ota_list[0].header['FWHMNFLT'] = (seeing_clipped.shape[0], "number of src in FWHM comp")
 
     if (options['fixwcs'] and options['create_qaplots']):
         ota_outlines = derive_ota_outlines(ota_list)
@@ -2093,8 +2106,6 @@ def collectcells(input, outputfile,
                                                   also_plot_singleOTAs=options['otalevelplots'],
                                                   title_info=title_info)
 
-
-
     if (options['photcalib'] and options['fixwcs']):
         zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = 99., 99., None, 99.
         logger.info("Starting photometric calibration")
@@ -2142,6 +2153,14 @@ def collectcells(input, outputfile,
             match_tablehdu.header[hdrname] = ota_list[0].header[hdrname]
         ota_list.append(match_tablehdu)
 
+        # Also use the matched catalog to determine the seeing of only stars
+        star_seeing = odi_sdss_matched[:, SXcolumn['fwhm_world']+2] * 3600.
+        cleaned = three_sigma_clip(star_seeing)
+        seeing = numpy.median(cleaned)
+        logger.debug("Seeing is %.2fdeg = %.2f arcsec" % (seeing, seeing*3600.))
+        ota_list[0].header['FWHMSTAR'] = (seeing, "median FWHM of SDSS-matched stars")
+        ota_list[0].header['SEEING'] = (seeing, "Seeing [arcsec]")
+        ota_list[0].header['SEEING_N'] = (cleaned.shape[0], "number of stars in seeing comp")
 
     if (not options['nonsidereal'] == None):
         logger.info("Starting non-sidereal WCS modification")
