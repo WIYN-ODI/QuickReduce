@@ -191,6 +191,7 @@ def log_master(queue, options):
     root.propagate = False
 
     enable_debug = False
+    debug_logger = root
     if (cmdline_arg_isset("-debugfile") or sitesetup.debug_log_filename != None):
 
         debug_filename = cmdline_arg_set_or_default("-debugfile", sitesetup.debug_log_filename)
@@ -216,8 +217,6 @@ def log_master(queue, options):
             debug_logger.propagate=False
         except:
             pass
-    else:
-        debug_logger = root
 
     info = logging.getLogger('info')
     try:
