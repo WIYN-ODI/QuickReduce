@@ -90,7 +90,12 @@ def log_slave_setup(queue):
 def log_master_setup():
     root = logging.getLogger()
     # h = logging.handlers.RotatingFileHandler('/tmp/mptest.log', 'a', 300, 10)
-    h = logging.StreamHandler(stream=sys.stdout)
+    try:
+        h = logging.StreamHandler(stream=sys.stdout)
+    except TypeError:
+        h = logging.StreamHandler(strm=sys.stdout)
+    except:
+        raise
     f = logging.Formatter('%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s')
     h.setFormatter(f)
     root.addHandler(h)
@@ -199,7 +204,12 @@ def log_master(queue, options):
 
             debug_logger = logging.getLogger('debug')
             # debug_logger = logging.getLogger()
-            h = logging.StreamHandler(stream=debugfile)
+            try:
+                h = logging.StreamHandler(stream=debugfile)
+            except TypeError:
+                h = logging.StreamHandler(strm=debugfile)
+            except:
+                raise
             f = logging.Formatter('%(asctime)s -- %(levelname)-8s [ %(filename)30s : %(lineno)4s - %(funcName)30s() in %(processName)-12s] %(name)30s :: %(message)s')
             h.setFormatter(f)
             debug_logger.addHandler(h)
@@ -210,13 +220,23 @@ def log_master(queue, options):
         debug_logger = root
 
     info = logging.getLogger('info')
-    h = logging.StreamHandler(stream=sys.stdout)
+    try:
+        h = logging.StreamHandler(stream=sys.stdout)
+    except TypeError:
+        h = logging.StreamHandler(strm=sys.stdout)
+    except:
+        raise
     f = logging.Formatter('%(name)s: %(message)s')
     h.setFormatter(f)
     info.addHandler(h)
     
     infolog_file = open("quickreduce.log", "w")
-    h = logging.StreamHandler(stream=infolog_file)
+    try:
+        h = logging.StreamHandler(stream=infolog_file)
+    except TypeError:
+        h = logging.StreamHandler(strm=infolog_file)
+    except:
+        raise
     f = logging.Formatter('INFOHANDLER %(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s')
     h.setFormatter(f)
     info.addHandler(h)
