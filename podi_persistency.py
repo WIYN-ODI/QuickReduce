@@ -236,7 +236,7 @@ def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo
        
     # Now start all the workers
     processes = []
-    for i in range(number_cpus):
+    for i in range(sitesetup.number_cpus):
         p = multiprocessing.Process(target=mp_create_saturation_catalog, args=(queue, return_queue, False))
         p.start()
         processes.append(p)
