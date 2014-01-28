@@ -162,8 +162,9 @@ R.M.S. %(RMS-RA)0.3f'' / %(RMS-DEC)0.3f''
         fig.show()
     else:
         for ext in extension_list:
+            fig.set_size_inches(8,6)
             logger.debug("saving file: %s.%s" % (filename, ext))
-            fig.savefig(filename+"."+ext)
+            fig.savefig(filename+"."+ext, dpi=100)
 
     matplotlib.pyplot.close()
 
@@ -740,13 +741,14 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
     if (output_filename == None):
         fig.show()
     else:
+        fig.set_size_inches(8,6)
         if (not options == None):
             for ext in options['plotformat']:
                 if (ext != ''):
-                    fig.savefig(output_filename+"."+ext)
+                    fig.savefig(output_filename+"."+ext, dpi=100)
                     logger.debug("plot saved as %s.%s" % (output_filename, ext))
         else:
-            fig.savefig(output_filename+".png")
+            fig.savefig(output_filename+".png", dpi=100)
 
     matplotlib.pyplot.close()
     logger.debug("done!")
@@ -829,13 +831,14 @@ def plot_zeropoint_map(ra, dec, zp, ota_outlines, output_filename, options, zp_r
     if (output_filename == None):
         fig.show()
     else:
+        fig.set_size_inches(8,6)
         if (not options == None):
             for ext in options['plotformat']:
                 if (ext != ''):
-                    fig.savefig(output_filename+"."+ext)
+                    fig.savefig(output_filename+"."+ext, dpi=100)
                     logger.debug("saving plot to %s.%s" % (output_filename, ext))
         else:
-            fig.savefig(output_filename+".png")
+            fig.savefig(output_filename+".png", dpi=100)
 
     matplotlib.pyplot.close()
     return
@@ -994,13 +997,14 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
     if (output_filename == None):
         fig.show()
     else:
+        fig.set_size_inches(8,6)
         if (not options == None):
             for ext in options['plotformat']:
                 if (ext != ''):
-                    fig.savefig(output_filename+"."+ext)
+                    fig.savefig(output_filename+"."+ext, dpi=100)
                     logger.debug("saving plot to %s.%s" % (output_filename, ext))
         else:
-            fig.savefig(output_filename+".png")
+            fig.savefig(output_filename+".png", dpi=100)
 
     matplotlib.pyplot.close()
   
