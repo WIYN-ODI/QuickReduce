@@ -72,7 +72,8 @@ def plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list,
     logger = logging.getLogger("DiagPlot_WCSScatter")
 
     #fig = matplotlib.pyplot.figure()
-    fig, ax = matplotlib.pyplot.subplots()
+    fig = matplotlib.pyplot.figure()
+    ax = fig.add_subplot(111)
 
     count, xedges, yedges = numpy.histogram2d(d_ra*3600., d_dec*3600.,
                                               bins=[60,60], range=[[-3,3], [-3,3]])
@@ -329,7 +330,8 @@ def plot_wcsdiag_shift(radec, d_radec,
     """
 
     logger = logging.getLogger("DiagPlot_WCSShift")
-    fig, ax = matplotlib.pyplot.subplots()
+    fig = matplotlib.pyplot.figure()
+    ax = fig.add_subplot(111)
     ax.ticklabel_format(useOffset=False)
 
 #    d_ra  = matched_cat[:,0] - matched_cat[:,2]
@@ -630,7 +632,8 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
     logger = logging.getLogger("DiagPlot_PhotZP")
     logger.info("Creating the photometric calibration plot ...")
 
-    fig, ax = matplotlib.pyplot.subplots()
+    fig = matplotlib.pyplot.figure()
+    ax = fig.add_subplot(111)
 
     zp_raw = sdss_mag - odi_mag
     zp_err = numpy.hypot(sdss_magerr, odi_magerr)
@@ -788,7 +791,9 @@ def plot_zeropoint_map(ra, dec, zp, ota_outlines, output_filename, options, zp_r
 
     logger = logging.getLogger("DiagPlot_ZPmap")
 
-    fig, ax = matplotlib.pyplot.subplots()
+    fig = matplotlib.pyplot.figure()
+    ax = fig.add_subplot(111)
+
     ax.ticklabel_format(useOffset=False)
     zp_min, zp_max = zp_range
 
@@ -961,7 +966,9 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
     """
     logger = logging.getLogger("DiagPlot_PSFSize")
                     
-    fig, ax = matplotlib.pyplot.subplots()
+    fig = matplotlib.pyplot.figure()
+    ax = fig.add_subplot(111)
+
     ax.ticklabel_format(useOffset=False)
 
     fwhm_min, fwhm_max = fwhm_range
