@@ -402,7 +402,8 @@ def plot_wcsdiag_shift(radec, d_radec,
     else:
         for ext in extension_list:
             logger.debug("saving file: %s.%s" % (filename, ext))
-            fig.savefig(filename+"."+ext)
+            fig.set_size_inches(8,6)
+            fig.savefig(filename+"."+ext, dpi=100)
 
     matplotlib.pyplot.close()
     logger.debug("done!")
