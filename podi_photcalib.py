@@ -737,6 +737,16 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     logger = logging.getLogger("PhotCalib")
 
     error_return_value = (99.9, 99.9, None, 99.9)
+    detailed_return['median'] = -99.
+    detailed_return['std'] = -99.
+    detailed_return['zp_exptime'] = -99.
+    detailed_return['stderrofmean'] = -99.
+    detailed_return['zp_upper1sigma'] = -99.
+    detailed_return['zp_lower1sigma'] = -99.
+    detailed_return['n_clipped'] = -1
+    detailed_return['n_raw'] = -1
+    detailed_return['colorterm'] = None
+    detailed_return['colorcorrection'] = None
 
     # Figure out which SDSS to use for calibration
     sdss_filter = sdss_equivalents[filtername]
