@@ -1971,7 +1971,15 @@ def collectcells(input, outputfile,
     ota_list[0].header['WCSYRMS'] = (-1., "RMS in y-dir of astrometric solution")
     ota_list[0].header['ASTRMCAT'] = ("", "astrometric reference catalog")
 
-    if (options['fixwcs']):
+    enough_stars_for_fixwcs = not global_source_cat == None \
+                              and global_source_cat.shape[0]>3
+    if (enough_stars_for_fixwcs):
+        logger.debug("Found enough stars for FIXWCS")
+    else:
+        logger.info("Couldn't find enough stars for astrometric calibration!")
+
+    if (options['fixwcs'] 
+        and enough_stars_for_fixwcs):
 
         logger.info("Performing astrometric calibration")
         # The entire source catalog is located in: --> global_source_cat
@@ -2054,7 +2062,9 @@ def collectcells(input, outputfile,
         ota_list[0].header['SEEING_N'] = (seeing_clipped.shape[0], "number of stars in seeing comp")
 
         
-    if (options['fixwcs'] and options['create_qaplots']):
+    if (options['fixwcs'] 
+        and options['create_qaplots']
+        and enough_stars_for_fixwcs):
         ota_outlines = derive_ota_outlines(ota_list)
             # print "Creating some diagnostic plots"
 
@@ -2125,7 +2135,9 @@ def collectcells(input, outputfile,
     ota_list[0].header['PHOTMCAT'] = (None, "catalog used for photometric calibration")
     ota_list[0].header['SKYMAG'] = (-99., "magnitude of sky [mag/arcsec**2]")
     ota_list[0].header['PHOTDPTH'] = (-99, "photometric depth [mag]")
-    if (options['photcalib'] and options['fixwcs']):
+    if (options['photcalib'] 
+        and options['fixwcs']
+        and enough_stars_for_fixwcs):
         zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = 99., 99., None, 99.
         logger.info("Starting photometric calibration")
 
