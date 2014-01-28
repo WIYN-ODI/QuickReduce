@@ -2049,6 +2049,10 @@ def collectcells(input, outputfile,
         ota_list[0].header['FWHM_FLT'] = (seeing_filtered, "median FWHM, 3sigma clipped")
         ota_list[0].header['FWHMNFLT'] = (seeing_clipped.shape[0], "number of src in FWHM comp")
 
+        ota_list[0].header['FWHMSTAR'] = (seeing_all, "median FWHM of SDSS-matched stars")
+        ota_list[0].header['SEEING'] = (seeing_all, "Seeing [arcsec]")
+        ota_list[0].header['SEEING_N'] = (seeing_clipped.shape[0], "number of stars in seeing comp")
+
         
     if (options['fixwcs'] and options['create_qaplots']):
         ota_outlines = derive_ota_outlines(ota_list)
@@ -2179,42 +2183,45 @@ def collectcells(input, outputfile,
         sky_mag = -2.5 * math.log10(sky_arcsec) + zeropoint_exptime
         ota_list[0].header['SKYMAG'] = sky_mag
 
+
+
         # Now convert the matched source catalog into a valid FITS extension 
         # and add it to the output.
-        match_tablehdu = create_odi_sdss_matched_tablehdu(odi_sdss_matched)
-        # Copy a bunch of headers so we can makes heads and tails of the catalog
-        # even if it's separated from the rest of the file.
-        for hdrname in ['AIRMASS',
-                        'FILTER', 'FILTERID',
-                        'MJD-OBS',
-                        'OBSID',
-                        'EXPTIME', 'EXPMEAS',
-                        'TELFOCUS',
-                        'ROTSTART', 'ROTEND',
-                        'ADCMODE',
-                        'GAIN',
-                    ]:
-            match_tablehdu.header[hdrname] = ota_list[0].header[hdrname]
-        ota_list.append(match_tablehdu)
+        if (not odi_sdss_matched == None and odi_sdss_matched.shape[0] > 0):
+            match_tablehdu = create_odi_sdss_matched_tablehdu(odi_sdss_matched)
+            # Copy a bunch of headers so we can makes heads and tails of the catalog
+            # even if it's separated from the rest of the file.
+            for hdrname in ['AIRMASS',
+                            'FILTER', 'FILTERID',
+                            'MJD-OBS',
+                            'OBSID',
+                            'EXPTIME', 'EXPMEAS',
+                            'TELFOCUS',
+                            'ROTSTART', 'ROTEND',
+                            'ADCMODE',
+                            'GAIN',
+                        ]:
+                match_tablehdu.header[hdrname] = ota_list[0].header[hdrname]
+            ota_list.append(match_tablehdu)
 
-        # Also use the matched catalog to determine the seeing of only stars
-        star_seeing = odi_sdss_matched[:, SXcolumn['fwhm_world']+2] * 3600.
-        cleaned = three_sigma_clip(star_seeing)
-        seeing = numpy.median(cleaned)
-        logger.debug("Seeing is %.2fdeg = %.2f arcsec" % (seeing, seeing*3600.))
-        ota_list[0].header['FWHMSTAR'] = (seeing, "median FWHM of SDSS-matched stars")
-        ota_list[0].header['SEEING'] = (seeing, "Seeing [arcsec]")
-        ota_list[0].header['SEEING_N'] = (cleaned.shape[0], "number of stars in seeing comp")
+            # Also use the matched catalog to determine the seeing of only stars
+            star_seeing = odi_sdss_matched[:, SXcolumn['fwhm_world']+2] * 3600.
+            cleaned = three_sigma_clip(star_seeing)
+            seeing = numpy.median(cleaned)
+            logger.debug("Seeing is %.2fdeg = %.2f arcsec" % (seeing, seeing*3600.))
+            ota_list[0].header['FWHMSTAR'] = (seeing, "median FWHM of SDSS-matched stars")
+            ota_list[0].header['SEEING'] = (seeing, "Seeing [arcsec]")
+            ota_list[0].header['SEEING_N'] = (cleaned.shape[0], "number of stars in seeing comp")
 
-        # Compute a approximate detection limit
-        # This assumes an aperture with diameter of 2x the seeing 
-        # (i.e. radius = seeing).
-        aperture_area = (seeing / 0.11)**2 * math.pi
-        readnoise = 8.
-        bgcounts = aperture_area * (sky_global_median + readnoise**2)
-        counts_sn1 = math.sqrt(bgcounts)
-        limiting_mag = -2.5*math.log10(counts_sn1) + zeropoint_exptime
-        ota_list[0].header['PHOTDPTH'] = limiting_mag
+            # Compute a approximate detection limit
+            # This assumes an aperture with diameter of 2x the seeing 
+            # (i.e. radius = seeing).
+            aperture_area = (seeing / 0.11)**2 * math.pi
+            readnoise = 8.
+            bgcounts = aperture_area * (sky_global_median + readnoise**2)
+            counts_sn1 = math.sqrt(bgcounts)
+            limiting_mag = -2.5*math.log10(counts_sn1) + zeropoint_exptime
+            ota_list[0].header['PHOTDPTH'] = limiting_mag
 
     if (not options['nonsidereal'] == None):
         logger.info("Starting non-sidereal WCS modification")
