@@ -1207,7 +1207,7 @@ def kill_all_child_processes(process_tracker):
                 pass
             stdout_write(" done!")
     except Queue.Empty:
-        stdout_write("\n   all child processes terminated!")
+        stdout_write("\n   all child processes terminated!\n")
 
     return
 
@@ -1986,7 +1986,7 @@ def collectcells(input, outputfile,
         # Current HDUList is in: --> ota_list
 
         import dev_ccmatch
-        numpy.savetxt("debug.wcs_raw", global_source_cat)
+        if (dev_ccmatch.create_debug_files): numpy.savetxt("debug.wcs_raw", global_source_cat)
         ccmatched = dev_ccmatch.ccmatch(source_catalog=global_source_cat,
                                        reference_catalog=None, # meaning ccmtch will obtain it
                                        input_hdu=ota_list, 
@@ -3034,12 +3034,21 @@ if __name__ == "__main__":
         print "Cleaning up left over child processes"
         kill_all_child_processes(process_tracker)
 
-        stdout_write("\n\n\n\n\n\nkilled main task...\n\n\n\n\n\n")
-        stdout_write("\n\n##############################\n#\n# Something terrible happened!\n")
         etype, error, stackpos = sys.exc_info()
-        stdout_write("# Exception report:")
-        stdout_write("#  ==> %s\n" % (error))
-        print traceback.format_exc()
-        stdout_write("#\n##############################\n")
+
+        # stdout_write("\n\n\n\n\n\nkilled main task...\n\n\n\n\n\n")
+        # stdout_write("\n\n##############################\n#\n# Something terrible happened!\n")
+        # stdout_write("# Exception report:")
+        # stdout_write("#  ==> %s\n" % (error))
+        # print traceback.format_exc()
+        # stdout_write("#\n##############################\n")
+
+        logger = logging.getLogger()
+        logger.error("=========== EXCEPTION ==============")
+        logger.error("etype: %s" % (str(etype)))
+        logger.error("error: %s" % (str(error)))
+        logger.error("stackpos: %s" % (str(stackpos)))
+        logger.error("\n\n\n"+traceback.format_exc()+"\n\n")
+
     finally:
         shutdown_logging(options)
