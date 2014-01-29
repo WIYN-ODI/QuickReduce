@@ -1284,7 +1284,7 @@ def improve_wcs_solution(src_catalog,
                                        matching_radius=(2./3600.), 
                                        max_count=1)
 
-    if (not output_catalog == None):
+    if (not output_catalog == None and create_debug_files):
         numpy.savetxt(output_catalog, matched_global)
 
     # print "Returning from improve_wcs_solution", src_catalog.shape, global_cat.shape, matched_global.shape
@@ -1413,9 +1413,9 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     only_isolated_stars = True
     if (only_isolated_stars):
         logger.debug("Selecting isolated stars - ODI source catalog")
-        numpy.savetxt("ccmatch.odi_full", full_src_cat)
+        if (create_debug_files): numpy.savetxt("ccmatch.odi_full", full_src_cat)
         isolated_stars = pick_isolated_stars(full_src_cat, radius=10)
-        numpy.savetxt("ccmatch.odi_isolated", full_src_cat)
+        if (create_debug_files): numpy.savetxt("ccmatch.odi_isolated", full_src_cat)
         logger.debug("Down-selected source catalog to %d isolated stars" % (full_src_cat.shape[0]))
     else:
         isolated_stars = full_src_cat
@@ -1439,11 +1439,11 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     ref_cat = ref_close.copy()
     min_distance = 8
     logger.debug("Selecting isolated stars - reference catalog")
-    numpy.savetxt("ccmatch.2mass_full", ref_cat)
+    if (create_debug_files): numpy.savetxt("ccmatch.2mass_full", ref_cat)
     while (ref_cat.shape[0] > n_max_ref or min_distance < 10):
         min_distance += 2
         ref_cat = pick_isolated_stars(ref_cat, radius=min_distance)
-        numpy.savetxt("ccmatch.2mass_isolated", ref_cat)
+        if (create_debug_files): numpy.savetxt("ccmatch.2mass_isolated", ref_cat)
         logger.debug("Down-selected reference catalog to %d isolated stars (min_d=%d)" % (ref_cat.shape[0], min_distance))
     logger.debug("Final reference catalog: %d sources, isolated by >%d" % (ref_cat.shape[0], min_distance))
 
@@ -1944,7 +1944,7 @@ def compute_wcs_quality(odi_2mass_matched, hdr=None):
     d_ra  = ((odi_2mass_matched[:,0] - odi_2mass_matched[:,-2]) 
              * numpy.cos(numpy.radians(odi_2mass_matched[:,1])))
 
-    numpy.savetxt("wcsquality.test", odi_2mass_matched)
+    if (create_debug_files): numpy.savetxt("wcsquality.test", odi_2mass_matched)
     d_total = numpy.hypot(d_ra, d_dec)
     wcs_scatter = numpy.median(d_total)
     wcs_scatter2 = numpy.std(d_total)
