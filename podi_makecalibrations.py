@@ -342,10 +342,6 @@ if __name__ == "__main__":
                     # Only do this if requested via keyword -pupilghost=(dirname)
                     #
                     if (not pupilghost_dir == None): #options['pupilghost_dir'] != None):
-                        # Also save a copy before the pupil ghost correction.
-                        print "Writing flat-field before pupil ghost correction ..."
-                        flat_hdus.writeto(flat_frame[:-5]+".prepg.fits", clobber=True)
-
                         # Reset the pupil ghost option to enable it here
                         options['pupilghost_dir'] = pupilghost_dir
 
@@ -362,6 +358,12 @@ if __name__ == "__main__":
                             stdout_write("\n   Using file %s ... " % (pg_template))
                             pg_hdu = pyfits.open(pg_template)
                             scaling = podi_matchpupilghost.scaling_factors[filter]
+
+                            # Also save a copy before the pupil ghost correction.
+                            print "Writing flat-field before pupil ghost correction ..."
+                            if (cmdline_arg_isset("-keepprepg")):
+                                flat_hdus.writeto(flat_frame[:-5]+".prepg.fits", clobber=True)
+
                             podi_matchpupilghost.subtract_pupilghost(flat_hdus, pg_hdu, scaling)
                             flat_hdus[0].header["PUPLGOST"] = (pg_template, "p.g. template")
                             flat_hdus[0].header["PUPLGFAC"] = (scaling, "pupilghost scaling")
