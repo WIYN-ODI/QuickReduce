@@ -2135,6 +2135,7 @@ def collectcells(input, outputfile,
     ota_list[0].header['PHOTMCAT'] = (None, "catalog used for photometric calibration")
     ota_list[0].header['SKYMAG'] = (-99., "magnitude of sky [mag/arcsec**2]")
     ota_list[0].header['PHOTDPTH'] = (-99, "photometric depth [mag]")
+    ota_list[0].header['RADZPFIT'] = (False, "was a radial ZP fit done?")
     if (options['photcalib'] 
         and options['fixwcs']
         and enough_stars_for_fixwcs):
@@ -2174,6 +2175,13 @@ def collectcells(input, outputfile,
         ota_list[0].header["MAGZERO"] = (photcalib_details['median'], "phot. zeropoint corr for exptime")
         ota_list[0].header["MAGZSIG"] = (photcalib_details['std'], "phot ZP dispersion")
         ota_list[0].header["MAGZERR"] = (photcalib_details['stderrofmean'], "phot ZP uncertainty")
+
+        if (not photcalib_details['radialZPfit'] == None):
+            ota_list[0].header['RADZPFIT'] = True
+            ota_list[0].header['RADZP_P0'] = photcalib_details['radialZPfit'][0]
+            ota_list[0].header['RADZP_P1'] = photcalib_details['radialZPfit'][1]
+            ota_list[0].header['RADZP_E0'] = photcalib_details['radialZPfit_error'][0]
+            ota_list[0].header['RADZP_E1'] = photcalib_details['radialZPfit_error'][1]
 
         ref_ZP = -99. if not filter_name in reference_zeropoint else reference_zeropoint[filter_name][0]
         ota_list[0].header['MAGZREF'] = (ref_ZP, "reference photometric zeropoint")
@@ -2697,6 +2705,8 @@ def set_default_options(options_in=None):
 
     options['nonsidereal'] = None
 
+    options['fitradialZP'] = False
+
     return options
 
 
@@ -2943,6 +2953,8 @@ Calibration data:
             else:
                 logger.critical("I don't understand the -nonsidereal parameter")
         logger.debug("non-sidereal setup: %s" % (str(ns)))
+
+    options['fitradialZP'] = cmdline_arg_isset("-fitradialZP")
 
     return options
 

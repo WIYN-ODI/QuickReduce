@@ -747,6 +747,8 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     detailed_return['n_raw'] = -1
     detailed_return['colorterm'] = None
     detailed_return['colorcorrection'] = None
+    detailed_return['radialZPfit'] = None
+    detailed_return['radialZPfit_error'] = None
 
     # Figure out which SDSS to use for calibration
     sdss_filter = sdss_equivalents[filtername]
@@ -850,6 +852,106 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     # Determine the zero point
     zp = sdss_mag - odi_mag 
     zperr = numpy.hypot(sdss_magerr, odi_magerr)
+
+    #
+    # If requested, remove radial ZP trend
+    # 
+    if (not otalist == None
+        and options['fitradialZP']):
+
+        logger.debug("Starting to fit the radial ZP gradient")
+
+        # get Ra/Dec center position
+        center_dec = otalist[1].header['CRVAL2'] - (240./3600)
+        cos_declination = math.cos(math.radians(center_dec))
+        center_ra  = otalist[1].header['CRVAL1'] + ((240./3600) / cos_declination)
+        logger.debug("Using center position %f %f" % (center_ra, center_dec))
+
+        # Convert all positions into radial coordinates
+        r = numpy.sqrt(
+            ((odi_sdss_matched[:,0] - center_ra) * cos_declination)**2 + 
+            (odi_sdss_matched[:,1] - center_dec)**2 )
+
+        # Now we have a and we have ZP
+        median_ZP = numpy.median(zp)
+        if (numpy.sum(r > 0.3) > 15):
+            median_ZP = numpy.median(zp[r > 0.3])
+
+        # select all valid ZP points within 0.3 degrees of center
+        valid_points = (r < 0.3) & (numpy.fabs(zp-median_ZP) < 0.3)
+
+        #
+        # Now we have radius r and we have ZP
+        #
+
+        def zptrend(p, r):
+            return p[0] + p[1]*r
+
+        def zptrend_err(p, r, zp, zp_err):
+            correction = zptrend(p, r)
+            diff = zp - correction
+            return diff/zp_err
+
+        # Perform a linear least-square fit to the data
+        pinit = [0.,0.]
+        args = (r[valid_points], (zp-median_ZP)[valid_points], zperr[valid_points])
+        fit = scipy.optimize.leastsq(zptrend_err, pinit, args=args, full_output=1)
+        pfit = fit[0]
+        uncert = numpy.sqrt(numpy.diag(fit[1]))
+
+        logger.debug("leastsq results: ZP = %.4f + %.4f * r" % (pfit[0], pfit[1]))
+        logger.debug("lastesq uncerts: %.4f / %.4f" % (uncert[0], uncert[1]))
+
+        # Create the best-fit polynomial
+        # if (numpy.sum(valid_points) > 3):
+        #     p4 = numpy.polyfit (r[valid_points], (zp-median_ZP)[valid_points], 1)
+        # else:
+        #     p4 = (0, 0)
+        # poly = numpy.poly1d(p4)
+        # logger.debug("Found offset = %.3f mag, slope = %.4f mag/deg" % (p4[0], p4[1])) 
+        # print p4
+
+        # And subtract the fit from the data
+        # zp[valid_points] -= poly(r[valid_points])
+        
+        detailed_return['radialZPfit'] = pfit
+        detailed_return['radialZPfit_error'] = uncert
+
+        # Add some plotting here if needed
+        import podi_plotting, matplotlib, matplotlib.pyplot
+        fig = matplotlib.pyplot.figure()
+        ax = [fig.add_subplot(211), fig.add_subplot(212)]
+        for i in range(2):
+            ax[i].set_ylim((median_ZP-0.3, median_ZP+0.3))
+            ax[i].set_xlim((-0.02, 0.6))
+            ax[i].set_ylabel("photometric ZP")
+        ax[1].set_xlabel("distance from center [deg]")
+        ax[0].set_title("Photometric zeropoint gradient -- before & after")
+        # plot original data as red + signs
+        ax[0].scatter(r, zp, c='red', marker='+')
+        # plot the corrected data as blue circles
+        # zp_fixed = zp[valid_points]-poly(r[valid_points])
+
+        r_fixed = r[valid_points]
+        zp_fixed = zp[valid_points]
+        zp_fixed -= zptrend(pfit, r_fixed)
+        ax[1].scatter(r_fixed,  zp_fixed, c='blue', marker='o', s=10, linewidths=0)
+        ax[1].scatter(r[r >= 0.3],  zp[r >= 0.3], c='blue', marker='o', s=10, linewidths=0)
+
+        # Add fit as black, solid line
+        fit_line = numpy.linspace(0,0.3,200)
+        # ax.plot(fit_line, poly(fit_line)+median_ZP, 'k-')
+        ax[0].plot(fit_line, zptrend(pfit, fit_line)+median_ZP, 'k-', linewidth=2)
+
+        median_line_x = numpy.linspace(-0.1, 1., 200)
+        median_line_y = numpy.zeros_like(median_line_x) + median_ZP
+        ax[0].plot(median_line_x, median_line_y, 'g-')
+        ax[1].plot(median_line_x, median_line_y, 'g-')
+        zp_radial_plot = create_qa_filename(output_filename, "photZP_radial", options)+".png"
+        logger.debug("Saving plot to %s" % (zp_radial_plot))
+        fig.savefig(zp_radial_plot)
+
+
     #import podi_collectcells
     if (zp.shape[0] <= 0):
         zp_median = 99
@@ -865,6 +967,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         zp_upper1sigma = scipy.stats.scoreatpercentile(zp_clipped, 84)
         zp_lower1sigma = scipy.stats.scoreatpercentile(zp_clipped, 16)
         # print zp_lower1sigma, zp_upper1sigma, 0.5*(zp_upper1sigma-zp_lower1sigma)
+
 
         zp_median = numpy.median(zp_clipped)
         zp_std = numpy.std(zp_clipped)
