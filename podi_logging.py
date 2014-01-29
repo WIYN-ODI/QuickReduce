@@ -179,7 +179,7 @@ def log_master(queue, options):
     root = logging.getLogger()
     try:
         h = logging.NullHandler() #StreamHandler(stream=sys.stdout)
-        f = logging.Formatter('ROOTHANDLER %(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s')
+        f = logging.Formatter('%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s')
         h.setFormatter(f)
         root.addHandler(h)
     except AttributeError:
@@ -236,7 +236,7 @@ def log_master(queue, options):
         h = logging.StreamHandler(strm=infolog_file)
     except:
         raise
-    f = logging.Formatter('INFOHANDLER %(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s')
+    f = logging.Formatter('%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s')
     h.setFormatter(f)
     info.addHandler(h)
     info.propagate = False
