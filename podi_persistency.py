@@ -187,7 +187,9 @@ def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo
             stdout_write("\rProblem opening file %s...\n" % (filename))
             return
 
-        basename = hdulist[0].header['FILENAME'][:18]
+        hdr_filename = hdulist[0].header['FILENAME']
+        hdr_items = hdr_filename.split('.')
+        basename = "%s.%s" % (hdr_items[0], hdr_items[1])
         hdulist.close()
 
         # Split the input filename to extract the directory part
