@@ -32,7 +32,7 @@ max_pointing_error = 8.
 import podi_logging
 import logging
 
-create_debug_files = True
+create_debug_files = False
 
 def select_brightest(radec, mags, n):
     """ 
