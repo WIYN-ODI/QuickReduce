@@ -2212,8 +2212,9 @@ def collectcells(input, outputfile,
                             'ROTSTART', 'ROTEND',
                             'ADCMODE',
                             'GAIN',
-                        ]:
-                match_tablehdu.header[hdrname] = ota_list[0].header[hdrname]
+            ]:
+                if (hdrname in ota_list[0].header):
+                    match_tablehdu.header[hdrname] = ota_list[0].header[hdrname]
             ota_list.append(match_tablehdu)
 
             # Also use the matched catalog to determine the seeing of only stars
