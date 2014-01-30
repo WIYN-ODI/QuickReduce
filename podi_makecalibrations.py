@@ -357,17 +357,20 @@ if __name__ == "__main__":
                         if (os.path.isfile(pg_template)):
                             stdout_write("\n   Using file %s ... " % (pg_template))
                             pg_hdu = pyfits.open(pg_template)
-                            scaling = podi_matchpupilghost.scaling_factors[filter]
+                            if (filter in podi_matchpupilghost.scaling_factors and
+                                podi_matchpupilghost.scaling_factors[filter] > 0):
 
-                            # Also save a copy before the pupil ghost correction.
-                            print "Writing flat-field before pupil ghost correction ..."
-                            if (cmdline_arg_isset("-keepprepg")):
-                                flat_hdus.writeto(flat_frame[:-5]+".prepg.fits", clobber=True)
+                                scaling = podi_matchpupilghost.scaling_factors[filter]
 
-                            podi_matchpupilghost.subtract_pupilghost(flat_hdus, pg_hdu, scaling)
-                            flat_hdus[0].header["PUPLGOST"] = (pg_template, "p.g. template")
-                            flat_hdus[0].header["PUPLGFAC"] = (scaling, "pupilghost scaling")
-                            stdout_write(" done!\n")
+                                # Also save a copy before the pupil ghost correction.
+                                print "Writing flat-field before pupil ghost correction ..."
+                                if (cmdline_arg_isset("-keepprepg")):
+                                    flat_hdus.writeto(flat_frame[:-5]+".prepg.fits", clobber=True)
+
+                                podi_matchpupilghost.subtract_pupilghost(flat_hdus, pg_hdu, scaling)
+                                flat_hdus[0].header["PUPLGOST"] = (pg_template, "p.g. template")
+                                flat_hdus[0].header["PUPLGFAC"] = (scaling, "pupilghost scaling")
+                                stdout_write(" done!\n")
                         else:
                             stdout_write(" --> problem:\n")
                             stdout_write("Couldn't find the pupilghost template for level %d\n" % (filter_level))
