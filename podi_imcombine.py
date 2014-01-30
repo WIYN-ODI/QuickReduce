@@ -369,7 +369,7 @@ def imcombine_subprocess(extension, filelist, shape, operation, queue, verbose):
         del hdulist
         if (verbose): stdout_write("\n   Added file %s ..." % (filename))
 
-    stdout_write("\n   Starting imcombine for real ...")
+    # stdout_write("\n   Starting imcombine for real ...")
     combined = imcombine_sharedmem_data(shmem_buffer, operation=operation, sizes=(size_x, size_y, len(filelist)))
 
     # put the imcombine'd data into the queue to return them to the main process
