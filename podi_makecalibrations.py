@@ -87,7 +87,7 @@ from podi_collectcells import *
 from podi_imcombine import *
 from podi_makeflatfield import *
 import podi_matchpupilghost
-
+import logging
 
 
 def strip_fits_extension_from_filename(filename):
@@ -118,6 +118,13 @@ if __name__ == "__main__":
 
 """)
 
+    # Set the options for collectcells to some reasonable start values
+    options = set_default_options()
+    # Then read the actual given parameters from the command line
+    options = read_options_from_commandline()
+    # Setup everything we need for logging
+    setup_logging(options)
+
     verbose = cmdline_arg_isset("-verbose")
 
     # Read the input file that has the list of files
@@ -128,16 +135,21 @@ if __name__ == "__main__":
 
     tmp_directory = cmdline_arg_set_or_default("-tmpdir", output_directory + "/tmp")
 
+    logger = logging.getLogger("MakeCalibration_Init")
+    
     if (not os.path.isfile(filelist_filename)):
-        stdout_write("Unable to open input filelist %s" % (filelist_filename))
+        logger.critical("Unable to open input filelist %s" % (filelist_filename))
+        shutdown_logging(options)
         sys.exit(-1)
 
     if (not os.path.isdir(output_directory)):
-        stdout_write("Specified output directory does not exists..." % (output_directory))
+        logger.critical("Specified output directory does not exists..." % (output_directory))
+        shutdown_logging(options)
         sys.exit(-2)
 
     # We also need a "tmp" subdirectory  directory in the output directory
     if (not os.path.exists(tmp_directory)):
+        logger.debug("Creating tmp directory %s" % (tmp_directory))
         os.makedirs(tmp_directory)
 
     #
@@ -149,8 +161,6 @@ if __name__ == "__main__":
 
     filters = []
     flat_list = []
-
-    options = read_options_from_commandline()
 
     stdout_write("####################\n#\n# Sighting input data\n#\n####################\n")
     _list = open(filelist_filename, "r")
@@ -173,7 +183,7 @@ if __name__ == "__main__":
         binning = get_binning(hdulist[1].header)
         obstype = hdulist[0].header['OBSTYPE']
 
-        print "   %s --> %s BIN=%d" % (directory, obstype, binning)
+        logger.info("   %s --> %s BIN=%d" % (directory, obstype, binning))
 
         filter = hdulist[0].header['FILTER']
         if (obstype == "DFLAT"):
@@ -181,7 +191,7 @@ if __name__ == "__main__":
         elif (obstype == "DARK" or obstype == "BIAS"):
             filter = None
         else:
-            stdout_write("%s is not a calibration frame" % (directory))
+            logger.warning("%s is not a calibration frame" % (directory))
             hdulist.close()
             continue
 
@@ -203,6 +213,7 @@ if __name__ == "__main__":
     #
     # First of all, let's combine all bias frames
     #
+    logger = logging.getLogger("MakeCalibration_Bias")
     for binning in binning_set:
         bias_frame = "%s/bias_bin%d.fits" % (output_directory, binning)
 
@@ -217,7 +228,8 @@ if __name__ == "__main__":
             bias_to_stack = []
             if (not os.path.isfile(bias_frame) or cmdline_arg_isset("-redo")):
                 for cur_bias in bias_list:
-                    if (verbose): print "Collecting cells for bias",cur_bias
+                    logger.debug("Running collectcells for bias-frame %s" % (cur_bias))
+                    # if (verbose): print "Collecting cells for bias",cur_bias
                     # First run collectcells
                     dummy, basename = os.path.split(cur_bias)
                     bias_outfile = "%s/bias.b%d.%s.fits" % (tmp_directory, binning, strip_fits_extension_from_filename(basename))
@@ -230,18 +242,20 @@ if __name__ == "__main__":
                     bias_to_stack.append(bias_outfile)
                 #print bias_list
 
-                stdout_write("Stacking %d frames into %s ..." % (len(bias_to_stack), bias_frame))
+                logger.info("Stacking %d frames into %s ..." % (len(bias_to_stack), bias_frame))
                 imcombine(bias_to_stack, bias_frame, "sigmaclipmean")
-                stdout_write("done!\n")
+                logger.debug("Stacking %s done!" % (bias_frame))
             else:
-                stdout_write("Bias-frame already exists!\n")       
+                logger.info("Bias-frame already exists, nothing to do!\n")
             if (not cmdline_arg_isset("-keeptemps")):
                 for file in bias_to_stack:
+                    logger.debug("Deleting tmp-file %s" % (file))
                     clobberfile(file)
 
     #
     # Now that we have the master bias frame, go ahead and reduce the darks
     #
+    logger = logging.getLogger("MakeCalibration_Dark")
     # For now set all darks to detector-glow "yes"
     for binning in binning_set:
         
@@ -260,7 +274,8 @@ if __name__ == "__main__":
             darks_to_stack = []
             if (not os.path.isfile(dark_frame) or cmdline_arg_isset("-redo")):
                 for cur_dark in dark_list:
-                    if (verbose): print "Collecting cells for dark",cur_dark
+                    logger.debug("Running collectcells for bias-frame %s" % (cur_bias))
+                    # if (verbose): print "Collecting cells for dark",cur_dark
                     # First run collectcells
                     dummy, basename = os.path.split(cur_dark)
                     dark_outfile = "%s/dark.b%d.%s.fits" % (tmp_directory, binning, strip_fits_extension_from_filename(basename))
@@ -272,19 +287,21 @@ if __name__ == "__main__":
                     darks_to_stack.append(dark_outfile)
                 #print darks_to_stack
 
-                stdout_write("Stacking %d frames into %s ..." % (len(darks_to_stack), dark_frame))
+                logger.info("Stacking %d frames into %s ..." % (len(darks_to_stack), dark_frame))
                 imcombine(darks_to_stack, dark_frame, "sigmaclipmean")
-                stdout_write("done!\n")
+                logger.debug("Stacking %s done!" % (dark_frame))
             else:
-                stdout_write("Darkframe already exists!\n")       
+                logger.info("Dark-frame already exists, nothing to do!\n")
             if (not cmdline_arg_isset("-keeptemps")):
                 for file in darks_to_stack:
+                    logger.debug("Deleting tmp-file %s" % (file))
                     clobberfile(file)
 
     #
     # And finally, reduce the flats using the biases and darks.
     #
-    print "filter set", filter_set
+    logger = logging.getLogger("MakeCalibration_Flat")
+    logger.debug("Flat-field filter set: %s" % (filter_set))
 
     if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "flat"): 
 
@@ -300,7 +317,7 @@ if __name__ == "__main__":
                 flat_frame = "%s/flat_%s_bin%d.fits" % (output_directory, filter, binning)
 
                 # From the full filelist, extract only the dark frames with the right binning
-                print "Workiing on", filter, binning
+                logger.info("Preparing files for flat-field %s (bin=%d)" % (filter, binning))
 
                 flat_list = []
                 for (filename, obstype, _filter, bin) in calib_file_list:
@@ -312,13 +329,14 @@ if __name__ == "__main__":
 
                 # Overwrite the pupil ghost correction so we don't do it twice
                 options['pupilghost_dir'] = None
-                print "pupilghost dir=",pupilghost_dir
+                logger.debug("overwriting (for now) pupilghost dir=%s" % (pupilghost_dir))
 
                 flats_to_stack = []
                 if (not os.path.isfile(flat_frame) or cmdline_arg_isset("-redo")):
                     stdout_write("####################\n#\n# Reducing flat-field %s (binning=%d)\n#\n####################\n" % (filter, binning))
                     for cur_flat in flat_list:
-                        if (verbose): print "Collecting cells for flat",cur_flat
+                        logger.debug("Running collectcells for flat-frame %s" % (cur_flat))
+                        # if (verbose): print "Collecting cells for flat",cur_flat
                         # First run collectcells
                         dummy, basename = os.path.split(cur_flat)
                         flat_outfile = "%s/nflat.b%d.%s.%s.fits" % (tmp_directory, binning, filter, strip_fits_extension_from_filename(basename))
@@ -333,9 +351,9 @@ if __name__ == "__main__":
                         flats_to_stack.append(flat_outfile)
                     #print flats_to_stack
 
-                    stdout_write("Stacking %d frames into %s ... " % (len(flats_to_stack), flat_frame))
+                    logger.info("Stacking %d frames into %s ..." % (len(flats_to_stack), flat_frame))
                     flat_hdus = imcombine(flats_to_stack, flat_frame, "sigmaclipmean", return_hdu=True)
-                    stdout_write(" done!\n")
+                    logger.debug("Stacking %s done!" % (flat_frame))
 
                     #
                     # Now apply the pupil ghost correction 
@@ -345,17 +363,17 @@ if __name__ == "__main__":
                         # Reset the pupil ghost option to enable it here
                         options['pupilghost_dir'] = pupilghost_dir
 
-                        stdout_write("Performing pupil ghost correction ...")
+                        logger.info("Performing pupil ghost correction ...")
                         # Get level os active filter and determine what the template filename is
                         filter_level = get_filter_level(flat_hdus[0].header)
 
                         pg_filename = "pupilghost_template___level_%d__bin%d.fits" % (filter_level, binning)
                         pg_template = check_filename_directory(options['pupilghost_dir'], pg_filename)
-                        print pg_template
+                        logger.debug("Using template file %s" % (pg_template))
 
                         # If we have a template for this level
                         if (os.path.isfile(pg_template)):
-                            stdout_write("\n   Using file %s ... " % (pg_template))
+                            logger.debug("Using pupilghost template in  %s ... " % (pg_template))
                             pg_hdu = pyfits.open(pg_template)
                             if (filter in podi_matchpupilghost.scaling_factors and
                                 podi_matchpupilghost.scaling_factors[filter] > 0):
@@ -363,27 +381,29 @@ if __name__ == "__main__":
                                 scaling = podi_matchpupilghost.scaling_factors[filter]
 
                                 # Also save a copy before the pupil ghost correction.
-                                print "Writing flat-field before pupil ghost correction ..."
                                 if (cmdline_arg_isset("-keepprepg")):
+                                    logger.debug("Writing flat-field before pupil ghost correction ...")
                                     flat_hdus.writeto(flat_frame[:-5]+".prepg.fits", clobber=True)
 
                                 podi_matchpupilghost.subtract_pupilghost(flat_hdus, pg_hdu, scaling)
                                 flat_hdus[0].header["PUPLGOST"] = (pg_template, "p.g. template")
                                 flat_hdus[0].header["PUPLGFAC"] = (scaling, "pupilghost scaling")
-                                stdout_write(" done!\n")
+                                logger.debug("Pupilghost subtraction complete")
                         else:
-                            stdout_write(" --> problem:\n")
-                            stdout_write("Couldn't find the pupilghost template for level %d\n" % (filter_level))
-                            stdout_write("   I was looking for file %s\n" % (pg_template))
+                            logger.info("Couldn't find the pupilghost template for level %d" % (filter_level))
+                            logger.debug("Missing pg-template file: %s" % (pg_template))
 
                     # And finally write the (maybe pupilghost-corrected) flat-field to disk
                     flat_hdus.writeto(flat_frame, clobber=True)
                 else:
-                    stdout_write("Flatfield (%s) already exists!\n" % filter)       
+                    logger.info("Flatfield (%s) already exists, nothing to do!\n" % (filter))
                 if (not cmdline_arg_isset("-keeptemps")):
                     for file in flats_to_stack:
+                        logger.debug("Deleting tmp-file %s" % (file))
                         clobberfile(file)
 
     #            options['pupilghost_dir'] = pupilghost_dir
 
     stdout_write("\nAll done, yippie :-)\n\n")
+    logger.debug("All calibrations done successfully!")
+    shutdown_logging(options)
