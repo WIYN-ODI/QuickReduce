@@ -1973,10 +1973,11 @@ def collectcells(input, outputfile,
 
     enough_stars_for_fixwcs = not global_source_cat == None \
                               and global_source_cat.shape[0]>3
-    if (enough_stars_for_fixwcs):
-        logger.debug("Found enough stars for FIXWCS")
-    else:
-        logger.info("Couldn't find enough stars for astrometric calibration!")
+    if (options['fixwcs']):
+        if (enough_stars_for_fixwcs):
+            logger.debug("Found enough stars for astrometric calibration")
+        else:
+            logger.info("Couldn't find enough stars for astrometric calibration!")
 
     if (options['fixwcs'] 
         and enough_stars_for_fixwcs):
