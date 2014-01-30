@@ -211,6 +211,15 @@ Available flags
   c: Reference. This can either be a MJD directly, or a FITS file containing the 
      MJD-OBS header keyword which is then taken to be the reference MJD.
 
+* **-fitradialZP**
+
+  Fit a linear radial profile to the photometric zeropoint data. The center is 
+  assumed to be roughly the center of OTA 3,3 as per Daniel Harbeck's demo-
+  script. Fit results (RADZP_P0, RADZP_P1) and errors (RADZP_E0, RADZP_E1) are 
+  stored in the primary header of the output file. If enabled, this options also
+  generates another diagnostic plot showing the uncorrected photometric ZP as
+  function of radius before and after the best-fit has been taken out.
+
 Methods
 --------------------------------------------------------------------------------
 
