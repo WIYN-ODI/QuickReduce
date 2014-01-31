@@ -65,6 +65,13 @@ Command line options
   inspect products as they are being created, e.g. making sure the bias-frame 
   look good before using it to reduce the dark-frames.
 
+* **-keepprepg**
+ 
+  Keep a copy of the flat-fields BEFORE the pupilghost has been reduced.
+
+
+
+
 All other command-line options are handled by podi_collectcells, so see the full
 list of command line options for this task.
 
