@@ -385,9 +385,7 @@ def collect_reduce_ota(filename,
         extname2id = {}
         for i in range(1, len(hdulist)):
             _extname = hdulist[i].header['EXTNAME']
-            print _extname
             extname2id[_extname] = i
-        print extname2id
 
         # 
         # Perform cross-talk correction, using coefficients found in the 
