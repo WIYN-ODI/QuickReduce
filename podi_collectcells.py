@@ -2156,6 +2156,9 @@ def collectcells(input, outputfile,
     ota_list[0].header['ZPRES_SP'] = (-99., "phot ZP upper 1 sigma of rest catalog")
     ota_list[0].header['ZPRES_SM'] = (-99., "phot ZP lower 1 sigma of rest catalog")
     ota_list[0].header['ZPRES__N'] = (  -1, "phot ZP restricted catalog size")
+    ota_list[0].header['ZPRES_MD'] = ( -99, "phot ZP restricted cat. median ODI mag")
+    ota_list[0].header['ZPRES_MX'] = ( -99, "phot ZP restricted cat. max ODI mag")
+    ota_list[0].header['ZPRES_MN'] = ( -99, "phot ZP restricted cat. min ODI mag")
 
     # Add more keywords for the ZP-ODI_mag relation
     ota_list[0].header['ZPSLP_P0'] = (0., "phot ZP - magnitude slope - y0")
@@ -2212,12 +2215,15 @@ def collectcells(input, outputfile,
             ota_list[0].header['RADZP_E1'] = photcalib_details['radialZPfit_error'][1]
 
         if (not photcalib_details['zp_restricted'] == None):
-            (sel_median, sel_std, sel_psigma, sel_msigma, sel_n) = photcalib_details['zp_restricted']
+            (sel_median, sel_std, sel_psigma, sel_msigma, sel_n, sel_medodimag, sel_maxodimag, sel_minodimag) = photcalib_details['zp_restricted']
             ota_list[0].header['ZPRESMED'] = sel_median
             ota_list[0].header['ZPRESSTD'] = sel_std
             ota_list[0].header['ZPRES_SP'] = sel_psigma
             ota_list[0].header['ZPRES_SM'] = sel_msigma
             ota_list[0].header['ZPRES__N'] = sel_n
+            ota_list[0].header['ZPRES_MD'] = sel_medodimag
+            ota_list[0].header['ZPRES_MX'] = sel_maxodimag
+            ota_list[0].header['ZPRES_MN'] = sel_minodimag
             
         if (not photcalib_details['zp_magnitude_slope'] == None):
             fit, uncert = photcalib_details['zp_magnitude_slope']

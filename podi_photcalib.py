@@ -995,8 +995,11 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             sel_std = numpy.std(zp_sel[:,2])
             sel_psigma = scipy.stats.scoreatpercentile(zp_sel[:,2], 84)
             sel_msigma = scipy.stats.scoreatpercentile(zp_sel[:,2], 16)
+            sel_medodimag = numpy.median(zp_sel[:,0])
+            sel_maxodimag = numpy.max(zp_sel[:,0])
+            sel_minodimag = numpy.min(zp_sel[:,0])
             sel_n = number_within_3mags
-            detailed_return['zp_restricted'] = (sel_median, sel_std, sel_psigma, sel_msigma, sel_n)
+            detailed_return['zp_restricted'] = (sel_median, sel_std, sel_psigma, sel_msigma, sel_n, sel_medodimag, sel_maxodimag, sel_minodimag)
 
         #
         # Also fit a slope to the full data set. This way, if the slope is
