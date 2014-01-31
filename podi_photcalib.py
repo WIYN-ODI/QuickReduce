@@ -1012,7 +1012,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             return (linear - zp) / zp_err
 
         p_init = [zp_median, 0]
-        args = (odi_mag, zp, zperr)
+        args = (sdss_mag, zp, zperr)
         fit = scipy.optimize.leastsq(linear_fit_err, p_init, args=args, full_output=1)
         pfit = fit[0]
         uncert = numpy.sqrt(numpy.diag(fit[1]))
@@ -1039,7 +1039,8 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                                                   sdss_filter, filtername, #"r", "odi_r",
                                                   title=plottitle,
                                                   options=options,
-                                                  also_plot_singleOTAs=options['otalevelplots'])
+                                                  also_plot_singleOTAs=options['otalevelplots'],
+                                                  details=detailed_return)
 
         # print odi_sdss_matched[0,:]
 

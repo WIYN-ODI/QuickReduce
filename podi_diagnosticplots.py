@@ -622,6 +622,7 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
                          title=None,
                          options=None,
                          also_plot_singleOTAs=False,
+                         details=None,
                          ):
 
     """
@@ -720,8 +721,22 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
     #
     matplotlib.pyplot.plot(x_values+1, y_values*zp_median, linewidth=1, ls='-', color='white')
 
+    #
+    # Add some additional data about the restricted fitting range and 
+    # the slope of phot. ZP with SDSS magnitude
+    #
+    if (not details == None):
+        # Add some information about the fitted slope
+        if (not details['zp_magnitude_slope'] == None):
+            fit, err = details['zp_magnitude_slope']
+            minx = numpy.min(sdss_mag[clipped])
+            maxx = numpy.max(sdss_mag[clipped])
+            slopefit_x = numpy.linspace(minx-0.1*(maxx-minx), maxx+0.1*(maxx-minx), 100)
+            slopefit_y = fit[0] + fit[1] * slopefit_x
+            ax.plot(slopefit_x, slopefit_y, "k-", label="fit ZP(SDSS-mag)")
+
     ax.grid(True)
-    ax.legend(loc='upper left', borderaxespad=1)
+    ax.legend(loc='upper left', borderaxespad=0.5, prop={'size':9})
 
     photzp_text = u"ZP = %.3f \u00b1 %.3f mag" % (zp_median, zp_std)
     ax.text(0.96, 0.05, photzp_text, fontsize=15,
