@@ -2142,10 +2142,28 @@ def collectcells(input, outputfile,
                                                   also_plot_singleOTAs=options['otalevelplots'],
                                                   title_info=title_info)
 
+    #
+    # Add some default photometric calibration keywords
+    #
     ota_list[0].header['PHOTMCAT'] = (None, "catalog used for photometric calibration")
     ota_list[0].header['SKYMAG'] = (-99., "magnitude of sky [mag/arcsec**2]")
     ota_list[0].header['PHOTDPTH'] = (-99, "photometric depth [mag]")
     ota_list[0].header['RADZPFIT'] = (False, "was a radial ZP fit done?")
+
+    # Add keywords for the magnitude/count/error restricted zeropoint calculation
+    ota_list[0].header['ZPRESMED'] = (-99., "phot ZP of restricted catalog")
+    ota_list[0].header['ZPRESSTD'] = (-99., "phot. ZP std.dev. of rest catalog")
+    ota_list[0].header['ZPRES_SP'] = (-99., "phot ZP upper 1 sigma of rest catalog")
+    ota_list[0].header['ZPRES_SM'] = (-99., "phot ZP lower 1 sigma of rest catalog")
+    ota_list[0].header['ZPRES__N'] = (  -1, "phot ZP restricted catalog size")
+
+    # Add more keywords for the ZP-ODI_mag relation
+    ota_list[0].header['ZPSLP_P0'] = (0., "phot ZP - magnitude slope - y0")
+    ota_list[0].header['ZPSLP_P1'] = (0., "phot ZP - magnitude slope - y1")
+    ota_list[0].header['ZPSLP_E0'] = (0., "phot ZP - magnitude slope - dy0")
+    ota_list[0].header['ZPSLP_E1'] = (0., "phot ZP - magnitude slope - dy1")
+
+    # Add more keywords for the ZP slope with ODI magnitude
     if (options['photcalib'] 
         and options['fixwcs']
         and enough_stars_for_fixwcs):
@@ -2192,6 +2210,21 @@ def collectcells(input, outputfile,
             ota_list[0].header['RADZP_P1'] = photcalib_details['radialZPfit'][1]
             ota_list[0].header['RADZP_E0'] = photcalib_details['radialZPfit_error'][0]
             ota_list[0].header['RADZP_E1'] = photcalib_details['radialZPfit_error'][1]
+
+        if (not photcalib_details['zp_restricted'] == None):
+            (sel_median, sel_std, sel_psigma, sel_msigma, sel_n) = photcalib_details['zp_restricted']
+            ota_list[0].header['ZPRESMED'] = sel_median
+            ota_list[0].header['ZPRESSTD'] = sel_std
+            ota_list[0].header['ZPRES_SP'] = sel_psigma
+            ota_list[0].header['ZPRES_SM'] = sel_msigma
+            ota_list[0].header['ZPRES__N'] = sel_n
+            
+        if (not photcalib_details['zp_magnitude_slope'] == None):
+            fit, uncert = photcalib_details['zp_magnitude_slope']
+            ota_list[0].header['ZPSLP_P0'] = fit[0]
+            ota_list[0].header['ZPSLP_P1'] = fit[1]
+            ota_list[0].header['ZPSLP_E0'] = uncert[0]
+            ota_list[0].header['ZPSLP_E1'] = uncert[1]
 
         ref_ZP = -99. if not filter_name in reference_zeropoint else reference_zeropoint[filter_name][0]
         ota_list[0].header['MAGZREF'] = (ref_ZP, "reference photometric zeropoint")

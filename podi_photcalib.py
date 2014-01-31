@@ -647,7 +647,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
               verbose=False,
               eliminate_flags=True,
               matching_radius=3,
-              detailed_return=None):
+              detailed_return={}):
 
     """
     Perform the photometric calibration, create the diagnostic plots and return
@@ -749,6 +749,8 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     detailed_return['colorcorrection'] = None
     detailed_return['radialZPfit'] = None
     detailed_return['radialZPfit_error'] = None
+    detailed_return['zp_restricted'] = None
+    detailed_return['zp_magnitude_slope'] = None
 
     # Figure out which SDSS to use for calibration
     sdss_filter = sdss_equivalents[filtername]
@@ -833,13 +835,10 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
         sdss_mag -= color_correction
 
-        if (not detailed_return == None):
-            detailed_return['colorterm'] = colorterm
-            detailed_return['colorcorrection'] = "sdss_%s - sdss_%s" % (filter1, filter2)
+        detailed_return['colorterm'] = colorterm
+        detailed_return['colorcorrection'] = "sdss_%s - sdss_%s" % (filter1, filter2)
     else:    
-        if (not detailed_return == None):
-            detailed_return['colorterm'] = None
-
+        detailed_return['colorterm'] = None
         logger.debug("No color-term definition for this filter (%s)" % (filtername))
 
 
@@ -979,15 +978,51 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
         # print "zeropoint (un-clipped)",zp_median_," +/-", zp_std_
 
-    if (not detailed_return == None):
-        detailed_return['median'] = zp_median
-        detailed_return['std'] = zp_std
-        detailed_return['zp_exptime'] = zp_exptime
-        detailed_return['stderrofmean'] = scipy.stats.sem(zp_clipped)
-        detailed_return['zp_upper1sigma'] = zp_upper1sigma
-        detailed_return['zp_lower1sigma'] = zp_lower1sigma
-        detailed_return['n_clipped'] = zp_clipped.shape[0]
-        detailed_return['n_raw'] = zp.shape[0]
+        #
+        # Now try to only use the top 100 brightest stars with errors < 0.1 mag
+        #
+        brightest_star_mag = numpy.min(odi_mag[odi_magerr < 0.1])
+        si = numpy.argsort(odi_mag)
+        number_within_3mags = numpy.sum( ((odi_mag < brightest_star_mag+3) & (odi_magerr < 0.1)) )
+        sel_median, sel_std, sel_psigma, sel_msigma, sel_n = -99., -99., -99., -99., -1
+        if (number_within_3mags > 3):
+            if (number_within_3mags > 100): number_within_3mags = 100
+            zp_sel = numpy.zeros( (number_within_3mags, 4) )
+            for i in range(number_within_3mags):
+                zp_sel[i,:] = [odi_mag[si[i]], sdss_mag[si[i]], zp[si[i]], zperr[si[i]]]
+            # Now we have only a subset of all points
+            sel_median = numpy.median(zp_sel[:,2])
+            sel_std = numpy.std(zp_sel[:,2])
+            sel_psigma = scipy.stats.scoreatpercentile(zp_sel[:,2], 84)
+            sel_msigma = scipy.stats.scoreatpercentile(zp_sel[:,2], 16)
+            sel_n = number_within_3mags
+            detailed_return['zp_restricted'] = (sel_median, sel_std, sel_psigma, sel_msigma, sel_n)
+
+        #
+        # Also fit a slope to the full data set. This way, if the slope is
+        # significantly larger than zero this means trouble
+        #
+        def linear_fit(p, odi_mag):
+            return p[0] + p[1] * odi_mag
+        def linear_fit_err(p, odi_mag, zp, zp_err):
+            linear = linear_fit(p, odi_mag)
+            return (linear - zp) / zp_err
+
+        p_init = [zp_median, 0]
+        args = (odi_mag, zp, zperr)
+        fit = scipy.optimize.leastsq(linear_fit_err, p_init, args=args, full_output=1)
+        pfit = fit[0]
+        uncert = numpy.sqrt(numpy.diag(fit[1]))
+        detailed_return['zp_magnitude_slope'] = (pfit, uncert)
+        
+    detailed_return['median'] = zp_median
+    detailed_return['std'] = zp_std
+    detailed_return['zp_exptime'] = zp_exptime
+    detailed_return['stderrofmean'] = scipy.stats.sem(zp_clipped)
+    detailed_return['zp_upper1sigma'] = zp_upper1sigma
+    detailed_return['zp_lower1sigma'] = zp_lower1sigma
+    detailed_return['n_clipped'] = zp_clipped.shape[0]
+    detailed_return['n_raw'] = zp.shape[0]
 
     # Make plots
     if (diagplots):
