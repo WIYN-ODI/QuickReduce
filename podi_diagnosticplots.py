@@ -378,10 +378,10 @@ def plot_wcsdiag_shift(radec, d_radec,
     #                   label="1''", labelpos='S',
     #                   coordinates='data'
     #                   )
-    qk = ax.quiverkey(Q, 0.05, 0.95, arrow_length*vector_scaling, 
-                      label="1''", labelpos='S',
-                      coordinates='axes'
-                      )
+    # qk = ax.quiverkey(Q, 0.05, 0.95, arrow_length*vector_scaling, 
+    #                   label="1''", labelpos='S',
+    #                   coordinates='axes'
+    #                   )
 
     # ax.quiver(arrow_x, arrow_y, arrow_length*vector_scaling, 0, linewidth=0,
     #           angles='xy', scale_units='xy', scale=1, pivot='middle',
