@@ -242,6 +242,7 @@ import multiprocessing
 import ctypes
 import time
 import logging
+import itertools
 
 from podi_plotting import *
 
@@ -376,6 +377,18 @@ def collect_reduce_ota(filename,
         # Also read the MJD for this frame. This will be needed later for the correction
         mjd = hdu.header['MJD-OBS']
 
+        #
+        # in the old data, some header EXTNAMES are duplicated, so we can't look
+        # up extensions by name in this case. Create a dictionary with EXTNAMES 
+        # and extension IDs to work around this problem.
+        #
+        extname2id = {}
+        for i in range(1, len(hdulist)):
+            _extname = hdulist[i].header['EXTNAME']
+            print _extname
+            extname2id[_extname] = i
+        print extname2id
+
         # 
         # Perform cross-talk correction, using coefficients found in the 
         # podi_crosstalk package.
@@ -405,9 +418,9 @@ def collect_reduce_ota(filename,
                     # the corrected cell content output
                     #print "Adding ",xy_name,"to ",extname, column, row, "(scaling",podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column],")"
 
-                    correction = hdulist[xy_name].data * podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column]
+                    correction = hdulist[extname2id[xy_name]].data * podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column]
                     if (column != xtalk_column):
-                        saturated = hdulist[xy_name].data >= podi_crosstalk.xtalk_saturation_limit
+                        saturated = hdulist[extname2id[xy_name]].data >= podi_crosstalk.xtalk_saturation_limit
                         correction[saturated] = -1 * podi_crosstalk.xtalk_saturated_correction
 
                     xtalk_corr[column] += correction #hdulist[xy_name].data * podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column]
@@ -417,7 +430,7 @@ def collect_reduce_ota(filename,
                 # Now all cells in this row have been corrected, let's write them 
                 # back into the hdulist so can can continue with the overscan subtraction etc.
                 xy_name = "xy%d%d" % (column, row)
-                hdulist[xy_name].data = xtalk_corr[column]
+                hdulist[extname2id[xy_name]].data = xtalk_corr[column]
         logger.debug("Done with crosstalk correction")
 
         #
@@ -444,11 +457,14 @@ def collect_reduce_ota(filename,
             nonlin_data = podi_nonlinearity.load_nonlinearity_correction_table(nonlinearity_file, ota)
             reduction_files_used['nonlinearity'] = nonlinearity_file
 
-        all_gains = numpy.zeros(shape=(64))
-        for cell in range(1,65):
+        all_gains = numpy.zeros(shape=(len(hdulist)))
+        all_gains[:] = numpy.NaN
+
+        for wm_cellx, wm_celly in itertools.product(range(8),repeat=2):
             #if (not options['bgmode']):
             #    stdout_write("\r%s:   OTA %02d, cell %s ..." % (obsid, ota, hdulist[cell].header['EXTNAME']))
-            wm_cellx, wm_celly = hdulist[cell].header['WN_CELLX'], hdulist[cell].header['WN_CELLY']
+            cellname = "xy%d%d" % (wm_cellx, wm_celly)
+            cell = extname2id[cellname]
 
             #
             # Special case for cell 0,7 (the one in the bottom left corner):
@@ -470,7 +486,7 @@ def collect_reduce_ota(filename,
                 # This means it either broken (id=-1) or in video-mode (id=1)
                 continue
 
-            all_gains[cell-1] = gain
+            all_gains[cell] = gain
 
             #
             # Now extract just the data section.
@@ -550,8 +566,9 @@ def collect_reduce_ota(filename,
         #
         # Compute the average gain and store how many cells contributed
         #
-        valid_gain = all_gains > 0
-        gain_avg = numpy.mean(all_gains[valid_gain])
+        valid_gain = (all_gains > 0) & (numpy.isfinite(all_gains))
+
+        gain_avg = numpy.nanmean(all_gains[valid_gain])
         hdu.header['GAIN'] = (gain_avg, 'gain averaged over all cells')
         hdu.header['GAIN_CNT'] = (numpy.sum(valid_gain), 'number of cells contrib. to avg. gain')
 
