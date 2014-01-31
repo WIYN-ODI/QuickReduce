@@ -568,7 +568,7 @@ def collect_reduce_ota(filename,
         #
         valid_gain = (all_gains > 0) & (numpy.isfinite(all_gains))
 
-        gain_avg = numpy.nanmean(all_gains[valid_gain])
+        gain_avg = numpy.mean(all_gains[valid_gain])
         hdu.header['GAIN'] = (gain_avg, 'gain averaged over all cells')
         hdu.header['GAIN_CNT'] = (numpy.sum(valid_gain), 'number of cells contrib. to avg. gain')
 
