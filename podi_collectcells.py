@@ -204,7 +204,7 @@ Available flags
   contains spaces, the value needs to be quoted (eg. -addfitskey=WIYN,"greatest 
   of the universe")
 
-* **-nonlinearity=a,b,c**
+* **-nonsidereal=a,b,c**
 
   a: proper motion of the object (dRA*cos(dec)) given in arcseconds per hour.
   b: proper motion dDec in arcsec / hour
@@ -264,7 +264,6 @@ import podi_photcalib
 import podi_nonlinearity
 import podi_logging
 
-
 from astLib import astWCS
 
 fix_cpu_count = False
@@ -280,8 +279,6 @@ if (sitesetup.number_cpus == "auto"):
         pass
 else:
     number_cpus = sitesetup.number_cpus
-
-
 
 
 
@@ -385,7 +382,9 @@ def collect_reduce_ota(filename,
         extname2id = {}
         for i in range(1, len(hdulist)):
             _extname = hdulist[i].header['EXTNAME']
-            extname2id[_extname] = i
+            logger.debug(_extname)
+            extname2id[_extname.lower()] = i
+        logger.debug("Setting up extension lookup directory:\n"+str(extname2id))
 
         # 
         # Perform cross-talk correction, using coefficients found in the 
@@ -400,7 +399,7 @@ def collect_reduce_ota(filename,
         xtalk_corr = [None] * 8
 
         # Now go through each of the 8 lines
-        logger.debug("Starting crosstalk correction")
+        logger.debug("Starting crosstalk correction (%s)" % (extname))
         for row in range(8):
             for column in range(8):
                 
@@ -912,7 +911,7 @@ def collect_reduce_ota(filename,
                     sitesetup.sextractor, sex_config_file, parameters_file, catfile, 
                     fitsfile, sitesetup.sex_redirect)
                 if (options['verbose']): print sexcmd
-                
+
                 start_time = time.time()
                 os.system(sexcmd)
                 end_time = time.time()
@@ -1187,6 +1186,12 @@ def parallel_collect_reduce_ota(queue, return_queue,
                 queue.get()
                 queue.task_done()
             break
+        except:
+            # All other problems:
+            # Note them in the debug log, and raise the error for further 
+            # processing
+            log_exception("parallel_collectcells")
+            raise
 
         # Add the results to the return_queue so the master process can assemble the result file
         # print "Adding results for OTA",ota_id,"to return queue"
@@ -3096,23 +3101,9 @@ if __name__ == "__main__":
                 collectcells(input, outputfile, process_tracker=process_tracker, options=options)
     except:
         print "Cleaning up left over child processes"
+        log_exception()
         kill_all_child_processes(process_tracker)
 
-        etype, error, stackpos = sys.exc_info()
-
-        # stdout_write("\n\n\n\n\n\nkilled main task...\n\n\n\n\n\n")
-        # stdout_write("\n\n##############################\n#\n# Something terrible happened!\n")
-        # stdout_write("# Exception report:")
-        # stdout_write("#  ==> %s\n" % (error))
-        # print traceback.format_exc()
-        # stdout_write("#\n##############################\n")
-
-        logger = logging.getLogger()
-        logger.error("=========== EXCEPTION ==============")
-        logger.error("etype: %s" % (str(etype)))
-        logger.error("error: %s" % (str(error)))
-        logger.error("stackpos: %s" % (str(stackpos)))
-        logger.error("\n\n\n"+traceback.format_exc()+"\n\n")
 
     finally:
         shutdown_logging(options)

@@ -1809,3 +1809,23 @@ def match_catalog_areas(src, to_match, radius):
     # matched[:,0] /= numpy.cos(numpy.radians(matched[:,1])) 
 
     return matched
+
+
+import logging
+import traceback
+
+def log_exception(name=None):
+
+    etype, error, stackpos = sys.exc_info()
+
+    exception_string = ["\n",
+                        "=========== EXCEPTION ==============",
+                        "etype: %s" % (str(etype)),
+                        "error: %s" % (str(error)),
+                        "stackpos: %s" % (str(stackpos)),
+                        "---\n",
+                        traceback.format_exc(),
+                        "--- end\n"
+    ]
+    logger = logging.getLogger(name)
+    logger.critical("\n".join(exception_string))
