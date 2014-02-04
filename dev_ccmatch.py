@@ -1360,9 +1360,10 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     if (type(input_hdu) == str):
         # Load the input frame
-        print "optimizing rotation in frame",input_hdu
+        logger.debug("optimizing rotation in frame %s" % (input_hdu))
         hdulist = pyfits.open(input_hdu)
     else:
+        logger.debug("optimzing WCS in passed HDUlist")
         hdulist = input_hdu
 
 
@@ -1391,6 +1392,13 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     ref_close = match_catalog_areas(src_raw, ref_raw, max_pointing_error/60.)
     logger.debug("area matched ref. catalog: "+str(ref_close.shape))
+    if (ref_close.shape[0] <= 0):
+        logger.debug("couldn't find any matched stars overlapping the odi field")
+        logger.critical("Found no overlap between 2MASS catalog and ODI source catalog.")
+        logger.critical("This should not happen. Please report this problem to the")
+        logger.critical("author (kotulla@uwm.edu) and attach the debug.log file. Thanks!")
+        logger.debug("Falling back to using the full sample."
+
     if (create_debug_files): numpy.savetxt("ccmatch.matched_ref_cat", ref_close)
 
     # Save the matched 2MASS catalog as return data
