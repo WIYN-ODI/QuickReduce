@@ -2029,12 +2029,38 @@ if __name__ == "__main__":
 
     elif (cmdline_arg_isset("-testmatch")):
 
+        import matplotlib.pyplot
+
         ra = float(get_clean_cmdline()[1])
         dec = float(get_clean_cmdline()[2])
         width = float(get_clean_cmdline()[3])
         overlap = float(get_clean_cmdline()[4])
 
-        
+        ref_raw = podi_search_ipprefcat.get_reference_catalog(ra, dec, width, 
+                                                              basedir=sitesetup.wcs_ref_dir,
+                                                              cattype=sitesetup.wcs_ref_type)
+        numpy.savetxt("2mass_test.raw", ref_raw)
+
+        # Now create a fake-catalog of only the 4 corners
+        src_cat = numpy.array([
+            [ra, dec],
+            [ra-width, dec-width],
+            [ra+width, dec-width],
+            [ra+width, dec+width],
+            [ra-width, dec+width],
+        ])
+
+        ref_close = match_catalog_areas(src_cat, ref_raw, overlap/60.)
+        numpy.savetxt("2mass_test.match", ref_close)
+
+        fig = matplotlib.pyplot.figure()
+        ax = fig.add_subplot(111)
+        ax.scatter(ref_raw[:,0], ref_raw[:,1], c="grey", marker="+")
+        ax.scatter(ref_close[:,0], ref_close[:,1], c="blue", marker="o", linewidths=0)
+        ax.set_xlim((ra-width, ra+width))
+        ax.set_ylim((dec-width, dec+width))
+        fig.savefig("2mass_test.png")
+
     else:
         mode = cmdline_arg_set_or_default('-mode', 'xxx')
         print mode
