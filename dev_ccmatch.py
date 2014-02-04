@@ -1397,7 +1397,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         logger.critical("Found no overlap between 2MASS catalog and ODI source catalog.")
         logger.critical("This should not happen. Please report this problem to the")
         logger.critical("author (kotulla@uwm.edu) and attach the debug.log file. Thanks!")
-        logger.debug("Falling back to using the full sample."
+        logger.debug("Falling back to using the full sample.")
 
     if (create_debug_files): numpy.savetxt("ccmatch.matched_ref_cat", ref_close)
 
@@ -2027,6 +2027,14 @@ if __name__ == "__main__":
 
         verify_wcs_model(source_catalog, hdulist)
 
+    elif (cmdline_arg_isset("-testmatch")):
+
+        ra = float(get_clean_cmdline()[1])
+        dec = float(get_clean_cmdline()[2])
+        width = float(get_clean_cmdline()[3])
+        overlap = float(get_clean_cmdline()[4])
+
+        
     else:
         mode = cmdline_arg_set_or_default('-mode', 'xxx')
         print mode
