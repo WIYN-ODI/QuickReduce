@@ -763,18 +763,18 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
     # Eliminate all stars with flags
     if (eliminate_flags):
-        flags = source_cat[:,7]
+        flags = source_cat[:,SXcolumn['flags']]
         no_flags_set = (flags == 0)
         source_cat = source_cat[no_flags_set]
 
-    ra_min = numpy.min(source_cat[:,0])
-    ra_max = numpy.max(source_cat[:,0])
+    ra_min = numpy.min(source_cat[:,SXcolumn['ra']])
+    ra_max = numpy.max(source_cat[:,SXcolumn['ra']])
     # Make sure we deal with RAs around 0 properly
     if (math.fabs(ra_max - ra_min) > 180):
         ra_min, ra_max = ra_max, ra_min+360.
 
-    dec_min = numpy.min(source_cat[:,1])
-    dec_max = numpy.max(source_cat[:,1])
+    dec_min = numpy.min(source_cat[:,SXcolumn['dec']])
+    dec_max = numpy.max(source_cat[:,SXcolumn['dec']])
                  
     logger.debug("Starting photometric calibration!")
     #stdout_write("\nPreparing work ...\n\n")
@@ -816,8 +816,13 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     odi_ra, odi_dec = odi_sdss_matched[:,0], odi_sdss_matched[:,1]
     sdss_ra, sdss_dec = odi_sdss_matched[:,2], odi_sdss_matched[:,3]
 
+    #
     # Use photometry for the 3'' aperture
-    odi_mag, odi_magerr = odi_sdss_matched[:,17], odi_sdss_matched[:,25]
+    #
+    # The +2 in the index is because match_catalog adds the reference 
+    # coordinates as columns 3 & 4
+    odi_mag = odi_sdss_matched[:,SXcolumn['mag_aper_3.0']+2]
+    odi_magerr = odi_sdss_matched[:,SXcolumn['mag_err_3.0']+2]
 
     # Compute the calibration magnitude from SDSS, 
     # accounting for color-terms if needed
@@ -1152,7 +1157,7 @@ if __name__ == "__main__":
         print "Found",src_catalog.shape[0],"stars in frame"
 
         # Now eliminate all frames with magnitude 99
-        good_photometry = src_catalog[:,16] < 0
+        good_photometry = src_catalog[:,SXcolumn['mag_aper_3.0']] < 0
         src_catalog = src_catalog[good_photometry]
         print src_catalog.shape[0],"stars with good photometry"
 
@@ -1233,7 +1238,7 @@ if __name__ == "__main__":
             print "Found",src_catalog.shape[0],"stars in frame"
 
             # Now eliminate all frames with magnitude 99
-            good_photometry = src_catalog[:,16] < 0
+            good_photometry = src_catalog[:,SXcolumn['mag_aper_3.0']] < 0
             src_catalog = src_catalog[good_photometry]
             print src_catalog.shape[0],"stars with good photometry"
 
