@@ -2029,6 +2029,7 @@ if __name__ == "__main__":
 
     elif (cmdline_arg_isset("-testmatch")):
 
+        import podi_plotting
         import matplotlib.pyplot
 
         ra = float(get_clean_cmdline()[1])
