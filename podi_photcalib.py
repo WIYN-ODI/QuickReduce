@@ -751,6 +751,10 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     detailed_return['radialZPfit_error'] = None
     detailed_return['zp_restricted'] = None
     detailed_return['zp_magnitude_slope'] = None
+    detailed_return['aperture_mode'] = None
+    detailed_return['aperture_size'] = -99.
+    detailed_return['aperture_mag'] = None
+    detailed_return['aperture_magerr'] = None
 
     # Figure out which SDSS to use for calibration
     sdss_filter = sdss_equivalents[filtername]
@@ -821,8 +825,58 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     #
     # The +2 in the index is because match_catalog adds the reference 
     # coordinates as columns 3 & 4
-    odi_mag = odi_sdss_matched[:,SXcolumn['mag_aper_3.0']+2]
-    odi_magerr = odi_sdss_matched[:,SXcolumn['mag_err_3.0']+2]
+    
+    # NEW: use a user-definable aperture
+    photcalib_odi_aperture = "fwhm_x_3" #"auto"
+
+    try:
+        if (photcalib_odi_aperture == "fwhm_x_3"):
+            logger.debug("Using seeing-based photcalib aperture")
+            # If set to auto, base the magnitude on the seeing to be > 2.5 * FWHM
+            seeing = numpy.median(odi_sdss_matched[:, SXcolumn['fwhm_world']+2]) * 3600.
+            logger.debug("Found seeing = %.2f" % (seeing))
+            detailed_return['aperture_mode'] = "fwhm_x_3"
+            for i in range(len(SXapertures)):
+                if (SXapertures[i] > seeing * 3 or i == (len(SXapertures)-1)):
+                    col_mag = 'mag_aper_%0.1f' % (SXapertures[i])
+                    col_magerr = 'mag_err_%0.1f' % (SXapertures[i])
+                    detailed_return['aperture_size'] = SXapertures[i]
+                    break
+        elif (photcalib_odi_aperture == "auto"):
+            logger.debug("Choosing AUTO_MAG for photometric calibration")
+            col_mag = 'mag_auto'
+            col_magerr = 'mag_err_auto'
+            detailed_return['aperture_mode'] = "mag_auto"
+            detailed_return['aperture_size'] = 0.
+        elif (photcalib_odi_aperture in SXapertures):
+            logger.debug("Choosing a numeric aperture size: %.1f" % (photcalib_odi_aperture))
+            col_mag = 'mag_aper_%0.1f' % (photcalib_odi_aperture)
+            col_magerr = 'mag_err_%0.1f' % (photcalib_odi_aperture)
+            detailed_return['aperture_mode'] = "manual"
+            detailed_return['aperture_size'] = photcalib_odi_aperture
+        elif (type(photcalib_odi_aperture) == tuple and len(photcalib_odi_aperture) == 2):
+            logger.debug("Using user-defined aperture/error for phot.calib: %s" % (str(photcalib_odi_aperture)))
+            col_mag, col_magerr = photcalib_odi_aperture
+            detailed_return['aperture_mode'] = "manual"
+            detailed_return['aperture_size'] = 0
+        else:
+            logger.debug("Using default aperture of 6.0 arcsec")
+            col_mag, col_magerr = 'mag_aper_6.0', 'mag_err_6.0'
+            detailed_return['aperture_mode'] = "default"
+            detailed_return['aperture_size'] = 6.0
+    except:
+        log_exception()
+        logger.error("Problem with configuring the phot.calib aperture, using 6.0'' diameter instead")
+        detailed_return['aperture_mode'] = "default-error"
+        detailed_return['aperture_size'] = 6.0
+        col_mag, col_magerr = 'mag_aper_6.0', 'mag_err_6.0'
+
+    logger.debug("Aperture for photcalib: %s %s" % (col_mag, col_magerr))
+    detailed_return['aperture_mag'] = col_mag
+    detailed_return['aperture_magerr'] = col_magerr
+
+    odi_mag = odi_sdss_matched[:,SXcolumn[col_mag]+2]
+    odi_magerr = odi_sdss_matched[:,SXcolumn[col_magerr]+2]
 
     # Compute the calibration magnitude from SDSS, 
     # accounting for color-terms if needed

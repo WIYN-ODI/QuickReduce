@@ -23,6 +23,9 @@ EXT_NUMBER             FITS extension number
 MAG_APER(8) 
 MAGERR_APER(8)
 
+MAG_AUTO
+MAGERR_AUTO
+
 FLUX_MAX               Peak flux above background [count]
 
 AWIN_IMAGE                Profile RMS along major axis                               [pixel]

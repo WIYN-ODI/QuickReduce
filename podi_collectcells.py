@@ -2146,6 +2146,12 @@ def collectcells(input, outputfile,
         ota_list[0].header["MAGZSIG"] = (photcalib_details['std'], "phot ZP dispersion")
         ota_list[0].header["MAGZERR"] = (photcalib_details['stderrofmean'], "phot ZP uncertainty")
 
+        # Add some information on what apertures were used for the photometric calibration
+        ota_list[0].header['MAG0MODE'] = (photcalib_details['aperture_mode'], "how was aperture determined")
+        ota_list[0].header['MAG0SIZE'] = (photcalib_details['aperture_size'], "what aperture size was used")
+        ota_list[0].header['MAG0_MAG'] = (photcalib_details['aperture_mag'], "id string for magnitude")
+        ota_list[0].header['MAG0_ERR'] = (photcalib_details['aperture_magerr'], "is string for mag error")
+
         if (not photcalib_details['radialZPfit'] == None):
             ota_list[0].header['RADZPFIT'] = True
             ota_list[0].header['RADZP_P0'] = photcalib_details['radialZPfit'][0]
@@ -2387,64 +2393,6 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched):
                       format='D', unit='degrees', 
                       array=odi_sdss_matched[:, 3]),
 
-        #
-        # Magnitudes and errors for all ODI apertures
-        #
-        pyfits.Column(name='ODI_MAG_05', disp='ODI aperture magnitude 0.5 arcsec',
-                      format='E', unit='mag', 
-                      array=odi_sdss_matched[:, SXcolumn['mag_aper_0.5']+2]),
-        pyfits.Column(name='ODI_ERR_05', disp='ODI ap.mag. error 0.5 arcsec',
-                      format='E', unit='mag', 
-                      array=odi_sdss_matched[:, SXcolumn['mag_err_0.5']+2]),
-
-        pyfits.Column(name='ODI_MAG_08', disp='ODI aperture magnitude 0.8 arcsec',
-                      format='E', unit='mag', 
-                      array=odi_sdss_matched[:, SXcolumn['mag_aper_0.8']+2]),
-        pyfits.Column(name='ODI_ERR_08', disp='ODI ap.mag. error 0.8 arcsec',
-                      format='E', unit='mag', 
-                      array=odi_sdss_matched[:, SXcolumn['mag_err_0.8']+2]),
-
-        pyfits.Column(name='ODI_MAG_10', disp='ODI aperture magnitude 1.0 arcsec',
-                      format='E', unit='mag', 
-                      array=odi_sdss_matched[:, SXcolumn['mag_aper_1.0']+2]),
-        pyfits.Column(name='ODI_ERR_10', disp='ODI ap.mag. error 1.0 arcsec',
-                      format='E', unit='mag', 
-                      array=odi_sdss_matched[:, SXcolumn['mag_err_1.0']+2]),
-
-        pyfits.Column(name='ODI_MAG_15', disp='ODI aperture magnitude 1.5 arcsec',
-                      format='E', unit='mag', 
-                      array=odi_sdss_matched[:, SXcolumn['mag_aper_1.5']+2]),
-        pyfits.Column(name='ODI_ERR_15', disp='ODI ap.mag. error 1.5 arcsec',
-                      format='E', unit='mag', 
-                      array=odi_sdss_matched[:, SXcolumn['mag_err_1.5']+2]),
-
-        pyfits.Column(name='ODI_MAG_20', disp='ODI aperture magnitude 2.0 arcsec',
-                      format='E', unit='mag', 
-                      array=odi_sdss_matched[:, SXcolumn['mag_aper_2.0']+2]),
-        pyfits.Column(name='ODI_ERR_20', disp='ODI ap.mag. error 2.0 arcsec',
-                      format='E', unit='mag', 
-                      array=odi_sdss_matched[:, SXcolumn['mag_err_2.0']+2]),
-
-        pyfits.Column(name='ODI_MAG_25', disp='ODI aperture magnitude 2.5 arcsec',
-                      format='E', unit='mag', 
-                      array=odi_sdss_matched[:, SXcolumn['mag_aper_2.5']+2]),
-        pyfits.Column(name='ODI_ERR_25', disp='ODI ap.mag. error 2.5 arcsec',
-                      format='E', unit='mag', 
-                      array=odi_sdss_matched[:, SXcolumn['mag_err_2.5']+2]),
-
-        pyfits.Column(name='ODI_MAG_30', disp='ODI aperture magnitude 3.0 arcsec',
-                      format='E', unit='mag', 
-                      array=odi_sdss_matched[:, SXcolumn['mag_aper_3.0']+2]),
-        pyfits.Column(name='ODI_ERR_30', disp='ODI ap.mag. error 3.0 arcsec',
-                      format='E', unit='mag', 
-                      array=odi_sdss_matched[:, SXcolumn['mag_err_3.0']+2]),
-
-        pyfits.Column(name='ODI_MAG_35', disp='ODI aperture magnitude 3.5 arcsec',
-                      format='E', unit='mag', 
-                      array=odi_sdss_matched[:, SXcolumn['mag_aper_3.5']+2]),
-        pyfits.Column(name='ODI_ERR_35', disp='ODI ap.mag. error 3.5 arcsec',
-                      format='E', unit='mag', 
-                      array=odi_sdss_matched[:, SXcolumn['mag_err_3.5']+2]),
 
         #
         # Now add the SDSS magnitudes
@@ -2489,7 +2437,36 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched):
                       format='D', unit='degrees', 
                       array=odi_sdss_matched[:, SXcolumn['fwhm_world']+2]),
 
+       pyfits.Column(name='ODI_MAG_AUTO', format='E', unit='mag',
+                     array=odi_sdss_matched[:,SXcolumn['mag_auto']+2],
+                     disp='auto-mag'),
+       pyfits.Column(name='ODI_ERR_AUTO', format='E', unit='mag',
+                     array=odi_sdss_matched[:,SXcolumn['mag_err_auto']+2],
+                     disp='auto-mag error'),
+        
         ]
+
+
+    #
+    # Magnitudes and errors for all ODI apertures
+        #
+    for i in range(len(SXapertures)):
+        apsize = SXapertures[i]
+        col_mag = "mag_aper_%0.1f" % (apsize)
+        col_magerr = "mag_err_%0.1f" % (apsize)
+        columns.append(pyfits.Column(name='ODI_MAG_D%02d' % (int(apsize*10.)), 
+                                     format='E', unit='mag',
+                                     array=odi_sdss_matched[:,SXcolumn[col_mag]+2],
+                                     disp='aperture mag %0.1f arcsec diameter' % (apsize)
+                                 )
+        )
+        columns.append(pyfits.Column(name='ODI_ERR_D%02d' % (int(apsize*10.)),
+                                     format='E', unit='mag',
+                                     array=odi_sdss_matched[:,SXcolumn[col_magerr]+2],
+                                     disp='ap. mag error %0.1f arcsec diameter' % (apsize)
+                                 )
+        )
+
 
     coldefs = pyfits.ColDefs(columns)
     tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
@@ -2560,7 +2537,10 @@ def odi_sources_to_tablehdu(source_cat):
         Binary FITS table extension
 
     """
-
+    
+    #
+    # Start with some general source information
+    #
     columns = [\
                pyfits.Column(name='RA', format='D', unit='degrees',
                              array=source_cat[:,SXcolumn['ra']],
@@ -2589,54 +2569,14 @@ def odi_sources_to_tablehdu(source_cat):
                pyfits.Column(name='OTA',            format='I', unit='',
                              array=source_cat[:,SXcolumn['ota']],
                              disp='source OTA'),
-               pyfits.Column(name='MAG_D05',        format='E', unit='mag',
-                             array=source_cat[:,SXcolumn['mag_aper_0.5']],
-                             disp='0.5 arcsec, 5 pixels'),
-               pyfits.Column(name='MAGERR_D05',     format='E', unit='mag',
-                             array=source_cat[:,SXcolumn['mag_err_0.5']],
+
+               pyfits.Column(name='MAG_AUTO',        format='E', unit='mag',
+                             array=source_cat[:,SXcolumn['mag_auto']],
+                             disp='auto-mag'),
+               pyfits.Column(name='MAGERR_AUTO',     format='E', unit='mag',
+                             array=source_cat[:,SXcolumn['mag_err_auto']],
                              disp=''),
-               pyfits.Column(name='MAG_D08',        format='E', unit='mag',
-                             array=source_cat[:,SXcolumn['mag_aper_0.8']],
-                             disp='0.8 arcsec, 7 pixels'),
-               pyfits.Column(name='MAGERR_D08',     format='E', unit='mag',
-                             array=source_cat[:,SXcolumn['mag_err_0.8']],
-                             disp=''),
-               pyfits.Column(name='MAG_D10',        format='E', unit='mag',
-                             array=source_cat[:,SXcolumn['mag_aper_1.0']],
-                             disp='1.0 arcsec, 9 pixels'),
-               pyfits.Column(name='MAGERR_D10',     format='E', unit='mag',
-                             array=source_cat[:,SXcolumn['mag_err_1.0']],
-                             disp=''),
-               pyfits.Column(name='MAG_D15',        format='E', unit='mag',
-                             array=source_cat[:,SXcolumn['mag_aper_1.5']],
-                             disp='1.5 arcsec, 14 pixels'),
-               pyfits.Column(name='MAGERR_D15',     format='E', unit='mag',
-                             array=source_cat[:,SXcolumn['mag_err_1.5']],
-                             disp=''),
-               pyfits.Column(name='MAG_D20',        format='E', unit='mag',
-                             array=source_cat[:,SXcolumn['mag_aper_2.0']],
-                             disp='2.0 arcsec, 18 pixels'),
-               pyfits.Column(name='MAGERR_D20',     format='E', unit='mag',
-                             array=source_cat[:,SXcolumn['mag_err_2.0']],
-                             disp=''),
-               pyfits.Column(name='MAG_D25',        format='E', unit='mag',
-                             array=source_cat[:,SXcolumn['mag_aper_2.5']],
-                             disp='2.5 arcsec, 23 pixels'),
-               pyfits.Column(name='MAGERR_D25',     format='E', unit='mag',
-                             array=source_cat[:,SXcolumn['mag_err_2.5']],
-                             disp=''),
-               pyfits.Column(name='MAG_D30',        format='E', unit='mag',
-                             array=source_cat[:,SXcolumn['mag_aper_3.0']],
-                             disp='3.0 arcsec, 27 pixels'),
-               pyfits.Column(name='MAGERR_D30',     format='E', unit='mag',
-                             array=source_cat[:,SXcolumn['mag_err_3.0']],
-                             disp=''),
-               pyfits.Column(name='MAG_D35',        format='E', unit='mag',
-                             array=source_cat[:,SXcolumn['mag_aper_3.5']],
-                             disp='3.5 arcsec, 32 pixels'),
-               pyfits.Column(name='MAGERR_D35',     format='E', unit='mag',
-                             array=source_cat[:,SXcolumn['mag_err_3.5']],
-                             disp=''),
+        
                pyfits.Column(name='FLUX_MAX',       format='E', unit='counts',
                              array=source_cat[:,SXcolumn['flux_max']],
                              disp='max count rate'),
@@ -2655,7 +2595,25 @@ def odi_sources_to_tablehdu(source_cat):
                pyfits.Column(name='ELLIPTICITY',    format='E', unit='',
                              array=source_cat[:,SXcolumn['ellipticity']],
                              disp='ellipticity'),
-        ]
+           ]
+
+    # Add all aperture photometry
+    for i in range(len(SXapertures)):
+        apsize = SXapertures[i]
+        col_mag = "mag_aper_%0.1f" % (apsize)
+        col_magerr = "mag_err_%0.1f" % (apsize)
+        columns.append(pyfits.Column(name='MAG_D%02d' % (int(apsize*10.)), 
+                                     format='E', unit='mag',
+                                     array=source_cat[:,SXcolumn[col_mag]],
+                                     disp='aperture mag %0.1f arcsec diameter' % (apsize)
+                                 )
+        )
+        columns.append(pyfits.Column(name='MAGERR_D%02d' % (int(apsize*10.)),
+                                     format='E', unit='mag',
+                                     array=source_cat[:,SXcolumn[col_magerr]],
+                                     disp='ap. mag error %0.1f arcsec diameter' % (apsize)
+                                 )
+        )
 
     coldefs = pyfits.ColDefs(columns)
     tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
