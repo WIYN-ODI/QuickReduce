@@ -1729,57 +1729,9 @@ def collectcells(input, outputfile,
         global_gain_sum += (hdu.header['GAIN'] * hdu.header['GAIN_CNT'])
         global_gain_count += hdu.header['GAIN_CNT']
 
-        #if ("persistency_map_updated" in data_products):
-        #    # We also received an updated persistency map
-        #    persistency[ota_id] = data_products["persistency_map_updated"]
-
         ota_list[ota_id] = hdu
         
         sky_samples[hdu.header['EXTNAME']] = data_products['sky-samples']
-
-#        if (options['fixwcs'] and not options['update_persistency_only']):
-            
-            # if (wcsfix_data != None):
-            #     odi_ra, odi_dec, ref_ra, ref_dec, dx, dy, source_cat, reference_cat, number_matches = wcsfix_data
-
-            #     # # Append all the returned ODI and reference catalog data to the 
-            #     # # previous list to make one big catalog across all OTAs.
-            #     # fixwcs_odi_ra  = numpy.append(fixwcs_odi_ra,  odi_ra,  axis=0)
-            #     # fixwcs_odi_dec = numpy.append(fixwcs_odi_dec, odi_dec, axis=0)
-            #     # fixwcs_ref_ra  = numpy.append(fixwcs_ref_ra,  ref_ra,  axis=0)
-            #     # fixwcs_ref_dec = numpy.append(fixwcs_ref_dec, ref_dec, axis=0)
-
-            #     # #print "Adding data to long list"
-            #     # fixwcs_odi_x = numpy.append(fixwcs_odi_x, source_cat[:,2], axis=0)
-            #     # fixwcs_odi_y = numpy.append(fixwcs_odi_y, source_cat[:,3], axis=0)
-            #     # _ota = numpy.ones(shape=(source_cat.shape[0],1)) * ota_id
-            #     # fixwcs_extension = numpy.append(fixwcs_extension, _ota[:,0], axis=0)
-            #     # #print "source_cat[:,2]=",source_cat[:,2]
-            #     # #print "source_cat[:,3]=",source_cat[:,3]
-
-            #     # reference_catalog = reference_cat if (reference_catalog == None) else \
-            #     #     numpy.append(reference_catalog, reference_cat, axis=0)
-            #     # #RK fixwcs_odi_sourcecat = source_cat if (fixwcs_odi_sourcecat == None) else \
-            #     # #    numpy.append(fixwcs_odi_sourcecat, source_cat, axis=0)
-
-            #     # fixwcs_bestguess[i,:] = [dx, dy]
-
-            #     # if (number_matches != None):
-            #     #     # Deal with the individual matches from this OTA
-            #     #     #print hdu.header['EXTNAME'], number_matches.shape
-            #     #     tmp = numpy.ones(shape=(number_matches.shape[0], number_matches.shape[1]+1))
-            #     #     tmp[:,:-1] = number_matches
-            #     #     tmp[:,-1] *= ota_id
-            #     #     if (global_number_matches == None):
-            #     #         global_number_matches = tmp
-            #     #     else:
-            #     #         global_number_matches = numpy.append(global_number_matches, tmp, axis=0)
-            #     # #print "\n\n\n#matches was",number_matches.shape,"now is ",global_number_matches.shape,"\n\n\n"
-
-            # #add_to_bestguess = numpy.array([dx, dy]).reshape((1,2))
-            # #print fixwcs_bestguess.shape, add_to_bestguess.shape
-            # #continue
-            # #fixwcs_bestguess = numpy.append(fixwcs_bestguess, add_to_bestguess, axis=0)
 
         if (not data_products['fringe_scaling'] == None):
             #print data_products['fringe_scaling'].shape
@@ -1797,12 +1749,6 @@ def collectcells(input, outputfile,
     #
     ota_list[0].header['GAIN'] = (global_gain_sum / global_gain_count)
     ota_list[0].header['GAIN_CNT'] = global_gain_count
-
-    # if (options['fixwcs'] and not options['update_persistency_only']):
-    #     x = open("fixwcs.nmatches","w")
-    #     numpy.savetxt(x, global_number_matches)
-    #     x.close()
-    #     del x
 
     # Now all processes have returned their results, terminate them 
     # and delete all instances to free up memory
@@ -2616,37 +2562,99 @@ def odi_sources_to_tablehdu(source_cat):
     """
 
     columns = [\
-        pyfits.Column(name='RA',             format='D', unit='degrees', array=source_cat[:, 0], disp='right ascension'),
-        pyfits.Column(name='DEC',            format='D', unit='degrees', array=source_cat[:, 1], disp='declination'),
-        pyfits.Column(name='X',              format='E', unit='pixel',   array=source_cat[:, 2], disp='center x'),
-        pyfits.Column(name='Y',              format='E', unit='pixel',   array=source_cat[:, 3], disp='center y'),
-        pyfits.Column(name='FWHM_IMAGE',     format='E', unit='pixel',   array=source_cat[:, 4], disp='FWHM in pixels'),
-        pyfits.Column(name='FWHM_WORLD',     format='E', unit='deg',     array=source_cat[:, 5], disp='FWHM in degrees'),
-        pyfits.Column(name='BACKGROUND',     format='E', unit='counts',  array=source_cat[:, 6], disp='background level'),
-        pyfits.Column(name='FLAGS',          format='I', unit='',        array=source_cat[:, 7], disp='SExtractor flags'),
-        pyfits.Column(name='OTA',            format='I', unit='',        array=source_cat[:, 8], disp='source OTA'),
-        pyfits.Column(name='MAG_D05',        format='E', unit='mag',     array=source_cat[:, 9], disp='0.5 arcsec, 5 pixels'),
-        pyfits.Column(name='MAGERR_D05',     format='E', unit='mag',     array=source_cat[:,17], disp=''),
-        pyfits.Column(name='MAG_D08',        format='E', unit='mag',     array=source_cat[:,10], disp='0.8 arcsec, 7 pixels'),
-        pyfits.Column(name='MAGERR_D08',     format='E', unit='mag',     array=source_cat[:,18], disp=''),
-        pyfits.Column(name='MAG_D10',        format='E', unit='mag',     array=source_cat[:,11], disp='1.0 arcsec, 9 pixels'),
-        pyfits.Column(name='MAGERR_D10',     format='E', unit='mag',     array=source_cat[:,19], disp=''),
-        pyfits.Column(name='MAG_D15',        format='E', unit='mag',     array=source_cat[:,12], disp='1.5 arcsec, 14 pixels'),
-        pyfits.Column(name='MAGERR_D15',     format='E', unit='mag',     array=source_cat[:,20], disp=''),
-        pyfits.Column(name='MAG_D20',        format='E', unit='mag',     array=source_cat[:,13], disp='2.0 arcsec, 18 pixels'),
-        pyfits.Column(name='MAGERR_D20',     format='E', unit='mag',     array=source_cat[:,21], disp=''),
-        pyfits.Column(name='MAG_D25',        format='E', unit='mag',     array=source_cat[:,14], disp='2.5 arcsec, 23 pixels'),
-        pyfits.Column(name='MAGERR_D25',     format='E', unit='mag',     array=source_cat[:,22], disp=''),
-        pyfits.Column(name='MAG_D30',        format='E', unit='mag',     array=source_cat[:,15], disp='3.0 arcsec, 27 pixels'),
-        pyfits.Column(name='MAGERR_D30',     format='E', unit='mag',     array=source_cat[:,23], disp=''),
-        pyfits.Column(name='MAG_D35',        format='E', unit='mag',     array=source_cat[:,16], disp='3.5 arcsec, 32 pixels'),
-        pyfits.Column(name='MAGERR_D35',     format='E', unit='mag',     array=source_cat[:,24], disp=''),
-        pyfits.Column(name='FLUX_MAX',       format='E', unit='counts',  array=source_cat[:,25], disp='max count rate'),
-        pyfits.Column(name='AWIN_IMAGE',     format='E', unit='pixel',   array=source_cat[:,26], disp='major semi-axis'),
-        pyfits.Column(name='BWIN_IMAGE',     format='E', unit='pixel',   array=source_cat[:,27], disp='minor semi-axis'),
-        pyfits.Column(name='THETAWIN_IMAGE', format='E', unit='degrees', array=source_cat[:,28], disp='position angle'),
-        pyfits.Column(name='ELONGATION',     format='E', unit='',        array=source_cat[:,29], disp='elongation'),
-        pyfits.Column(name='ELLIPTICITY',    format='E', unit='',        array=source_cat[:,30], disp='ellipticity'),
+               pyfits.Column(name='RA', format='D', unit='degrees',
+                             array=source_cat[:,SXcolumn['ra']],
+                             disp='right ascension'),
+               pyfits.Column(name='DEC',            format='D', unit='degrees',
+                             array=source_cat[:,SXcolumn['dec']], 
+                             disp='declination'),
+               pyfits.Column(name='X',              format='E', unit='pixel',
+                             array=source_cat[:,SXcolumn['x']],
+                             disp='center x'),
+               pyfits.Column(name='Y',              format='E', unit='pixel',
+                             array=source_cat[:,SXcolumn['y']], 
+                             disp='center y'),
+               pyfits.Column(name='FWHM_IMAGE',     format='E', unit='pixel',
+                             array=source_cat[:,SXcolumn['fwhm_image']],
+                             disp='FWHM in pixels'),
+               pyfits.Column(name='FWHM_WORLD',     format='E', unit='deg',
+                             array=source_cat[:,SXcolumn['fwhm_world']],
+                             disp='FWHM in degrees'),
+               pyfits.Column(name='BACKGROUND',     format='E', unit='counts',
+                             array=source_cat[:,SXcolumn['background']],
+                             disp='background level'),
+               pyfits.Column(name='FLAGS',          format='I', unit='',
+                             array=source_cat[:,SXcolumn['flags']],
+                             disp='SExtractor flags'),
+               pyfits.Column(name='OTA',            format='I', unit='',
+                             array=source_cat[:,SXcolumn['ota']],
+                             disp='source OTA'),
+               pyfits.Column(name='MAG_D05',        format='E', unit='mag',
+                             array=source_cat[:,SXcolumn['mag_aper_0.5']],
+                             disp='0.5 arcsec, 5 pixels'),
+               pyfits.Column(name='MAGERR_D05',     format='E', unit='mag',
+                             array=source_cat[:,SXcolumn['mag_err_0.5']],
+                             disp=''),
+               pyfits.Column(name='MAG_D08',        format='E', unit='mag',
+                             array=source_cat[:,SXcolumn['mag_aper_0.8']],
+                             disp='0.8 arcsec, 7 pixels'),
+               pyfits.Column(name='MAGERR_D08',     format='E', unit='mag',
+                             array=source_cat[:,SXcolumn['mag_err_0.8']],
+                             disp=''),
+               pyfits.Column(name='MAG_D10',        format='E', unit='mag',
+                             array=source_cat[:,SXcolumn['mag_aper_1.0']],
+                             disp='1.0 arcsec, 9 pixels'),
+               pyfits.Column(name='MAGERR_D10',     format='E', unit='mag',
+                             array=source_cat[:,SXcolumn['mag_err_1.0']],
+                             disp=''),
+               pyfits.Column(name='MAG_D15',        format='E', unit='mag',
+                             array=source_cat[:,SXcolumn['mag_aper_1.5']],
+                             disp='1.5 arcsec, 14 pixels'),
+               pyfits.Column(name='MAGERR_D15',     format='E', unit='mag',
+                             array=source_cat[:,SXcolumn['mag_err_1.5']],
+                             disp=''),
+               pyfits.Column(name='MAG_D20',        format='E', unit='mag',
+                             array=source_cat[:,SXcolumn['mag_aper_2.0']],
+                             disp='2.0 arcsec, 18 pixels'),
+               pyfits.Column(name='MAGERR_D20',     format='E', unit='mag',
+                             array=source_cat[:,SXcolumn['mag_err_2.0']],
+                             disp=''),
+               pyfits.Column(name='MAG_D25',        format='E', unit='mag',
+                             array=source_cat[:,SXcolumn['mag_aper_2.5']],
+                             disp='2.5 arcsec, 23 pixels'),
+               pyfits.Column(name='MAGERR_D25',     format='E', unit='mag',
+                             array=source_cat[:,SXcolumn['mag_err_2.5']],
+                             disp=''),
+               pyfits.Column(name='MAG_D30',        format='E', unit='mag',
+                             array=source_cat[:,SXcolumn['mag_aper_3.0']],
+                             disp='3.0 arcsec, 27 pixels'),
+               pyfits.Column(name='MAGERR_D30',     format='E', unit='mag',
+                             array=source_cat[:,SXcolumn['mag_err_3.0']],
+                             disp=''),
+               pyfits.Column(name='MAG_D35',        format='E', unit='mag',
+                             array=source_cat[:,SXcolumn['mag_aper_3.5']],
+                             disp='3.5 arcsec, 32 pixels'),
+               pyfits.Column(name='MAGERR_D35',     format='E', unit='mag',
+                             array=source_cat[:,SXcolumn['mag_err_3.5']],
+                             disp=''),
+               pyfits.Column(name='FLUX_MAX',       format='E', unit='counts',
+                             array=source_cat[:,SXcolumn['flux_max']],
+                             disp='max count rate'),
+               pyfits.Column(name='AWIN_IMAGE',     format='E', unit='pixel',
+                             array=source_cat[:,SXcolumn['major_axis']],
+                             disp='major semi-axis'),
+               pyfits.Column(name='BWIN_IMAGE',     format='E', unit='pixel',
+                             array=source_cat[:,SXcolumn['minor_axis']],
+                             disp='minor semi-axis'),
+               pyfits.Column(name='THETAWIN_IMAGE', format='E', unit='degrees',
+                             array=source_cat[:,SXcolumn['position_angle']],
+                             disp='position angle'),
+               pyfits.Column(name='ELONGATION',     format='E', unit='',
+                             array=source_cat[:,SXcolumn['elongation']],
+                             disp='elongation'),
+               pyfits.Column(name='ELLIPTICITY',    format='E', unit='',
+                             array=source_cat[:,SXcolumn['ellipticity']],
+                             disp='ellipticity'),
         ]
 
     coldefs = pyfits.ColDefs(columns)
