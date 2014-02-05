@@ -1408,7 +1408,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     # eliminate all stars with problematic flags
     #
-    flags = numpy.array(src_raw[:,7], dtype=numpy.int8) & sexflag_wcs
+    flags = numpy.array(src_raw[:,SXcolumn['flags']], dtype=numpy.int8) & sexflag_wcs
     full_src_cat = src_raw[flags == 0]
     logger.debug("src_cat: "+str(full_src_cat.shape))
     if (create_debug_files): numpy.savetxt("ccmatch.src_cat", full_src_cat[:,0:2])
@@ -1428,7 +1428,13 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     else:
         isolated_stars = full_src_cat
 
-    
+    if (isolated_stars.shape[0] <= 0):
+        logger.warning("Could not find any isolated stars. This is bad")
+        logger.warning("Please tell kotulla@uwm.edu about this")
+        isolated_stars = full_src_cat
+        logger.debug("Using full catalog instead of only isolated stars")
+
+
     #
     # Cut down the catalog size to the brightest n stars
     #
