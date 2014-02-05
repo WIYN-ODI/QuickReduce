@@ -938,33 +938,6 @@ def collect_reduce_ota(filename,
                     clobberfile(catfile)
 
             fixwcs_data = None
-        #     if (source_cat != None):
-        #         if (source_cat.shape[0] > 0 and source_cat.ndim == 2):
-        #             # odi_ra = source_cat[:,0]
-        #             # odi_dec = source_cat[:,1]
-        #             # odi_mag = source_cat[:,14] #-2.5 * numpy.log10(source_cat[:,6]) + 30
-
-        #             # # Read the reference catalog
-        #             # center_ra, center_dec = center_coords(hdu.header)
-        #             # search_size = (8+6) * (1./60.)
-        #             # ipp_cat = podi_search_ipprefcat.get_reference_catalog(center_ra, center_dec, search_size, 
-        #             #                                                       basedir=sitesetup.wcs_ref_dir,
-        #             #                                                       cattype=sitesetup.wcs_ref_type)
-        #             # ref_ra = ipp_cat[:,0]
-        #             # ref_dec = ipp_cat[:,1]
-        #             # ref_mag = ipp_cat[:,3]
-
-        #             # # Cut down the number of stars to < 100 to save computing time
-        #             # ota_odi_ra, ota_odi_dec, ota_odi_mag = podi_fixwcs.pick_brightest(odi_ra, odi_dec, odi_mag, 50)
-        #             # ota_ref_ra, ota_ref_dec, ota_ref_mag = podi_fixwcs.pick_brightest(ref_ra, ref_dec, ref_mag, 50)
-
-        #             # if (verbose): print "sending %s and %d to shift_align_wcs" % (ota_odi_ra.shape[0], ota_ref_ra.shape[0])
-        #             # dx, dy, n, matchcount = podi_fixwcs.shift_align_wcs(ota_odi_ra, ota_odi_dec, ota_ref_ra, ota_ref_dec)
-        #             # if (verbose): print "WCSFIX dx/dy =", dx, dy
-        #             #fixwcs_data = (odi_ra, odi_dec, ref_ra, ref_dec, dx, dy, source_cat, ipp_cat, matchcount)
-        #             fixwcs_data = (None, None, None, None, None, None, source_cat, None, None)
-        # else:
-        #     fixwcs_data = None
 
         #
         # Sample that background at random place so we can derive a median background level later on
