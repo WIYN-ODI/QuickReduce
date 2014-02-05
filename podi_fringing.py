@@ -819,6 +819,8 @@ if __name__ == "__main__":
         filter_name = data_hdulist[0].header['FILTER']
         print "\nThis is filter",filter_name,"\n"
 
+        options = podi_collectcells.read_options_from_commandline()
+
         all_vecs = None
         for ext in range(1, len(data_hdulist)):
             if (type(data_hdulist[ext]) != pyfits.hdu.image.ImageHDU):
@@ -832,8 +834,9 @@ if __name__ == "__main__":
             data = data_hdulist[extname].data
             fringe = fringe_hdulist[extname].data
 
-            region_file = "fringe__%s__%s.reg" % (filter_name, extname[0:5])
+            region_file = "%s/fringe__%s__%s.reg" % (options['fringe_vectors'], filter_name, extname[0:5])
             vecs = get_fringe_scaling(data, fringe, region_file) 
+            print vecs
 
             if (not vecs == None):
                 all_vecs = vecs if all_vecs == None else numpy.append(all_vecs, vecs, axis=0)
