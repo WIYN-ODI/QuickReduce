@@ -2064,23 +2064,6 @@ def collectcells(input, outputfile,
                                            also_plot_singleOTAs=options['otalevelplots'],
                                            title_info=title_info)
 
-        # Create the image quality plot
-        # This should be cleaned up to make the call for this plot nicer
-        flags = global_source_cat[:,SXcolumn['flags']]
-        valid_flags = flags == 0
-        ra = global_source_cat[:,SXcolumn['ra']][valid_flags]
-        dec= global_source_cat[:,SXcolumn['dec']][valid_flags]
-        fwhm = global_source_cat[:,SXcolumn['fwhm_world']][valid_flags]
-        ota = global_source_cat[:,SXcolumn['ota']][valid_flags]
-        plotfilename = create_qa_filename(outputfile, "seeing", options)
-        podi_diagnosticplots.diagplot_psfsize_map(ra, dec, fwhm, ota, 
-                                                  output_filename=plotfilename, #outputfile[:-5]+".seeing",
-                                                  title=diagnostic_plot_title,
-                                                  ota_outlines=ota_outlines, 
-                                                  options=options,
-                                                  also_plot_singleOTAs=options['otalevelplots'],
-                                                  title_info=title_info)
-
     #
     # Add some default photometric calibration keywords
     #
@@ -2237,6 +2220,39 @@ def collectcells(input, outputfile,
             counts_sn1 = math.sqrt(bgcounts)
             limiting_mag = -2.5*math.log10(counts_sn1) + zeropoint_exptime
             ota_list[0].header['PHOTDPTH'] = limiting_mag
+
+    # Create the image quality plot
+    # Also create a diagnostic plot for the Seeing.
+    # choose the sdssm-matched catalog if available, otherwise use the raw source catalog.
+    if (options['fixwcs'] and options['create_qaplots'] and enough_stars_for_fixwcs):
+
+        if (options['photcalib'] and not odi_sdss_matched == None and odi_sdss_matched.shape[0] > 0):
+            # Use the SDSS catalog if available
+            flags = odi_sdss_matched[:,SXcolumn['flags']+2]
+            valid_flags = (flags == 0)
+            ra = odi_sdss_matched[:,SXcolumn['ra']][valid_flags]
+            dec= odi_sdss_matched[:,SXcolumn['dec']][valid_flags]
+            fwhm = odi_sdss_matched[:,SXcolumn['fwhm_world']+2][valid_flags]
+            ota = odi_sdss_matched[:,SXcolumn['ota']+2][valid_flags]
+
+        else:
+            # This should be cleaned up to make the call for this plot nicer
+            flags = global_source_cat[:,SXcolumn['flags']]
+            valid_flags = (flags == 0) & (global_source_cat[:,SXcolumn['mag_err_auto']] < 0.2)
+            ra = global_source_cat[:,SXcolumn['ra']][valid_flags]
+            dec= global_source_cat[:,SXcolumn['dec']][valid_flags]
+            fwhm = global_source_cat[:,SXcolumn['fwhm_world']][valid_flags]
+            ota = global_source_cat[:,SXcolumn['ota']][valid_flags]
+
+        plotfilename = create_qa_filename(outputfile, "seeing", options)
+        podi_diagnosticplots.diagplot_psfsize_map(ra, dec, fwhm, ota, 
+                                                  output_filename=plotfilename, #outputfile[:-5]+".seeing",
+                                                  title=diagnostic_plot_title,
+                                                  ota_outlines=ota_outlines, 
+                                                  options=options,
+                                                  also_plot_singleOTAs=options['otalevelplots'],
+                                                  title_info=title_info)
+
 
     if (not options['nonsidereal'] == None):
         logger.info("Starting non-sidereal WCS modification")
