@@ -363,6 +363,8 @@ def plot_wcsdiag_shift(radec, d_radec,
     ax.set_ylim((decmin-0.02, decmax+0.02))
     ax.set_xlabel("RA [degrees]")
     ax.set_ylabel("DEC [degrees]")
+    # Invert the x-axis to have north up and east to the left
+    ax.set_xlim(ax.get_xlim()[::-1])
 
     # draw some arrow to mark how long the other arrows are
     #arrow_x = ramin  + 0.05 * (ramax - ramin)
@@ -826,9 +828,10 @@ def plot_zeropoint_map(ra, dec, zp, ota_outlines, output_filename, options, zp_r
     #print ra_ota
     #print zp_ota
 
+    colormap_name = "spectral"
     sc = matplotlib.pyplot.scatter(ra, dec, c=zp, alpha=0.75, 
                                    vmin=zp_min, vmax=zp_max, edgecolor='none',
-                                   s=9, cmap=matplotlib.pyplot.cm.get_cmap('spectral'))
+                                   s=9, cmap=matplotlib.pyplot.cm.get_cmap(colormap_name))
         #matplotlib.pyplot.colorbar(sc, cm)
 
     if (not ota_outlines == None):
@@ -839,8 +842,10 @@ def plot_zeropoint_map(ra, dec, zp, ota_outlines, output_filename, options, zp_r
     ax.set_xlabel("RA [degrees]")
     ax.set_ylabel("DEC [degrees]")
     ax.autoscale_view()
+    # Invert the x-axis to have north up and east to the left
+    ax.set_xlim(ax.get_xlim()[::-1])
 
-    colorbar = matplotlib.pyplot.colorbar(cmap=matplotlib.pyplot.cm.get_cmap('spectral'))
+    colorbar = matplotlib.pyplot.colorbar(cmap=matplotlib.pyplot.cm.get_cmap(colormap_name))
     colorbar.set_label("phot. zeropoint")
 
     if (output_filename == None):
@@ -991,9 +996,11 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
 
     fwhm_min, fwhm_max = fwhm_range
 
+    colormap_name = "spectral" #"hsv", "jet" #"rainbow" #"Dark2"
+
     sc = matplotlib.pyplot.scatter(ra, dec, c=fwhm, alpha=0.75, 
                                    vmin=fwhm_min, vmax=fwhm_max, edgecolor='none',
-                                   s=9, cmap=matplotlib.pyplot.cm.get_cmap('spectral'))
+                                   s=9, cmap=matplotlib.pyplot.cm.get_cmap(colormap_name))
 
     if (not ota_outlines == None):
         corners = numpy.array(ota_outlines)
@@ -1005,8 +1012,10 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
     ax.set_xlabel("RA [degrees]")
     ax.set_ylabel("DEC [degrees]")
     ax.autoscale_view()
+    # Invert the x-axis to have north up and east to the left
+    ax.set_xlim(ax.get_xlim()[::-1])
 
-    colorbar = matplotlib.pyplot.colorbar(cmap=matplotlib.pyplot.cm.get_cmap('spectral'))
+    colorbar = matplotlib.pyplot.colorbar(cmap=matplotlib.pyplot.cm.get_cmap(colormap_name)) #spectral
     colorbar.set_label("FWHM [arcsec]")
 
     if (output_filename == None):
@@ -1051,6 +1060,7 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
     fwhm_clipped, clipmask = three_sigma_clip(fwhm, return_mask=True)
 
     fwhm_range = (fwhm_min, fwhm_max)
+    fwhm_range = (0.4, 2.5)
 
     processes = []
 
