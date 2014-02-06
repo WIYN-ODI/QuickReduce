@@ -45,9 +45,9 @@ from bottleneck import nanmean, nanmedian
 #
 # Update this variable below when changing versions
 #
-pipeline_plver = "QuickReduce Version 0.9"
+pipeline_plver = "QuickReduce 1.0"
 pipeline_name = "QuickReduce"
-pipeline_version = "0.9"
+pipeline_version = "1.0"
 #
 #
 #
