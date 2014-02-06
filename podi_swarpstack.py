@@ -1,4 +1,99 @@
 #!/usr/bin/env python
+#
+# Copyright 2012-2013 Ralf Kotulla & WIYN Observatory
+#                     University of Wisconsin - Milwaukee & Madison
+#                     kotulla@uwm.edu
+#
+# This file is part of the ODI QuickReduce pipeline package.
+#
+# If you find this program or parts thereof please make sure to
+# cite it appropriately (please contact the author for the most
+# up-to-date reference to use). Also if you find any problems 
+# or have suggestions on how to improve the code or its 
+# functionality please let me know. Comments and questions are 
+# always welcome. 
+#
+# The code is made publicly available. Feel free to share the link
+# with whoever might be interested. However, I do ask you to not 
+# publish additional copies on your own website or other sources. 
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+#
+
+"""Function
+--------------------------------------------------------------------------------
+
+**podi_swarpstack.py** handles most of the most common stacking problems. It 
+supports a number of use-cases, from simle stacking a bunch of files, adding
+more frames to an additional stack, as well as matching a new frame to a 
+reference stack.
+
+The general procedure is to create a single rectified image for each of the
+input frames first. In a second step, swarp combines all these rectified images
+into the filnal step. While this is overkill for stellar fields, this approach
+ensures better sky background subtraction across OTAs in the case of large
+galaxies or objects. 
+
+Before each run, swarpstack determines the final size of the resulting stacked
+frame. Each of the input frames is then rectified, distortion corrected and
+interpolated onto this final grid, eliminating double-interpolations.
+
+
+
+How to run podi_swarpstack
+--------------------------------------------------------------------------------
+
+Simple stacking of a bunch of frames
+
+    podi_swarpstack.py output_stack.fits file1.fits file2.fits
+
+
+Adding frames to an already existing stack
+
+    podi_swarpstack.py -add output_stack.fits file3.fits
+
+Matching a new frame to a reference frame
+
+    podi_swarpstack.py -reference=reference.fits output_stack.fits file*.fits
+
+
+
+Additional command line options
+--------------------------------------------------------------------------------
+
+* **-bgsub**
+
+  Activate background subtraction. Without this frame no background subtraction
+  is performed. While this is the safest options for some cases it leads to 
+  rather ratty looking stacks if the sky-level was at all variable during the 
+  exposure (e.g. with moon, twilight, scattered light)
+
+
+* **-reusesingles**
+
+  By default, the single recified images are re-created when swarpstack is being
+  run. With this option swarpstack checks if a recitified image already exists
+  and uses the existing file instead of re-creating a new one. This is
+  particularly helpful and in fact the default if adding new frames to an
+  already existing stack.
+
+  
+* **-dimension=X**
+
+  If given without the -bgsub parameter this option has no effect. If -bgsub is
+  enabled, the background filtering options are adjusted automatically to avoid
+  over-subtracting objects of the specified dimenson or smaller, hence avoiding
+  subtracting the galacy continuum as background fluctuation. The value X
+  specifies the galaxy/source dimension in arc-minutes.
+
+* **-pixelscale=X**
+
+  Chooses the specified pixel scale for the output stack, with X given in 
+  arcsec/pixel.
+
+"""
 
 
 import os
@@ -346,6 +441,10 @@ def swarpstack():
     return
 
 if __name__ == "__main__":
+    if (len(sys.argv) <= 1):
+        import podi_swarpstack as me
+        print me.__doc__
+        sys.exit(0)
 
     # Setup everything we need for logging
     options = set_default_options()
