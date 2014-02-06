@@ -36,6 +36,8 @@ def swarpstack():
 
     reuse_singles = cmdline_arg_isset("-reusesingles")
 
+    target_dimension = float(cmdline_arg_set_or_default('-dimension', -1))
+
     add_only = cmdline_arg_isset("-add") and os.path.isfile(stacked_output)
     if (add_only):
         logger.info("Activating ADD mode")
@@ -271,14 +273,58 @@ def swarpstack():
                  -RESAMPLE_DIR %(singledir)s \
                  -SUBTRACT_BACK %(bgsub)s \
                  -WEIGHT_TYPE MAP_WEIGHT \
-                 %(prepared_files)s \
                  """ % dic
+
+#                 -RESAMPLE N
+
+    #
+    # Now use some brains to figure out the best way of setting the background 
+    # subtraction to get s nice smooth background that does not over-subtract 
+    # the target.
+    #
+    if (target_dimension > 0 and subtract_back):
+        dic['BACK_TYPE'] = "AUTO"
+        dic['BACK_SIZE'] = 128
+        dic['BACK_FILTERSIZE'] = 3
+
+        # Rule of thum: larger objects: make both filtersize and back_size 
+        # larger
+        # first compute a reference size for the default settings
+        ref_size = dic['BACK_SIZE'] * dic['BACK_FILTERSIZE'] \
+                   * pixelscale / 60. \
+                   * 0.1  # the last factor is a fudge-factor
+        logger.debug("Reference size: %f" % (ref_size))
+        # Now scale up the filtersize, making sure it stays between 3 and 7
+        filtersize = int(math.floor(math.sqrt(target_dimension / ref_size) * dic['BACK_FILTERSIZE']))
+        logger.debug("Simple filter size: %d" % (filtersize))
+        if (filtersize < 3): filtersize = 3
+        if (filtersize > 7): filtersize = 7
+
+        # in a next step, modify the backsize parameter. Make sure it does not
+        # become too large or too small
+        backsize = (target_dimension * 60. / pixelscale) / filtersize
+
+        logger.debug("BACK-SIZE: %f" % (backsize))
+        if (backsize < 64): backsize = 64
+        if (backsize > 600): backsize = 600
+
+        dic['BACK_SIZE'] = backsize
+        dic['BACK_FILTERSIZE'] = filtersize
+
+        bg_opts = """  
+               -BACK_TYPE %(BACK_TYPE)s
+               -BACK_SIZE %(BACK_SIZE)d
+               -BACK_FILTERSIZE %(BACK_FILTERSIZE)d
+        """ % dic
+        logger.info("Adding background parameters:\n\n"+bg_opts+"\n\n")
+        swarp_opts += bg_opts
+
 
     logger = logging.getLogger("SwarpStack - FinalStack")
     logger.info("Starting final stacking...")
     # print swarp_opts
 
-    swarp_cmd = "%s %s" % (swarp_exec, swarp_opts)
+    swarp_cmd = "%s %s %s" % (swarp_exec, swarp_opts, " ".join(single_prepared_files))
     logger.debug(" ".join(swarp_cmd.split()))
     try:
         ret = subprocess.Popen(swarp_cmd.split(), 

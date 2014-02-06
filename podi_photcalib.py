@@ -836,7 +836,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             seeing = numpy.median(odi_sdss_matched[:, SXcolumn['fwhm_world']+2]) * 3600.
             logger.debug("Found seeing = %.2f" % (seeing))
             detailed_return['aperture_mode'] = "fwhm_x_3"
-            for i in range(1, len(SXapertures)):
+            for i in range(len(SXapertures)):
                 if (SXapertures[i] > seeing * 3 or i == (len(SXapertures)-1)):
                     col_mag = 'mag_aper_%0.1f' % (SXapertures[i])
                     col_magerr = 'mag_err_%0.1f' % (SXapertures[i])
