@@ -68,7 +68,7 @@ def worker_slave(queue):
     if (not setup.use_ssh):
         # If we reduce frames locally, prepare the QR logging.
         options = podi_collectcells.read_options_from_commandline()
-        options = podi_collectcells.setup_logging(options)
+        options = podi_logging.setup_logging(options)
         options['clobber'] = False
 
     while (True):
@@ -169,7 +169,7 @@ def worker_slave(queue):
 
     if (not setup.use_ssh):
         print "Shutting down QuickReduce logging"
-        podi_logging.podi_log_master_quit(options['log_master_info'])
+        podi_logging.shutdown_logging(options)
 
     print "Terminating worker process..."
 

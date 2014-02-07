@@ -2992,18 +2992,6 @@ Calibration data:
 
 
 
-def setup_logging(options):
-    # Setup everything we need for logging
-    log_master_info, log_setup = podi_logging.podi_log_master_start(options)
-    options['log_setup'] = log_setup
-    options['log_master_info'] = log_master_info
-    return options
-    
-def shutdown_logging(options):
-    podi_logging.podi_log_master_quit(options['log_master_info'])
-    return
-
-
 if __name__ == "__main__":
 
     if (len(sys.argv) <= 1 or sys.argv[1] == "-help"):
@@ -3030,7 +3018,7 @@ if __name__ == "__main__":
     options = set_default_options()
 
     # Setup everything we need for logging
-    setup_logging(options)
+    podi_logging.setup_logging(options)
 
     # Then read the actual given parameters from the command line
     options = read_options_from_commandline(options)
@@ -3061,4 +3049,4 @@ if __name__ == "__main__":
 
 
     finally:
-        shutdown_logging(options)
+        podi_logging.shutdown_logging(options)

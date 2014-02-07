@@ -448,7 +448,7 @@ if __name__ == "__main__":
 
     # Setup everything we need for logging
     options = set_default_options()
-    setup_logging(options)
+    podi_logging.setup_logging(options)
 
     try:
         swarpstack()
@@ -458,4 +458,4 @@ if __name__ == "__main__":
         podi_logging.log_exception()
         pass
     finally:
-        shutdown_logging(options)
+        podi_logging.shutdown_logging(options)

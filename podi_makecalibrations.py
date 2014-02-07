@@ -130,7 +130,7 @@ if __name__ == "__main__":
     # Then read the actual given parameters from the command line
     options = read_options_from_commandline()
     # Setup everything we need for logging
-    setup_logging(options)
+    podi_logging.setup_logging(options)
 
     verbose = cmdline_arg_isset("-verbose")
 
@@ -146,12 +146,12 @@ if __name__ == "__main__":
     
     if (not os.path.isfile(filelist_filename)):
         logger.critical("Unable to open input filelist %s" % (filelist_filename))
-        shutdown_logging(options)
+        podi_logging.shutdown_logging(options)
         sys.exit(-1)
 
     if (not os.path.isdir(output_directory)):
         logger.critical("Specified output directory does not exists..." % (output_directory))
-        shutdown_logging(options)
+        podi_logging.shutdown_logging(options)
         sys.exit(-2)
 
     # We also need a "tmp" subdirectory  directory in the output directory
@@ -413,4 +413,4 @@ if __name__ == "__main__":
 
     stdout_write("\nAll done, yippie :-)\n\n")
     logger.debug("All calibrations done successfully!")
-    shutdown_logging(options)
+    podi_logging.shutdown_logging(options)
