@@ -84,6 +84,9 @@ import Queue
 
 from podi_definitions import *
 import podi_sitesetup as sitesetup
+import podi_collectcells
+import podi_logging
+import logging
 
 try:
     import cPickle as pickle
@@ -123,11 +126,15 @@ def mp_create_saturation_catalog(queue_in, queue_ret, verbose=False):
 
     """
 
+    logger = logging.getLogger("MakeSetCat")
+    logger.debug("Starting worker process")
+
     while (True):
         filename = queue_in.get()
 
         if (filename == None):
             queue_in.task_done()
+            logger.debug("Received shutdown command, terminating")
             return
 
         cat_name = create_saturation_catalog_ota(filename, None, verbose=verbose, return_numpy_catalog=True)
@@ -175,7 +182,8 @@ def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo
 
     """
 
-    stdout_write(filename)
+    logger = logging.getLogger("CreateSaturationCatalog")
+    logger.info("Creating saturation mask for %s ..." % (filename))
 
     if (os.path.isfile(filename)):
         # This is one of the OTA fits files
@@ -183,9 +191,12 @@ def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo
         # names of all the other filenames
         try:
             hdulist = pyfits.open(filename)
-        except:
-            stdout_write("\rProblem opening file %s...\n" % (filename))
+        except IOError:
+            logger.warning("\rProblem opening file %s...\n" % (filename))
             return
+        except:
+            podi_logging.log_exception()
+
 
         hdr_filename = hdulist[0].header['FILENAME']
         hdr_items = hdr_filename.split('.')
@@ -205,10 +216,10 @@ def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo
         directory = filename
 
     output_filename = "%s/%s.saturated.fits" % (output_dir, basename)
-    stdout_write(" --> %s ...\n" % (output_filename))
+    logger.debug("Output saturation catalog: %s" % (output_filename))
 
     if (os.path.isfile(output_filename) and not redo):
-        print "File exists, skipping!"
+        logger.debug("File (%s) exists, skipping!" % (output_filename))
         return
 
     # Setup parallel processing
@@ -233,10 +244,26 @@ def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo
         queue.put( (filename) )
         number_jobs_queued += 1
 
-        # Remember the very first fits file we find. This will serve as the primary HDU
-        if (first_fits_file == None): first_fits_file = filename
-       
+        # Remember the very first FITS file we find. This will serve as the primary HDU
+        if (first_fits_file == None): 
+            # Create a primary HDU from the first found fits-file
+            try:
+                firsthdu = pyfits.open(filename)
+            except IOError:
+                logger.warning("Problem opening FITS file %s" % (filename))
+                continue
+            logger.debug("Copying general information from file %s" % (filename))
+            ota_list.append(pyfits.PrimaryHDU(header=firsthdu[0].header))
+            firsthdu.close()
+            firsthdu = None
+            first_fits_file = filename
+
+    if (first_fits_file == None):
+        logger.warning("Couldn't find a valid FITS file, thus nothing to do")
+        return
+
     # Now start all the workers
+    logger.debug("Starting worker processes")
     processes = []
     for i in range(sitesetup.number_cpus):
         p = multiprocessing.Process(target=mp_create_saturation_catalog, args=(queue, return_queue, False))
@@ -245,16 +272,12 @@ def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo
         time.sleep(0.01)
 
     # Tell all workers to shut down when no more data is left to work on
+    logger.debug("Sending shutdown command to worker processes")
     for i in range(len(processes)):
         if (verbose): stdout_write("Sending quit command!\n")
         queue.put( (None) )
 
-    # Create a primary HDU from the first found fits-file
-    firsthdu = pyfits.open(first_fits_file)
-    ota_list.append(pyfits.PrimaryHDU(header=firsthdu[0].header))
-    firsthdu.close()
-    firsthdu = None
-
+    logger.debug("Collecting catalogs for each OTA")
     for i in range(number_jobs_queued):
         if (verbose): print "reading return ",i
 
@@ -276,12 +299,19 @@ def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo
             ota_list.append(tbhdu)
             
         return_queue.task_done()
-            
+
+    # Join each process to make thre they terminate(d) correctly
+    logger.debug("Joining process to ensure proper termination")
+    for p in processes:
+        p.join()
+
     hdulist = pyfits.HDUList(ota_list)
     output_filename = "%s/%s.saturated.fits" % (output_dir, basename)
     clobberfile(output_filename)
+    logger.debug("Writing output file %s" % (output_filename))
     hdulist.writeto(output_filename, clobber=True)
 
+    logger.debug("all done!")
     return
 
 
@@ -317,6 +347,7 @@ def create_saturation_catalog_ota(filename, output_dir, verbose=True, return_num
 
     """
 
+    logger = logging.getLogger()
 
     # Open filename
     if (verbose):
@@ -325,14 +356,20 @@ def create_saturation_catalog_ota(filename, output_dir, verbose=True, return_num
 
     try:
         hdulist = pyfits.open(filename)
+    except IOError:
+        logger.debug("Can't open file %s" % (filename))
+        return None
     except:
-        # Something bad happened
+        podi_logging.log_exception()
         return None
 
     mjd = hdulist[0].header['MJD-OBS']
     obsid = hdulist[0].header['OBSID']
     ota = int(hdulist[0].header['FPPOS'][2:4])
     datatype = hdulist[0].header['FILENAME'][0]
+
+    logger = logging.getLogger("CreateSatCat: %s, OTA %02d" % (obsid, ota))
+    logger.debug("Starting work")
 
     full_coords = numpy.zeros(shape=(0,4)) #, dtype=numpy.int16)
     saturated_pixels_total = 0
@@ -376,8 +413,10 @@ def create_saturation_catalog_ota(filename, output_dir, verbose=True, return_num
     final_cat = numpy.array(full_coords, dtype=numpy.dtype('int16'))
 
     if (saturated_pixels_total <= 0):
+        logger.debug("No saturated pixels found, well done!")
         return None
 
+    logger.debug("Found %d saturated pixels, preparing catalog" % (saturated_pixels_total))
     # Now define the columns for the table
     columns = [\
         pyfits.Column(name='CELL_X', format='I', array=final_cat[:, 0]),
@@ -392,6 +431,7 @@ def create_saturation_catalog_ota(filename, output_dir, verbose=True, return_num
     tbhdu.update_ext_name(extension_name, comment="catalog of saturated pixels")
 
     if (return_numpy_catalog):
+        logger.debug("Returning results as numpy catalog")
         return final_cat, extension_name
 
     # Also copy the primary header into the new catalog
@@ -413,6 +453,7 @@ def create_saturation_catalog_ota(filename, output_dir, verbose=True, return_num
     #numpy.savetxt("test", final_cat)
     #print full_coords.shape
         
+    logger.debug("Retuning final FITS table catalog")
     return final_cat
     
 
@@ -1175,7 +1216,9 @@ def create_new_persistency_map(shape=None, write_fits=None):
 
 if __name__ == "__main__":
 
-    
+    options = podi_collectcells.read_options_from_commandline()
+    podi_logging.setup_logging(options)
+
     if (cmdline_arg_isset('-newmap')):
         pers_dir = cmdline_arg_set_or_default("-persistency", "./")
         outputfile = "%s/persistency_map_00000000T000000.fits" % (pers_dir)
@@ -1184,22 +1227,19 @@ if __name__ == "__main__":
         create_new_persistency_map(None, write_fits=outputfile)
 
         # Quit the program right here
-        sys.exit(0)
         
-    if (cmdline_arg_isset('-findmap')):
+    elif (cmdline_arg_isset('-findmap')):
         directory = get_clean_cmdline()[1]
         mjd = float(get_clean_cmdline()[2])
         find_latest_persistency_map(directory, mjd, verbose=True)
-        sys.exit(0)
 
-    if (cmdline_arg_isset('-makecat')):
+    elif (cmdline_arg_isset('-makecat')):
         output_dir = cmdline_arg_set_or_default('-persistency', '.')
         verbose = cmdline_arg_isset("-verbose")
         for filename in get_clean_cmdline()[1:]:
             create_saturation_catalog(filename, output_dir=output_dir, verbose=verbose)
-        sys.exit(0)
 
-    if (cmdline_arg_isset('-masksattrails')):
+    elif (cmdline_arg_isset('-masksattrails')):
         input_file = get_clean_cmdline()[1]
         catalog_file = get_clean_cmdline()[2]
         output_file = get_clean_cmdline()[3]
@@ -1212,9 +1252,8 @@ if __name__ == "__main__":
             print ota
             inputhdu[i].data = mask_saturation_defects(catalog_file, ota, inputhdu[i].data)
         inputhdu.writeto(output_file, clobber=True)
-        sys.exit(0)
 
-    if (cmdline_arg_isset("-findclosemjds")):
+    elif (cmdline_arg_isset("-findclosemjds")):
         input_file = get_clean_cmdline()[1]
         catalog_dir = cmdline_arg_set_or_default('-persistency', '.')
         inputhdu = pyfits.open(input_file)
@@ -1224,9 +1263,8 @@ if __name__ == "__main__":
         full_filelist = get_list_of_saturation_tables(catalog_dir)
         filelist = select_from_saturation_tables(full_filelist, mjd, [-1,600])
         print "found closest:\n",filelist
-        sys.exit(0)
 
-    if (cmdline_arg_isset("-fixpersistency")):
+    elif (cmdline_arg_isset("-fixpersistency")):
         input_file = get_clean_cmdline()[1]
         output_file = get_clean_cmdline()[2]
         catalog_dir = cmdline_arg_set_or_default('-persistency', '.')
@@ -1254,38 +1292,40 @@ if __name__ == "__main__":
             inputhdu[i].data = correct_persistency_effects(ota, inputhdu[i].data, mjd, filelist)      
         print "Writing ", output_file
         inputhdu.writeto(output_file, clobber=True)
-        sys.exit(0)
+
+    else:
+        inputfile = sys.argv[1]
+        hdulist = pyfits.open(inputfile)
+        persistency_map_in = sys.argv[2]
+
+        outputfile = sys.argv[3]
+        persistency_map_out = sys.argv[4]
+
+        hdulist = pyfits.open(inputfile)
+        mjd = hdulist[0].header['MJD-OBS']
 
 
-    inputfile = sys.argv[1]
-    hdulist = pyfits.open(inputfile)
-    persistency_map_in = sys.argv[2]
+        mask_thisframe, mask_timeseries = map_persistency_effects(hdulist, verbose=True)
 
-    outputfile = sys.argv[3]
-    persistency_map_out = sys.argv[4]
+        persistency_hdu = pyfits.open(persistency_map_in)
+        map_in = persistency_hdu[1].data
 
-    hdulist = pyfits.open(inputfile)
-    mjd = hdulist[0].header['MJD-OBS']
+        map_out = add_mask_to_map(mask_timeseries, mjd, map_in)
+        persistency_hdu[1].data = map_out
+        persistency_hdu.writeto(persistency_map_out, clobber=True)
+
+        for ext in range(0, len(hdulist)):
+            if (str(type(hdulist[ext])) != "<class 'pyfits.hdu.image.ImageHDU'>"):
+                continue
+
+            extname = hdulist[ext].header['EXTNAME']
+
+            if (extname in mask_thisframe):
+                hdulist[ext].data[mask_thisframe[extname]] = 100
+                # data[mask_time] = mjd
+                # data[saturated] = 0
+
+        #hdulist.writeto("persistency.fits", clobber=True)
 
 
-    mask_thisframe, mask_timeseries = map_persistency_effects(hdulist, verbose=True)
-
-    persistency_hdu = pyfits.open(persistency_map_in)
-    map_in = persistency_hdu[1].data
-
-    map_out = add_mask_to_map(mask_timeseries, mjd, map_in)
-    persistency_hdu[1].data = map_out
-    persistency_hdu.writeto(persistency_map_out, clobber=True)
-
-    for ext in range(0, len(hdulist)):
-        if (str(type(hdulist[ext])) != "<class 'pyfits.hdu.image.ImageHDU'>"):
-            continue
-
-        extname = hdulist[ext].header['EXTNAME']
-
-        if (extname in mask_thisframe):
-            hdulist[ext].data[mask_thisframe[extname]] = 100
-            # data[mask_time] = mjd
-            # data[saturated] = 0
-
-    #hdulist.writeto("persistency.fits", clobber=True)
+    podi_logging.shutdown_logging(options)
