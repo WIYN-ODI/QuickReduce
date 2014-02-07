@@ -438,13 +438,13 @@ def log_exception(name=None):
 
 def setup_logging(options):
     # Setup everything we need for logging
-    log_master_info, log_setup = podi_logging.podi_log_master_start(options)
+    log_master_info, log_setup = podi_log_master_start(options)
     options['log_setup'] = log_setup
     options['log_master_info'] = log_master_info
     return options
     
 def shutdown_logging(options):
-    podi_logging.podi_log_master_quit(options['log_master_info'])
+    podi_log_master_quit(options['log_master_info'])
     return
 
 
