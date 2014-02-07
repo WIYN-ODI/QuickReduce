@@ -1163,7 +1163,7 @@ def parallel_collect_reduce_ota(queue, return_queue,
             # All other problems:
             # Note them in the debug log, and raise the error for further 
             # processing
-            log_exception("parallel_collectcells")
+            podi_logging.log_exception("parallel_collectcells")
             raise
 
         # Add the results to the return_queue so the master process can assemble the result file
@@ -3056,7 +3056,7 @@ if __name__ == "__main__":
                 collectcells(input, outputfile, process_tracker=process_tracker, options=options)
     except:
         print "Cleaning up left over child processes"
-        log_exception()
+        podi_logging.log_exception()
         kill_all_child_processes(process_tracker)
 
 

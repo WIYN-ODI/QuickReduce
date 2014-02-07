@@ -25,6 +25,7 @@ import time
 import Queue
 import threading
 import multiprocessing
+import traceback
 
 from  podi_definitions import *
 import podi_sitesetup as sitesetup
@@ -417,6 +418,21 @@ def podi_logger_setup(setup):
     return
 
 
+def log_exception(name=None):
+
+    etype, error, stackpos = sys.exc_info()
+
+    exception_string = ["\n",
+                        "=========== EXCEPTION ==============",
+                        "etype: %s" % (str(etype)),
+                        "error: %s" % (str(error)),
+                        "stackpos: %s" % (str(stackpos)),
+                        "---\n",
+                        traceback.format_exc(),
+                        "--- end\n"
+    ]
+    logger = logging.getLogger(name)
+    logger.critical("\n".join(exception_string))
 
 # def podi_getlogger(name, setup):
 

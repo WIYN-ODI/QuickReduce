@@ -865,7 +865,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             detailed_return['aperture_mode'] = "default"
             detailed_return['aperture_size'] = 6.0
     except:
-        log_exception()
+        podi_logging.log_exception()
         logger.error("Problem with configuring the phot.calib aperture, using 6.0'' diameter instead")
         detailed_return['aperture_mode'] = "default-error"
         detailed_return['aperture_size'] = 6.0

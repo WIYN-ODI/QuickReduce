@@ -220,7 +220,7 @@ def swarpstack():
             else:
                 logger.debug("swarp stderr:\n"+swarp_stderr)
         except OSError as e:
-            log_exception()
+            podi_logging.log_exception()
             print >>sys.stderr, "Execution failed:", e
 
         #
@@ -305,7 +305,7 @@ def swarpstack():
                 #print "\n".join(swarp_stderr)
                 single_prepared_files.append(single_file)
             except OSError as e:
-                log_exception()
+                podi_logging.log_exception()
                 print >>sys.stderr, "Execution failed:", e
 
 
@@ -435,7 +435,7 @@ def swarpstack():
         #print "\n".join(swarp_stderr)
         logger.info("done, swarp returned (ret-code: %d)!" % ret.returncode)
     except OSError as e:
-        log_exception()
+        podi_logging.log_exception()
         print >>sys.stderr, "Execution failed:", e
 
     return
@@ -455,7 +455,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt, SystemExit:
         pass
     except:
-        log_exception()
+        podi_logging.log_exception()
         pass
     finally:
         shutdown_logging(options)
