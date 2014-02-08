@@ -22,7 +22,9 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
-"""Function
+"""
+
+Function
 --------------------------------------------------------------------------------
 
 **podi_swarpstack.py** handles most of the most common stacking problems. It 
@@ -93,6 +95,13 @@ Additional command line options
   Chooses the specified pixel scale for the output stack, with X given in 
   arcsec/pixel.
 
+* **-nonsidereal=a,b,c**
+
+  Apply a non-sidereal motion correction to all input frames before stacking.
+  a is the motion in dRA*cos(dec) in arcseconds/hour, b is the motion dDec, also 
+  in arcsec/hour, and c is the MJD reference, either a valid FITS frame or the
+  MJD as floating point number
+
 """
 
 
@@ -130,6 +139,41 @@ def swarpstack():
     subtract_back = cmdline_arg_isset("-bgsub")
 
     reuse_singles = cmdline_arg_isset("-reusesingles")
+
+    use_nonsidereal = cmdline_arg_isset("-nonsidereal")
+    options = read_options_from_commandline()
+    if (use_nonsidereal):
+        logger.info("Applying the non-sidereal motion correction")
+
+        # First apply the non-sidereal correction to all input frames
+        # Keep frames that are already modified
+        for i in range(len(inputfiles)):
+            hdulist = pyfits.open(inputfiles[i])
+            # Assemble the temporary filename for the corrected frame
+            
+            corrected_filename = "%(single_dir)s/%(obsid)s.nonsidereal.fits" % {
+                "single_dir": single_dir,
+                "obsid": hdulist[0].header['OBSID'],
+            }
+
+            # Check if the corrected file already exists - if not create it
+            if (not os.path.isfile(corrected_filename)):
+                logger.info("Correcting input frame %s --> %s" % (
+                    inputfiles[i], corrected_filename))
+                # Apply the non-sidereal option
+                apply_nonsidereal_correction(hdulist, options, logger)
+                hdulist.writeto(corrected_filename, clobber=True)
+            else:
+                logger.info("Input-frame %s with correction already exists (%s)" % (
+                    inputfiles[i], corrected_filename))
+
+            # Now change the filename of the input list to reflect 
+            # the corrected file
+            inputfiles[i] = corrected_filename
+        #
+        # By now all frames have the non-sidereal correction applied,
+        # so we can go ahead and stack them as usual
+        #
 
     target_dimension = float(cmdline_arg_set_or_default('-dimension', -1))
 
