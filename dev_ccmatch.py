@@ -2068,6 +2068,23 @@ if __name__ == "__main__":
         ax.set_ylim((dec-width, dec+width))
         fig.savefig("2mass_test.png")
 
+    elif (cmdline_arg_isset("-applynonsidereal")):
+
+        if (not cmdline_arg_isset("-nonsidereal")):
+            print "The -nonsidereal flag wasn't given, don't know what to do"
+        else:
+            # open the input file
+            input_file = get_clean_cmdline()[1]
+            ota_list = pyfits.open(input_file)
+            import podi_collectcells
+            options = podi_collectcells.read_options_from_commandline()
+
+            # Apply the non-sidereal option
+            apply_nonsidereal_correction(ota_list, options)
+
+            output_file = get_clean_cmdline()[2]
+            ota_list.writeto(output_file, clobber=True)
+        
     else:
         mode = cmdline_arg_set_or_default('-mode', 'xxx')
         print mode
