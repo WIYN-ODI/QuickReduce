@@ -307,7 +307,7 @@ def swarpstack():
            }
 
         swarp_opts = """\
-                 -c $(swarp_default)s \
+                 -c %(swarp_default)s \
                  -IMAGEOUT_NAME %(singledir)s/%(obsid)s.fits \
                  -WEIGHTOUT_NAME %(singledir)s/%(obsid)s.weight.fits \
                  -PIXEL_SCALE %(pixelscale)f \
