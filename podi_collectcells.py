@@ -2268,34 +2268,7 @@ def collectcells(input, outputfile,
 
     if (not options['nonsidereal'] == None):
         logger.info("Starting non-sidereal WCS modification")
-        # This WCS in this frame should be corrected for non-sidereal tracking
-        # Tracking rates are given in arcseconds per hour
-        # Note that d_ra is given as dRA*cos(dec)
-        mjd = ota_list[0].header['MJD-OBS']
-        delta_t_hours = (mjd - options['nonsidereal']['ref_mjd']) * 24.
-        dra_t = options['nonsidereal']['dra'] * delta_t_hours / 3600.
-        ddec_t = options['nonsidereal']['ddec'] * delta_t_hours / 3600.
-
-        ota_list[0].header['NSIDPMRA'] = options['nonsidereal']['dra']
-        ota_list[0].header['NSIDPMDE'] = options['nonsidereal']['ddec']
-        ota_list[0].header['NSIDBASE'] = options['nonsidereal']['ref_mjd']
-        logger.info("Tracking rates are dRA=%(dra)f dDEC=%(ddec)f arcsec/hour" % options['nonsidereal'])
-        logger.info("Time-offset to reference frame: %f hours" % (delta_t_hours))
-
-        for ext in range(len(ota_list)):
-            if (not is_image_extension(ota_list[ext])):
-                continue
-            declination = ota_list[ext].header['CRVAL2']
-            dra_corrected = dra_t / math.cos(math.radians(declination))
-
-            ota_list[ext].header['CRVAL1'] -= dra_corrected
-            ota_list[ext].header['CRVAL2'] -= ddec_t
-
-            ota_list[ext].header['NSIDDRA'] = dra_corrected
-            ota_list[ext].header['NSIDDDEC'] = ddec_t
-            logger.debug("Adding offset of %f %f arcsec to OTA %s" % (
-                dra_corrected*3600., ddec_t*3600, ota_list[ext].header['EXTNAME'])
-            )
+        apply_nonsidereal_correction(ota_list, options, logger)
 
     #
     # If requested by user via command line:
@@ -2377,6 +2350,41 @@ def collectcells(input, outputfile,
     return 0
 
 
+def apply_nonsidereal_correction(ota_list, options, logger=None):
+    # This WCS in this frame should be corrected for non-sidereal tracking
+    # Tracking rates are given in arcseconds per hour
+    # Note that d_ra is given as dRA*cos(dec)
+
+    if (logger == None):
+        logger = logging.getLogger("NonsiderealCorr")
+
+    mjd = ota_list[0].header['MJD-OBS']
+    delta_t_hours = (mjd - options['nonsidereal']['ref_mjd']) * 24.
+    dra_t = options['nonsidereal']['dra'] * delta_t_hours / 3600.
+    ddec_t = options['nonsidereal']['ddec'] * delta_t_hours / 3600.
+
+    ota_list[0].header['NSIDPMRA'] = options['nonsidereal']['dra']
+    ota_list[0].header['NSIDPMDE'] = options['nonsidereal']['ddec']
+    ota_list[0].header['NSIDBASE'] = options['nonsidereal']['ref_mjd']
+    logger.debug("Tracking rates are dRA=%(dra)f dDEC=%(ddec)f arcsec/hour" % options['nonsidereal'])
+    logger.debug("Time-offset to reference frame: %f hours" % (delta_t_hours))
+
+    for ext in range(len(ota_list)):
+        if (not is_image_extension(ota_list[ext])):
+            continue
+        declination = ota_list[ext].header['CRVAL2']
+        dra_corrected = dra_t / math.cos(math.radians(declination))
+
+        ota_list[ext].header['CRVAL1'] -= dra_corrected
+        ota_list[ext].header['CRVAL2'] -= ddec_t
+
+        ota_list[ext].header['NSIDDRA'] = dra_corrected
+        ota_list[ext].header['NSIDDDEC'] = ddec_t
+        logger.debug("Adding offset of %f %f arcsec to OTA %s" % (
+            dra_corrected*3600., ddec_t*3600, ota_list[ext].header['EXTNAME'])
+        )
+
+    return
 
     
 def create_odi_sdss_matched_tablehdu(odi_sdss_matched):
