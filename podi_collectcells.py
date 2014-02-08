@@ -913,7 +913,19 @@ def collect_reduce_ota(filename,
                 if (options['verbose']): print sexcmd
 
                 start_time = time.time()
-                os.system(sexcmd)
+                try:
+                    ret = subprocess.Popen(sexcmd.split(), 
+                                           stdout=subprocess.PIPE, 
+                                           stderr=subprocess.PIPE)
+                    (sex_stdout, sex_stderr) = ret.communicate()
+                    #os.system(sexcmd)
+                    if (ret.returncode != 0):
+                        logger.warning("Sextractor might have a problem, check the log")
+                        logger.debug("Stdout=\n"+sex_stdout)
+                        logger.debug("Stderr=\n"+sex_stderr)
+                except OSError as e:
+                    podi_logging.log_exception()
+                    print >>sys.stderr, "Execution failed:", e
                 end_time = time.time()
                 logger.debug("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
 
