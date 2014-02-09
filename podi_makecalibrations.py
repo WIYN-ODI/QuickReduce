@@ -250,7 +250,12 @@ if __name__ == "__main__":
                 #print bias_list
 
                 logger.info("Stacking %d frames into %s ..." % (len(bias_to_stack), bias_frame))
-                imcombine(bias_to_stack, bias_frame, "sigmaclipmean")
+                bias_hdu = imcombine(bias_to_stack, bias_frame, "sigmaclipmean", return_hdu=True)
+
+                # Relabel the file as 'master-bias" and save to disk
+                bias_hdu[0].header['OBJECT'] = "master-bias"
+                bias_hdu.writeto(bias_frame, clobber=True)
+
                 logger.debug("Stacking %s done!" % (bias_frame))
             else:
                 logger.info("Bias-frame already exists, nothing to do!\n")
@@ -295,7 +300,12 @@ if __name__ == "__main__":
                 #print darks_to_stack
 
                 logger.info("Stacking %d frames into %s ..." % (len(darks_to_stack), dark_frame))
-                imcombine(darks_to_stack, dark_frame, "sigmaclipmean")
+                dark_hdu = imcombine(darks_to_stack, dark_frame, "sigmaclipmean", return_hdu=True)
+                
+                # Relabel the file as 'master-dark" and save to disk
+                dark_hdu[0].header['OBJECT'] = "master-dark"
+                dark_hdu.writeto(dark_frame, clobber=True)
+
                 logger.debug("Stacking %s done!" % (dark_frame))
             else:
                 logger.info("Dark-frame already exists, nothing to do!\n")
@@ -360,6 +370,10 @@ if __name__ == "__main__":
 
                     logger.info("Stacking %d frames into %s ..." % (len(flats_to_stack), flat_frame))
                     flat_hdus = imcombine(flats_to_stack, flat_frame, "sigmaclipmean", return_hdu=True)
+
+                    # Relabel the file
+                    flat_hdus[0].header['OBJECT'] = "master-flat %s" % (filter)
+
                     logger.debug("Stacking %s done!" % (flat_frame))
 
                     #
