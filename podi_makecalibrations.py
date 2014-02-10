@@ -108,6 +108,120 @@ def strip_fits_extension_from_filename(filename):
         return filename[:-8]
     return filename
 
+def compute_readnoise(biases, binning):
+
+    if (len(gain_readnoise_bias[binning]) < 1):
+        # Without frame there's really nothing we can do
+        # But this case should never happen
+        return
+
+    readnoise = {}
+
+    bordermargin = bm = 25 if binning == 1 else 50
+
+    if (len(biases) == 1):
+        # This is not the best way of doing it, but we can still 
+        # compute a estimate of the readnoise from a single frame
+    
+        # Loop over all extensions and each cell in each extension
+        print biases[0]
+        for ext in range(len(biases[0])):
+            if (not is_image_extension(biases[0][ext])):
+                continue
+            extname = biases[0][ext].header['EXTNAME']
+
+            readnoise_ota = numpy.ones(shape=(8,8))
+            for cx, cy in itertools.product(range(8), repeat=2):
+                x1,x2,y1,y2 = cell2ota__get_target_region(cx, cy, binning)
+                cell = biases[0][ext].data[x1:x2, y1:y2][bm:-bm, bm:-bm]
+                cell = cell[numpy.isfinite(cell)]
+                
+                try:
+                    _ron = scipy.stats.scoreatpercentile(cell, [16, 84])
+                    ron = 0.5 * (_ron[1] - _ron[0])
+                except ValueError:
+                    # This means there were likely not enough valid pixels 
+                    # set the readnoise to some negative default value that
+                    # is easy to ignore in all other cases
+                    ron = -10
+
+                # logger.debug("RON for %s, cell %d,%d: %f" % (extname, cx, cy, ron))
+                readnoise_ota[cx,cy] = ron
+
+            readnoise[extname] = readnoise_ota
+            # logger.debug("All rons for ext %s: %s" % (extname, str(readnoise_ota)))
+            print "readnoise-%s:\n" % (extname),readnoise_ota
+
+    else:
+        #
+        # We start here if we have more than a single frame to work on
+        #
+        for a,b in itertools.combinations(range(len(gain_readnoise_bias[binning])), 2):
+
+            for ext in range(len(biases[a])):
+                if (not is_image_extension(biases[0][ext])):
+                    continue
+                extname = biases[a][ext].header['EXTNAME']
+
+                if (not extname in readnoise):
+                    readnoise[extname] = []
+
+                readnoise_ota = numpy.ones(shape=(8,8))
+
+                frame_a = biases[a][extname].data
+                frame_b = biases[b][extname].data
+
+                diff_ab = frame_a - frame_b
+
+                for cx, cy in itertools.product(range(8), repeat=2):
+                    x1,x2,y1,y2 = cell2ota__get_target_region(cx, cy, binning)
+
+                    cell = diff_ab[x1:x2, y1:y2][bm:-bm, bm:-bm]
+                    cell = cell[numpy.isfinite(cell)]
+                
+                    try:
+                        _ron = scipy.stats.scoreatpercentile(cell, [16, 84])
+                        ron = 0.5 * (_ron[1] - _ron[0])
+                    except ValueError:
+                        # This means there were likely not enough valid pixels 
+                        # set the readnoise to some negative default value that
+                        # is easy to ignore in all other cases
+                        ron = -10
+
+                    # logger.debug("RON for %s, cell %d,%d: %f" % (extname, cx, cy, ron))
+                    readnoise_ota[cx,cy] = ron
+
+                readnoise[extname].append(readnoise_ota)
+                # logger.debug("All rons for ext %s: %s" % (extname, str(readnoise_ota)))
+                print "readnoise-%s:\n" % (extname),readnoise_ota
+
+
+        # Now we have readnoise measurements for each combination of frames
+        for ext in readnoise:
+            # Convert the list of arrays to 3-d array
+            all_data = numpy.array(readnoise[ext])
+
+            # mask out all negative (=invalid) numbers so we can compute the average
+            all_data[all_data < 0] = numpy.NaN
+
+            # average the readnoise values from each pair of frames
+            combined = bottleneck.nanmean(all_data, axis=0)
+
+            # Correct for the fact we are working on difference frames
+            combined /= math.sqrt(2)
+
+            # replace the NaNs back to negative values to not cause illegal FITS 
+            # header values
+            combined[numpy.isnan(combined)] = -10.
+            
+            # and prepare the resulting Readnoise values for return
+            readnoise[ext] = combined
+        
+    logger.debug("All rons: %s" % (str(readnoise)))
+    return readnoise
+
+
+
 if __name__ == "__main__":
 
     stdout_write("""\
@@ -158,6 +272,13 @@ if __name__ == "__main__":
     if (not os.path.exists(tmp_directory)):
         logger.debug("Creating tmp directory %s" % (tmp_directory))
         os.makedirs(tmp_directory)
+
+    compute_gain_readnoise = cmdline_arg_isset("-gainreadnoise")
+    nframes_gain_readnoise = -1
+    if (compute_gain_readnoise):
+        nframes_gain_readnoise = int(cmdline_arg_set_or_default("-gainreadnoise", 2))
+    if (nframes_gain_readnoise <= 0):
+        compute_gain_readnoise = False
 
     #
     # Read the list of files
@@ -212,6 +333,11 @@ if __name__ == "__main__":
     # Determine all binning values encountered
     binning_set = set(binning_list)
 
+    # Allocate some storage so we can save the temporary data from bias and 
+    # flats that we need to compute the gain and read noise
+    gain_readnoise_bias = {}
+    gain_readnoise_dark = {}
+
     # Also create a unique set of filters. This, for now, ignores 
     # the fact that not all filters have all binning factors. These
     # cases are handled below
@@ -221,9 +347,12 @@ if __name__ == "__main__":
     # First of all, let's combine all bias frames
     #
     logger = logging.getLogger("MakeCalibration_Bias")
-    for binning in binning_set:
-        bias_frame = "%s/bias_bin%d.fits" % (output_directory, binning)
 
+    for binning in binning_set:
+        gain_readnoise_bias[binning] = []
+
+        bias_frame = "%s/bias_bin%d.fits" % (output_directory, binning)
+        
         # From the full filelist, extract only the bias frames with the right bias
         bias_list = []
         for (filename, obstype, filter, bin) in calib_file_list:
@@ -241,17 +370,44 @@ if __name__ == "__main__":
                     dummy, basename = os.path.split(cur_bias)
                     bias_outfile = "%s/bias.b%d.%s.fits" % (tmp_directory, binning, strip_fits_extension_from_filename(basename))
                     if (not os.path.isfile(bias_outfile) or cmdline_arg_isset("-redo")):
-                        collectcells(cur_bias, bias_outfile,
+                        
+                        bias_hdu = collectcells(cur_bias, bias_outfile,
                                      options=options,
                                      process_tracker=None,
-                                     batchmode=False,
+                                     batchmode=True,
                                      showsplash=False)
+                        # With batchmode enabled, we have th save the file to disk here
+                        clobberfile(bias_outfile)
+                        bias_hdu.writeto(bias_outfile, clobber=True)
+
+                        # Save the HDU if we need it later to compute gain and read-noise
+                        if (compute_gain_readnoise 
+                            and len(gain_readnoise_bias[binning]) < nframes_gain_readnoise):
+                            gain_readnoise_bias[binning].append(bias_hdu)
+
                     bias_to_stack.append(bias_outfile)
                 #print bias_list
 
                 logger.info("Stacking %d frames into %s ..." % (len(bias_to_stack), bias_frame))
                 bias_hdu = imcombine(bias_to_stack, bias_frame, "sigmaclipmean", return_hdu=True)
 
+                #
+                # Compute the read-noise for each cell
+                #
+                if (compute_gain_readnoise):
+                    readnoise = compute_readnoise(gain_readnoise_bias[binning], binning)
+                    print readnoise
+                    if (not readnoise == None):
+                        # Compute average readnoise numbers and add to extensions
+                        for extname in readnoise:
+                            all_ron = readnoise[extname]
+                            avg_readnoise = numpy.average(all_ron[all_ron > 0])
+                            bias_hdu[extname].header['RDNOISE'] = (avg_readnoise, "average readnoise [counts]")
+                            std_readnoise = numpy.std(all_ron[all_ron > 0])
+                            bias_hdu[extname].header['RON_STD'] = (std_readnoise, "readnoise std.dev. [counts]")
+                            logger.debug("Found readnoise (%s): %.4f +/- %.4f" % (extname, avg_readnoise, std_readnoise))
+
+                
                 # Relabel the file as 'master-bias" and save to disk
                 bias_hdu[0].header['OBJECT'] = "master-bias"
                 bias_hdu.writeto(bias_frame, clobber=True)
@@ -368,6 +524,12 @@ if __name__ == "__main__":
                                                     options=options,
                                                     batchmode=True, showsplash=False)
                             normalize_flatfield(None, flat_outfile, binning_x=8, binning_y=8, repeats=3, batchmode_hdu=hdu_list)
+
+                            # Save the HDU if we need it later to compute gain and read-noise
+                            if (compute_gain_readnoise 
+                                and len(gain_readnoise_flat[binning]) < nframes_gain_readnoise):
+                                gain_readnoise_flat[binning].append(bias_hdu)
+
                         flats_to_stack.append(flat_outfile)
                     #print flats_to_stack
 
@@ -378,6 +540,10 @@ if __name__ == "__main__":
                     flat_hdus[0].header['OBJECT'] = "master-flat %s" % (filter)
 
                     logger.debug("Stacking %s done!" % (flat_frame))
+
+                    #
+                    # Insert here: Compute the GAIN for each cell
+                    #
 
                     #
                     # Now apply the pupil ghost correction 
