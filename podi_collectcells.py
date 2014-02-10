@@ -605,7 +605,7 @@ def collect_reduce_ota(filename,
             if (os.path.isfile(dark_filename)):
                 dark = pyfits.open(dark_filename)
                 reduction_files_used['dark'] = dark_filename
-                darktime = dark[0].header['EXPTIME']
+                darktime = dark[0].header['EXPMEAS']
 
                 # Search for the flatfield data for the current OTA
                 for dark_ext in dark[1:]:
@@ -699,6 +699,26 @@ def collect_reduce_ota(filename,
                 hdu.header.add_history("CC-BPM: %s" % (os.path.abspath(region_file)))
                 reduction_files_used['bpm'] = region_file
 
+        #
+        # Optionally, normalize the frame by some header value
+        #
+        if ("normalize" in options):
+            norm_factor = 1
+            if (options['normalize'] == "EXPTIME" or
+                options['normalize'] == "EXPMEAS"):
+                # get the factor from the header
+                norm_factor = hdu.header[options['normalize']]
+
+                if (norm_factor > 0):
+                    logger.debug("normalizing data with constant %f (%s)" % (
+                            norm_factor, options['normalize']))
+                    # normalize the data
+                    merged /= norm_factor
+                    # and fix the EXPTIME/EXPMEAS header as well
+                    hdu.header['EXPTIME'] /= norm_factor
+                    hdu.header['EXPMEAS'] /= norm_factor
+            hdu.header['NORMALIZ'] = (norm_factor, "normalization constant")
+                
         #
         # If persistency correction is requested, perform it now
         #

@@ -268,6 +268,7 @@ if __name__ == "__main__":
     # Now that we have the master bias frame, go ahead and reduce the darks
     #
     logger = logging.getLogger("MakeCalibration_Dark")
+    options['normalize'] = "EXPMEAS"
     # For now set all darks to detector-glow "yes"
     for binning in binning_set:
         
@@ -313,6 +314,8 @@ if __name__ == "__main__":
                 for file in darks_to_stack:
                     logger.debug("Deleting tmp-file %s" % (file))
                     clobberfile(file)
+    if ('normalize' in options):
+        del options['normalize']
 
     #
     # And finally, reduce the flats using the biases and darks.
