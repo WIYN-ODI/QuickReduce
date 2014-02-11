@@ -123,13 +123,27 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
     
     # Now normalize all OTAs with the median flatfield level
     stdout_write(" normalizing ...")
-    for extension in range(1, len(hdulist)):
+
+    # Create a new HDU list for the normalized output
+    hdu_out = [] #pyfits.PrimaryHDU(header=hdulist[0].header)]
+
+    for extension in range(0, len(hdulist)):
         if (not is_image_extension(hdulist[extension])):
+            hdu_out.append(hdulist[extension])
             continue
-        hdulist[extension].data /= ff_median_level
-        hdulist[extension].data[hdulist[extension].data < 0.1] = numpy.NaN
-        hdulist[extension].header.add_history("FF-level: %.1f" % (ff_median_level))
+
+        data = hdulist[extension].data.copy()
+        data /= ff_median_level
+        data[data < 0.1] = numpy.NaN
+        new_hdu = pyfits.ImageHDU(data=data, header=hdulist[extension].header)
+
+        #hdulist[extension].data /= ff_median_level
+        #hdulist[extension].data[hdulist[extension].data < 0.1] = numpy.NaN
+        new_hdu.header.add_history("FF-level: %.1f" % (ff_median_level))
+        hdu_out.append(new_hdu)
         
+    hdulist = pyfits.HDUList(hdu_out)
+
     #
     # compute the global gain value and store it in primary header
     # 
