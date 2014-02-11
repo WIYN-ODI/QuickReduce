@@ -2462,6 +2462,16 @@ def apply_nonsidereal_correction(ota_list, options, logger=None):
     if (logger == None):
         logger = logging.getLogger("NonsiderealCorr")
 
+    if (options['nonsidereal'] == None):
+        logger.debug("No nonsidereal option set, skipping non-sidereal correction")
+        return
+    if (not ('dra' in options['nonsidereal'] and
+             'ddec' in in options['nonsidereal'] and
+             'ref_mjd' in in options['nonsidereal'])):
+        logger.debug("One of the nonsidereal option missing, skipping non-sidereal correction")
+        logger.debug("Available options are:"+str(options['nonsidereal']))
+        return
+             
     mjd = ota_list[0].header['MJD-OBS']
     delta_t_hours = (mjd - options['nonsidereal']['ref_mjd']) * 24.
     dra_t = options['nonsidereal']['dra'] * delta_t_hours / 3600.
@@ -3095,6 +3105,9 @@ Calibration data:
                             ns['ref_mjd'] = hdulist[0].header['MJD-OBS']
                             logger.debug("Found reference MJD (%f) in file %s" % (ns['ref_mjd'], ns['ref']))
                         hdulist.close()
+                    else:
+                        logger.critical("Could not find the reference file for the -nonsidereal option!")
+                        logger.critical("Disabling nonsidereal WCS correction")
                     pass
                 if (not ns['ref_mjd'] == None):
                     options['nonsidereal'] = ns
