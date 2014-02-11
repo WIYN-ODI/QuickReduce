@@ -2466,8 +2466,8 @@ def apply_nonsidereal_correction(ota_list, options, logger=None):
         logger.debug("No nonsidereal option set, skipping non-sidereal correction")
         return
     if (not ('dra' in options['nonsidereal'] and
-             'ddec' in in options['nonsidereal'] and
-             'ref_mjd' in in options['nonsidereal'])):
+             'ddec' in options['nonsidereal'] and
+             'ref_mjd' in options['nonsidereal'])):
         logger.debug("One of the nonsidereal option missing, skipping non-sidereal correction")
         logger.debug("Available options are:"+str(options['nonsidereal']))
         return
