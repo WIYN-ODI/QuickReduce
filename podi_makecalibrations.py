@@ -402,12 +402,12 @@ def gain_readnoise_to_tech_hdu(hdulist, gain, readnoise):
     #
     if (not readnoise == None):
         for extname in readnoise:
-            print extname
+            #print extname
 
             ota = int(extname[3:5]) # extname has to be of form OTAxy.SCI
-            print ota
+            #print ota
 
-            print readnoise[extname].shape[0], readnoise[extname].shape[1]
+            #print readnoise[extname].shape[0], readnoise[extname].shape[1]
             for cx, cy in itertools.product(range(readnoise[extname].shape[0]), range(readnoise[extname].shape[1])):
                 keyword = "RN_%02d_%d%d" % (ota, cx, cy)
                 techhdu.header[keyword] = (readnoise[extname][cx,cy], "readnoise, OTA %02d, cell %d,%d" % (ota, cx, cy))
