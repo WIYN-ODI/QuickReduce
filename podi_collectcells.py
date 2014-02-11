@@ -235,6 +235,7 @@ import scipy.optimize
 import ephem
 import traceback
 #import psutil
+import datetime
 
 import Queue
 import threading
@@ -1565,10 +1566,6 @@ def collectcells(input, outputfile,
 
     binning = get_binning(hdulist[0].header)
 
-    # We know enough about the current frame, so close the file
-    hdulist.close()
-    del hdulist
-
     # Check if the output file contains a new directory. 
     chk_directory, chk_filename = os.path.split(outputfile)
     changed_outputfilename = False
@@ -1619,7 +1616,7 @@ def collectcells(input, outputfile,
     for key, value in options['additional_fits_headers'].iteritems():
         ota_list[0].header[key] = (value, "user-added keyword")
 
-    ota_list[0].header['BINNING'] = (binning, "bining factor")
+    ota_list[0].header['BINNING'] = (binning, "binning factor")
 
     #
     # Set up the parallel processing environment
@@ -1705,6 +1702,14 @@ def collectcells(input, outputfile,
             queue.put((True,None,None))
 
 
+    ############################################################
+    #
+    # Here is a good point to do some processing that does not depend on
+    # individual OTAs. All slave-processes are busy, so the main process 
+    # has some free time at hand before the first OTAs return
+    #
+    ############################################################
+
     #
     # Create a master list that keeps track of all additional files used for this frame
     #
@@ -1722,6 +1727,40 @@ def collectcells(input, outputfile,
 
     fixwcs_odi_sourcecat = None
     fixwcs_bestguess = numpy.ones(shape=(len(list_of_otas_being_reduced),2)) * -1000
+
+    #
+    # Compute some additional timing keywords for the mid- and end-point
+    # of the exposure (important for observations of moving things)
+    #
+
+    # Read the date string from the header, making sure to trim off the 
+    # fractions of a second to make ot python compatible
+    date_format = "%Y-%m-%dT%H:%M:%S.%f"
+    time_format = "%H:%M:%S.%f"
+    date_obs = datetime.datetime.strptime(hdulist[0].header['DATE-OBS'], date_format)
+    date_mid = date_obs + datetime.timedelta(seconds=(0.5*hdulist[0].header['EXPMEAS']))
+    date_end = date_obs + datetime.timedelta(seconds=hdulist[0].header['EXPMEAS'])
+    mjd = hdulist[0].header['MJD-OBS']
+
+    #
+    # write the mid-exposure and end-exopsure times back to FITS header
+    #
+    ota_list[0].header['DATE-MID'] = (datetime.datetime.strftime(date_mid, date_format)[:-3], 
+                                      "Date at exposure mid-point")
+    ota_list[0].header['TIME-MID'] = (datetime.datetime.strftime(date_mid, time_format)[:-3], 
+                                      "Time at exposure mid-point")
+    ota_list[0].header['DATE-END'] = (datetime.datetime.strftime(date_end, date_format)[:-3], 
+                                      "Date at exposure end-point")
+    ota_list[0].header['TIME-END'] = (datetime.datetime.strftime(date_end, time_format)[:-3], 
+                                      "Time at exposure end-point")
+    ota_list[0].header['MJD-MID'] = (mjd + (0.5 * hdulist[0].header['EXPMEAS'])/86400., 
+                                     "MJD at exposure mid-point")
+    ota_list[0].header['MJD-END'] = (mjd + (hdulist[0].header['EXPMEAS']/86400.), 
+                                     "MJD at exposure end-point")
+
+    # We know enough about the current frame, so close the file
+    hdulist.close()
+    del hdulist
 
     ############################################################
     #
