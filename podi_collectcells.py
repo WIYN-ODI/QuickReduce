@@ -927,9 +927,9 @@ def collect_reduce_ota(filename,
                 basepath, dummy = os.path.split(full_path)
                 sex_config_file = "%s/.config/wcsfix.sex" % (basepath)
                 parameters_file = "%s/.config/wcsfix.sexparam" % (basepath)
-                sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s %s" % (
+                sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s" % (
                     sitesetup.sextractor, sex_config_file, parameters_file, catfile, 
-                    fitsfile, sitesetup.sex_redirect)
+                    fitsfile)
                 if (options['verbose']): print sexcmd
 
                 start_time = time.time()
