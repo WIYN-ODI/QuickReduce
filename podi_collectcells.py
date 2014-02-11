@@ -2100,9 +2100,36 @@ def collectcells(input, outputfile,
     # Add some default photometric calibration keywords
     #
     ota_list[0].header['PHOTMCAT'] = (None, "catalog used for photometric calibration")
-    ota_list[0].header['SKYMAG'] = (-99., "magnitude of sky [mag/arcsec**2]")
-    ota_list[0].header['PHOTDPTH'] = (-99, "photometric depth [mag]")
-    ota_list[0].header['RADZPFIT'] = (False, "was a radial ZP fit done?")
+    
+    ota_list[0].header["PHOTZP"]   = (-99., "phot. zeropoint corr for exptime")
+    ota_list[0].header["PHOTZPSD"] = (-99., "zeropoint std.dev.")
+    ota_list[0].header["PHOTZP_X"] = (-99., "phot zeropoint for this frame")
+    ota_list[0].header["PHOTZPSP"] = (-99., "phot ZP upper 1sigma limit")
+    ota_list[0].header["PHOTZPSM"] = (-99., "phot ZP lower 1sigma limit")
+    ota_list[0].header["PHOTZPER"] = (-99., "phot ZP std.err of the mean")
+    ota_list[0].header["PHOTZP_N"] = (-1, "number stars in clipped distrib.")
+    ota_list[0].header["PHOTZPN0"] = (-1, "total number of matched ref stars")
+
+    # AuCaP compatible photometric zeropoint
+    ota_list[0].header["MAGZERO"]  = (-99, "phot. zeropoint corr for exptime")
+    ota_list[0].header["MAGZSIG"]  = (-99, "phot ZP dispersion")
+    ota_list[0].header["MAGZERR"]  = (-99, "phot ZP uncertainty")
+
+    # Add some information on what apertures were used for the photometric calibration
+    ota_list[0].header['MAG0MODE'] = ("none", "how was aperture determined")
+    ota_list[0].header['MAG0SIZE'] = (-99, "what aperture size was used")
+    ota_list[0].header['MAG0_MAG'] = ("none", "id string for magnitude")
+    ota_list[0].header['MAG0_ERR'] = ("none", "is string for mag error")
+
+    # Compute a flux scaling keyword to be used with swarp
+    ota_list[0].header["FLXSCALE"] = (1.0, "flux scaling factor for ZP=25")
+
+    # Add default values forthe radial ZP trend
+    ota_list[0].header['RADZPFIT'] = (False, "was a radial ZP (ZP=p0 + p1 x r) fit done?")
+    ota_list[0].header['RADZP_P0'] = (-99, "radial ZP fit, ZP offset at r=0")
+    ota_list[0].header['RADZP_P1'] = (-99, "radial ZP fit, slope in mag/degree")
+    ota_list[0].header['RADZP_E0'] = (-99, "radial ZP fit, ZP offset error")
+    ota_list[0].header['RADZP_E1'] = (-99, "radial ZP fit, slope error")
 
     # Add keywords for the magnitude/count/error restricted zeropoint calculation
     ota_list[0].header['ZPRESMED'] = (-99., "phot ZP of restricted catalog")
@@ -2120,7 +2147,23 @@ def collectcells(input, outputfile,
     ota_list[0].header['ZPSLP_E0'] = (0., "phot ZP - magnitude slope - dy0")
     ota_list[0].header['ZPSLP_E1'] = (0., "phot ZP - magnitude slope - dy1")
 
-    # Add more keywords for the ZP slope with ODI magnitude
+    # Theoretical photometric ZP
+    ota_list[0].header['MAGZREF'] = (-99, "reference photometric zeropoint")
+    
+    # ZP corrected for atmospheric extinction
+    ota_list[0].header['MAGZ_AM1'] = (-99, "phot zeropoint corrected to airmass = 1.0")
+            
+    # color-term corrections
+    ota_list[0].header['MAGZ_CT'] = (False, "was a color-term correction used")
+    ota_list[0].header['MAGZ_COL'] = ("", "color used in color-term correction")
+    ota_list[0].header['MAGZ_CTC'] = (-99, "slope of color-term")
+
+    # sky-brightness during observation
+    ota_list[0].header['SKYMAG'] = (-99, "sky brightness in mag/arcsec^2")
+
+    #
+    # If requested, perform photometric calibration
+    #
     if (options['photcalib'] 
         and options['fixwcs']
         and enough_stars_for_fixwcs):
@@ -2160,6 +2203,8 @@ def collectcells(input, outputfile,
         ota_list[0].header["MAGZERO"] = (photcalib_details['median'], "phot. zeropoint corr for exptime")
         ota_list[0].header["MAGZSIG"] = (photcalib_details['std'], "phot ZP dispersion")
         ota_list[0].header["MAGZERR"] = (photcalib_details['stderrofmean'], "phot ZP uncertainty")
+        flux_scaling = math.pow(10., -0.4*(zeropoint_exptime - 25.0))
+        ota_list[0].header["FLXSCALE"] = flux_scaling
 
         # Add some information on what apertures were used for the photometric calibration
         ota_list[0].header['MAG0MODE'] = (photcalib_details['aperture_mode'], "how was aperture determined")
