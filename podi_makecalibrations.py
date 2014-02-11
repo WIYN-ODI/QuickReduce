@@ -113,7 +113,7 @@ def compute_readnoise(biases, binning):
     if (len(gain_readnoise_bias[binning]) < 1):
         # Without frame there's really nothing we can do
         # But this case should never happen
-        logger.warning("Can't compute GAIN, zero frames available")
+        logger.warning("Can't compute readnoise, zero frames available")
         return
 
     readnoise = {}
@@ -256,6 +256,7 @@ def compute_gain(flats, biases, _readnoise, binning):
     readnoise = {}
 
     bordermargin = bm = 25 if binning == 1 else 50
+    logger.info("Computing gain and readnoise from %d flats and biases" % (len(flats)))
 
     for a,b in itertools.combinations(range(len(flats)), 2):
         logger.debug("Computing gain & readnoise from frame pair %d and %d" % (a,b))
@@ -367,6 +368,54 @@ def compute_gain(flats, biases, _readnoise, binning):
  
     return gain, readnoise
   
+def gain_readnoise_to_tech_hdu(hdulist, gain, readnoise):
+
+    if (gain == None and readnoise== None):
+        # nothing to do
+        return 
+
+    try:
+        techhdu = hdulist['TECHDATA']
+    except:
+        techhdu = pyfits.ImageHDU(name='TECHDATA')
+        hdulist.append(techhdu)
+        techhdu = hdulist['TECHDATA']
+
+    # print gain
+    # print readnoise
+
+    #
+    # Add all gain information to tech-hdu
+    #
+    if (not gain == None):
+        for extname in gain:
+
+            ota = int(extname[3:5]) # extname has to be of form OTAxy.SCI
+
+            for cx, cy in range(gain[extname].shape[0], gain[extname].shape[1]):
+                keyword = "GN_%02d_%d%d" % (ota, cx, cy)
+                techhdu.header[keyword] = (gain[extname][cx,cy], "gain, OTA %02d, cell %d,%d" % (ota, cx, cy))
+                # print "adding to header:", keyword, readnoise[extname][cx,cy]
+
+    #
+    # Add all read-noise information to tech-hdu
+    #
+    if (not readnoise == None):
+        for extname in readnoise:
+            print extname
+
+            ota = int(extname[3:5]) # extname has to be of form OTAxy.SCI
+            print ota
+
+            print readnoise[extname].shape[0], readnoise[extname].shape[1]
+            for cx, cy in itertools.product(range(readnoise[extname].shape[0]), range(readnoise[extname].shape[1])):
+                keyword = "RN_%02d_%d%d" % (ota, cx, cy)
+                techhdu.header[keyword] = (readnoise[extname][cx,cy], "readnoise, OTA %02d, cell %d,%d" % (ota, cx, cy))
+                # print "adding to header:", keyword, readnoise[extname][cx,cy]
+                
+    # print techhdu.header
+
+    return 
 
 
 if __name__ == "__main__":
@@ -544,8 +593,8 @@ if __name__ == "__main__":
                 # Compute the read-noise for each cell
                 #
                 if (compute_gain_readnoise):
-                    logger.info("Computing READNOISE")
                     readnoise = compute_readnoise(gain_readnoise_bias[binning], binning)
+                    gain_readnoise_to_tech_hdu(bias_hdu, None, readnoise)
                     # print readnoise
                     if (not readnoise == None):
                         # Compute average readnoise numbers and add to extensions
@@ -697,10 +746,12 @@ if __name__ == "__main__":
                     # Insert here: Compute the GAIN for each cell
                     #
                     if (compute_gain_readnoise):
-                        logger.info("Computing GAIN and READNOISE for filter %s" % (filter))
                         gain, readnoise = compute_gain(gain_readnoise_flat[binning], 
                                                        gain_readnoise_bias[binning],
                                                        readnoise, binning)
+
+                        techhdu = gain_readnoise_to_tech_hdu(flat_hdus, gain, readnoise)
+
                         # print gain
                         if (not gain == None):
                              # Compute average readnoise numbers and add to extensions
