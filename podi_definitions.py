@@ -1444,8 +1444,15 @@ def is_image_extension(hdu):
 
     """
     
-    return (type(hdu) == pyfits.hdu.image.ImageHDU or
-            type(hdu) == pyfits.hdu.compressed.CompImageHDU)
+    if (type(hdu) == pyfits.hdu.image.ImageHDU or
+        type(hdu) == pyfits.hdu.compressed.CompImageHDU):
+
+        if (hdu.data == None):
+            return False
+
+        return True
+
+    return False
 
 
 
