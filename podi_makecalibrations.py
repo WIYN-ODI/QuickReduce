@@ -392,8 +392,8 @@ def gain_readnoise_to_tech_hdu(hdulist, gain, readnoise):
 
             ota = int(extname[3:5]) # extname has to be of form OTAxy.SCI
 
-            for cx, cy in range(gain[extname].shape[0], gain[extname].shape[1]):
-                keyword = "GN_%02d_%d%d" % (ota, cx, cy)
+            for cx, cy in itertools.product(range(gain[extname].shape[0]), range(gain[extname].shape[1])):
+                keyword = "GN__%02d%d%d" % (ota, cx, cy)
                 techhdu.header[keyword] = (gain[extname][cx,cy], "gain, OTA %02d, cell %d,%d" % (ota, cx, cy))
                 # print "adding to header:", keyword, readnoise[extname][cx,cy]
 
@@ -409,10 +409,24 @@ def gain_readnoise_to_tech_hdu(hdulist, gain, readnoise):
 
             #print readnoise[extname].shape[0], readnoise[extname].shape[1]
             for cx, cy in itertools.product(range(readnoise[extname].shape[0]), range(readnoise[extname].shape[1])):
-                keyword = "RN_%02d_%d%d" % (ota, cx, cy)
+                keyword = "RN__%02d%d%d" % (ota, cx, cy)
                 techhdu.header[keyword] = (readnoise[extname][cx,cy], "readnoise, OTA %02d, cell %d,%d" % (ota, cx, cy))
                 # print "adding to header:", keyword, readnoise[extname][cx,cy]
                 
+    #
+    # If we have both readnoise AND gain, also remember the readnoise in electrons
+    # 
+    if (not readnoise == None and not gain == None):
+        for extname in gain:
+            if (not extname in readnoise):
+                continue
+            ota = int(extname[3:5])
+            readnoise_electrons = readnoise[extname] * gain[extname]
+            for cx, cy in itertools.product(range(readnoise_electrons.shape[0]), range(readnoise_electrons.shape[1])):
+                keyword = "RNE_%02d%d%d" % (ota, cx, cy)
+                techhdu.header[keyword] = (readnoise_electrons[cx,cy], "readnoise in e-, OTA %02d, cell %d,%d" % (ota, cx, cy))
+
+
     # print techhdu.header
 
     return 
