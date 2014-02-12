@@ -517,7 +517,7 @@ def collect_reduce_ota(filename,
             # Special case for cell 0,7 (the one in the bottom left corner):
             # Copy the CRPIX values into the merged image header 
             #
-            if (hdulist[cell].header['EXTNAME'] == "XY07"):
+            if (hdulist[cell].header['EXTNAME'].lower() == "xy07"):
                 # print "Setting CRPIXs", hdulist[cell].header['CRPIX1'], hdulist[cell].header['CRPIX2']
                 hdu.header["CRPIX1"] = (hdulist[cell].header['CRPIX1'], "Ref. pixel RA")
                 hdu.header["CRPIX2"] = (hdulist[cell].header['CRPIX2'], "Ref. pixel DEC")
