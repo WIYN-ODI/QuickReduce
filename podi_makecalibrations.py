@@ -135,7 +135,7 @@ def compute_readnoise(biases, binning):
             readnoise_ota = numpy.ones(shape=(8,8))
             for cx, cy in itertools.product(range(8), repeat=2):
                 x1,x2,y1,y2 = cell2ota__get_target_region(cx, cy, binning)
-                cell = biases[0][ext].data[x1:x2, y1:y2][bm:-bm, bm:-bm]
+                cell = biases[0][ext].data[y1:y2, x1:x2][bm:-bm, bm:-bm]
                 cell = cell[numpy.isfinite(cell)]
                 
                 try:
@@ -181,7 +181,7 @@ def compute_readnoise(biases, binning):
                 for cx, cy in itertools.product(range(8), repeat=2):
                     x1,x2,y1,y2 = cell2ota__get_target_region(cx, cy, binning)
 
-                    cell = diff_ab[x1:x2, y1:y2][bm:-bm, bm:-bm]
+                    cell = diff_ab[y1:y2, x1:x2][bm:-bm, bm:-bm]
                     cell = cell[numpy.isfinite(cell)]
                 
                     try:
@@ -226,7 +226,7 @@ def compute_readnoise(biases, binning):
     return readnoise
 
 
-def compute_gain(flats, biases, _readnoise, binning):
+def compute_gain(flats, biases, binning):
     
     if (len(flats) < 2):
         # not enough flats to compute gain
@@ -293,13 +293,13 @@ def compute_gain(flats, biases, _readnoise, binning):
             for cx, cy in itertools.product(range(8), repeat=2):
                 x1,x2,y1,y2 = cell2ota__get_target_region(cx, cy, binning)
 
-                dflat = diff_flat[x1:x2, y1:y2][bm:-bm, bm:-bm]
+                dflat = diff_flat[y1:y2, x1:x2][bm:-bm, bm:-bm]
                 dflat = dflat[numpy.isfinite(dflat)]
 
                 f1 = bottleneck.nanmean(flats[a][extname].data[x1:x2, y1:y2][bm:-bm, bm:-bm])
                 f2 = bottleneck.nanmean(flats[b][extname].data[x1:x2, y1:y2][bm:-bm, bm:-bm])
                 
-                dbias = diff_bias[x1:x2, y1:y2][bm:-bm, bm:-bm]
+                dbias = diff_bias[y1:y2, x1:x2][bm:-bm, bm:-bm]
                 dbias = dbias[numpy.isfinite(dbias)]
                 
                 b1 = bottleneck.nanmean(biases[a][extname].data[x1:x2, y1:y2][bm:-bm, bm:-bm])
@@ -762,7 +762,7 @@ if __name__ == "__main__":
                     if (compute_gain_readnoise):
                         gain, readnoise = compute_gain(gain_readnoise_flat[binning], 
                                                        gain_readnoise_bias[binning],
-                                                       readnoise, binning)
+                                                       binning)
 
                         techhdu = gain_readnoise_to_tech_hdu(flat_hdus, gain, readnoise)
 
