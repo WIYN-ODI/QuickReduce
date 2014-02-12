@@ -477,26 +477,31 @@ def collect_reduce_ota(filename,
         # TECHDATA extension that holds GAINS and readout noises for each cell. 
         #
         techdata = None
-        if (not options['flat_dir'] == None):
-            flatfield_filename = check_filename_directory(options['flat_dir'], "flat_%s_bin%d.fits" % (filter_name, binning))
-            if (os.path.isfile(flatfield_filename)):
-                    flatfield = pyfits.open(flatfield_filename)
-                    try:
-                        techdata = flatfield['TECHDATA'].header
-                    except:
-                        pass
-        # we don't have any tech-data yet, fall back to using a canned techdata 
-        # file to get at least some gain and readout noise data
-        if (techdata == None):
-            basedir, _ = os.path.split(os.path.abspath(sys.argv[0]))
-            techfile = "basedir/techdata.fits"
+        if (not options['techdata'] == None):
+            
+            # Set the filename for the TECHDATA extension based on the user-option
+            if (options['techdata'] == "from_flat" and not options['flat_dir'] == None):
+                techfile = check_filename_directory(options['flat_dir'], "flat_%s_bin%d.fits" % (filter_name, binning))
+
+            elif (options['techdata'] == "from_bias" and not options['bias_dir'] == None):
+                techfile = check_filename_directory(options['bias_dir'], "bias_bin%s.fits" % (binning))
+
+            elif (os.path.isfile(options['techdata'])):
+                techfile = options['techdata']
+
+            else:
+                basedir, _ = os.path.split(os.path.abspath(sys.argv[0]))
+                techfile = "%s/techdata.fits" % (basedir)
+            
+            # Check if the specified file exists and read the data if possible
             if (os.path.isfile(techfile)):
+                logger.debug("Reading techdata from file %s" % (techfile))
                 techhdulist = pyfits.open(techfile)
                 try:
                     techdata = techhdulist['TECHDATA'].header
                 except:
                     pass
-        
+                techhdulist.close()
            
         all_gains = numpy.ones(shape=(8,8)) * -99
         all_readnoise = numpy.ones(shape=(8,8)) * -99
@@ -2992,6 +2997,8 @@ def set_default_options(options_in=None):
 
     options['fitradialZP'] = False
 
+    options['techdata'] = None
+
     return options
 
 
@@ -3244,6 +3251,8 @@ Calibration data:
 
     options['fitradialZP'] = cmdline_arg_isset("-fitradialZP")
 
+    options['techdata'] = cmdline_arg_set_or_default("-techdata", None)
+    
     return options
 
 
