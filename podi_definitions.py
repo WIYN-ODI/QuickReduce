@@ -512,6 +512,8 @@ def get_cmdline_arg(arg):
     for cur in sys.argv[1:]:
         name,sep,value = cur.partition("=")
         if (name == arg):
+            if (sep == ""):
+                return None
             return value
     return None
 
@@ -547,7 +549,10 @@ def cmdline_arg_set_or_default(name, defvalue):
     """
 
     if (cmdline_arg_isset(name)):
-        return get_cmdline_arg(name)
+        val = get_cmdline_arg(name)
+        if (val == None):
+            return defvalue
+        return val
     return defvalue
 
 
