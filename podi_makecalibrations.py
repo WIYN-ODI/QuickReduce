@@ -296,14 +296,14 @@ def compute_gain(flats, biases, binning):
                 dflat = diff_flat[y1:y2, x1:x2][bm:-bm, bm:-bm]
                 dflat = dflat[numpy.isfinite(dflat)]
 
-                f1 = bottleneck.nanmean(flats[a][extname].data[x1:x2, y1:y2][bm:-bm, bm:-bm])
-                f2 = bottleneck.nanmean(flats[b][extname].data[x1:x2, y1:y2][bm:-bm, bm:-bm])
+                f1 = bottleneck.nanmean(flats[a][extname].data[y1:y2, x1:x2][bm:-bm, bm:-bm])
+                f2 = bottleneck.nanmean(flats[b][extname].data[y1:y2, x1:x2][bm:-bm, bm:-bm])
                 
                 dbias = diff_bias[y1:y2, x1:x2][bm:-bm, bm:-bm]
                 dbias = dbias[numpy.isfinite(dbias)]
                 
-                b1 = bottleneck.nanmean(biases[a][extname].data[x1:x2, y1:y2][bm:-bm, bm:-bm])
-                b2 = bottleneck.nanmean(biases[b][extname].data[x1:x2, y1:y2][bm:-bm, bm:-bm])
+                b1 = bottleneck.nanmean(biases[a][extname].data[y1:y2, x1:x2][bm:-bm, bm:-bm])
+                b2 = bottleneck.nanmean(biases[b][extname].data[y1:y2, x1:x2][bm:-bm, bm:-bm])
                 
                 try:
                     _sigma_f = scipy.stats.scoreatpercentile(dflat, [16, 84])
