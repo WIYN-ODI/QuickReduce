@@ -3085,6 +3085,7 @@ def read_options_from_commandline(options=None):
         options['bias_dir'] = cals_dir
         options['dark_dir'] = cals_dir
         options['flat_dir'] = cals_dir
+        options['techdata'] = cals_dir
 
     options['bias_dir'] = cmdline_arg_set_or_default("-bias", options['bias_dir'])
     options['dark_dir'] = cmdline_arg_set_or_default("-dark", options['dark_dir'])
