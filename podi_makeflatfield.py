@@ -73,7 +73,7 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
         hdulist[extension].header["FF_NORM"] = (True, "Used in normalization")
 
         gain_ota = hdulist[extension].header['GAIN']
-        gain_ota_count = hdulist[extension].header['GAIN_CNT']
+        gain_ota_count = hdulist[extension].header['NGAIN']
         
         gain_sum += gain_ota * gain_ota_count
         gain_count += gain_ota_count
@@ -149,7 +149,7 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
     # 
     global_gain = gain_sum / gain_count
     hdulist[0].header['GAIN'] = global_gain
-    hdulist[0].header['GAIN_CNT'] = gain_count
+    hdulist[0].header['NGAIN'] = gain_count
 
     stdout_write(" writing results ...")
     if (os.path.isfile(outputfile)):
