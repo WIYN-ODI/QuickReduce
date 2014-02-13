@@ -491,10 +491,11 @@ def collect_reduce_ota(filename,
             
             # Check if the specified file exists and read the data if possible
             if (os.path.isfile(techfile)):
-                logger.info("Reading techdata from file %s" % (techfile))
+                logger.debug("Reading techdata from file %s" % (techfile))
                 techhdulist = pyfits.open(techfile)
                 try:
                     techdata = techhdulist['TECHDATA'].header
+                    reduction_files_used['techdata'] = techfile
                 except:
                     pass
                 techhdulist.close()
