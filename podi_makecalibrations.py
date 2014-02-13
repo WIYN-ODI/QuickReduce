@@ -95,6 +95,7 @@ from podi_imcombine import *
 from podi_makeflatfield import *
 import podi_matchpupilghost
 import logging
+import podi_sitesetup as sitesetup
 
 
 def strip_fits_extension_from_filename(filename):
@@ -226,147 +227,343 @@ def compute_readnoise(biases, binning):
     return readnoise
 
 
-def compute_gain(flats, biases, binning):
+
+
+
+
+def compute_overscan_levels(hdulist):
+
+    overscan_levels = {}
+    extname2id = {}
+
+    binning = get_binning(hdulist[1].header)
+
+    for i in range(len(hdulist)):
+        if (not is_image_extension(hdulist[i])):
+            continue
+        extname = hdulist[i].header['EXTNAME']
+        cx, cy = hdulist[i].header['WN_CELLX'], hdulist[i].header['WN_CELLY']
+
+        overscan_region = extract_biassec_from_cell(hdulist[i].data, binning)
+        overscan_level = numpy.median(overscan_region)
+
+        overscan_levels[extname.lower()] = overscan_level
+        extname2id[extname.lower()] = i
+
+    return overscan_levels, extname2id
+
+
+
+
+
+def compute_techdata_from_bias_flat(flatlist, biaslist):
     
-    if (len(flats) < 2):
+    if (len(flatlist) < 2):
         # not enough flats to compute gain
-        logger.warning("Only found %d flats, needs >=2!" % (len(flats)))
+        logger.warning("Only found %d flats, needs >=2!" % (len(flatlist)))
         return None, None
 
-    if (len(flats) != len(biases)):
-        logger.warning("Need equal number of flats and biases (%d vs %d)!" % (len(flats), len(biases)))
+    if (len(flatlist) != len(biaslist)):
+        logger.warning("Need equal number of flats and biases (%d vs %d)!" % (len(flatlist), len(biaslist)))
         return None, None
 
-    # for i in range(len(flats)):
-    #     for ext in range(len(flats[i])):
-    #         if ("EXTNAME" in flats[i][ext].header):
-    #             print i, ext, "-->", flats[i][ext].header['EXTNAME']
-    #         else:
-    #             print i, ext, "--> NO NAME"
 
-    # for i in range(len(biases)):
-    #     for ext in range(len(biases[i])):
-    #         if ("EXTNAME" in biases[i][ext].header):
-    #             print i, ext, "-->", biases[i][ext].header['EXTNAME']
-    #         else:
-    #             print i, ext, "--> NO NAME"
-
-            
     gain = {}
     readnoise = {}
 
+    binning = 1
     bordermargin = bm = 25 if binning == 1 else 50
-    logger.info("Computing gain and readnoise from %d flats and biases" % (len(flats)))
+    # logger.info("Computing gain and readnoise from %d flats and biases" % (len(flatlist)))
 
-    for a,b in itertools.combinations(range(len(flats)), 2):
+
+    #
+    # Open all files and compute all overscan levels
+    #
+    logger.debug("computing all overscan levels")
+    overscan_levels = {}
+    extname2id = {}
+
+    flat_hdus = [None] * len(flatlist)
+    for i in range(len(flatlist)):
+        flat_hdus[i] = pyfits.open(flatlist[i])
+        #print flatlist[i]
+        overscan_levels[flatlist[i]], extname2id[flatlist[i]] = compute_overscan_levels(flat_hdus[i])
+
+    bias_hdus = [None] * len(biaslist)
+    for i in range(len(biaslist)):
+        #print biaslist[i]
+        bias_hdus[i] = pyfits.open(biaslist[i])
+        overscan_levels[biaslist[i]], extname2id[biaslist[i]] = compute_overscan_levels(bias_hdus[i])
+        
+    #print overscan_levels
+
+    # Prepare some arrays for all gain, readnoise, readnoise_electron data
+    all_gain_readnoise = []
+    sqrt_two = math.sqrt(2)
+
+    # Find combinations of two flats and two biases
+    for a,b in itertools.combinations(range(len(flat_hdus)), 2):
         logger.debug("Computing gain & readnoise from frame pair %d and %d" % (a,b))
 
-        for ext in range(len(flats[a])):
-            if (not is_image_extension(biases[0][ext])):
-                    continue
-            extname = flats[a][ext].header['EXTNAME']
-            # print "starting gain for ext",extname
+        gain_ron = numpy.ones(shape=(3,8,8)) * -99
 
-            if (not extname in gain):
-                gain[extname] = []
-            if (not extname in readnoise):
-                readnoise[extname] = []
+        # if requested, find the non-linearity correction file for each of the frames
+        if (options['nonlinearity-set']):
+            def load_nonlinearity_correction(options, hdu):
+                ota = hdu[1].header['WN_OTAX'] * 10 + hdu[1].header['WN_OTAY']
+                mjd = hdu[0].header['MJD-OBS']
+                nonlinearity_file = options['nonlinearity']
+                if (options['nonlinearity'] == None or 
+                    options['nonlinearity'] == "" or
+                    not os.path.isfile(nonlinearity_file)):
+                    nonlinearity_file = podi_nonlinearity.find_nonlinearity_coefficient_file(mjd, options)
+                nonlin_data = podi_nonlinearity.load_nonlinearity_correction_table(nonlinearity_file, ota)
+                # logger.info("NLCorr: %s, OTA %02d" % (nonlinearity_file, ota))
+                return nonlin_data
 
-            gain_ota = numpy.ones(shape=(8,8))
-            readnoise_ota = numpy.ones(shape=(8,8))
+            nonlin_flat_a = load_nonlinearity_correction(options, flat_hdus[a])
+            nonlin_flat_b = load_nonlinearity_correction(options, flat_hdus[b])
+            nonlin_bias_a = load_nonlinearity_correction(options, bias_hdus[a])
+            nonlin_bias_b = load_nonlinearity_correction(options, bias_hdus[b])
 
-            # Make sure the current extension exists for all flats and biases
-            try:
-                _ = flats[a][extname]
-                _ = flats[b][extname]
-                _ = biases[a][extname]
-                _ = biases[b][extname]
-            except KeyError:
-                # This extension wasn't found in one or more of the frames
-                logger.warning("Couldn't find extension %s in all involved files" % (extname))
-                pass
+
+        # loop over all cells
+        for cx, cy in itertools.product( range(8), range(8) ):
+
+            cellname = "xy%d%d" % (cx, cy)
+
+            if (not ((cellname in extname2id[flatlist[a]]) and
+                     (cellname in extname2id[flatlist[b]]) and
+                     (cellname in extname2id[biaslist[a]]) and
+                     (cellname in extname2id[biaslist[b]])) ):
+                # This extension does not exist in one of the involved frames, 
+                # skip this case (but it shouldn't happen unless the file is corrupted)
                 continue
 
-            diff_flat = flats[a][extname].data - flats[b][extname].data
-            diff_bias = biases[a][extname].data - biases[b][extname].data
+            flat_a = extract_datasec_from_cell( flat_hdus[a][extname2id[flatlist[a]][cellname]].data, binning )\
+                     - overscan_levels[flatlist[a]][cellname]
+            flat_b = extract_datasec_from_cell( flat_hdus[b][extname2id[flatlist[b]][cellname]].data, binning )\
+                     - overscan_levels[flatlist[b]][cellname]
 
-            for cx, cy in itertools.product(range(8), repeat=2):
-                x1,x2,y1,y2 = cell2ota__get_target_region(cx, cy, binning)
+            bias_a = extract_datasec_from_cell( bias_hdus[a][extname2id[biaslist[a]][cellname]].data, binning )\
+                     - overscan_levels[biaslist[a]][cellname]
+            bias_b = extract_datasec_from_cell( bias_hdus[b][extname2id[biaslist[b]][cellname]].data, binning )\
+                     - overscan_levels[biaslist[b]][cellname]
 
-                dflat = diff_flat[y1:y2, x1:x2][bm:-bm, bm:-bm]
-                dflat = dflat[numpy.isfinite(dflat)]
+            if (options['nonlinearity-set']):
+                flat_a += podi_nonlinearity.compute_cell_nonlinearity_correction(flat_a, cx, cy, nonlin_flat_a)
+                flat_b += podi_nonlinearity.compute_cell_nonlinearity_correction(flat_b, cx, cy, nonlin_flat_b)
+                bias_a += podi_nonlinearity.compute_cell_nonlinearity_correction(bias_a, cx, cy, nonlin_bias_a)
+                bias_b += podi_nonlinearity.compute_cell_nonlinearity_correction(bias_b, cx, cy, nonlin_bias_b)
 
-                f1 = bottleneck.nanmean(flats[a][extname].data[y1:y2, x1:x2][bm:-bm, bm:-bm])
-                f2 = bottleneck.nanmean(flats[b][extname].data[y1:y2, x1:x2][bm:-bm, bm:-bm])
-                
-                dbias = diff_bias[y1:y2, x1:x2][bm:-bm, bm:-bm]
-                dbias = dbias[numpy.isfinite(dbias)]
-                
-                b1 = bottleneck.nanmean(biases[a][extname].data[y1:y2, x1:x2][bm:-bm, bm:-bm])
-                b2 = bottleneck.nanmean(biases[b][extname].data[y1:y2, x1:x2][bm:-bm, bm:-bm])
-                
-                try:
-                    _sigma_f = scipy.stats.scoreatpercentile(dflat, [16, 84])
-                    sigma_f = 0.5 * (_sigma_f[1] - _sigma_f[0])
-                except ValueError:
-                    # This means there were likely not enough valid pixels 
-                    # set the readnoise to some negative default value that
-                    # is easy to ignore in all other cases
-                    sigma_f = numpy.NaN
+            f1 = bottleneck.nanmean(flat_a[bm:-bm, bm:-bm])
+            f2 = bottleneck.nanmean(flat_b[bm:-bm, bm:-bm])
+
+            b1 = bottleneck.nanmean(bias_a[bm:-bm, bm:-bm])
+            b2 = bottleneck.nanmean(bias_b[bm:-bm, bm:-bm])
+
+            diff_bias = bias_a[bm:-bm, bm:-bm] - bias_b[bm:-bm, bm:-bm]
+            diff_flat = flat_a[bm:-bm, bm:-bm] - flat_b[bm:-bm, bm:-bm]
+
+            sigma_bias = numpy.std(diff_bias)
+            sigma_flat = numpy.std(diff_flat)
 
 
-                try:
-                    _sigma_b = scipy.stats.scoreatpercentile(dbias, [16, 84])
-                    sigma_b = 0.5 * (_sigma_b[1] - _sigma_b[0])
-                except ValueError:
-                    sigma_b = numpy.NaN
+            gain_ron[0, cx, cy] = ((f1 + f2) - (b1 + b2)) / (sigma_flat**2 - sigma_bias**2)
+            gain_ron[1, cx, cy] = sigma_bias / sqrt_two
+            gain_ron[2, cx, cy] = gain_ron[0, cx,cy] * gain_ron[1,cx,cy]
 
-                gain_ota[cx,cy] = ((f1 + f2) - (b1 + b2)) / (sigma_f**2 - sigma_b**2)
-                readnoise_ota[cx, cy] = sigma_b
+        all_gain_readnoise.append(gain_ron)
 
-                logger.debug("gain: ota %s, cell %d,%d: f1/2=%f %f  B1/2=%f %f sigma_f=%f, sigma_b=%f" % (
-                    extname, cx, cy,
-                    f1, f2, b1, b2, sigma_f, sigma_b)
-                )
+    
+    # Convert the list of arrays to 4-d array (cellx, celly, value, framepair) 
+    # where value = (gain, readnoise, readnoise_electrons)
 
-            # print "appending gain_ota", gain_ota.shape, "\n",gain_ota 
-            gain[extname].append(gain_ota)
-            # print "appending readnoise_ota", readnoise_ota.shape, "\n",readnoise_ota 
-            readnoise[extname].append(readnoise_ota)
-            # print "gain-%s:\n" % (extname),gain_ota
+    all_data = numpy.array(all_gain_readnoise)
+    # print all_data.shape
 
-    # Now we have gain measurements for each combination of frames
-    logger.debug("Computing average gain from pair data")
-    for ext in gain:
-        # Convert the list of arrays to 3-d array
-        all_data = numpy.array(gain[ext])
-        # print all_data.shape
+    # mask out all negative (=invalid) numbers so we can compute the average
+    all_data[all_data < 0] = numpy.NaN
 
-        # mask out all negative (=invalid) numbers so we can compute the average
-        all_data[all_data < 0] = numpy.NaN
+    # average the readnoise values from each pair of frames
+    avg = bottleneck.nanmean(all_data, axis=0)
+    std = bottleneck.nanstd(all_data, axis=0)
 
-        # average the readnoise values from each pair of frames
-        combined = bottleneck.nanmean(all_data, axis=0)
-        # print combined.shape
-
-        # replace the NaNs back to negative values to not cause illegal FITS 
-        # header values
-        combined[numpy.isnan(combined)] = -10.
+    # replace the NaNs back to negative values to not cause illegal FITS 
+    # header values
+    avg[numpy.isnan(avg)] = -10.
+    std[numpy.isnan(std)] = -10.
             
-        # and prepare the resulting Readnoise values for return
-        gain[ext] = combined
+    return avg, std
 
-    # Repeat the above for the readnoise calculation
-    logger.debug("Computing average gain and readnoise from pair data")
-    for ext in readnoise:
-        all_data = numpy.array(readnoise[ext])
-        all_data[all_data < 0] = numpy.NaN
-        combined = bottleneck.nanmean(all_data, axis=0)
-        combined /= math.sqrt(2)
-        combined[numpy.isnan(combined)] = -10.
-        readnoise[ext] = combined
- 
-    return gain, readnoise
+
+
+def compute_techdata_mpwrapper(input_queue, return_queue):
+    
+    while (True):
+        lists = input_queue.get()
+        if (lists == None):
+            input_queue.task_done()
+            break
+        
+        biaslist, flatlist, ota = lists
+
+        bordermargin = bm = 25 if binning == 1 else 50
+        logger.debug("Computing gain and readnoise from %d flats and biases, OTA %02d" % (len(flatlist), ota))
+        
+        avg, std = compute_techdata_from_bias_flat(flatlist, biaslist)
+        logger.debug("Returning results for OTA %02d" % (ota))
+
+        return_queue.put((ota, avg, std))
+
+        input_queue.task_done()
+
+    return
+
+
+def compute_techdata(calib_biaslist, calib_flatlist, output_dir, options, n_frames=2):
+
+    print "entering compute techdata"
+
+    for binning in calib_biaslist:
+        if (not binning in calib_flatlist):
+            continue
+
+        bin_flatlist = calib_flatlist[binning]
+        bin_biaslist = calib_biaslist[binning]
+
+        for filtername in bin_flatlist:
+            #print filtername
+
+            #print bin_flatlist
+            #print bin_flatlist[filtername]
+
+            association_table = {}
+
+            biaslist = bin_biaslist
+            flatlist = bin_flatlist[filtername]
+
+            #print biaslist
+            #print flatlist
+            
+            #
+            # Run all otas in parallel as usual
+            #
+            work_queue = multiprocessing.JoinableQueue()
+            result_queue = multiprocessing.Queue()
+
+            # Figure out what files we need
+            bias_construct = []
+            flat_construct = []
+            for filename in biaslist:
+                fitspos = filename.find(".fits")
+                base = filename[:fitspos-2]
+                ext = filename[fitspos:]
+                bias_construct.append( (base, ext) )
+            for filename in flatlist:
+                fitspos = filename.find(".fits")
+                base = filename[:fitspos-2]
+                ext = filename[fitspos:]
+                flat_construct.append( (base, ext) )
+                
+            #
+            # Construct the filenames all biases and flats for each of the 
+            # extensions and send the files off for processing
+            #
+            #print bias_construct
+            #print flat_construct
+            list_of_otas_to_collect = available_ota_coords
+            number_parallel_jobs = 0
+            for (otax, otay) in list_of_otas_to_collect:
+                ota = otax * 10 + otay
+                #print otax, otay
+
+                ota_biases = []
+                ota_flats = []
+
+                for (base, ext) in bias_construct:
+                    biasfile = "%s%d%d%s" % (base, otax, otay, ext)
+                    if (os.path.isfile(biasfile)):
+                        ota_biases.append(biasfile)
+                        collect_reduction_files_used(association_table, {"raw": biasfile})
+                for (base, ext) in flat_construct:
+                    flatfile = "%s%d%d%s" % (base, otax, otay, ext)
+                    if (os.path.isfile(flatfile)):
+                        ota_flats.append(flatfile)
+                        collect_reduction_files_used(association_table, {"raw": flatfile})
+
+                n_use = numpy.min([n_frames, 
+                                   len(ota_biases), 
+                                   len(ota_flats)
+                            ])
+                
+                # Add this list of files to the work queue
+                work_queue.put( (ota_biases[:n_use], ota_flats[:n_use], ota) )
+                number_parallel_jobs += 1
+
+            # Start worker processes
+            worker_args = (work_queue, result_queue)
+            processes = []
+            for i in range(sitesetup.number_cpus):
+                p = multiprocessing.Process(target=compute_techdata_mpwrapper, args=worker_args)
+                p.start()
+                processes.append(p)
+                time.sleep(0.01)
+
+                # Also send on termination note per process
+                work_queue.put(None)
+
+            # Prepare the Tech-HDU
+            techhdu = pyfits.ImageHDU(name='TECHDATA')
+
+            # Receive all results 
+            for i in range(number_parallel_jobs):
+                results = result_queue.get()
+                if (results == None):
+                    continue
+                ota, avg, std = results
+                logger.debug("Adding results for OTA %02d to tech-hdu" % (ota))
+
+                for cx, cy in itertools.product(range(8), range(8)):
+
+                    ids4 = "%02d%d%d" % (ota, cx, cy)
+                    label = "OTA%02d,cell%d%d" % (ota, cx, cy)
+
+                    techhdu.header["GN__%s" % ids4] = (avg[0, cx,cy], "gain, %s" % (label))
+                    techhdu.header["GN_E%s" % ids4] = (std[0, cx,cy], "gain std.dev., %s" % (label))
+
+                    techhdu.header["RN__%s" % ids4] = (avg[1, cx,cy], "readnoise [counts], %s" % (label))
+                    techhdu.header["RN_E%s" % ids4] = (std[1, cx,cy], "readnoise std.dev. [counts], %s" % (label))
+
+                    techhdu.header["RNE_%s" % ids4] = (avg[2, cx,cy], "readnoise [e-], %s" % (label))
+                    techhdu.header["RNEE%s" % ids4] = (std[2, cx,cy], "readnoise std.dev. [e-], %s" % (label))
+
+                # next cell
+            # next OTA
+
+            
+            #
+            # Construct a filename and write the techdata hdu to file
+            #
+            logger.info("Assembling output file")
+            prim_header = pyfits.PrimaryHDU()
+
+            # open any of the files to get some info about filter, etc.
+
+            assoc_hdu = create_association_table(association_table, verbose=False)
+
+            out_filename = "%s/techdata_%s_bin%d.fits" % (output_dir, filtername, binning)
+            out_hdulist = pyfits.HDUList([prim_header, techhdu, assoc_hdu])
+
+            clobberfile(out_filename)
+            out_hdulist.writeto(out_filename, clobber=True)
+            logger.info("wrote output to file: %s" % (out_filename))
+
+        # next filter
+
+    # next binning
+    return
+
   
 def gain_readnoise_to_tech_hdu(hdulist, gain, readnoise):
 
@@ -506,6 +703,10 @@ if __name__ == "__main__":
     binning_list = []
     filter_list = []
 
+    calib_bias_list = {}
+    calib_dark_list = {}
+    calib_flat_list = {}
+
     for full_filename in _list.readlines():
         if (len(full_filename)<=1):
             continue
@@ -521,13 +722,25 @@ if __name__ == "__main__":
         binning = get_binning(hdulist[1].header)
         obstype = hdulist[0].header['OBSTYPE']
 
+        if (not binning in calib_bias_list):
+            calib_bias_list[binning] = []
+            calib_dark_list[binning] = []
+            calib_flat_list[binning] = {}
+
         logger.info("   %s --> %s BIN=%d" % (directory, obstype, binning))
 
         filter = hdulist[0].header['FILTER']
         if (obstype == "DFLAT"):
             filter_list.append(filter)
-        elif (obstype == "DARK" or obstype == "BIAS"):
+            if (not filter in calib_flat_list[binning]):
+                calib_flat_list[binning][filter] = []
+            calib_flat_list[binning][filter].append(ota00)
+        elif (obstype == "DARK"):
             filter = None
+            calib_dark_list[binning].append(ota00)
+        elif (obstype == "BIAS"):
+            filter = None
+            calib_bias_list[binning].append(ota00)
         else:
             logger.warning("%s is not a calibration frame" % (directory))
             hdulist.close()
@@ -542,6 +755,10 @@ if __name__ == "__main__":
 
     # Determine all binning values encountered
     binning_set = set(binning_list)
+
+    print calib_bias_list
+    print calib_dark_list
+    print calib_flat_list
 
     # Allocate some storage so we can save the temporary data from bias and 
     # flats that we need to compute the gain and read noise
@@ -584,18 +801,13 @@ if __name__ == "__main__":
                         bias_hdu = collectcells(cur_bias, bias_outfile,
                                      options=options,
                                      process_tracker=None,
-                                     batchmode=True,
+                                     batchmode=False,
                                      showsplash=False)
-                        # With batchmode enabled, we have th save the file to disk here
-                        clobberfile(bias_outfile)
-                        bias_hdu.writeto(bias_outfile, clobber=True)
-                    else:
-                        bias_hdu = pyfits.open(bias_outfile)
 
-                    # Save the HDU if we need it later to compute gain and read-noise
-                    if (compute_gain_readnoise 
-                        and len(gain_readnoise_bias[binning]) < nframes_gain_readnoise):
-                        gain_readnoise_bias[binning].append(bias_hdu)
+                    # # Save the HDU if we need it later to compute gain and read-noise
+                    # if (compute_gain_readnoise 
+                    #     and len(gain_readnoise_bias[binning]) < nframes_gain_readnoise):
+                    #     gain_readnoise_bias[binning].append(bias_hdu)
 
                     bias_to_stack.append(bias_outfile)
                 #print bias_list
@@ -738,10 +950,10 @@ if __name__ == "__main__":
                                                     options=options,
                                                     batchmode=True, showsplash=False)
 
-                            # Save the HDU if we need it later to compute gain and read-noise
-                            if (compute_gain_readnoise 
-                                and len(gain_readnoise_flat[binning]) < nframes_gain_readnoise):
-                                gain_readnoise_flat[binning].append(hdu_list)
+                            # # Save the HDU if we need it later to compute gain and read-noise
+                            # if (compute_gain_readnoise 
+                            #     and len(gain_readnoise_flat[binning]) < nframes_gain_readnoise):
+                            #     gain_readnoise_flat[binning].append(hdu_list)
 
                             normalize_flatfield(None, flat_outfile, binning_x=8, binning_y=8, repeats=3, batchmode_hdu=hdu_list)
 
@@ -755,41 +967,6 @@ if __name__ == "__main__":
                     flat_hdus[0].header['OBJECT'] = "master-flat %s" % (filter)
 
                     logger.debug("Stacking %s done!" % (flat_frame))
-
-                    #
-                    # Insert here: Compute the GAIN for each cell
-                    #
-                    if (compute_gain_readnoise):
-                        gain, readnoise = compute_gain(gain_readnoise_flat[binning], 
-                                                       gain_readnoise_bias[binning],
-                                                       binning)
-
-                        techhdu = gain_readnoise_to_tech_hdu(flat_hdus, gain, readnoise)
-
-                        # print gain
-                        if (not gain == None):
-                             # Compute average readnoise numbers and add to extensions
-                             for extname in gain:
-                                 all_gain = gain[extname]
-                                 avg_gain = numpy.average(all_gain[all_gain > 0])
-                                 std_gain = numpy.std(all_gain[all_gain > 0])
-
-                                 flat_hdus[extname].header['GAIN'] = (avg_gain, "average OTA gain [e-/ct]")
-                                 flat_hdus[extname].header['GAIN_STD'] = (std_gain, "std.dev. of OTA gain")
-
-                                 if (not readnoise == None and extname in readnoise):
-                                     all_ron = readnoise[extname] * gain[extname]
-                                     valid_ron = (readnoise[extname] > 0) & (gain[extname] > 0)
-                                     avg_ron = numpy.average(all_ron[valid_ron])
-                                     std_ron = numpy.std(all_ron[valid_ron])
-                                     
-                                     avg_ron_cts = numpy.average(readnoise[extname][readnoise[extname] > 0])
-                                     std_ron_cts = numpy.std(readnoise[extname][readnoise[extname] > 0])
-                                     flat_hdus[extname].header['RDNOISEE'] = (avg_ron, "average readnoise in e-")
-                                     flat_hdus[extname].header['RON_STDE'] = (std_ron, "std.dev. of readnoise in e-")
-
-                                     flat_hdus[extname].header['RDNOISE'] = (avg_ron_cts, "average readnoise in counts")
-                                     flat_hdus[extname].header['RON_STD'] = (std_ron_cts, "std.dev. of readnoise in counts")
 
                     #
                     # Now apply the pupil ghost correction 
@@ -839,6 +1016,43 @@ if __name__ == "__main__":
                         clobberfile(file)
 
     #            options['pupilghost_dir'] = pupilghost_dir
+
+    #
+    # Insert here: Compute the GAIN for each cell
+    #
+    if ((not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "techdata") and compute_gain_readnoise):
+        print "XXXXXX"*10
+        techdatafile = "%s/techdata_bin%d.fits" % (output_directory, binning)
+        compute_techdata(calib_bias_list, calib_flat_list, output_directory, options)
+                                       
+
+        # techhdu = gain_readnoise_to_tech_hdu(flat_hdus, gain, readnoise)
+
+        # # print gain
+        # if (not gain == None):
+        #      # Compute average readnoise numbers and add to extensions
+        #      for extname in gain:
+        #          all_gain = gain[extname]
+        #          avg_gain = numpy.average(all_gain[all_gain > 0])
+        #          std_gain = numpy.std(all_gain[all_gain > 0])
+
+        #          flat_hdus[extname].header['GAIN'] = (avg_gain, "average OTA gain [e-/ct]")
+        #          flat_hdus[extname].header['GAIN_STD'] = (std_gain, "std.dev. of OTA gain")
+
+        #          if (not readnoise == None and extname in readnoise):
+        #              all_ron = readnoise[extname] * gain[extname]
+        #              valid_ron = (readnoise[extname] > 0) & (gain[extname] > 0)
+        #              avg_ron = numpy.average(all_ron[valid_ron])
+        #              std_ron = numpy.std(all_ron[valid_ron])
+
+        #              avg_ron_cts = numpy.average(readnoise[extname][readnoise[extname] > 0])
+        #              std_ron_cts = numpy.std(readnoise[extname][readnoise[extname] > 0])
+        #              flat_hdus[extname].header['RDNOISEE'] = (avg_ron, "average readnoise in e-")
+        #              flat_hdus[extname].header['RON_STDE'] = (std_ron, "std.dev. of readnoise in e-")
+
+        #              flat_hdus[extname].header['RDNOISE'] = (avg_ron_cts, "average readnoise in counts")
+        #              flat_hdus[extname].header['RON_STD'] = (std_ron_cts, "std.dev. of readnoise in counts")
+
 
     stdout_write("\nAll done, yippie :-)\n\n")
     logger.debug("All calibrations done successfully!")
