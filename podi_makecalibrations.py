@@ -680,7 +680,7 @@ if __name__ == "__main__":
         logger.debug("Creating tmp directory %s" % (tmp_directory))
         os.makedirs(tmp_directory)
 
-    compute_gain_readnoise = cmdline_arg_isset("-gainreadnoise")
+    compute_gain_readnoise = True #cmdline_arg_isset("-gainreadnoise")
     nframes_gain_readnoise = -1
     if (compute_gain_readnoise):
         nframes_gain_readnoise = int(cmdline_arg_set_or_default("-gainreadnoise", 2))
