@@ -387,7 +387,6 @@ def collect_reduce_ota(filename,
         extname2id = {}
         for i in range(1, len(hdulist)):
             _extname = hdulist[i].header['EXTNAME']
-            logger.debug(_extname)
             extname2id[_extname.lower()] = i
         logger.debug("Setting up extension lookup directory:\n"+str(extname2id))
 
@@ -478,11 +477,12 @@ def collect_reduce_ota(filename,
         #
         techdata = None
         if (not options['techdata'] == None):
-            
+            techfile = None
+
             # Set the filename for the TECHDATA extension based on the user-option
             if (options['techdata'] == "from_flat" and not options['flat_dir'] == None):
                 techfile = check_filename_directory(options['flat_dir'], "flat_%s_bin%d.fits" % (filter_name, binning))
-
+                
             elif (options['techdata'] == "from_bias" and not options['bias_dir'] == None):
                 techfile = check_filename_directory(options['bias_dir'], "bias_bin%s.fits" % (binning))
 
@@ -495,7 +495,7 @@ def collect_reduce_ota(filename,
             
             # Check if the specified file exists and read the data if possible
             if (os.path.isfile(techfile)):
-                logger.debug("Reading techdata from file %s" % (techfile))
+                logger.info("Reading techdata from file %s" % (techfile))
                 techhdulist = pyfits.open(techfile)
                 try:
                     techdata = techhdulist['TECHDATA'].header
@@ -658,10 +658,10 @@ def collect_reduce_ota(filename,
                 hdu.header.add_history("CC-BIAS: %s" % (os.path.abspath(bias_filename)))
                 del bias
  
-
-        # To do some dark subtraction:
         #
-        # Missing here: Add treatment for frames with detectors switched on or off
+        # Do some dark subtraction:
+        # Add at some point: use different darks for all detectors switched on 
+        # to minimize the integration glow in guide-OTAs
         #
         if (not options['dark_dir'] == None):
 
@@ -772,11 +772,12 @@ def collect_reduce_ota(filename,
         logger.debug("GAIN setting:"+str(options['gain_correct']))
         if (not options['gain_correct'] == None):
             # Correct for the gain variations in each cell
+            print "Applying gain correction", options['gain_correct']
 
             for cx, cy in itertools.product(range(8), repeat=2):
 
-                x1, x2,y1, y2 = cell2ota__get_target_region(cx, cy, binning)
-                datasec = merged[x1:x2, y1:y2]
+                x1, x2, y1, y2 = cell2ota__get_target_region(cx, cy, binning)
+                datasec = merged[y1:y2, x1:x2]
 
                 if (options['gain_correct'] == 'relative' and
                     options['nonlinearity-set']):
@@ -807,7 +808,7 @@ def collect_reduce_ota(filename,
                     datasec *= gain
 
                 # Make sure to write the changes back to the original data block
-                merged[x1:x2, y1:y2] = datasec
+                merged[y1:y2, x1:x2] = datasec
 
         #
         # Compute the average gain, read-noise, etc and store how many cells contributed
@@ -3105,7 +3106,8 @@ Calibration data:
   Bad pixel mask: %s
 """ % (options['bias_dir'], options['dark_dir'], options['flat_dir'], options['bpm_dir'])
 
-    options['gain_correct'] = cmdline_arg_set_or_default("-gain", "techdata")
+    
+    options['gain_correct'] = cmdline_arg_set_or_default("-gain", None)
 
     options['persistency_dir'] = cmdline_arg_set_or_default('-persistency', None)
     if (not options['persistency_dir'] == None):
