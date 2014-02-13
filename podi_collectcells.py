@@ -486,12 +486,8 @@ def collect_reduce_ota(filename,
             elif (options['techdata'] == "from_bias" and not options['bias_dir'] == None):
                 techfile = check_filename_directory(options['bias_dir'], "bias_bin%s.fits" % (binning))
 
-            elif (os.path.isfile(options['techdata'])):
-                techfile = options['techdata']
-
             else:
-                basedir, _ = os.path.split(os.path.abspath(sys.argv[0]))
-                techfile = "%s/techdata.fits" % (basedir)
+                techfile= check_filename_directory(options['techdata'], "techdata_%s_bin%d.fits" % (filter_name, binning))
             
             # Check if the specified file exists and read the data if possible
             if (os.path.isfile(techfile)):
