@@ -57,7 +57,6 @@ try:
     out, err = ret.communicate()
     if (ret.returncode == 0 and not out.startswith("Un")):
         pipeline_version = "%s.%s" % (pipeline_version, out)
-        print pipeline_version
 except:
     pass
 
