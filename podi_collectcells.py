@@ -489,7 +489,7 @@ def collect_reduce_ota(filename,
 
             else:
                 techfile= check_filename_directory(options['techdata'], "techdata_%s_bin%d.fits" % (filter_name, binning))
-            
+                
             # Check if the specified file exists and read the data if possible
             if (os.path.isfile(techfile)):
                 logger.debug("Reading techdata from file %s" % (techfile))
@@ -500,6 +500,21 @@ def collect_reduce_ota(filename,
                 except:
                     pass
                 techhdulist.close()
+            else:
+                basedir, _ = os.path.split(os.path.abspath(sys.argv[0]))
+                techfile = "%s/techdata.fits" % (basedir)
+                if (os.path.isfile(techfile)):
+                    logger.debug("Reading techdata from file %s" % (techfile))
+                    techhdulist = pyfits.open(techfile)
+                    try:
+                        techdata = techhdulist['TECHDATA'].header
+                        reduction_files_used['techdata'] = techfile
+                    except:
+                        pass
+                    techhdulist.close()
+                else:
+                    logger.debug("Was looking for techfile %s but couldn't find it" % (techfile))
+
            
         all_gains = numpy.ones(shape=(8,8)) * -99
         all_readnoise = numpy.ones(shape=(8,8)) * -99
@@ -3078,6 +3093,7 @@ def read_options_from_commandline(options=None):
         options['dark_dir'] = cals_dir
         options['flat_dir'] = cals_dir
         options['techdata'] = cals_dir
+        logger.info("tech-data: %s" % (options['techdata']))
 
     options['bias_dir'] = cmdline_arg_set_or_default("-bias", options['bias_dir'])
     options['dark_dir'] = cmdline_arg_set_or_default("-dark", options['dark_dir'])
@@ -3244,7 +3260,7 @@ Calibration data:
 
     options['fitradialZP'] = cmdline_arg_isset("-fitradialZP")
 
-    options['techdata'] = cmdline_arg_set_or_default("-techdata", None)
+    options['techdata'] = cmdline_arg_set_or_default("-techdata", options['techdata'])
     
     return options
 
