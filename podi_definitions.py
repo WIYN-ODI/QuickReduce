@@ -363,6 +363,22 @@ photzp_colorterms = {
     "odi_z": [-0.1277, 'i', 'z'],
 }
 
+
+#
+# Header keyword names in the TECHDATA extension
+# to get the actual keywords, add the cell-id string, 
+# i.e. "%02d%d%d" % (ota, cellx, celly)
+#
+techdata_keywords = [
+    "GN__", "GN_E",
+    "RN__", "RN_E",
+    "RNE_", "RNEE", 
+]
+backup_gain = 1.3
+backup_readnoise = 6.5
+backup_readnoise_electrons = 9.0
+
+
 def get_valid_filter_name(hdr):
     """
 

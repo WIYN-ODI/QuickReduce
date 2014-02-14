@@ -519,46 +519,7 @@ def collect_reduce_ota(filename,
                 hdu.header["CRPIX1"] = (hdulist[cell].header['CRPIX1'], "Ref. pixel RA")
                 hdu.header["CRPIX2"] = (hdulist[cell].header['CRPIX2'], "Ref. pixel DEC")
 
-            #
-            # Read the gain etc. from the techdata, falling back to the information 
-            # in the raw-frames if necessary
-            #
-            gain_keyword = "GN__%02d%d%d" % (ota, wm_cellx, wm_celly)
-            if (not techdata == None and gain_keyword in techdata):
-                kw, val, com = techdata.cards[gain_keyword]
-                tech_header[gain_keyword] = (val, com)
-                gain = techdata[gain_keyword]
-            else:
-                # Store individual gains and average gain in output extension header
-                gain = float(hdulist[cell].header['GAIN'])
-                tech_header[gain_keyword] = (gain, "gain from raw data")
 
-            #
-            # Also read the readout noise from the tech-data
-            #
-            ron_keyword = "RN__%02d%d%d" % (ota, wm_cellx, wm_celly)
-            if (not techdata == None and ron_keyword in techdata):
-                kw, val, com = techdata.cards[ron_keyword]
-                tech_header[ron_keyword] = (val, com)
-                readnoise = techdata[ron_keyword]
-            else:
-                # Store individual gains and average gain in output extension header
-                readnoise = 6
-                tech_header[ron_keyword] = (readnoise, "readnoise default value")
-            
-            #
-            # Finally, read the readout noise in electrons from the tech-data
-            #
-            ron_e_keyword = "RNE_%02d%d%d" % (ota, wm_cellx, wm_celly)
-            if (not techdata == None and ron_e_keyword in techdata):
-                kw, val, com = techdata.cards[ron_e_keyword]
-                tech_header[ron_e_keyword] = (val, com)
-                readnoise_electrons = techdata[ron_keyword]
-            else:
-                # Store individual gains and average gain in output extension header
-                readnoise_electrons = 8
-                tech_header[ron_e_keyword] = (readnoise_electrons, "readnoise in e- default value")
-            
 
             # Check if this is one of the broken cells
             cellmode_id = get_cellmode(hdulist[0].header, hdulist[cell].header)
@@ -566,11 +527,11 @@ def collect_reduce_ota(filename,
                 # This means it either broken (id=-1) or in video-mode (id=1)
                 continue
 
-            logger.debug("ota %02d, cell %d,%d: gain=%f, ron=%f, ron(e-)=%f" % (
-                ota, wm_cellx, wm_celly, gain, readnoise, readnoise_electrons))
-            all_gains[wm_cellx, wm_celly] = gain
-            all_readnoise[wm_cellx, wm_celly] = readnoise
-            all_readnoise_electrons[wm_cellx, wm_celly] = readnoise_electrons
+            # logger.debug("ota %02d, cell %d,%d: gain=%f, ron=%f, ron(e-)=%f" % (
+            #     ota, wm_cellx, wm_celly, gain, readnoise, readnoise_electrons))
+            # all_gains[wm_cellx, wm_celly] = gain
+            # all_readnoise[wm_cellx, wm_celly] = readnoise
+            # all_readnoise_electrons[wm_cellx, wm_celly] = readnoise_electrons
 
             #
             # Now extract just the data section.
@@ -585,46 +546,46 @@ def collect_reduce_ota(filename,
 
             datasec -= overscan_level
 
-            logger.debug("cell %s: gain=%.2f overscan=%6.1f" % (hdulist[cell].header['EXTNAME'], gain, overscan_level))
+            # logger.debug("cell %s: gain=%.2f overscan=%6.1f" % (hdulist[cell].header['EXTNAME'], gain, overscan_level))
 
             if (options['nonlinearity-set']):
                 nonlin_correction = podi_nonlinearity.compute_cell_nonlinearity_correction(
                     datasec, wm_cellx, wm_celly, nonlin_data)
                 datasec += nonlin_correction
 
-            # if (options['gain_correct']):
-            #     # Correct for the gain variations in each cell
-
-            #     #
-            #     # Note that gain-correction needs to be done consistently for ALL
-            #     # calibration products, including in particular BIAS and DARKs to
-            #     # be correct.
-            #     #
-
-            #     if (options['nonlinearity-set']):
-            #         # Find the relative gain correction factor based on the non-linearity correction data
-            #         logger.debug("Apply gain correction from nonlinearity data to cell %d,%d" % (wm_cellx, wm_celly))
-            #         datasec = podi_nonlinearity.apply_gain_correction(datasec, wm_cellx, wm_celly, nonlin_data)
-            #         pass
-
-                    
-            #     else:
-            #         # Use what's in the header
-            #         try:
-            #             gain = float(hdulist[cell].header['GAIN'])
-            #             datasec *= gain
-            #             logger.debug("Applying gain correction from header (%.4f) to cell %d,%d" % (
-            #                 gain, wm_cellx, wm_celly))
-            #         except:
-            #             print "Couldn't find the GAIN header!"
-            #             pass
-
             #
             # Insert the reduced data-section of this cell into the large OTA frame
             #
             bx, tx, by, ty = cell2ota__get_target_region(wm_cellx, wm_celly, binning)
-            # print bx, tx, by, ty, datasec.shape
             merged[by:ty,bx:tx] = datasec
+
+            #
+            # Now that the cell is pre-reduced (merged and overscan-subtracted), assemble 
+            # the tech-header by copying the information from the input techdata 
+            # to the output techdata
+            #
+            if (not techdata == None):
+                ids = "%02d%d%d" % (ota, wm_cellx, wm_celly)
+                for keybase in techdata_keywords:
+                    keyword = keybase+ids
+                    if (keyword in techdata):
+                        key, val, com = techdata.cards[keyword]
+                        techdata[key] = (val, com)
+                # Also set the gain and readnoise values to be used later for the gain correction
+                all_gains[wm_cellx, wm_celly] = \
+                    techdata['GN__'+ids] if ('GN__'+ids in techdata) else \
+                        hdulist[cell].header['GAIN'] if 'GAIN' in hdulist[cell].header else backup_gain
+                all_readnoise[wm_cellx, wm_celly] = \
+                    techdata['RN__'+ids] if 'RN__'+ids in techdata else backup_readnoise
+                all_readnoise_electrons[wm_cellx, wm_celly] = \
+                    techdata['RNE_'+ids] if 'RNE_'+ids in techdata else backup_readnoise_electrons
+            else:
+                all_gains[wm_cellx, wm_celly] = \
+                    hdulist[cell].header['GAIN'] if 'GAIN' in hdulist[cell].header else backup_gain
+                all_readnoise[wm_cellx, wm_celly] = backup_readnoise
+                all_readnoise_electrons[wm_cellx, wm_celly] = backup_readnoise_electrons
+                
+            # work on next cell
 
         logger.debug("Collected all cells for OTA %02d of %s" % (ota, obsid))
         # for c in tech_header: print tech_header.cards[c]
@@ -767,45 +728,49 @@ def collect_reduce_ota(filename,
         # Now apply the gain correction
         #
         logger.debug("GAIN setting:"+str(options['gain_correct']))
-        if (not options['gain_correct'] == None):
+        if (options['gain_correct']):
             # Correct for the gain variations in each cell
-            print "Applying gain correction", options['gain_correct']
+            logger.info("Applying gain correction - method: %s" % (
+                options['gain_method'] if not options['gain_method'] == None else "default:techdata"))
 
-            for cx, cy in itertools.product(range(8), repeat=2):
+            if (options['gain_method'] == 'relative' and
+                options['nonlinearity-set']):
+                reduction_files_used['gain'] = nonlinearity_file
+                # Find the relative gain correction factor based on the non-linearity correction data
+                logger.debug("Apply gain correction from nonlinearity data")
 
-                x1, x2, y1, y2 = cell2ota__get_target_region(cx, cy, binning)
-                datasec = merged[y1:y2, x1:x2]
+                for cx, cy in itertools.product(range(8), repeat=2):
+                    x1, x2, y1, y2 = cell2ota__get_target_region(cx, cy, binning)
+                    merged[y1:y2, x1:x2] = podi_nonlinearity.apply_gain_correction(
+                        merged[y1:y2, x1:x2], cx, cy, nonlin_data)
 
-                if (options['gain_correct'] == 'relative' and
-                    options['nonlinearity-set']):
-                    # Find the relative gain correction factor based on the non-linearity correction data
 
-                    logger.debug("Apply gain correction from nonlinearity data to cell %d,%d" % (cx, cy))
-                    datasec = podi_nonlinearity.apply_gain_correction(datasec, cx, cy, nonlin_data)
-                    pass
+            elif (options['gain_method'] == 'header'):
+                logger.debug("Applying gain correction  with GAINS from header")
+                reduction_files_used['gain'] = filename
+                for cx, cy in itertools.product(range(8), repeat=2):
+                    x1, x2, y1, y2 = cell2ota__get_target_region(cx, cy, binning)
 
-                elif (options['gain_correct'] == 'header'):
-
+                    cell = extname2id["xy%d%d" % (cx,cy)]
                     # Use what's in the header
-                    try:
-                        cell = extname2id['xy%d%d' % (cx,cy)]
-                        gain = float(hdulist[cell].header['GAIN'])
-                        datasec *= gain
-                        logger.debug("Applying gain correction from header (%.4f) to cell %d,%d" % (
-                            gain, cx, cy))
-                    except:
-                        print "Couldn't find the GAIN header!"
-                        pass
+                    gain = float(hdulist[cell].header['GAIN']) if 'GAIN' in hdulist[cell].header else backup_gain
+                    merged[y1:y2, x1:x2] *= gain
 
+            else:
+                if (not techdata == None):
+                    logger.debug("Using GAINs from tech-data file %s" % (techfile))
+                    reduction_files_used['gain'] = techfile
+                    for cx, cy in itertools.product(range(8), repeat=2):
+                        x1, x2, y1, y2 = cell2ota__get_target_region(cx, cy, binning)
+
+                        gain = all_gains[cx,cy]
+                        if (gain <= 0):
+                            continue
+                        # print "Applying gain", gain, "to cell", cx, cy
+                        merged[y1:y2, x1:x2] *= gain
                 else:
-                    gain = all_gains[cx,cy]
-                    if (gain <= 0):
-                        continue
-                    # print "Applying gain", gain, "to cell", cx, cy
-                    datasec *= gain
+                    logger.warning("GAIN correction using TECHDATA requested, but can't find a tech-data file")
 
-                # Make sure to write the changes back to the original data block
-                merged[y1:y2, x1:x2] = datasec
 
         #
         # Compute the average gain, read-noise, etc and store how many cells contributed
@@ -817,6 +782,10 @@ def collect_reduce_ota(filename,
         hdu.header['GAIN'] = (gain_avg, 'gain averaged over all cells')
         hdu.header['NGAIN'] = (numpy.sum(valid_gain), 'number of cells contrib. to avg. gain')
 
+        # Set the GAIN to be used for photometry. This gain is 1.0 if we 
+        # already applied the gain correction to the data
+        hdu.header['PHOTGAIN'] = gain_avg if (not options['gain_correct']) else 1.0
+
         valid_ron = (all_readnoise > 0) & (numpy.isfinite(all_readnoise))
         ron_avg = numpy.mean(all_readnoise[valid_ron])
         hdu.header['RDNOISE'] = (ron_avg, 'readnoise averaged over all cells')
@@ -827,6 +796,7 @@ def collect_reduce_ota(filename,
         hdu.header['RDNOISEE'] = (rone_avg, 'readnoise in e- averaged over all cells')
         hdu.header['NRDNOSEE'] = (numpy.sum(valid_rone), 'number cells contrib. to avg. readnoise in e-')
 
+        
         
                 
         #
@@ -2954,7 +2924,9 @@ def set_default_options(options_in=None):
     options['dark_dir'] = None
     options['flat_dir'] = None
     options['bpm_dir']  = None
-    options['gain_correct'] = None
+
+    options['gain_correct'] = False
+    options['gain_method'] = None
 
     options['nonlinearity'] = None
     options['nonlinearity-set'] = False
@@ -3105,7 +3077,8 @@ Calibration data:
 """ % (options['bias_dir'], options['dark_dir'], options['flat_dir'], options['bpm_dir'])
 
     
-    options['gain_correct'] = cmdline_arg_set_or_default("-gain", None)
+    options['gain_correct'] = cmdline_arg_isset("-gain")
+    options['gain_method'] = cmdline_arg_set_or_default("-gain", None)
 
     options['persistency_dir'] = cmdline_arg_set_or_default('-persistency', None)
     if (not options['persistency_dir'] == None):
