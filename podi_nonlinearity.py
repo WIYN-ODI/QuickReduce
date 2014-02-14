@@ -415,7 +415,7 @@ def compute_cell_nonlinearity_correction(data, cellx, celly, nonlin_data):
     return compute_nonlinearity_correction(data, coeffs)
 
 
-def apply_gain_correction(data, cellx, celly, nonlin_data):
+def apply_gain_correction(data, cellx, celly, nonlin_data, return_gain=False):
     """
 
     Apply the gain correction
@@ -423,6 +423,10 @@ def apply_gain_correction(data, cellx, celly, nonlin_data):
     """
 
     gain = nonlin_data['rel_gain'][cellx,celly]
+
+    if (return_gain):
+        return data * gain, gain
+
     return data * gain
 
 

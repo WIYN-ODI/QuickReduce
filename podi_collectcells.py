@@ -727,6 +727,13 @@ def collect_reduce_ota(filename,
         #
         # Now apply the gain correction
         #
+
+        # Compute the gain across this OTA
+        valid_gain = (all_gains > 0) & (numpy.isfinite(all_gains))
+        gain_avg = numpy.mean(all_gains[valid_gain])
+        hdu.header['GAIN_RAW'] = (gain_avg, 'gain averaged over all cells')
+        hdu.header['NGAINRAW'] = (numpy.sum(valid_gain), 'number of cells contrib. to avg. gain')
+
         logger.debug("GAIN setting:"+str(options['gain_correct']))
         if (options['gain_correct']):
             # Correct for the gain variations in each cell
@@ -741,9 +748,9 @@ def collect_reduce_ota(filename,
 
                 for cx, cy in itertools.product(range(8), repeat=2):
                     x1, x2, y1, y2 = cell2ota__get_target_region(cx, cy, binning)
-                    merged[y1:y2, x1:x2] = podi_nonlinearity.apply_gain_correction(
-                        merged[y1:y2, x1:x2], cx, cy, nonlin_data)
-
+                    merged[y1:y2, x1:x2], gain = podi_nonlinearity.apply_gain_correction(
+                        merged[y1:y2, x1:x2], cx, cy, nonlin_data, return_gain=True)
+                    all_gains[cx,cy] /= gain
 
             elif (options['gain_method'] == 'header'):
                 logger.debug("Applying gain correction  with GAINS from header")
@@ -755,6 +762,7 @@ def collect_reduce_ota(filename,
                     # Use what's in the header
                     gain = float(hdulist[cell].header['GAIN']) if 'GAIN' in hdulist[cell].header else backup_gain
                     merged[y1:y2, x1:x2] *= gain
+                    all_gains[cx,cy] /= gain
 
             else:
                 if (not techdata == None):
@@ -765,9 +773,11 @@ def collect_reduce_ota(filename,
 
                         gain = all_gains[cx,cy]
                         if (gain <= 0):
+                            all_gains[cx,cy] = -99
                             continue
                         # print "Applying gain", gain, "to cell", cx, cy
                         merged[y1:y2, x1:x2] *= gain
+                        all_gains[cx,cy] /= gain
                 else:
                     logger.warning("GAIN correction using TECHDATA requested, but can't find a tech-data file")
 
@@ -775,16 +785,12 @@ def collect_reduce_ota(filename,
         #
         # Compute the average gain, read-noise, etc and store how many cells contributed
         #
-        # RK ADD HERE: make sure to set gain to 1 if we corrected for gain above
-
+        # Set the GAIN to be used for photometry. This gain is 1.0 if we 
+        # already applied the gain correction to the data
         valid_gain = (all_gains > 0) & (numpy.isfinite(all_gains))
         gain_avg = numpy.mean(all_gains[valid_gain])
         hdu.header['GAIN'] = (gain_avg, 'gain averaged over all cells')
         hdu.header['NGAIN'] = (numpy.sum(valid_gain), 'number of cells contrib. to avg. gain')
-
-        # Set the GAIN to be used for photometry. This gain is 1.0 if we 
-        # already applied the gain correction to the data
-        hdu.header['PHOTGAIN'] = gain_avg if (not options['gain_correct']) else 1.0
 
         valid_ron = (all_readnoise > 0) & (numpy.isfinite(all_readnoise))
         ron_avg = numpy.mean(all_readnoise[valid_ron])
