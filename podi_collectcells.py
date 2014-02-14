@@ -459,7 +459,7 @@ def collect_reduce_ota(filename,
             exposure_time = 0
 
         nonlin_data = None
-        if (options['nonlinearity-set']):
+        if (options['nonlinearity-set'] or options['gain_method'] == "relative"):
             nonlinearity_file = options['nonlinearity']
             if (options['nonlinearity'] == None or 
                 options['nonlinearity'] == "" or
@@ -469,7 +469,8 @@ def collect_reduce_ota(filename,
                 print "Using non-linearity coefficients from",nonlinearity_file
             logger.debug("Using non-linearity coefficients from file %s"  % (nonlinearity_file))
             nonlin_data = podi_nonlinearity.load_nonlinearity_correction_table(nonlinearity_file, ota)
-            reduction_files_used['nonlinearity'] = nonlinearity_file
+            if (options['nonlinearity-set']):
+                reduction_files_used['nonlinearity'] = nonlinearity_file
 
         #
         # Search, first in the flat-field, then in the bias-frame for a 
@@ -737,11 +738,10 @@ def collect_reduce_ota(filename,
         logger.debug("GAIN setting:"+str(options['gain_correct']))
         if (options['gain_correct']):
             # Correct for the gain variations in each cell
-            logger.info("Applying gain correction - method: %s" % (
+            logger.debug("Applying gain correction (OTA %02d) - method: %s" % (ota, 
                 options['gain_method'] if not options['gain_method'] == None else "default:techdata"))
 
-            if (options['gain_method'] == 'relative' and
-                options['nonlinearity-set']):
+            if (options['gain_method'] == 'relative'):
                 reduction_files_used['gain'] = nonlinearity_file
                 # Find the relative gain correction factor based on the non-linearity correction data
                 logger.debug("Apply gain correction from nonlinearity data")
@@ -751,7 +751,7 @@ def collect_reduce_ota(filename,
                     merged[y1:y2, x1:x2], gain = podi_nonlinearity.apply_gain_correction(
                         merged[y1:y2, x1:x2], cx, cy, nonlin_data, return_gain=True)
                     all_gains[cx,cy] /= gain
-
+                
             elif (options['gain_method'] == 'header'):
                 logger.debug("Applying gain correction  with GAINS from header")
                 reduction_files_used['gain'] = filename
