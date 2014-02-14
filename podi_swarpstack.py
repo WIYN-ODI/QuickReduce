@@ -157,15 +157,15 @@ def swarpstack():
             }
 
             # Check if the corrected file already exists - if not create it
-            if (not os.path.isfile(corrected_filename)):
-                logger.info("Correcting input frame %s --> %s" % (
-                    inputfiles[i], corrected_filename))
-                # Apply the non-sidereal option
-                apply_nonsidereal_correction(hdulist, options, logger)
-                hdulist.writeto(corrected_filename, clobber=True)
-            else:
-                logger.info("Input-frame %s with correction already exists (%s)" % (
-                    inputfiles[i], corrected_filename))
+            #if (not os.path.isfile(corrected_filename)):
+            logger.info("Correcting input frame %s --> %s" % (
+                inputfiles[i], corrected_filename))
+            # Apply the non-sidereal option
+            apply_nonsidereal_correction(hdulist, options, logger)
+            hdulist.writeto(corrected_filename, clobber=True)
+            # else:
+            #     logger.info("Input-frame %s with correction already exists (%s)" % (
+            #         inputfiles[i], corrected_filename))
 
             # Now change the filename of the input list to reflect 
             # the corrected file
