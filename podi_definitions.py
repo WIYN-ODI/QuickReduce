@@ -48,6 +48,19 @@ from bottleneck import nanmean, nanmedian
 pipeline_plver = "QuickReduce 1.0"
 pipeline_name = "QuickReduce"
 pipeline_version = "1.0"
+try:
+    basedir, _ = os.path.split(os.path.abspath(sys.argv[0]))
+    cmd = "svnversion -n %s" % (basedir)
+    ret = subprocess.Popen(cmd.split(), 
+                           stdout=subprocess.PIPE, 
+                           stderr=subprocess.PIPE)
+    out, err = ret.communicate()
+    if (ret.returncode == 0 and not out.startswith("Un")):
+        pipeline_version = "%s.%s" % (pipeline_version, out)
+        print pipeline_version
+except:
+    pass
+
 #
 #
 #
