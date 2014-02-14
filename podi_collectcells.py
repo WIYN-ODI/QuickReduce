@@ -570,7 +570,7 @@ def collect_reduce_ota(filename,
                     keyword = keybase+ids
                     if (keyword in techdata):
                         key, val, com = techdata.cards[keyword]
-                        techdata[key] = (val, com)
+                        tech_header[key] = (val, com)
                 # Also set the gain and readnoise values to be used later for the gain correction
                 all_gains[wm_cellx, wm_celly] = \
                     techdata['GN__'+ids] if ('GN__'+ids in techdata) else \
@@ -1881,6 +1881,8 @@ def collectcells(input, outputfile,
     fringe_scaling = None
     global_source_cat = None
     global_gain_sum, global_gain_count = 0, 0
+    all_tech_headers = []
+
     for i in range(len(list_of_otas_being_reduced)):
         #hdu, ota_id, wcsfix_data = return_queue.get()
         try:
@@ -1920,6 +1922,9 @@ def collectcells(input, outputfile,
             global_source_cat = data_products['sourcecat'] if (global_source_cat == None) \
                 else numpy.append(global_source_cat, data_products['sourcecat'], axis=0)
 
+        if ('tech-header' in data_products):
+            all_tech_headers.append(data_products['tech-header'])
+            # print "techdata for ota",ota_id,"\n",data_products['tech-header']
 
     #
     # Update the global gain variables
@@ -2521,6 +2526,15 @@ def collectcells(input, outputfile,
     ota_list[0].header['PHOTBW'] = (bandpass[1], "RMS width of filter [nm]")
     ota_list[0].header['PHOTFWHM'] = (bandpass[1], "FWHM of filter [nm]")
 
+    #
+    # Prepare the Tech-HDU and add it to output HDU
+    #
+    techhdu = pyfits.ImageHDU(name='TECHDATA')
+    # Now add all tech-data to the techhdu
+    for techhdr in all_tech_headers:
+        for (key, value, comment) in techhdr.cards:
+            techhdu.header[key] = (value, comment)
+    ota_list.append(techhdu)
 
 
     #
