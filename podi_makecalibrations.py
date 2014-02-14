@@ -256,8 +256,10 @@ def compute_overscan_levels(hdulist):
 
 
 
-def compute_techdata_from_bias_flat(flatlist, biaslist):
+def compute_techdata_from_bias_flat(flatlist, biaslist, ota):
     
+    logger = logging.getLogger("ComputeTechData-OTA%02d" % (ota))
+
     if (len(flatlist) < 2):
         # not enough flats to compute gain
         logger.warning("Only found %d flats, needs >=2!" % (len(flatlist)))
@@ -411,7 +413,7 @@ def compute_techdata_mpwrapper(input_queue, return_queue):
         bordermargin = bm = 25 if binning == 1 else 50
         logger.debug("Computing gain and readnoise from %d flats and biases, OTA %02d" % (len(flatlist), ota))
         
-        avg, std = compute_techdata_from_bias_flat(flatlist, biaslist)
+        avg, std = compute_techdata_from_bias_flat(flatlist, biaslist, ota)
         logger.debug("Returning results for OTA %02d" % (ota))
 
         return_queue.put((ota, avg, std))
@@ -422,8 +424,6 @@ def compute_techdata_mpwrapper(input_queue, return_queue):
 
 
 def compute_techdata(calib_biaslist, calib_flatlist, output_dir, options, n_frames=2):
-
-    print "entering compute techdata"
 
     for binning in calib_biaslist:
         if (not binning in calib_flatlist):
@@ -684,8 +684,12 @@ if __name__ == "__main__":
     nframes_gain_readnoise = -1
     if (compute_gain_readnoise):
         nframes_gain_readnoise = int(cmdline_arg_set_or_default("-gainreadnoise", 2))
+        logger.info("Read techdata specs: use %d frames" % (nframes_gain_readnoise))
     if (nframes_gain_readnoise <= 0):
         compute_gain_readnoise = False
+
+    if (options['nonlinearity-set']):
+        logger.info("Applying non-linearity correction")
 
     #
     # Read the list of files
@@ -756,9 +760,9 @@ if __name__ == "__main__":
     # Determine all binning values encountered
     binning_set = set(binning_list)
 
-    print calib_bias_list
-    print calib_dark_list
-    print calib_flat_list
+    # print calib_bias_list
+    # print calib_dark_list
+    # print calib_flat_list
 
     # Allocate some storage so we can save the temporary data from bias and 
     # flats that we need to compute the gain and read noise
@@ -1020,40 +1024,16 @@ if __name__ == "__main__":
     #
     # Insert here: Compute the GAIN for each cell
     #
+    logger = logging.getLogger("MakeCalibration_TechData")
     if ((not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "techdata") and compute_gain_readnoise):
-        print "XXXXXX"*10
+        logger.info("Computing gain and readnoise for each cell")
         techdatafile = "%s/techdata_bin%d.fits" % (output_directory, binning)
-        compute_techdata(calib_bias_list, calib_flat_list, output_directory, options)
+        compute_techdata(calib_bias_list, calib_flat_list, 
+                         output_directory, options, 
+                         n_frames=nframes_gain_readnoise)
                                        
 
-        # techhdu = gain_readnoise_to_tech_hdu(flat_hdus, gain, readnoise)
-
-        # # print gain
-        # if (not gain == None):
-        #      # Compute average readnoise numbers and add to extensions
-        #      for extname in gain:
-        #          all_gain = gain[extname]
-        #          avg_gain = numpy.average(all_gain[all_gain > 0])
-        #          std_gain = numpy.std(all_gain[all_gain > 0])
-
-        #          flat_hdus[extname].header['GAIN'] = (avg_gain, "average OTA gain [e-/ct]")
-        #          flat_hdus[extname].header['GAIN_STD'] = (std_gain, "std.dev. of OTA gain")
-
-        #          if (not readnoise == None and extname in readnoise):
-        #              all_ron = readnoise[extname] * gain[extname]
-        #              valid_ron = (readnoise[extname] > 0) & (gain[extname] > 0)
-        #              avg_ron = numpy.average(all_ron[valid_ron])
-        #              std_ron = numpy.std(all_ron[valid_ron])
-
-        #              avg_ron_cts = numpy.average(readnoise[extname][readnoise[extname] > 0])
-        #              std_ron_cts = numpy.std(readnoise[extname][readnoise[extname] > 0])
-        #              flat_hdus[extname].header['RDNOISEE'] = (avg_ron, "average readnoise in e-")
-        #              flat_hdus[extname].header['RON_STDE'] = (std_ron, "std.dev. of readnoise in e-")
-
-        #              flat_hdus[extname].header['RDNOISE'] = (avg_ron_cts, "average readnoise in counts")
-        #              flat_hdus[extname].header['RON_STD'] = (std_ron_cts, "std.dev. of readnoise in counts")
-
-
-    stdout_write("\nAll done, yippie :-)\n\n")
     logger.debug("All calibrations done successfully!")
     podi_logging.shutdown_logging(options)
+
+    stdout_write("\nAll done, yippie :-)\n\n")
