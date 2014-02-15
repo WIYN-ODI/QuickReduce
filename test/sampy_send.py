@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
 print "importing sampy"
-import sampy
-import os
 import sys
+sys.path.append("./../")
+import xsampy as sampy
+import os
 import time
+import datetime
 
 message_queue = "odi.image.load"
 
@@ -53,6 +55,7 @@ if __name__ == "__main__":
 
     elif (target == 'qr'):
         filename = sys.argv[2]
+        print datetime.datetime.now().strftime("%H:%M:%S.%f")
         cli1.enotifyAll(mtype=message_queue, filename=filename)
 
     elif (target == 'translate'):

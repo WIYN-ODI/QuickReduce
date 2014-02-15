@@ -10,7 +10,8 @@ ssh.
 
 
 try:
-    import sampy
+#    import sampy
+    import xsampy as sampy
 except ImportError:
     print "For this to work you need the SAMPy package installed"
     raise
@@ -221,7 +222,9 @@ def receive_msg(private_key, sender_id, msg_id, mtype, params, extra):
     #                    "samp.result": {"result": "ok guys"}})
 
     filename = params['filename']
-    print "\nReceived command to reduce %s ..." % (filename)
+    print "\nReceived command to reduce %s (at %s) ..." % (
+        filename, datetime.datetime.now().strftime("%H:%M:%S.%f")
+        )
     if (not os.path.isdir(filename)):
         print "filename %s is not a valid directory" % (filename)
         return
@@ -302,7 +305,7 @@ def SAMPListener():
     worker_process.start()
 
     print "Setup complete, waiting for messages..."
-
+    
     try:
         while (True):
 
@@ -374,8 +377,21 @@ if __name__ == "__main__":
             pass
         
         sys.exit(0)
+
+
+    elif (cmdline_arg_isset("-yappi")):
+        print "Running with yappi profiler"
+        import yappi
+        yappi.start()
+        SAMPListener()
+        profiler = open("profile.data", "w")
+        yappi.get_func_stats().debug_print() #print_all()
+        yappi.get_thread_stats().print_all(out=profiler)
+        profiler.close()
+
     else:
 
+        
         SAMPListener()
 
     
