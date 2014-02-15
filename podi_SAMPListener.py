@@ -353,7 +353,10 @@ def SAMPListener():
         pass
 
     # Finish up left over work
-    print "Finishing up work (%d jobs), please wait ..." % (worker_queue.qsize())
+    try:
+        print "Finishing up work (%d jobs), please wait ..." % (worker_queue.qsize())
+    except:
+        print "Finishing up work, please wait ..."
     worker_queue.put(None)
     worker_process.join(1)
 
