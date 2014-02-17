@@ -89,7 +89,7 @@ def worker_slave(queue):
             queue.task_done()
             break
 
-        filename, object_name = task
+        filename, object_name, obsid = task
 
         print "starting work on file",filename
 
@@ -101,28 +101,64 @@ def worker_slave(queue):
 
         if (cmdline_arg_isset("-dryrun")):
             print "Sending off file",filename,"for reduction"
+            print "task done!"
+            queue.task_done()
+            continue
 
-        elif (setup.use_ssh):
+
+        if (object_name.lower().find("focus") >= 0):
             #
-            # Run collectcells on a different machine
+            # This is most likely a focus exposure
             #
+            n_stars = int(cmdline_arg_set_or_default("-nstars", 7))
 
-            remote_inputfile = setup.translate_filename_local2remote(filename)
+            if (setup.use_ssh):
 
-            if (object_name.lower().find("focus") >= 0):
-                # This is most likely a focus exposure
+                remote_inputfile = setup.translate_filename_local2remote(filename)
                 kw = {
                     'user': setup.ssh_user,
                     'host': setup.ssh_host,
                     'filename': remote_inputfile,
                     'podidir': setup.remote_podi_dir,
                     'outdir': setup.output_dir,
+                    'nstars': n_stars,
                 }
+                ssh_command = "ssh %(user)s@%(host)s %(podidir)s/podi_focus.py -nstars=%(nstars)d %(filename)s %(outdir)s" % kw
 
-                ssh_command = "ssh %(user)s@%(host)s %(podidir)s/podi_focus.py -nstars=7 %(filename)s %(outdir)s" % kw
-                # print ssh_command
+                process = subprocess.Popen(ssh_command.split(), 
+                                           stdout=subprocess.PIPE,
+                                           stderr=subprocess.PIPE)
+                _stdout, _stderr = process.communicate()
+
+                print "*"*80
+                if (not _stdout == "" and not _stdout == None):
+                    print _stdout
+                    print "*"*80
+                if (not _stderr == "" and not _stderr == None):
+                    print _stderr
+                    print "*"*80
 
             else:
+                # Run locally
+                print "\nAnalyzing focus sequence (%s)\n" % (filename)
+                podi_focus.get_focus_measurement(filename, n_stars=n_stars, output_dir=setup.output_dir)
+
+            # Now check if we are supposed to open/display the focus plot
+            if (not setup.focus_display == None):
+                
+                remote_filename = "%s/%s_focus.png" % (setup.output_dir, obsid)
+                local_filename = setup.translate_filename_remote2local(filename, remote_filename)
+
+                cmd = "%s %s &" % (setup.focus_display, local_filename)
+                os.system(cmd)
+
+        else:
+            #
+            # This is NOT a focus exposure
+            #
+
+            if (setup.use_ssh):
+
                 # This is not a focus exposure, to treat it as a normal science exposure
                 kw = {
                     'user': setup.ssh_user,
@@ -135,62 +171,50 @@ def worker_slave(queue):
 
                 ssh_command = "ssh %(user)s@%(host)s %(collectcells)s %(filename)s %(outputfile)s %(options)s -noclobber" % kw
 
-            cmd_items = ssh_command.split()
-            # print "\nExecuting:\n%s\n" % (ssh_command)
+                process = subprocess.Popen(ssh_command.split(), 
+                                           stdout=subprocess.PIPE,
+                                           stderr=subprocess.PIPE)
+                _stdout, _stderr = process.communicate()
 
-            # Run ssh via a subprocess
-            process = subprocess.Popen(cmd_items, stdout=subprocess.PIPE)
-            _stdout, _stderr = process.communicate()
-
-            print "*"*80
-            if (not _stdout == "" and not _stdout == None):
-                print _stdout
                 print "*"*80
-            if (not _stderr == "" and not _stderr == None):
-                print _stderr
-                print "*"*80
-
-        else:
-            #
-            # Run collectcells locally
-            #
-
-            if (object_name.lower().find("focus") >= 0):
-                print "\nAnalyzing focus sequence (%s)\n" % (filename)
-                podi_focus.get_focus_measurement(filename, n_stars=7, output_dir=setup.output_dir)
+                if (not _stdout == "" and not _stdout == None):
+                    print _stdout
+                    print "*"*80
+                if (not _stderr == "" and not _stderr == None):
+                    print _stderr
+                    print "*"*80
 
             else:
                 print "\nRunning collectcells (%s)\n" % (filename)
-
                 podi_collectcells.collectcells_with_timeout(input=filename, 
                                                             outputfile=setup.output_format,
                                                             options=options,
                                                             timeout=300,
                                                             process_tracker=process_tracker)
 
-        #
-        # If requested, also send the command to ds9
-        #
-        if (cmdline_arg_isset("-forward2ds9")):
-            local_filename = setup.translate_filename_remote2local(filename, setup.output_format)
-            forward2ds9_option = cmdline_arg_set_or_default("-forward2ds9", "image")
-            if (forward2ds9_option == "irafmosaic"):
-                cmd = "mosaicimage iraf %s" % (local_filename)
-            else:
-                cmd = "fits %s" % (local_filename)
+            #
+            # If requested, also send the command to ds9
+            #
+            if (cmdline_arg_isset("-forward2ds9")):
+                local_filename = setup.translate_filename_remote2local(filename, setup.output_format)
+                forward2ds9_option = cmdline_arg_set_or_default("-forward2ds9", "image")
+                if (forward2ds9_option == "irafmosaic"):
+                    cmd = "mosaicimage iraf %s" % (local_filename)
+                else:
+                    cmd = "fits %s" % (local_filename)
 
-            print "filename", filename
-            print "remote file", remote_inputfile
-            print "local file", local_filename
+                print "filename", filename
+                print "remote file", remote_inputfile
+                print "local file", local_filename
 
-            try:
-                cli1 = sampy.SAMPIntegratedClient(metadata = metadata)
-                cli1.connect()
-                cli1.enotifyAll(mtype='ds9.set', cmd=cmd)
-                cli1.disconnect()
-            except:
-                print "Problems sending message to ds9"
-                pass
+                try:
+                    cli1 = sampy.SAMPIntegratedClient(metadata = metadata)
+                    cli1.connect()
+                    cli1.enotifyAll(mtype='ds9.set', cmd=cmd)
+                    cli1.disconnect()
+                except:
+                    print "Problems sending message to ds9"
+                    pass
 
 
         #
@@ -234,12 +258,15 @@ def get_filename_from_input(input):
     return input
     
 def check_obstype(filename):
-    obstype, object_name = "", ""
+    obstype, object_name, obsid = "", "", ""
     with pyfits.open(filename) as hdulist:
         obstype = hdulist[0].header['OBSTYPE']
         object_name = hdulist[0].header['OBJECT'] \
                       if 'OBJECT' in hdulist[0].header else ""
-    return obstype, object_name
+        obsid = hdulist[0].header['OBSID'] \
+                if 'OBSID' in hdulist[0].header else ""
+
+    return obstype, object_name, obsid
 
 
 def receive_msg(private_key, sender_id, msg_id, mtype, params, extra):
@@ -265,7 +292,7 @@ def receive_msg(private_key, sender_id, msg_id, mtype, params, extra):
         return
         
     fits_file = get_filename_from_input(filename)
-    obstype, object_name = check_obstype(fits_file)
+    obstype, object_name, obsid = check_obstype(fits_file)
 
     if (cmdline_arg_isset("-onlyscienceframes")):
         if (obstype != "OBJECT"):
@@ -279,7 +306,7 @@ I was told to ignore non-OBJECT frames
 """ % (filename, fits_file)
             return
             
-    worker_queue.put( (filename, object_name) )
+    worker_queue.put( (filename, object_name, obsid) )
 
     print "Done with this one, hungry for more!"
     return

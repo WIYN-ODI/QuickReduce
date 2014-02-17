@@ -17,6 +17,9 @@ ssh_host = "localhost"
 remote_podi_dir = "/work/podi_devel/"
 ssh_executable = "/work/podi_devel/podi_collectcells.py"
 
+# Some additional settings for the focus sequence
+focus_display = "display"
+
 def translate_filename_local2remote(filename):
     """
 
