@@ -491,7 +491,7 @@ def measure_focus_ota(filename, n_stars=5):
 
 
 
-def get_focus_measurement(filename, n_stars=5, mp=False):
+def get_focus_measurement(filename, n_stars=5, output_dir="./", mp=False):
 
     """
 
@@ -619,7 +619,7 @@ def get_focus_measurement(filename, n_stars=5, mp=False):
     stats = get_mean_focuscurve(all_foci)
     pfit, uncert, fwhm_median, fwhm_std, fwhm_cleaned, best_focus_position, best_focus = stats
 
-    plotfilename = "%s_focus.png" % (basename)
+    plotfilename = "%s/%s_focus.png" % (output_dir, basename)
     create_focus_plot(all_foci, stats, basename, plotfilename)
 
     logger.debug("all done!")
@@ -788,8 +788,14 @@ if __name__ == "__main__":
 
     #output_dir = cmdline_arg_set_or_default('-persistency', '.')
     #verbose = cmdline_arg_isset("-verbose")
-    for filename in get_clean_cmdline()[1:]:
-        get_focus_measurement(filename, n_stars)
+
+    filename = get_clean_cmdline()[1]
+
+    output_dir = "./"
+    if (len(get_clean_cmdline()) > 2):
+        output_dir = get_clean_cmdline()[2]
+
+    get_focus_measurement(filename, n_stars, output_dir)
 
 
 
