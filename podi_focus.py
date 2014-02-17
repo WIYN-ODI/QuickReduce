@@ -195,7 +195,7 @@ def measure_focus_ota(filename, n_stars=5):
         "filename": filename,
         "redirect": sitesetup.sex_redirect,
     }
-    # print sex_cmd
+    # print "\n"*10,sex_cmd,"\n"*10
     # Run source extractor
     # catfile = "/tmp//tmp.pid4383.20121008T221836.0_OTA33.cat"
 
@@ -300,16 +300,24 @@ def measure_focus_ota(filename, n_stars=5):
 
         # Need to be at most n_stars * 10'' and at least 5'' 
         close_enough = (d_total < (n_stars * 10. / 0.11)) & (d_total > 5 / 0.11)
-        
-        candidates = corr_cat[in_cone & close_enough]
+        good_so_far = in_cone & close_enough
+        if (numpy.sum(good_so_far) <= 0):
+            continue
+
+        candidates = corr_cat[good_so_far]
         # if (numpy.sum(candidates) < n_stars):
         #     # Only use full sequences
         #     continue
 
         # are the magnitudes comparable
-        similar_brightness = numpy.fabs(candidates[:,SXFocusColumn['mag_auto']] \
-                                            - corr_cat[s1,SXFocusColumn['mag_auto']]) < 1
+        delta_mag = numpy.fabs(candidates[:,SXFocusColumn['mag_auto']] \
+                                            - corr_cat[s1,SXFocusColumn['mag_auto']])
+        similar_brightness = delta_mag < 1
         #print >>dummy_test, "#", candidates.shape[0], numpy.sum(similar_brightness)
+        #print similar_brightness
+        if (numpy.sum(similar_brightness) <= 0):
+            continue
+
         good_candidates = candidates[similar_brightness]
 
 
