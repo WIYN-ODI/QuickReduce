@@ -275,16 +275,16 @@ def measure_focus_ota(filename, n_stars=5):
 
     # print "\n\n\n\ntotal corrected catalog:",corr_cat.shape
     # save the source catalog
-    numpy.savetxt("focus_cat.ota%02d" % (ota), source_cat)
-    numpy.savetxt("focus_cat2.ota%02d" % (ota), corr_cat)
+    #numpy.savetxt("focus_cat.ota%02d" % (ota), source_cat)
+    #numpy.savetxt("focus_cat2.ota%02d" % (ota), corr_cat)
     logger.debug("done fixing the pixel coordinates")
 
     # only select bright enough sources
     bright_enough = corr_cat[:,SXFocusColumn['mag_auto']] < -10
     corr_cat = corr_cat[bright_enough]
-    numpy.savetxt("focus_cat3.ota%02d" % (ota), corr_cat)
+    #numpy.savetxt("focus_cat3.ota%02d" % (ota), corr_cat)
 
-    dummy_test = open("dummy.test", "w")
+    #dummy_test = open("dummy.test", "w")
     # Now try to match up stars in a sequence
     all_angles, all_distances = [], []
     for s1 in range(corr_cat.shape[0]):
@@ -309,7 +309,7 @@ def measure_focus_ota(filename, n_stars=5):
         # are the magnitudes comparable
         similar_brightness = numpy.fabs(candidates[:,SXFocusColumn['mag_auto']] \
                                             - corr_cat[s1,SXFocusColumn['mag_auto']]) < 1
-        print >>dummy_test, "#", candidates.shape[0], numpy.sum(similar_brightness)
+        #print >>dummy_test, "#", candidates.shape[0], numpy.sum(similar_brightness)
         good_candidates = candidates[similar_brightness]
 
 
@@ -317,8 +317,8 @@ def measure_focus_ota(filename, n_stars=5):
         si = numpy.argsort(good_candidates[:,SXFocusColumn['y']])
         sorted_candidates = good_candidates[si]
 
-        numpy.savetxt(dummy_test, sorted_candidates)
-        print >>dummy_test, "\n\n\n"
+        #numpy.savetxt(dummy_test, sorted_candidates)
+        #print >>dummy_test, "\n\n\n"
 
         # Now compute the slope and distance between each point and each point 
         # above it
@@ -330,7 +330,7 @@ def measure_focus_ota(filename, n_stars=5):
             all_angles.append(angle)
             all_distances.append(distance)
 
-    dummy_test.close()
+    #dummy_test.close()
 
     # Once we are through with the first iteration find the best-fitting angle
 
@@ -340,8 +340,8 @@ def measure_focus_ota(filename, n_stars=5):
     # Find the best or rather most frequently occuring angle
     all_angles[all_angles < 0] += 2*math.pi
 
-    numpy.savetxt("dummy.angles", all_angles)
-    numpy.savetxt("dummy.distances", all_distances)
+    #numpy.savetxt("dummy.angles", all_angles)
+    #numpy.savetxt("dummy.distances", all_distances)
  
     filtered_angles = three_sigma_clip(all_angles)
     if (filtered_angles == None or
@@ -362,7 +362,7 @@ def measure_focus_ota(filename, n_stars=5):
     # Now we can do another proper search for all stars
     # This time, only search for complete series (#stars as specified)
     #
-    focus_stars = open("focus_stars", "w")
+    #focus_stars = open("focus_stars", "w")
     all_candidates = []
     for s1 in range(corr_cat.shape[0]):
 
@@ -412,21 +412,21 @@ def measure_focus_ota(filename, n_stars=5):
         sorted_candidates = candidates[si]
 
         sorted_candidates[:,0] = numpy.arange(sorted_candidates.shape[0])[::-1]+1.
-        numpy.savetxt(focus_stars, sorted_candidates)
+        #numpy.savetxt(focus_stars, sorted_candidates)
         #numpy.savetxt(focus_stars, numpy.degrees(angles[good]))
         #numpy.savetxt(focus_stars, in_cone[good])
         #numpy.savetxt(focus_stars, d_total[good])
         #numpy.savetxt(focus_stars, (corr_cat[:,10] - corr_cat[s1,10])[good])
-        print >>focus_stars, "\n\n\n\n"
+        #print >>focus_stars, "\n\n\n\n"
 
         all_candidates.append(sorted_candidates)
     
-    focus_stars.close()
+    #focus_stars.close()
 
     all_candidates = numpy.array(all_candidates)
     logger.debug(str(all_candidates.shape))
 
-    xxx = open("steps", "w")
+    #xxx = open("steps", "w")
     # Now compute the distances from each star to the previous
 
     step_vectors = []
@@ -440,8 +440,8 @@ def measure_focus_ota(filename, n_stars=5):
             return None
 
         steps = all_candidates[:,i,2:4] - all_candidates[:,i-1,2:4]
-        numpy.savetxt(xxx, steps)
-        print >>xxx, "\n\n\n\n"
+        #numpy.savetxt(xxx, steps)
+        #print >>xxx, "\n\n\n\n"
 
         logger.debug("Computing average step size, star %d" % (i))
         logger.debug("Steps-X:\n%s" % (str(steps[:,0])))
@@ -476,11 +476,11 @@ def measure_focus_ota(filename, n_stars=5):
 
     logger.debug("%s: %s" % (filename, str(step_vectors)))
 
-    final_focus = open("final_focus", "w")
-    for i in range(all_candidates.shape[0]):
-        numpy.savetxt(final_focus, all_candidates[i])
-        print >>final_focus, "\n\n\n\n\n"
-    final_focus.close()
+    # final_focus = open("final_focus", "w")
+    # for i in range(all_candidates.shape[0]):
+    #     numpy.savetxt(final_focus, all_candidates[i])
+    #     print >>final_focus, "\n\n\n\n\n"
+    # final_focus.close()
 
     logger.debug("Found %d focus stars" % (all_candidates.shape[0]))
     return all_candidates
@@ -560,7 +560,6 @@ def get_focus_measurement(filename, n_stars=5, mp=False):
         
     number_jobs_queued = 0
 
-#    available_ota_coords = [ (3,3), (3,4), (4,4), (4,3) ]
     for (ota_x, ota_y) in available_ota_coords:
         ota = ota_x * 10 + ota_y
 
