@@ -567,7 +567,7 @@ def get_focus_measurement(filename, n_stars=5, output_dir="./", mp=False):
     return_queue = multiprocessing.JoinableQueue()
         
     number_jobs_queued = 0
-
+    obsid = None
     for (ota_x, ota_y) in available_ota_coords:
         ota = ota_x * 10 + ota_y
 
@@ -579,6 +579,10 @@ def get_focus_measurement(filename, n_stars=5, output_dir="./", mp=False):
                 continue
 
         logger.debug("Adding file %s to task list" % (filename))
+        if (obsid == None):
+            hdulist = pyfits.open(filename)
+            obsid = hdulist[0].header['OBSID']
+            hdulist.close()
 
         queue.put( (filename, n_stars) )
         number_jobs_queued += 1
@@ -627,7 +631,7 @@ def get_focus_measurement(filename, n_stars=5, output_dir="./", mp=False):
     stats = get_mean_focuscurve(all_foci)
     pfit, uncert, fwhm_median, fwhm_std, fwhm_cleaned, best_focus_position, best_focus = stats
 
-    plotfilename = "%s/%s_focus.png" % (output_dir, basename)
+    plotfilename = "%s/%s_focus.png" % (output_dir, obsid)
     create_focus_plot(all_foci, stats, basename, plotfilename)
 
     logger.debug("all done!")
