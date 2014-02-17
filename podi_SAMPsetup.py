@@ -8,9 +8,13 @@ message_queue = "odi.image.load"
 
 output_format = "/scratch/%OBSID.fits"
 
+output_dir = "/scratch/"
+
 use_ssh = True
+
 ssh_user = "rkotulla"
 ssh_host = "localhost"
+remote_podi_dir = "/work/podi_devel/"
 ssh_executable = "/work/podi_devel/podi_collectcells.py"
 
 def translate_filename_local2remote(filename):

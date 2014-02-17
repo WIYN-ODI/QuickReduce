@@ -24,6 +24,8 @@ import datetime
 
 from podi_definitions import *
 import podi_collectcells
+import podi_focus
+
 import podi_logging
 
 import podi_SAMPsetup as setup
@@ -87,7 +89,7 @@ def worker_slave(queue):
             queue.task_done()
             break
 
-        filename = task
+        filename, object_name = task
 
         print "starting work on file",filename
 
@@ -107,16 +109,31 @@ def worker_slave(queue):
 
             remote_inputfile = setup.translate_filename_local2remote(filename)
 
-            kw = {
-                'user': setup.ssh_user,
-                'host': setup.ssh_host,
-                'collectcells': setup.ssh_executable,
-                'options': ccopts,
-                'filename': remote_inputfile,
-                'outputfile': setup.output_format, 
-            }
+            if (object_name.lower().find("focus") >= 0):
+                # This is most likely a focus exposure
+                kw = {
+                    'user': setup.ssh_user,
+                    'host': setup.ssh_host,
+                    'filename': remote_inputfile,
+                    'podidir': setup.remote_podi_dir,
+                    'outdir': setup.output_dir,
+                }
 
-            ssh_command = "ssh %(user)s@%(host)s %(collectcells)s %(filename)s %(outputfile)s %(options)s -noclobber" % kw
+                ssh_command = "ssh %(user)s@%(host)s %(podidir)s/podi_focus.py -nstars=7 %(filename)s %(outdir)s" % kw
+                # print ssh_command
+
+            else:
+                # This is not a focus exposure, to treat it as a normal science exposure
+                kw = {
+                    'user': setup.ssh_user,
+                    'host': setup.ssh_host,
+                    'collectcells': setup.ssh_executable,
+                    'options': ccopts,
+                    'filename': remote_inputfile,
+                    'outputfile': setup.output_format, 
+                }
+
+                ssh_command = "ssh %(user)s@%(host)s %(collectcells)s %(filename)s %(outputfile)s %(options)s -noclobber" % kw
 
             cmd_items = ssh_command.split()
             # print "\nExecuting:\n%s\n" % (ssh_command)
@@ -125,17 +142,31 @@ def worker_slave(queue):
             process = subprocess.Popen(cmd_items, stdout=subprocess.PIPE)
             _stdout, _stderr = process.communicate()
 
+            print "*"*80
+            if (not _stdout == "" and not _stdout == None):
+                print _stdout
+                print "*"*80
+            if (not _stderr == "" and not _stderr == None):
+                print _stderr
+                print "*"*80
+
         else:
             #
             # Run collectcells locally
             #
-            print "\nRunning collectcells (%s)\n" % (filename)
 
-            podi_collectcells.collectcells_with_timeout(input=filename, 
-                                                        outputfile=setup.output_format,
-                                                        options=options,
-                                                        timeout=300,
-                                                        process_tracker=process_tracker)
+            if (object_name.lower().find("focus") >= 0):
+                print "\nAnalyzing focus sequence (%s)\n" % (filename)
+                podi_focus.get_focus_measurement(filename, n_stars=7, output_dir=setup.output_dir)
+
+            else:
+                print "\nRunning collectcells (%s)\n" % (filename)
+
+                podi_collectcells.collectcells_with_timeout(input=filename, 
+                                                            outputfile=setup.output_format,
+                                                            options=options,
+                                                            timeout=300,
+                                                            process_tracker=process_tracker)
 
         #
         # If requested, also send the command to ds9
@@ -201,11 +232,15 @@ def get_filename_from_input(input):
         return filename
 
     return input
-
+    
 def check_obstype(filename):
+    obstype, object_name = "", ""
     with pyfits.open(filename) as hdulist:
         obstype = hdulist[0].header['OBSTYPE']
-    return obstype
+        object_name = hdulist[0].header['OBJECT'] \
+                      if 'OBJECT' in hdulist[0].header else ""
+    return obstype, object_name
+
 
 def receive_msg(private_key, sender_id, msg_id, mtype, params, extra):
     """
@@ -229,9 +264,10 @@ def receive_msg(private_key, sender_id, msg_id, mtype, params, extra):
         print "filename %s is not a valid directory" % (filename)
         return
         
+    fits_file = get_filename_from_input(filename)
+    obstype, object_name = check_obstype(fits_file)
+
     if (cmdline_arg_isset("-onlyscienceframes")):
-        fits_file = get_filename_from_input(filename)
-        obstype = check_obstype(fits_file)
         if (obstype != "OBJECT"):
             print """
 
@@ -242,8 +278,8 @@ I was told to ignore non-OBJECT frames
 \
 """ % (filename, fits_file)
             return
-
-    worker_queue.put( (filename) )
+            
+    worker_queue.put( (filename, object_name) )
 
     print "Done with this one, hungry for more!"
     return
@@ -305,7 +341,10 @@ def SAMPListener():
     worker_process.start()
 
     print "Setup complete, waiting for messages..."
-    
+    quiet = cmdline_arg_isset("-quiet")
+    quiet_string = "|/-\\"
+    quiet_pos = 0
+
     try:
         while (True):
 
@@ -336,9 +375,13 @@ def SAMPListener():
                     else:
                         break
 
-            sys.stdout.write("\rCurrent system-time: %s (press Crtl-C to quit)" % (datetime.datetime.now()))
+            if (not quiet):
+                sys.stdout.write("\rCurrent system-time: %s (press Crtl-C to quit)" % (datetime.datetime.now()))
+            else:
+                quiet_pos += 1
+                sys.stdout.write("%s\b" % (quiet_string[quiet_pos % 4]))
             sys.stdout.flush()
-
+                
     except KeyboardInterrupt, SystemExit:
         #print "Got termination notice"
         pass
