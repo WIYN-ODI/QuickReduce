@@ -78,7 +78,7 @@ import pywcs
 from astLib import astWCS
 import jdcal
 
-#import podi_plotting
+import podi_plotting
 import matplotlib
 import matplotlib.pyplot
 
