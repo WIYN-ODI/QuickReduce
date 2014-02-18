@@ -1028,6 +1028,19 @@ def collect_reduce_ota(filename,
         # NAXIS, NAXIS1, NAXIS2 are set correctly
         hdu.data = merged
 
+        #
+        # If requested, perform cosmic ray rejection
+        #
+        if (options['crj'] > 0):
+            logger.debug("Starting cosmic ray removal with %d iterations" % (options['crj']))
+            corrected, mask = podi_cosmicrays.remove_cosmics(hdu=hdu, 
+                                                             n_iterations=options['crj'])
+            hdu.data = corrected
+            logger.debug("Done with cosmic ray removal")
+
+        hdu.header['CRJ_ITER'] = (options['crj'], "cosmic ray removal iterations")
+
+
         source_cat = None
         if (options['fixwcs']):
             # Create source catalog
@@ -1121,18 +1134,6 @@ def collect_reduce_ota(filename,
             hdu.header["SKY_MEDI"] = (sky_level_median, "sky-level median")
             hdu.header["SKY_MEAN"] = (sky_level_mean, "sky-level mean")
             hdu.header["SKY_STD"] = (sky_level_std, "sky-level rms")
-
-        #
-        # If requested, perform cosmic ray rejection
-        #
-        if (options['crj'] > 0):
-            logger.debug("Starting cosmic ray removal with %d iterations" % (options['crj']))
-            corrected, mask = podi_cosmicrays.remove_cosmics(hdu=hdu, 
-                                                             n_iterations=options['crj'])
-            hdu.data = corrected
-            logger.debug("Done with cosmic ray removal")
-
-        hdu.header['CRJ_ITER'] = (options['crj'], "cosmic ray removal iterations")
 
 
     data_products['hdu'] = hdu
