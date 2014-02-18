@@ -160,6 +160,7 @@ def worker_slave(queue):
             if (setup.use_ssh):
 
                 # This is not a focus exposure, to treat it as a normal science exposure
+                remote_inputfile = setup.translate_filename_local2remote(filename)
                 kw = {
                     'user': setup.ssh_user,
                     'host': setup.ssh_host,
