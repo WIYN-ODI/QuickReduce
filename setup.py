@@ -12,9 +12,10 @@ setup(
                   sources=['cython_src/podi_cython.pyx', 
                            "cython_src/sigma_clip_mean.c",
                            "cython_src/sigma_clip_median.c",
+                           "cython_src/lacosmics.c",
                        ],
                   include_dirs=["cython_src", numpy.get_include()],
-                  libraries=['gslcblas', "gsl"]
+                  libraries=['gslcblas', "gsl", "m"]
                   )
     ]
 )
