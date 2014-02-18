@@ -264,6 +264,7 @@ import podi_fringing
 import podi_photcalib
 import podi_nonlinearity
 import podi_logging
+import podi_cosmicrays
 
 from astLib import astWCS
 
@@ -1120,6 +1121,19 @@ def collect_reduce_ota(filename,
             hdu.header["SKY_MEDI"] = (sky_level_median, "sky-level median")
             hdu.header["SKY_MEAN"] = (sky_level_mean, "sky-level mean")
             hdu.header["SKY_STD"] = (sky_level_std, "sky-level rms")
+
+        #
+        # If requested, perform cosmic ray rejection
+        #
+        if (options['crj'] > 0):
+            logger.debug("Starting cosmic ray removal with %d iterations" % (options['crj']))
+            corrected, mask = podi_cosmicrays.remove_cosmics(hdu=hdu, 
+                                                             n_iterations=options['crj'])
+            hdu.data = corrected
+            logger.debug("Done with cosmic ray removal")
+
+        hdu.header['CRJ_ITER'] = (options['crj'], "cosmic ray removal iterations")
+
 
     data_products['hdu'] = hdu
     data_products['wcsdata'] = None #fixwcs_data
@@ -3006,6 +3020,8 @@ def set_default_options(options_in=None):
 
     options['techdata'] = None
 
+    options['crj'] = 0
+
     return options
 
 
@@ -3263,7 +3279,9 @@ Calibration data:
     options['fitradialZP'] = cmdline_arg_isset("-fitradialZP")
 
     options['techdata'] = cmdline_arg_set_or_default("-techdata", options['techdata'])
-    
+
+    options['crj'] = int(cmdline_arg_set_or_default("-crj", 1))
+
     return options
 
 

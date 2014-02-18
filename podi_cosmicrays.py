@@ -18,7 +18,7 @@ import multiprocessing
 
 
 
-def remove_cosmics(hdu):
+def remove_cosmics(hdu, n_iterations=4):
 
     gain = hdu.header['GAIN']
     readnoise = 8 #hdu.header['RON']
@@ -37,7 +37,7 @@ def remove_cosmics(hdu):
                                  gain=gain, readnoise=readnoise, 
                                  sigclip = 5.0, sigfrac = 0.3, objlim = 5.0,
                                  verbose=False)
-        c.run(maxiter=4)
+        c.run(maxiter=n_iterations)
 
         # # Re-insert the data into the full frame
         corrected[x1:x2, y1:y2] = c.cleanarray
