@@ -3,7 +3,10 @@
 print "importing sampy"
 import sys
 sys.path.append("./../")
-import xsampy as sampy
+try:
+    import xsampy as sampy
+except:
+    import sampy
 import os
 import time
 import datetime
