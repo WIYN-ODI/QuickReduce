@@ -494,6 +494,20 @@ if __name__ == "__main__":
     options = set_default_options()
     podi_logging.setup_logging(options)
 
+    if (cmdline_arg_isset("-fromfile")):
+        print "Reading additional command line parameters from file"
+        configfile = get_cmdline_arg("-fromfile")
+        if (os.path.isfile(configfile)):
+            conf = open(configfile, "r")
+            lines = conf.readlines()
+            for line in lines:
+                line = line.strip()
+                if (len(line) <= 0):
+                    continue
+                # print "Adding ",line.strip(),"to command line"
+                if (not line.startswith("#")):
+                    sys.argv.append(line)
+
     try:
         swarpstack()
     except KeyboardInterrupt, SystemExit:
