@@ -44,10 +44,15 @@ from podi_definitions import *
 
 if __name__ == "__main__":
 
-    inputfile = sys.argv[1]
+    inputfile = get_clean_cmdline()[1]
     show_full_file = cmdline_arg_isset("-full")
 
-    hdulist = pyfits.open(inputfile)
+    try:
+        hdulist = pyfits.open(inputfile)
+    except IOError:
+        print "Can't open the input file: %s" % (inputfile)
+        sys.exit(0)
+
     
     try:
         assoctable = hdulist['ASSOCIATIONS']
