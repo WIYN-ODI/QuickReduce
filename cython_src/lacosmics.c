@@ -364,8 +364,13 @@ void lacosmics__cy(double* data, double* output, double* output2,
     double* noise = (double*)malloc(sx*sy*sizeof(double));
     double* sigmap = (double*)malloc(sx*sy*sizeof(double));
     double* sigmap_med5 = (double*)malloc(sx*sy*sizeof(double));
+    double* firstsel = malloc(sx*sy*sizeof(double));
+    double* data_med3 = (double*)malloc(sx*sy*sizeof(double));
+    double* data_med7 = (double*)malloc(sx*sy*sizeof(double));
+    
     int* blkavg_pixelcount = (int*)malloc(sx*sy*sizeof(int));
-
+    int* pixel_changed = (int*)malloc(sx*sy*sizeof(int));
+    
     double* neighbors = (double*)malloc(MAXMEDIAN*MAXMEDIAN*sizeof(double));
     
  /*     # create Laplacian kernel */
@@ -427,10 +432,14 @@ void lacosmics__cy(double* data, double* output, double* output2,
         printf("Computing larger 2x2 blkrep array\n");
         for (_x = 0; _x<sx; _x++) {
             for (_y = 0; _y < sy; _y++) {
-                larger_2x2[ _y*2   + (_x*2  )*sy*2 ] = data[_y + _x*sy];
-                larger_2x2[ _y*2+1 + (_x*2  )*sy*2 ] = data[_y + _x*sy];
-                larger_2x2[ _y*2   + (_x*2+1)*sy*2 ] = data[_y + _x*sy];
-                larger_2x2[ _y*2+1 + (_x*2+1)*sy*2 ] = data[_y + _x*sy];
+                i = _y + _x*sy;
+                if (pixel_changed[i] || iteration == 0) {
+                    larger_2x2[ _y*2   + (_x*2  )*sy*2 ] = data[i];
+                    larger_2x2[ _y*2+1 + (_x*2  )*sy*2 ] = data[i];
+                    larger_2x2[ _y*2   + (_x*2+1)*sy*2 ] = data[i];
+                    larger_2x2[ _y*2+1 + (_x*2+1)*sy*2 ] = data[i];
+                }
+                
             }
         }
 
@@ -441,24 +450,28 @@ void lacosmics__cy(double* data, double* output, double* output2,
         /* convolve(larger_2x2, 2*sx, 2*sy, lapla_convolved,  laplace_kernel, 3); */
         for (dx=0; dx<sx2; dx++) {
             for (dy=0; dy<sy2; dy++) {
+                i = dy + dx*sy2;
+                if (pixel_changed[dy/2 + dx/2*sy] || iteration == 0) {
+                    
+                    lapla_convolved[i] = 0.0;
 
-                lapla_convolved[dy + dx*sy2] = 0.0;
+                    //
+                    // Compute the result for this pixel convolved with the kernel
+                    //
+                    for (kx = -1*kernel_center; kx<= kernel_center; kx++) {
+                        for (ky = -1*kernel_center; ky<= kernel_center; ky++) {
+                            if (!(dx+kx < 0 || dx+kx >= sx2 || dy+ky < 0 || dy+ky > sy2)) {
 
-                //
-                // Compute the result for this pixel convolved with the kernel
-                //
-                for (kx = -1*kernel_center; kx<= kernel_center; kx++) {
-                    for (ky = -1*kernel_center; ky<= kernel_center; ky++) {
-                        if (!(dx+kx < 0 || dx+kx >= sx2 || dy+ky < 0 || dy+ky > sy2)) {
-
-                        lapla_convolved[dy + dx*sy2] += larger_2x2[dy+ky + (dx+kx)*sy2]
-                            * laplace_kernel[ky+kernel_center + (kx+kernel_center)*ksize];
+                                lapla_convolved[i] += larger_2x2[dy+ky + (dx+kx)*sy2]
+                                    * laplace_kernel[ky+kernel_center + (kx+kernel_center)*ksize];
+                            }
                         }
                     }
+                    /* printf("replacing negative pixel values\n"); */
+                    /* imreplace(lapla_convolved, sx*2, sy*2, -1e99, 0., 0.0); */
+                    lapla_convolved[i] = lapla_convolved[i] < 0 ? 0. : lapla_convolved[i];
                 }
-                /* printf("replacing negative pixel values\n"); */
-                /* imreplace(lapla_convolved, sx*2, sy*2, -1e99, 0., 0.0); */
-                lapla_convolved[dy + dx*sy2] = lapla_convolved[dy + dx*sy2] < 0 ? 0. : lapla_convolved[dy + dx*sy2];
+                
             }
         }
         for (i=0; i<sx*sy*4; i++) {
@@ -470,12 +483,16 @@ void lacosmics__cy(double* data, double* output, double* output2,
         /* blkavg(lapla_convolved, sx*2, sy*2, deriv2, 2, 2); */
         for (_x = 0; _x<sx; _x++) {
             for (_y = 0; _y < sy; _y++) {
-                deriv2[_y + _x*sy] = 0.25 * (
-                    lapla_convolved[ _y*2   + (_x*2  )*sy*2 ] +
-                    lapla_convolved[ _y*2+1 + (_x*2  )*sy*2 ] +
-                    lapla_convolved[ _y*2   + (_x*2+1)*sy*2 ] +
-                    lapla_convolved[ _y*2+1 + (_x*2+1)*sy*2 ]
-                );
+                i = _y + _x*sy;
+                if (pixel_changed[i] || iteration == 0) {
+                
+                    deriv2[i] = 0.25 * (
+                        lapla_convolved[ _y*2   + (_x*2  )*sy*2 ] +
+                        lapla_convolved[ _y*2+1 + (_x*2  )*sy*2 ] +
+                        lapla_convolved[ _y*2   + (_x*2+1)*sy*2 ] +
+                        lapla_convolved[ _y*2+1 + (_x*2+1)*sy*2 ]
+                                        );
+                }
             }
         }
     
@@ -496,26 +513,31 @@ void lacosmics__cy(double* data, double* output, double* output2,
         wx = wy = 5; dx = (wx-1)/2; dy = (wy-1)/2;
         for (x=0; x<sx; x++) {
             for (y=0; y<sy; y++) {
+                i = y + x*sy;
 
-                // Collect all pixels in the neighborhood of this pixel
-                n = 0;
-                for (_x=x-dx; _x<=x+dx; _x++) {
-                    if (_x < 0 || _x >= sx) continue;
-                    for (_y=y-dy; _y <= y+dy; _y++) {
-                        if (_y < 0 || _y >= sy) continue;
-                        neighbors[n++] = data[_y + _x*sy];
+                // only do work if necessary
+                if (pixel_changed[i] || iteration == 0) {
+                
+                    // Collect all pixels in the neighborhood of this pixel
+                    n = 0;
+                    for (_x=x-dx; _x<=x+dx; _x++) {
+                        if (_x < 0 || _x >= sx) continue;
+                        for (_y=y-dy; _y <= y+dy; _y++) {
+                            if (_y < 0 || _y >= sy) continue;
+                            neighbors[n++] = data[_y + _x*sy];
+                        }
                     }
+                    // Now compute the median
+                    gsl_sort(neighbors, 1, n);
+                    tmpd = gsl_stats_median_from_sorted_data(neighbors, 1, n);
+                    med5[i] = tmpd < 0 ? 0.0 : tmpd;
+
+                    // Compute noise estimate
+                    noise[i] = sqrt(med5[i]*gain + readnoise*readnoise);
+
+                    // Compute significance of pixel
+                    sigmap[i] = (deriv2[i] / noise[i]) / 2.;
                 }
-                // Now compute the median
-                gsl_sort(neighbors, 1, n);
-                tmpd = gsl_stats_median_from_sorted_data(neighbors, 1, n);
-                med5[y + x*sy] = tmpd < 0 ? 0.0 : tmpd;
-
-                // Compute noise estimate
-                noise[y + x*sy] = sqrt(med5[y + x*sy]*gain + readnoise*readnoise);
-
-                // Compute significance of pixel
-                sigmap[y + x*sy] = (deriv2[y + x*sy] / noise[y + x*sy]) / 2.;
             }
         }
 
@@ -553,19 +575,24 @@ void lacosmics__cy(double* data, double* output, double* output2,
         wx = wy = 5; dx = (wx-1)/2; dy = (wy-1)/2;
         for (x=0; x<sx; x++) {
             for (y=0; y<sy; y++) {
-                n = 0;
-                for (_x=x-dx; _x<=x+dx; _x++) {
-                    if (_x < 0 || _x >= sx) continue;
-                    for (_y=y-dy; _y <= y+dy; _y++) {
-                        if (_y < 0 || _y >= sy) continue;
-                        neighbors[n++] = sigmap[_y + _x*sy];
+                i = y + x*sy;
+                
+                // only do work if necessary
+                if (pixel_changed[i] || iteration == 0) {
+                    n = 0;
+                    for (_x=x-dx; _x<=x+dx; _x++) {
+                        if (_x < 0 || _x >= sx) continue;
+                        for (_y=y-dy; _y <= y+dy; _y++) {
+                            if (_y < 0 || _y >= sy) continue;
+                            neighbors[n++] = sigmap[_y + _x*sy];
+                        }
                     }
+                    // Now compute the median
+                    gsl_sort(neighbors, 1, n);
+                    sigmap_med5[i] = gsl_stats_median_from_sorted_data(neighbors, 1, n);
+                    // Subtract the smoothed significance map from the pixel significance map
+                    sigmap[i] -= sigmap_med5[i];
                 }
-                // Now compute the median
-                gsl_sort(neighbors, 1, n);
-                sigmap_med5[y + x*sy] = gsl_stats_median_from_sorted_data(neighbors, 1, n);
-                // Subtract the smoothed significance map from the pixel significance map
-                sigmap[y + x*sy] -= sigmap_med5[y + x*sy];
             }
         }
         
@@ -583,9 +610,9 @@ void lacosmics__cy(double* data, double* output, double* output2,
         /* imreplace(firstsel,0,upper=sigclip,lower=INDEF,radius=0) */
         /* imreplace(firstsel,1,lower=0.1,upper=INDEF,radius=0) */
         printf("Selecting candidate CRs\n");
-        double* firstsel = malloc(sx*sy*sizeof(double));
         for (i=0; i<sx*sy; i++) {
             firstsel[i] = sigmap[i] > sigclip ? 1 : 0;
+
         }
     
         /* for (i=0; i<sx*sy; i++) { */
@@ -609,8 +636,53 @@ void lacosmics__cy(double* data, double* output, double* output2,
         /* imarith(med3,"/",noise,med3) */
         /* imreplace(med3,0.01,upper=0.01,lower=INDEF,radius=0) */
         printf("subtract background and smooth component of objects\n");
-        double* data_med3 = median(data, sx, sy, 3, 3);
-        double* data_med7 = median(data_med3, sx, sy, 7, 7);
+
+        for (_x = 0; _x<sx; _x++) {
+            for (_y = 0; _y < sy; _y++) {
+                i = _y + _x*sy;
+
+                if (pixel_changed[i] || iteration == 0) {
+                    //
+                    // do 7x7 median filtering
+                    //
+                    n=0;
+                    for ( x = ( (_x-3) <  0 ?  0 : (_x-3) );
+                          x < ( (_x+4) > sx ? sx : (_x+4) );
+                          x++) {
+                        for ( y = ( (_y-3) <  0 ?  0 : (_y-3) );
+                              y < ( (_y+4) > sy ? sy : (_y+4) );
+                              y++) {
+                            neighbors[n++] = data[y + x*sy];
+                        }
+                    }
+                    gsl_sort(neighbors, 1, n);
+                    data_med7[i] = gsl_stats_median_from_sorted_data(neighbors, 1, n);
+
+
+                    //
+                    // do 3x3 median filtering
+                    //
+                    n=0;
+                    for ( x = ( (_x-1) <  0 ?  0 : (_x-1) );
+                          x < ( (_x+2) > sx ? sx : (_x+2) );
+                          x++) {
+                        for ( y = ( (_y-1) <  0 ?  0 : (_y-2) );
+                              y < ( (_y+2) > sy ? sy : (_y+3) );
+                              y++) {
+                            neighbors[n++] = data[y + x*sy];
+                        }
+                    }
+                    gsl_sort(neighbors, 1, n);
+                    data_med3[i] = gsl_stats_median_from_sorted_data(neighbors, 1, n);
+
+                } // end if pixel_changed
+
+            }
+        }
+
+
+        /* double* data_med3 = median(data, sx, sy, 3, 3); */
+        /* double* data_med7 = median(data_med3, sx, sy, 7, 7); */
         for (i=0; i<sx*sy; i++){
             tmpd = (data_med3[i] - data_med7[i]) / noise[i];
             data_med3[i] = tmpd < 0.01 ? 0.01 : tmpd;
@@ -626,6 +698,9 @@ void lacosmics__cy(double* data, double* output, double* output2,
             if (firstsel[i] > 0) {
                 firstsel[i] = sigmap[i] > data_med3[i]  * objlim ? 1 : 0;
             }
+
+            // Also reset the mask of CR pixels to 0
+            pixel_changed[i] = 0;
         }
 
         /* # grow CRs by one pixel and check in original sigma map */
@@ -698,15 +773,48 @@ void lacosmics__cy(double* data, double* output, double* output2,
         printf("create cleaned output image\n");
         
         double* data_filtered = median_filtered(data, sx, sy, 5, 5, finalsel);
-        for (i=0; i<sx*sy; i++) {
-            data[i] = finalsel[i] > 0.5 ? data_filtered[i] : data[i];
+
+        //
+        // Replace all CR-affected pixels with the median of the surrounding
+        //
+
+        for (_x = 0; _x<sx; _x++) {
+            for (_y = 0; _y < sy; _y++) {
+                i = _y + _x*sy;
+                
+                // If this is a cosmic pixel
+                if (finalsel[i] > 0.5) {
+                    data[i] = data_filtered[i];
+                    
+                    // Now mark all pixels in a 7 pixel box to be affected by the CR
+                    for ( x = ( (_x-3) <  0 ?  0 : (_x-3) );
+                          x < ( (_x+4) > sx ? sx : (_x+4) );
+                          x++) {
+                        for ( y = ( (_y-3) <  0 ?  0 : (_y-3) );
+                              y < ( (_y+4) > sy ? sy : (_y+4) );
+                              y++) {
+
+                            pixel_changed[y + x*sy] = 1;
+                        }
+                    }
+                    
+                } // end if finalsel > 0.5
+                
+            }
         }
+        
+                    
+        /* for (i=0; i<sx*sy; i++) { */
+        /*     data[i] = finalsel[i] > 0.5 ? data_filtered[i] : data[i]; */
+        /* } */
    
         for(_x=0; _x<sx; _x++){
             for(_y=0; _y<sy; _y++) {
+                //output[_y + _x*sy] = pixel_changed[_y + _x*sy];
                 output[_y + _x*sy] = data[_y + _x*sy];
             }
         }
+        
     }
     
     
