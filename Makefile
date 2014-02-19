@@ -40,3 +40,9 @@ all: doc html latex single_html
 
 clean:
 	rm -rf doc/build/*
+
+lac:
+	python setup.py build_ext --inplace
+	time ./test_lac.py input.fits
+#	ds9 input.fits test_out.fits 
+	ds9 test_out.it2.fits -scale minmax -scale log -zoom 2
