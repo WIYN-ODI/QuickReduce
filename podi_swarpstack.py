@@ -545,15 +545,35 @@ def swarpstack():
     hdustack[0].header['_PXLSCLE'] = pixelscale
     hdustack[0].header['_RESGL'] = ("yes" if reuse_singles else "no", "reuse singles?")
     hdustack[0].header['_NONSDRL'] = ("yes" if use_nonsidereal else "no", "using non-sidereal correction?")
+    valid_nonsidereal_reference = False
     try:
         hdustack[0].header['_NSID_RA'] = options['nonsidereal']['dra']
         hdustack[0].header['_NSID_DE'] = options['nonsidereal']['ddec']
         hdustack[0].header['_NSID_RT'] = options['nonsidereal']['ref_mjd']
         hdustack[0].header['_NSID_RF'] = options['nonsidereal']['ref']
+        if (os.path.isfile(options['nonsidereal']['ref'])):
+            valid_nonsidereal_reference = True
     except:
         pass
-
     firsthdu.close()
+
+    if (valid_nonsidereal_reference):
+        firsthdu = pyfits.open(options['nonsidereal']['ref'])
+        try:
+            hdustack[0].header['NSR-OBST'] = firsthdu[0].header['TIME-OBS']
+            hdustack[0].header['NSR-OBSD'] = firsthdu[0].header['DATE-OBS']
+            hdustack[0].header['NSR-OBSM'] = firsthdu[0].header['MJD-OBS']
+
+            hdustack[0].header['NSR-MIDT'] = firsthdu[0].header['TIME-MID']
+            hdustack[0].header['NSR-MIDD'] = firsthdu[0].header['DATE-MID']
+            hdustack[0].header['NSR-MIDM'] = firsthdu[0].header['MJD-MID']
+
+            hdustack[0].header['NSR-ENDT'] = firsthdu[0].header['TIME-END']
+            hdustack[0].header['NSR-ENDD'] = firsthdu[0].header['DATE-END']
+            hdustack[0].header['NSR-ENDM'] = firsthdu[0].header['MJD-END']
+        except:
+            pass
+
     hdustack.flush()
     hdustack.close()
     
