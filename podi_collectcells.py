@@ -2387,6 +2387,10 @@ def collectcells(input, outputfile,
         ota_list[0].header["MAGZERR"] = (photcalib_details['stderrofmean'], "phot ZP uncertainty")
         flux_scaling = math.pow(10., -0.4*(zeropoint_exptime - 25.0))
         ota_list[0].header["FLXSCALE"] = flux_scaling
+        # For swarp to work properly, also copy the FLXSCALE keyword into every image extension
+        for i in range(len(ota_list)):
+            if (is_image_extension(ota_list[i])):
+                ota_list[i].header["FLXSCALE"] = flux_scaling
 
         # Add some information on what apertures were used for the photometric calibration
         ota_list[0].header['MAG0MODE'] = (photcalib_details['aperture_mode'], "how was aperture determined")
