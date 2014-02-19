@@ -514,9 +514,6 @@ def swarpstack():
     hdustack.flush()
     hdustack.close()
 
-    print options
-    print options['nonsidereal']
-
     return
 
 if __name__ == "__main__":
