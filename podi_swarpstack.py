@@ -135,6 +135,10 @@ def swarpstack():
 
     inputfiles = get_clean_cmdline()[2:]
 
+    if (len(inputfiles) <= 0):
+        logger.error("No input files specified!")
+        return
+
     pixelscale = float(cmdline_arg_set_or_default("-pixelscale", 0))
     subtract_back = cmdline_arg_isset("-bgsub")
 
