@@ -3281,7 +3281,7 @@ Calibration data:
 
     options['techdata'] = cmdline_arg_set_or_default("-techdata", options['techdata'])
 
-    options['crj'] = int(cmdline_arg_set_or_default("-crj", 1))
+    options['crj'] = int(cmdline_arg_set_or_default("-crj", 0))
 
     return options
 
