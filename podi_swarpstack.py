@@ -140,8 +140,11 @@ def swarpstack():
 
     reuse_singles = cmdline_arg_isset("-reusesingles")
 
+
     use_nonsidereal = cmdline_arg_isset("-nonsidereal")
     options = read_options_from_commandline()
+    logger.info("Removing some OTAs from input: %s" % (str(options['skip_otas'])))
+
     if (use_nonsidereal):
         logger.info("Applying the non-sidereal motion correction")
 
@@ -162,6 +165,21 @@ def swarpstack():
                 inputfiles[i], corrected_filename))
             # Apply the non-sidereal option
             apply_nonsidereal_correction(hdulist, options, logger)
+
+            
+            if (options['skip_otas'] != []):
+                ota_list = []
+                for ext in hdulist:
+                    ota = -1
+                    try:
+                        ota = int(ext.header['EXTNAME'][3:5])
+                    except:
+                        pass
+                    if (ota in options['skip_otas']):
+                        continue
+                    ota_list.append(ext)
+                hdulist = pyfits.HDUList(ota_list)
+
             hdulist.writeto(corrected_filename, clobber=True)
             # else:
             #     logger.info("Input-frame %s with correction already exists (%s)" % (
@@ -174,6 +192,30 @@ def swarpstack():
         # By now all frames have the non-sidereal correction applied,
         # so we can go ahead and stack them as usual
         #
+
+    elif (options['skip_otas'] != []):
+        for i in range(len(inputfiles)):
+            hdulist = pyfits.open(inputfiles[i])
+
+            corrected_filename = "%(single_dir)s/%(obsid)s.otaselect.fits" % {
+                "single_dir": single_dir,
+                "obsid": hdulist[0].header['OBSID'],
+            }
+            ota_list = []
+            for ext in hdulist:
+                ota = -1
+                try:
+                    ota = int(ext.header['EXTNAME'][3:5])
+                except:
+                    pass
+                print "found ota",ota
+                if (ota in options['skip_otas']):
+                    print "skipping ota"
+                    continue
+                ota_list.append(ext)
+            hdulist = pyfits.HDUList(ota_list)
+            hdulist.writeto(corrected_filename, clobber=True)
+            inputfiles[i] = corrected_filename
 
     target_dimension = float(cmdline_arg_set_or_default('-dimension', -1))
 
@@ -482,6 +524,7 @@ def swarpstack():
         podi_logging.log_exception()
         print >>sys.stderr, "Execution failed:", e
 
+    logger.info("Stack (%s) complete, adding headers" % (dic['imageout']))
 
     # Finally, open the output file and copy a bunch of headers into it
     hdustack = pyfits.open(dic['imageout'], mode='update')
@@ -513,6 +556,8 @@ def swarpstack():
     firsthdu.close()
     hdustack.flush()
     hdustack.close()
+    
+    logger.info("All done!")
 
     return
 
