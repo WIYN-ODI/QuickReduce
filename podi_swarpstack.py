@@ -482,6 +482,41 @@ def swarpstack():
         podi_logging.log_exception()
         print >>sys.stderr, "Execution failed:", e
 
+
+    # Finally, open the output file and copy a bunch of headers into it
+    hdustack = pyfits.open(dic['imageout'], mode='update')
+    # Also open the first frame in the stack to be used as data source
+    firsthdu = pyfits.open(inputfiles[0])
+
+    for hdrkey in [
+            'TARGRA', 'TARGDEC',
+            'FILTER', 'FILTERID', 'FILTDSCR', 
+            'EXPTIME', 'OBSID', 'OBJECT', 
+            'DATE-OBS', 'TIME-OBS', 'MJD-OBS']:
+        if (hdrkey in firsthdu[0].header):
+            key, val, com = firsthdu[0].header.cards[hdrkey]
+            hdustack[0].header[key] = (val, com)
+    # Add some additional headers
+    hdustack[0].header['MAGZERO'] = 25.
+    hdustack[0].header['_BGSUB'] = "yes" if subtract_back else "no"
+    hdustack[0].header['_PXLSCLE'] = pixelscale
+    hdustack[0].header['_RESGL'] = ("yes" if reuse_singles else "no", "reuse singles?")
+    hdustack[0].header['_NONSDRL'] = ("yes" if use_nonsidereal else "no", "using non-sidereal correction?")
+    try:
+        hdustack[0].header['_NSID_RA'] = options['nonsidereal']['dra']
+        hdustack[0].header['_NSID_DE'] = options['nonsidereal']['ddec']
+        hdustack[0].header['_NSID_RT'] = options['nonsidereal']['ref_mjd']
+        hdustack[0].header['_NSID_RF'] = options['nonsidereal']['ref']
+    except:
+        pass
+
+    firsthdu.close()
+    hdustack.flush()
+    hdustack.close()
+
+    print options
+    print options['nonsidereal']
+
     return
 
 if __name__ == "__main__":
