@@ -7,6 +7,8 @@
  *
  */
 
+//#define _HEAPSORT_
+
 #define true 0
 #define false 1
 typedef int bool;
@@ -68,10 +70,12 @@ void convolve(double* input, int sx, int sy,
     return;
 }
 
+#ifdef _HEAPSORT_
 
 
 // return the median value in a vector of 27 floats pointed to by a
-double heapMedian3( double *a, unsigned char n_full )
+double find_median( double *a, unsigned char n_full )
+//double heapMedian3( double *a, unsigned char n_full )
 {
    double left[HEAPSIZE], right[HEAPSIZE], median, *p;
    unsigned char nLeft, nRight;
@@ -193,6 +197,15 @@ double heapMedian3( double *a, unsigned char n_full )
    }
 }
 
+#else
+
+double find_median( double *neighbors, unsigned char n )
+{
+    gsl_sort(neighbors, 1, n);
+    return gsl_stats_median_from_sorted_data(neighbors, 1, n);
+}
+
+#endif
 
 
 void lacosmics__cy(double* data,
@@ -231,8 +244,8 @@ void lacosmics__cy(double* data,
     double* sigmap_prime = (double*)malloc(sx*sy*sizeof(double));        // 16
     double* firstsel = malloc(sx*sy*sizeof(double));                     // 16
     double* data_med3 = malloc(sx*sy*sizeof(double));                     // 16
-    double* data_med7 = malloc(sx*sy*sizeof(double));                     // 16
-//    double data_med7;
+//    double* data_med7 = malloc(sx*sy*sizeof(double));                     // 16
+    double data_med7;
     double* gfirstsel = (double*)malloc(sx*sy*sizeof(double));           // 16
     double* finalsel = (double*)malloc(sx*sy*sizeof(double));            // 16
     double* data_filtered = (double*)malloc(sx*sy*sizeof(double));       // 16
@@ -383,8 +396,9 @@ void lacosmics__cy(double* data,
                         }
                     }
                     // Now compute the median
-                    gsl_sort(neighbors, 1, n);
-                    tmpd = gsl_stats_median_from_sorted_data(neighbors, 1, n);
+                    //gsl_sort(neighbors, 1, n);
+                    //tmpd = gsl_stats_median_from_sorted_data(neighbors, 1, n);
+                    tmpd = find_median(neighbors, n);
                     data_med5[i] = tmpd < 0.00001 ? 0.00001 : tmpd;
 
                     /* // During the first iteration, create a mask for saturated stars */
@@ -450,8 +464,9 @@ void lacosmics__cy(double* data,
                         }
                     }
                     // Now compute the median
-                    gsl_sort(neighbors, 1, n);
-                    sigmap_med5[i] = gsl_stats_median_from_sorted_data(neighbors, 1, n);
+                    /* gsl_sort(neighbors, 1, n); */
+                    /* sigmap_med5[i] = gsl_stats_median_from_sorted_data(neighbors, 1, n); */
+                    sigmap_med5[i] = find_median(neighbors, n);
                     // Subtract the smoothed significance map from the pixel significance map
                     sigmap_prime[i] = sigmap[i] - sigmap_med5[i];
                 }
@@ -485,9 +500,10 @@ void lacosmics__cy(double* data,
                             neighbors[n++] = data[y + x*sy];
                         }
                     }
-                    gsl_sort(neighbors, 1, n);
-                    data_med3[i] = gsl_stats_median_from_sorted_data(neighbors, 1, n);
-
+                    /* gsl_sort(neighbors, 1, n); */
+                    /* data_med3[i] = gsl_stats_median_from_sorted_data(neighbors, 1, n); */
+                    data_med3[i] = find_median(neighbors, n);
+                    
                 } // end if pixel_changed
             }
         }
@@ -502,7 +518,7 @@ void lacosmics__cy(double* data,
             for (_y = 0; _y < sy; _y++) {
                 i = _y + _x*sy;
 
-                if ((pixel_changed[i] || iteration == 0 || rerun_entirely)) { // && firstsel[i] > 0) {
+                if ((pixel_changed[i] || iteration == 0 || rerun_entirely) && firstsel[i] > 0) {
                     //
                     // do 7x7 median filtering
                     //
@@ -516,11 +532,11 @@ void lacosmics__cy(double* data,
                             neighbors[n++] = data_med3[y + x*sy];
                         }
                     }
-                    gsl_sort(neighbors, 1, n);
-                    data_med7[i] = gsl_stats_median_from_sorted_data(neighbors, 1, n);
+                    /* gsl_sort(neighbors, 1, n); */
+                    /* data_med7[i] = gsl_stats_median_from_sorted_data(neighbors, 1, n); */
+                    data_med7 = find_median(neighbors, n);
 
-
-                    tmpd = (data_med3[i] - data_med7[i]) / noise[i];
+                    tmpd = (data_med3[i] - data_med7) / noise[i];
                     tmpd = tmpd < 0.01 ? 0.01 : tmpd;
                     
                     // out_cleaned[i] = tmpd; // this is f in the python version
@@ -536,7 +552,6 @@ void lacosmics__cy(double* data,
             }
         }
         tracepx("### Trace pixel: firstsel = %f\n", firstsel[tracepixel]);
-        tracepx("### Trace pixel: tmpd = %f\n", (data_med3[tracepixel]-data_med7[tracepixel])/noise[tracepixel]);
  
         if (verbose) printf("Growing mask and checking neighboring pixels\n");
         /* n=0; for(i=0; i<sx*sy; i++) if (firstsel[i] > 0.5) n++; printf("Initial #CRs: %d (>%f sigma)\n", n, sigclip); */
@@ -598,9 +613,10 @@ void lacosmics__cy(double* data,
                         }
                     }
                     // Now compute the median
-                    gsl_sort(neighbors, 1, n);
-                    tmpd = gsl_stats_median_from_sorted_data(neighbors, 1, n);
-
+                    /* gsl_sort(neighbors, 1, n); */
+                    /* tmpd = gsl_stats_median_from_sorted_data(neighbors, 1, n); */
+                    tmpd = find_median(neighbors, n);
+                    
                     // Replace this cosmic affected pixel with the median of its neighbors
                     data_filtered[i] = tmpd;
 
@@ -664,16 +680,16 @@ void main()
     double* data = (double*)malloc(sx*sy*sizeof(double));
     double* retval = (double*)malloc(sx*sy*sizeof(double));
 
-    double neighbors[50], median1, median2;
+    double neighbors[250], median1, median2;
     clock_t c1, c2, c3;
     double time_a = 0, time_b = 0;
     
-    int n = 25;
+    int n = 241;
     for (i=0; i<500000; i++) {
         // Create some random numbers
 
         for (j=0; j<n; j++) {
-            neighbors[j] = (double)(rand()%100);
+            neighbors[j] = (double)(rand()%1000);
             //printf("% 3d%s", (int)neighbors[j], (j<n-1 ? ", " : " --> "));
         }
         c1 = clock();
