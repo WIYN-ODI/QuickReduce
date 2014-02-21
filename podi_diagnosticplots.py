@@ -888,11 +888,11 @@ def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
     zp_median = numpy.median(zp_raw)
 
     zp_min = scipy.stats.scoreatpercentile(zp_raw,  5) if \
-             (sitesetup.diagplot__zerpointmap_range[0] <= 0) else \
-             zp_median - sitesetup.diagplot__zerpointmap_range[0]
+             (sitesetup.diagplot__zeropointmap_range[0] <= 0) else \
+             zp_median - sitesetup.diagplot__zeropointmap_range[0]
     zp_max = scipy.stats.scoreatpercentile(zp_raw, 95) if \
-             (sitesetup.diagplot__zerpointmap_range[1] <= 0) else \
-             zp_median + sitesetup.diagplot__zerpointmap_range[1]
+             (sitesetup.diagplot__zeropointmap_range[1] <= 0) else \
+             zp_median + sitesetup.diagplot__zeropointmap_range[1]
 
     # Create one plot for the full focal plane, using boxes to outlines OTAs
     zp_range = (zp_min, zp_max)
