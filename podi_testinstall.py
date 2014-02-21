@@ -87,16 +87,16 @@ def ask_for_option(var_name, question, backup, needs_quotes, config_array):
 
 def update_sitesetup():
 
-
     import sys, os, podi_sitesetup
-    os.system("cp podi_sitesetup.py podi_sitesetup.py.backup")
+    import multiprocessing
+    import datetime
+
     
     # Now go over all options, ask user for input
     # Use the current configuration as default value
     
     config_array = ["# Your setup parameters are next:"]
 
-    import multiprocessing
     changes = False
     changes = changes | ask_for_option('max_cpu_count', 
                    "Maximum number of CPU cores available for use in reduction", 
@@ -181,6 +181,9 @@ def update_sitesetup():
         print "\n\nThere were some changes to the configuration!"
         answer = raw_input("Are you sure you want to update the configuration (y/n)? ")
         if (answer == "y" or answer == "Y"):
+            backup_file = "podi_sitesetup.py.backup_from_%s" % (datetime.datetime.now().strftime("%Y%m%dT%H%M%S"))
+            os.system("cp podi_sitesetup.py %s" % (backup_file))
+
             new_config = open("podi_sitesetup.py", "w")
             new_config.write("".join(lines[:insert_at]))
             new_config.write(os.linesep.join(config_array))

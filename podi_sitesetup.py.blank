@@ -22,18 +22,36 @@
 #
 
 from podi_definitions import *
-
-wcs_ref_dir = "/datax/2mass_fits/"
-wcs_ref_type = "2mass_nir"
-
-sdss_ref_type = 'local' # can also be 'web' or 'stripe82'
-#sdss_ref_type = 'web'
-sdss_ref_dir = '/nas/wiyn/sdss_photcalib/'
-
 number_cpus = "auto"
-max_cpu_count = 14
-if (cmdline_arg_isset("-ncpus")):
-    number_cpus = int(cmdline_arg_set_or_default("-ncpus", number_cpus))
+
+#
+#
+# DO NOT MODIFY ANYTHING ABOVE THIS LINE
+#
+#
+
+
+
+###AUTO-CONFIG-INSERT-HERE
+
+# Add more options here
+
+
+
+
+#
+#
+# DO NOT MODIFY ANYTHING BELOW THIS LINE
+#
+#
+
+
+
+
+
+
+if (cmdline_arg_isset("-ncpu")):
+    number_cpus = int(cmdline_arg_set_or_default("-ncpu", number_cpus))
     print "Using user-defined CPU count of",number_cpus
 else:
     try:
@@ -48,30 +66,6 @@ else:
         number_cpus=1
         pass
 
-
-#wcs_ref_dir = "/datax/2mass_fits/"
-#wcs_ref_type = "2mass_opt"
-
-scratch_dir = "/tmp/"
-
-sextractor = "/usr/bin/sex"
-sex_redirect = " >& /dev/null"
-sex_delete_tmps = True
-
-
-
-#
-# some settings for the diagnostic plots
-#
-diagplot__zeropoint_ZPrange = [0.5,0.5]
-diagplot__zeropoint_magrange = [11,21]
-
-diagplot__zerpointmap_range = [0.2,0.2]
-
-
-
-debug_log_filename = None
-debug_log_append = True
 
 
 
@@ -88,5 +82,8 @@ debug_log_append = True
 ################################################################################
 if __name__ == "__main__":
     print "This file defines some site properties, mostly paths."
-    print "Feel free to edit it to adapt directories to your site"
+    print
+    print "Please run podi_testinstall to change settings in here"
+    print "rather than editing the file by hand!"
+    print
     
