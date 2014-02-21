@@ -201,6 +201,10 @@ def update_sitesetup():
         print "\nNo changes found, keeping current configuration"
 
 
+def check_component(pkg, fct):
+    found = hasattr(pkg, fct)
+    print "   * %-20s: %s" % (fct, found)
+    return found
 
 if __name__ == "__main__":
     print
@@ -264,15 +268,26 @@ if __name__ == "__main__":
  python setup.py build_ext --inplace
 
 """
+    else:
+        # print "Checking podi_cython components:"
+        import podi_cython
+        all_found = True
+        all_found = all_found and check_component(podi_cython, "sigma_clip_mean")
+        all_found = all_found and check_component(podi_cython, "sigma_clip_median")
+        all_found = all_found and check_component(podi_cython, "lacosmics")
+        if (all_found):
+            print "All routines found"
+        else:
+            print "Some podi-cython routines could not be found!"
+            print "Please re-compile via python setup.py build_ext --python"
+    
+    print "\nCheck done!\n"
 
-    print "\n"*4,"     Starting auto-configuration!","\n"*4
-    print "Creating backup of current podi_sitesetup.py"
-    import sys, os, podi_sitesetup
-#    os.system("cp podi_sitesetup.py podi_sitesetup.py.backup")
-#    if (not hasattr(podi_sitesetup, 'xxx')):
-#        print "Can't find "
-
-    update_sitesetup()
+    answer = raw_input("Do you want to run the sitesetup assistant (y/N)?")
+    if (answer.lower() == "y"):
+        print "\n"*4,"     Starting auto-configuration!","\n"*4
+        import sys, os, podi_sitesetup
+        update_sitesetup()
 
 
 
