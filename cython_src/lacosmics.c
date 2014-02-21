@@ -39,31 +39,47 @@ void convolve(double* input, int sx, int sy,
 
     int dx, dy, kx, ky, i;
 
+    // set all pixels to 0
+    for (i=0; i<sx*sy; i++) {
+        output[i] = 0;
+    }
+    
     // Execute the convolution
     for (dx=0; dx<sx; dx++) {
         for (dy=0; dy<sy; dy++) {
 
-            // Set the output pixel to 0 to start with
-            output[dy + dx*sy] = 0.0;
 
+            // 
+            // result for this pixel convolved with the kernel
             //
-            // Compute the result for this pixel convolved with the kernel
-            //
-            for (kx = -1*kernel_center; kx<= kernel_center; kx++) {
-                for (ky = -1*kernel_center; ky<= kernel_center; ky++) {
-            /* for (kx = 0; kx<1; kx++) { */
-            /*     for (ky = 0; ky<1; ky++) { */
+            /* for (kx = -1*kernel_center; kx<= kernel_center; kx++) { */
+            /*     for (ky = -1*kernel_center; ky<= kernel_center; ky++) { */
+            /*         if (dx+kx < 0 || dx+kx >= sx || dy+ky < 0 || dy+ky > sy) { */
+            /*             continue; */
+            /*         } */
 
-                    if (dx+kx < 0 || dx+kx >= sx || dy+ky < 0 || dy+ky > sy) {
-                        continue;
-                    }
-
-                    output[dy + dx*sy] += input[dy+ky + (dx+kx)*sy]
-                        * kernel[ky+kernel_center + (kx+kernel_center)*ksize];
+            /*         output[dy + dx*sy] += input[dy+ky + (dx+kx)*sy] */
+            /*             * kernel[ky+kernel_center + (kx+kernel_center)*ksize]; */
                     
+            /*     } */
+            /* } */
+
+            //
+            // Compute the contribtion to all neighboring pixels from this pixel
+            //
+            if (input[dy + dx*sy] != 0) {
+                for (kx = -1*kernel_center; kx<= kernel_center; kx++) {
+                    for (ky = -1*kernel_center; ky<= kernel_center; ky++) {
+
+                        if (dx+kx < 0 || dx+kx >= sx || dy+ky < 0 || dy+ky > sy) {
+                            continue;
+                        }
+                        output[dy+ky + (dx+kx)*sy] += input[dy + dx*sy]
+                            * kernel[kernel_center-ky + (kernel_center-kx)*ksize];
+                    }
                 }
             }
-            
+
         }
     }
 
