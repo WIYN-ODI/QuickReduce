@@ -179,7 +179,12 @@ def update_sitesetup():
 
     if (changes):
         print "\n\nThere were some changes to the configuration!"
-        answer = raw_input("Are you sure you want to update the configuration (y/n)? ")
+        while (True):
+            answer = raw_input("Are you sure you want to update the configuration (y/n)? ")
+            if (len(answer) > 0):
+                break
+            else:
+                print "I really need an answer!"
         if (answer == "y" or answer == "Y"):
             backup_file = "podi_sitesetup.py.backup_from_%s" % (datetime.datetime.now().strftime("%Y%m%dT%H%M%S"))
             os.system("cp podi_sitesetup.py %s" % (backup_file))
