@@ -21,7 +21,7 @@ typedef int bool;
 
 #define nan 0./0.
 #define MAXMEDIAN 7
-#define HEAPSIZE 25
+#define HEAPSIZE 2500
 
 #define True 1
 #define False 0
@@ -86,17 +86,15 @@ void convolve(double* input, int sx, int sy,
     return;
 }
 
-#ifdef _HEAPSORT_
-
 
 // return the median value in a vector of 27 floats pointed to by a
-double find_median( double *a, unsigned char n_full )
-//double heapMedian3( double *a, unsigned char n_full )
+//double find_median( double *a, unsigned char n_full )
+double heapMedian3( double *a, int n_full )
 {
    double left[HEAPSIZE], right[HEAPSIZE], median, *p;
-   unsigned char nLeft, nRight;
-   unsigned char n_half = (unsigned char) ((float)n_full / 2.0 + 0.5);
-   unsigned char nVal;
+   int nLeft, nRight;
+   int n_half = (int) ((float)n_full / 2.0 + 0.5);
+   int nVal;
    //printf("nhalf=%d, n_full=%d\n", n_half, n_full);
    
    // pick first value as median candidate
@@ -104,18 +102,15 @@ double find_median( double *a, unsigned char n_full )
    median = *p++;
    nLeft = nRight = 1;
 
-   for(;;)
-   {
+   for(;;) {
        // get next value
        double val = *p++;
 
        // if value is smaller than median, append to left heap
-       if( val < median )
-       {
+       if( val < median ) {
            // move biggest value to the heap top
-           unsigned char child = nLeft++, parent = (child - 1) / 2;
-           while( parent && val > left[parent] )
-           {
+           int child = nLeft++, parent = (child - 1) / 2;
+           while( parent && val > left[parent] ) {
                left[child] = left[parent];
                child = parent;
                parent = (parent - 1) / 2;
@@ -123,27 +118,22 @@ double find_median( double *a, unsigned char n_full )
            left[child] = val;
 
            // if left heap is full
-           if( nLeft == n_half )
-           {
+           if( nLeft == n_half ) {
                // for each remaining value
-               for( nVal = n_full - (p - a); nVal; --nVal )
-               {
+               for( nVal = n_full - (p - a); nVal; --nVal ) {
                    // get next value
                    val = *p++;
 
                    // if value is to be inserted in the left heap
-                   if( val < median )
-                   {
+                   if( val < median ) {
                        child = left[2] > left[1] ? 2 : 1;
                        if( val >= left[child] )
                            median = val;
-                       else
-                       {
+                       else {
                            median = left[child];
                            parent = child;
                            child = parent*2 + 1;
-                           while( child < n_half )
-                           {
+                           while( child < n_half ) {
                                if( child < n_half-1 && left[child+1] > left[child] )
                                    ++child;
                                if( val >= left[child] )
@@ -161,12 +151,10 @@ double find_median( double *a, unsigned char n_full )
        }
 
        // else append to right heap
-       else
-       {
+       else  {
            // move smallest value to the heap top
-           unsigned char child = nRight++, parent = (child - 1) / 2;
-           while( parent && val < right[parent] )
-           {
+           int child = nRight++, parent = (child - 1) / 2;
+           while( parent && val < right[parent] ) {
                right[child] = right[parent];
                child = parent;
                parent = (parent - 1) / 2;
@@ -174,27 +162,22 @@ double find_median( double *a, unsigned char n_full )
            right[child] = val;
 
            // if right heap is full
-           if( nRight == n_half )
-           {
+           if( nRight == n_half ) {
                // for each remaining value
-               for( nVal = n_full - (p - a); nVal; --nVal )
-               {
+               for( nVal = n_full - (p - a); nVal; --nVal ) {
                    // get next value
                    val = *p++;
 
                    // if value is to be inserted in the right heap
-                   if( val > median )
-                   {
+                   if( val > median ) {
                        child = right[2] < right[1] ? 2 : 1;
                        if( val <= right[child] )
                            median = val;
-                       else
-                       {
+                       else {
                            median = right[child];
                            parent = child;
                            child = parent*2 + 1;
-                           while( child < n_half )
-                           {
+                           while( child < n_half ) {
                                if( child < n_half-1 && right[child+1] < right[child] )
                                    ++child;
                                if( val <= right[child] )
@@ -213,15 +196,22 @@ double find_median( double *a, unsigned char n_full )
    }
 }
 
-#else
 
-double find_median( double *neighbors, unsigned char n )
+double gsl_find_median( double *neighbors, int n )
 {
     gsl_sort(neighbors, 1, n);
     return gsl_stats_median_from_sorted_data(neighbors, 1, n);
 }
 
-#endif
+double find_median(double *neighbors, int n) 
+{
+    if (n%2 == 1) {
+        // Even number, use the faster heapMedian
+        return heapMedian3(neighbors, n);
+    }
+    return gsl_find_median(neighbors, n);
+}
+
 
 
 void lacosmics__cy(double* data,
@@ -237,8 +227,8 @@ void lacosmics__cy(double* data,
         printf("Gain=%f\n",gain);
         printf("readnoise=%f\n",readnoise);
     }
+    if (gain <= 0) gain = 1.;
     
-    saturation_limit = -1;
     int tracepixel = 233+484*sy; //484 + 233*sy;
 
     
@@ -315,13 +305,14 @@ void lacosmics__cy(double* data,
     if (verbose) printf("Working on frame with dimensions %d x %d\n", sx, sy);
 
     int iteration = 0;
+    int crpix_found = 1;
 
     for (i=0; i<sx*sy; i++) {
         crj_iteration[i] = 0;
         saturated[i] = 0;
     }
     
-    for (iteration = 0; iteration < niter; iteration++) {
+    for (iteration = 0; iteration < niter && crpix_found > 0; iteration++) {
         if (verbose) printf("\nStarting iteration %d (of %d)...\n\n", iteration+1, niter);
         
         // duplicate all pixels 2x2
@@ -595,7 +586,6 @@ void lacosmics__cy(double* data,
         /*     out_cleaned[i] = finalsel[i]; */
         /* } */
 
-        int crpix_found = 0;
         for (i=0; i<sx*sy; i++) {
             crpix_found += finalsel[i];
         }
@@ -631,7 +621,16 @@ void lacosmics__cy(double* data,
                     // Now compute the median
                     /* gsl_sort(neighbors, 1, n); */
                     /* tmpd = gsl_stats_median_from_sorted_data(neighbors, 1, n); */
-                    tmpd = find_median(neighbors, n);
+                    if (n>1) {
+                        tmpd = find_median(neighbors, n);
+                    } else if (n==1) {
+                        if (verbose) printf("found only a single pixel (x/y=%d,%d)!\n", _x, _y);
+                        tmpd = neighbors[0];
+                    } else {
+                        if (verbose) printf("No valid pixels found nearby (x/y=%d,%d)!\n", _x, _y);
+                        tmpd = nan;
+                    }
+                    
                     
                     // Replace this cosmic affected pixel with the median of its neighbors
                     data_filtered[i] = tmpd;
@@ -654,6 +653,8 @@ void lacosmics__cy(double* data,
                 
             }
         }
+        if (verbose) printf("Done cleaning!\n");
+        
         tracepx("### Trace pixel: data_filtered = %f\n", data_filtered[tracepixel]);
 
 
@@ -677,8 +678,27 @@ void lacosmics__cy(double* data,
             out_saturated[_y + _x*sy] = saturated[_y + _x*sy];
         }
     }
-    
-    
+
+
+    // Once we are done, free all memory allocated
+    free(larger_2x2);
+    free(lapla_convolved);
+    free(deriv2);
+    free(data_med5);
+    free(noise);
+    free(sigmap);
+    free(sigmap_med5);
+    free(sigmap_prime);
+    free(firstsel);
+    free(data_med3);
+    free(gfirstsel);
+    free(finalsel);
+    free(data_filtered);
+    free(blkavg_pixelcount);
+    free(pixel_changed);
+    free(crj_iteration);
+    free(saturated);
+
     if (verbose) printf("done!\n");
     return;
 }
@@ -696,32 +716,80 @@ void main()
     double* data = (double*)malloc(sx*sy*sizeof(double));
     double* retval = (double*)malloc(sx*sy*sizeof(double));
 
-    double neighbors[250], median1, median2;
-    clock_t c1, c2, c3;
-    double time_a = 0, time_b = 0;
+    double neighbors_a[250], neighbors_b[250], neighbors_c[250];
+    double median1, median2, median3;
+    clock_t c1, c2, c3, c4;
+    double time_a = 0, time_b = 0, time_c=0;
     
-    int n = 241;
-    for (i=0; i<500000; i++) {
+    int n = 25;
+    for (i=0; i<5000000; i++) {
         // Create some random numbers
 
         for (j=0; j<n; j++) {
-            neighbors[j] = (double)(rand()%1000);
-            //printf("% 3d%s", (int)neighbors[j], (j<n-1 ? ", " : " --> "));
+            neighbors_a[j] = (double)(rand()%1000);
+            neighbors_b[j] = neighbors_a[j];
+            neighbors_c[j] = neighbors_a[j];
+            // printf("% 4d%s", (int)neighbors[j], (j<n-1 ? ", " : " --> "));
         }
         c1 = clock();
-        median1 = heapMedian3(neighbors, n);
+        median1 = heapMedian3(neighbors_c, n);
         c2 = clock();
-        gsl_sort(neighbors, 1, n);
-        median2 = gsl_stats_median_from_sorted_data(neighbors, 1, n);
+        gsl_sort(neighbors_b, 1, n);
+        median2 = gsl_stats_median_from_sorted_data(neighbors_b, 1, n);
         c3 = clock();
-
+        median3 = find_median(neighbors_a, n);
+        c4 = clock();
+        
         time_a += (double)(c2 - c1)/CLOCKS_PER_SEC;
         time_b += (double)(c3 - c2)/CLOCKS_PER_SEC;
+        time_c += (double)(c4 - c3)/CLOCKS_PER_SEC;
         
-        //printf("%.0f / %.0f\n", median1, median2);
+        /* for (j=0; j<n; j++) { */
+        /*     printf("% 4d%s", (int)neighbors_b[j], (j<n-1 ? ", " : " --> ")); */
+        /* } */
+        /* printf("%.1f / %.1f / %.1f\n", median1, median2, median3); */
     }
-    printf("Timing a=%f, b=%f, a/b=%f\n", time_a, time_b, time_a/time_b);
+    printf("Timing a=%f, b=%f, c=%f, a/b=%f\n", time_a, time_b, time_c, time_a/time_b);
     
+
+    c1 = clock();
+    for (i=0; i<5000000; i++) {
+        for (j=0; j<n; j++) {
+            neighbors_a[j] = ((double)rand()/1000.);
+        }
+        median1 = heapMedian3(neighbors_c, n);
+    }
+    c2 = clock();
+    time_a = (double)(c2 - c1)/CLOCKS_PER_SEC;
+    
+
+    c1 = clock();
+    for (i=0; i<5000000; i++) {
+        for (j=0; j<n; j++) {
+            neighbors_b[j] = ((double)rand()/1000.);
+        }
+        gsl_sort(neighbors_b, 1, n);
+        median2 = gsl_stats_median_from_sorted_data(neighbors_b, 1, n);
+    }
+    c2 = clock();
+    time_b = (double)(c2 - c1)/CLOCKS_PER_SEC;
+    
+
+    c1 = clock();
+    for (i=0; i<5000000; i++) {
+        for (j=0; j<n; j++) {
+            neighbors_c[j] = ((double)rand()/1000.);
+        }
+        median3 = find_median(neighbors_c, n);
+    }
+    c2 = clock();
+    time_c = (double)(c2 - c1)/CLOCKS_PER_SEC;
+    
+    printf("Timing a=%f, b=%f, c=%f, a/b=%f\n", time_a, time_b, time_c, time_a/time_b);
+
+
+
+
     
     return;
     
