@@ -87,8 +87,13 @@ void convolve(double* input, int sx, int sy,
 }
 
 
-// return the median value in a vector of 27 floats pointed to by a
-//double find_median( double *a, unsigned char n_full )
+/*
+ * This routine was found at
+ * http://stackoverflow.com/questions/810657/fastest-code-c-c-to-select-the-median-in-a-set-of-27-floating-point-values
+ * written by user chmike
+ * 
+ * Note that the routine only gives correct answers if the number of input pixels is odd
+ */ 
 double heapMedian3( double *a, int n_full )
 {
    double left[HEAPSIZE], right[HEAPSIZE], median, *p;
