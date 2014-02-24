@@ -3026,6 +3026,11 @@ def set_default_options(options_in=None):
     options['techdata'] = None
 
     options['crj'] = 0
+    options['crj_sigclip'] = 5.0
+    options['crj_sigfrac'] = 0.3
+    options['crj_objlim'] = 5.0
+    options['crj_saturation'] = -1
+    options['crj_method'] = "cy"
 
     return options
 
@@ -3286,6 +3291,11 @@ Calibration data:
     options['techdata'] = cmdline_arg_set_or_default("-techdata", options['techdata'])
 
     options['crj'] = int(cmdline_arg_set_or_default("-crj", 0))
+    options['crj_sigclip'] = float(cmdline_arg_set_or_default("-crjsigclip", sitesetup.crj_sigclip))
+    options['crj_sigfrac'] = float(cmdline_arg_set_or_default("-crjsigfrac", sitesetup.crj_sigfrac))
+    options['crj_objlim'] = float(cmdline_arg_set_or_default("-crjobjlim", sitesetup.crj_objlim))
+    options['crj_saturation'] = float(cmdline_arg_set_or_default("-crjsaturation", sitesetup.crj_saturation))
+    options['crj_method'] = cmdline_arg_set_or_default("-crjmethod", "cy")
 
     return options
 
