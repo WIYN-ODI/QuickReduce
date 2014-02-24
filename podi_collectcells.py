@@ -1066,12 +1066,12 @@ def collect_reduce_ota(filename,
                                                    extension_id=ota)
             else:
                 logger.debug("Running SourceExtractor")
-                hdulist = pyfits.HDUList([pyfits.PrimaryHDU(header=hdu.header, data=hdu.data)])
-                obsid = hdulist[0].header['OBSID']
+                tmphdulist = pyfits.HDUList([pyfits.PrimaryHDU(header=hdu.header, data=hdu.data)])
+                obsid = tmphdulist[0].header['OBSID']
                 process_id = os.getpid()
                 fitsfile = "%s/tmp.pid%d.%s_OTA%02d.fits" % (sitesetup.scratch_dir, process_id, obsid, ota)
                 catfile = "%s/tmp.pid%d.%s_OTA%02d.cat" % (sitesetup.scratch_dir, process_id, obsid, ota)
-                hdulist.writeto(fitsfile, clobber=True)
+                tmphdulist.writeto(fitsfile, clobber=True)
                 full_path = os.path.abspath(sys.argv[0])
                 basepath, dummy = os.path.split(full_path)
                 sex_config_file = "%s/.config/wcsfix.sex" % (basepath)
