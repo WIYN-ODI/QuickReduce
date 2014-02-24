@@ -1024,22 +1024,34 @@ def collect_reduce_ota(filename,
             if (hdu.header["CRVAL1"] < 0):
                 hdu.header['CRVAL1'] += 360.
                 
-        # Insert the new image data. This also makes sure that the headers
-        # NAXIS, NAXIS1, NAXIS2 are set correctly
-        hdu.data = merged
-
         #
         # If requested, perform cosmic ray rejection
         #
         if (options['crj'] > 0):
             logger.debug("Starting cosmic ray removal with %d iterations" % (options['crj']))
-            corrected, mask = podi_cosmicrays.remove_cosmics(hdu=hdu, 
-                                                             n_iterations=options['crj'])
-            hdu.data = corrected
+            corrected, mask = podi_cosmicrays.remove_cosmics(data=merged, 
+                                                             n_iterations=options['crj'],
+                                                             gain=gain_avg,
+                                                             readnoise=rone_avg,
+                                                             sigclip=options['crj_sigclip'], 
+                                                             sigfrac=options['crj_sigfrac'],
+                                                             objlim=options['crj_objlim'],
+                                                             saturation_limit=options['crj_saturation'],
+                                                             binning=binning,
+                                                             verbose=False,)
+            merged = corrected
             logger.debug("Done with cosmic ray removal")
 
         hdu.header['CRJ_ITER'] = (options['crj'], "cosmic ray removal iterations")
+        hdu.header['CRJ_SIGC'] = (options['crj_sigclip'], "CR sigma clipping threshold")
+        hdu.header['CRJ_SIGF'] = (options['crj_sigfrac'], "CR threshold for neighboring pixels")
+        hdu.header['CRJ_OBJL'] = (options['crj_objlim'], "CR contrast to underlying object")
+        hdu.header['CRJ_SATU'] = (options['crj_saturation'], "CR saturation limit")
+        hdu.header['CRJ_METH'] = (options['crj_method'], "CR implementation")
 
+        # Insert the new image data. This also makes sure that the headers
+        # NAXIS, NAXIS1, NAXIS2 are set correctly
+        hdu.data = merged
 
         source_cat = None
         if (options['fixwcs']):
