@@ -295,19 +295,25 @@ def receive_msg(private_key, sender_id, msg_id, mtype, params, extra):
     fits_file = get_filename_from_input(filename)
     obstype, object_name, obsid = check_obstype(fits_file)
 
-    if (cmdline_arg_isset("-onlyscienceframes")):
-        if (obstype != "OBJECT"):
-            print """
+    if (obstype == "FOCUS" or 
+        obstype == "OBJECT" or 
+        not cmdline_arg_isset("-onlyscienceframes")):
+
+        worker_queue.put( (filename, object_name, obsid) )
+
+    else:
+        
+        print """
 
 Received input %s
    (translated to %s) ...
-This is not a OBJECT frame.
-I was told to ignore non-OBJECT frames
+This is not a OBJECT or FOCUS frame.
+I was told to ignore these kind of frames.
 \
 """ % (filename, fits_file)
             return
             
-    worker_queue.put( (filename, object_name, obsid) )
+#    worker_queue.put( (filename, object_name, obsid) )
 
     print "Done with this one, hungry for more!"
     return
