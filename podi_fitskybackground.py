@@ -120,7 +120,7 @@ def sample_background(data, wcs, starcat, min_found=200, boxwidth=30, fit_region
 
         cutout = numpy.array(data[y1:y2,x1:x2], dtype=numpy.float32)
         #cutout = data[y1:y2,x1:x2]
-        if (not numpy.isfinite(numpy.min(cutout)) and skip_nan_boxes):
+        if ((numpy.sum(numpy.isfinite(cutout)) != cutout.shape[0]*cutout.shape[1]) and skip_nan_boxes):
             # Contains an illegal value
             tried += 1
             continue
