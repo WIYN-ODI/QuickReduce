@@ -240,6 +240,7 @@ import datetime
 import Queue
 import threading
 import multiprocessing
+import multiprocessing.reduction
 import ctypes
 import time
 import logging
@@ -325,12 +326,20 @@ def collect_reduce_ota(filename,
 
     data_products = {
         "hdu": None,
+        "header": None,
         "wcsdata": None,
         "sky-samples": None,
         "sky": None,
         "tech-header": None,
+        "fringe_scaling": None,
+        "fringe-template": None,
+        "source-cat": None,
+        "tech-header": None,
+        'pupilghost-scaling': None,
+        'pupilghost-template': None,
+        'reduction_files_used': None,
         }
-    
+   
     if (not os.path.isfile(filename)):
         stdout_write("Couldn't find file %s ..." % (filename))
     else:
@@ -912,6 +921,7 @@ def collect_reduce_ota(filename,
                     if (extname == ext.header['EXTNAME']):
                         if (options['verbose']): print "Working on fringe scaling for",extname
                         fringe_scaling = podi_fringing.get_fringe_scaling(merged, ext.data, fringe_vector_file)
+                        data_products['fringe-template'] = ext.data
                         if (not fringe_scaling == None):
                             good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])
                             fringe_scaling_median = numpy.median(good_scalings)
@@ -1041,7 +1051,6 @@ def collect_reduce_ota(filename,
                                                              verbose=False,)
             merged = corrected
             logger.debug("Done with cosmic ray removal")
-
         hdu.header['CRJ_ITER'] = (options['crj'], "cosmic ray removal iterations")
         hdu.header['CRJ_SIGC'] = (options['crj_sigclip'], "CR sigma clipping threshold")
         hdu.header['CRJ_SIGF'] = (options['crj_sigfrac'], "CR threshold for neighboring pixels")
@@ -1052,6 +1061,7 @@ def collect_reduce_ota(filename,
         # Insert the new image data. This also makes sure that the headers
         # NAXIS, NAXIS1, NAXIS2 are set correctly
         hdu.data = merged
+
 
         source_cat = None
         if (options['fixwcs']):
@@ -1148,6 +1158,59 @@ def collect_reduce_ota(filename,
             hdu.header["SKY_STD"] = (sky_level_std, "sky-level rms")
 
 
+    pupilghost_scaling = None
+    pupilghost_template = None
+    if (options['pupilghost_dir'] != None):
+        logger.debug("Getting ready to subtract pupil ghost from science frame")
+        filter_level = get_filter_level(hdulist[0].header)
+        filter_name = get_valid_filter_name(hdulist[0].header)
+        # binning = ota_list[0].header['BINNING']
+        pg_template = "%s/pupilghost_template___level_%d__bin%d.fits" % (options['pupilghost_dir'], filter_level, binning)
+        logger.debug("looking for pupil ghost template %s...\n" % (pg_template))
+        # If we have a template for this level
+        if (os.path.isfile(pg_template)):
+            logger.debug("\n   Using pupilghost template %s, filter %s ... " % (pg_template, filter_name))
+            pg_hdu = pyfits.open(pg_template)
+
+            # Getting the pupilghost scaling factors for this OTA
+            if (not 'PGAFCTD' in hdu.header or not hdu.header['PGAFCTD']):
+                # This frame does not contain the keyword labeling it as affected by
+                # the pupilghost. In that case we don't need to do anything
+                logger.debug("This extension (%s) does not have any pupilghost problem" % (extname))
+            else:
+                
+                reduction_files_used['pupilghost'] = pg_template
+                # print "redfiles used:", reduction_files_used
+
+                # Compute the pupilghost image for this OTA at the right orientation
+                logger.debug("Starting pg scaling")
+                pupilghost_template = podi_matchpupilghost.compute_pupilghost_template_ota(
+                    hdu, pg_hdu,
+                    rotate=True,
+                    non_negative=True,
+                    source_center_coords='data'
+                )
+                data_products['pupilghost-template'] = pupilghost_template
+
+                if (not pupilghost_template == None):
+                    pupilghost_scaling = podi_matchpupilghost.get_pupilghost_scaling_ota(
+                        science_hdu=hdu, pupilghost_frame=pupilghost_template, 
+                        n_samples=750, boxwidth=20, 
+                        verbose=False,
+                        pg_matched=True)
+                    # print pupilghost_scaling
+                    data_products['pupilghost-scaling'] = pupilghost_scaling
+                    logger.debug("PG scaling:\n%s" % (str(pupilghost_scaling)))
+                logger.debug("Done with pg scaling")
+
+            # # Find the optimal scaling factor
+            # logger.debug("Searching for optimal pupilghost scaling factor")
+            # any_affected, scaling, scaling_std = podi_matchpupilghost.get_pupilghost_scaling(ota_list, pg_hdu)
+            # logger.debug("Check if any OTA is affected: %s" % ("yes" if any_affected else "no"))
+            # logger.debug("Optimal scaling factor found: %.2f +/- %.2f" % (scaling, scaling_std))
+
+
+
     data_products['hdu'] = hdu
     data_products['wcsdata'] = None #fixwcs_data
     data_products['sky-samples'] = sky_samples
@@ -1155,7 +1218,6 @@ def collect_reduce_ota(filename,
     data_products['fringe_scaling'] = fringe_scaling
     data_products['sourcecat'] = source_cat
     data_products['tech-header'] = tech_header
-
     data_products['reduction_files_used'] = reduction_files_used
 
     return data_products #hdu, fixwcs_data
@@ -1326,12 +1388,17 @@ def parallel_collect_reduce_ota(queue, return_queue,
 
     # Setup the multi-processing-safe logging
     podi_logging.podi_logger_setup(options['log_setup'])
-
     while (True):
-        cmd_quit, filename, ota_id = queue.get()
-        if (cmd_quit):
+        task = queue.get()
+        if (task == None):
+            logger = logging.getLogger("WorkManager")
+            logger.debug("Received termination signal, shutting down")
             queue.task_done()
             return
+
+        filename, ota_id, wrapped_pipe = task
+        x = open("/tmp/ota%02d.id" % ota_id, "w")
+        logger = logging.getLogger("WorkManager(OTA%02d)" % (ota_id))
 
         # Do the work
         try:
@@ -1349,10 +1416,56 @@ def parallel_collect_reduce_ota(queue, return_queue,
             podi_logging.log_exception("parallel_collectcells")
             raise
 
-        # Add the results to the return_queue so the master process can assemble the result file
-        # print "Adding results for OTA",ota_id,"to return queue"
-        # return_queue.put( (hdu, ota_id, wcsfix_data) )
+        # Trim the data section of the return data to keep transfer delays low
+        return_hdu = data_products['hdu']
+        pg_image = data_products['pupilghost-template']
+        del data_products['hdu']
+        del data_products['pupilghost-template']
+
+        fringe_template = data_products['fringe-template']
+        del data_products['fringe-template']
+
+        # However, we do need the headers for the intermediate processing steps
+        data_products['header'] = return_hdu.header
+
+        # Send the results from this OTA to the main process handler
         return_queue.put( (ota_id, data_products) )
+
+        # Now unpack the communication pipe
+        fct, params = wrapped_pipe
+        pipe = fct(*params)
+
+
+        #
+        # Wait to hear back with the rest of the instructions
+        #
+        final_parameters = pipe.recv()
+        logger.debug("OTA-ID %02d received final parameters:\n%s" % (ota_id, final_parameters))
+
+        #
+        # Finish work: fringe subtraction and pupilghost removal
+        #
+
+        # Remove fringing by subtracting the scaled fringe template
+        if (not fringe_template == None and final_parameters['fringe-scaling-median'] > 0):
+            logger.debug("Subtracting fringes (%.2f)..." % (final_parameters['fringe-scaling-median']))
+            return_hdu.data -= (fringe_template * final_parameters['fringe-scaling-median'])
+
+        # Also delete the pupilghost contribution
+        if (not pg_image == None and final_parameters['pupilghost-scaling-median'] > 0):
+            logger.debug("Subtracting pupilghost (%.2f)..." % (final_parameters['pupilghost-scaling-median']))
+            return_hdu.data -= (pg_image * final_parameters['pupilghost-scaling-median'])
+            
+        # Add the complete ImageHDU to the return data stream
+        data_products['hdu'] = return_hdu
+        
+        # Add the results to the return_queue so the master process can assemble the result file
+        logger.debug("Adding results for OTA %02d to return queue" % (ota_id))
+        return_queue.put( (ota_id, data_products) )
+
+        pipe.close()
+
+        #cmd_queue.task_done()
         queue.task_done()
         
     return
@@ -1774,7 +1887,7 @@ def collectcells(input, outputfile,
     #result_buffer = numpy.zeros(shape=(buffer.shape[0], buffer.shape[1]), dtype=numpy.float32)
     queue = multiprocessing.JoinableQueue()
     return_queue = multiprocessing.Queue()
-    
+
     processes = []
 
     worker_args = (queue, return_queue, options)
@@ -1782,6 +1895,11 @@ def collectcells(input, outputfile,
     number_extensions = 0
 
     list_of_otas_being_reduced = []
+    ota_ids_being_reduced = []
+    intermediate_results = []
+
+    # Set up all the communication pipes to communicate data back to the process
+    communication = {}
     for ota_id in range(len(list_of_otas_to_collect)):
         ota_c_x, ota_c_y = list_of_otas_to_collect[ota_id]        
         ota = ota_c_x * 10 + ota_c_y
@@ -1805,12 +1923,33 @@ def collectcells(input, outputfile,
         #print "Commanding work for extension",ota
         list_of_otas_being_reduced.append(list_of_otas_to_collect[ota_id])
 
-        queue.put( (False, filename, ota_id+1) )
+        # Setup some way of communicating with the workers
+        msg_pipe = multiprocessing.Pipe(duplex=False)
+        pipe_recv, pipe_send = msg_pipe
+        # Make sure to pass the receiver pipe to the worker so it can listen 
+        # for instructions. Do some python wrapping to be able to transport a 
+        # pipe object though a pipe/queue
+        wrapped_pipe = multiprocessing.reduction.reduce_connection(pipe_recv)
+        
+        queue.put( (filename, ota_id+1, wrapped_pipe) )
+        del wrapped_pipe
+        ota_ids_being_reduced.append(ota_id+1)
+
+        # save some data we need later on for the intermediate results
+        intres = {'ota-id': ota_id+1,
+                  'sent': False,
+                  'queued': True,
+                  'pipe-recv': pipe_recv,
+                  'pipe-send': pipe_send,
+        }
+        intermediate_results.append(intres)
+
+    logger.debug("list_of_otas_being_reduced=\n%s" % (str(list_of_otas_being_reduced)))
 
     logger.info("Performing instrumental detrending")
     # Create all processes to handle the actual reduction and combination
     #print "Creating",number_cpus,"worker processes"
-    if ('profile' in options or number_cpus == 1):
+    if ('profile' in options or number_cpus == 0):
         # 
         # If profiling is activated, run one only one processor and in non-multiprocessing mode
         #
@@ -1836,6 +1975,7 @@ def collectcells(input, outputfile,
             queue.task_done()
     else:
         for i in range(number_cpus):
+            logger.debug("Starting a new process...")
             p = multiprocessing.Process(target=parallel_collect_reduce_ota, args=worker_args)
             p.start()
             processes.append(p)
@@ -1844,13 +1984,11 @@ def collectcells(input, outputfile,
                 process_tracker.put(p.pid)
                 if (verbose): print "done adding to process-tracker"
 
+            # Tell all workers to shut down when no more data is left to work on
+            queue.put(None)
             time.sleep(0.01)
 
-        # Tell all workers to shut down when no more data is left to work on
-        for i in range(len(processes)):
-            if (verbose): stdout_write("Sending quit command!\n")
-            queue.put((True,None,None))
-
+        
 
     ############################################################
     #
@@ -1926,7 +2064,9 @@ def collectcells(input, outputfile,
     global_source_cat = None
     global_gain_sum, global_gain_count = 0, 0
     all_tech_headers = []
-
+    ota_headers = {}
+    intermediate_results_sent = {}
+    pupilghost_scaling = None
     for i in range(len(list_of_otas_being_reduced)):
         #hdu, ota_id, wcsfix_data = return_queue.get()
         try:
@@ -1937,12 +2077,210 @@ def collectcells(input, outputfile,
             raise
             return
 
+        logger.debug("Received intermediate results from OTA-ID %02d" % (ota_id))
+        # Mark this ota as not fully complete. This is important later on when
+        # we report intermediate results back for completion
+        intermediate_results_sent[ota_id] = False
 
+        #
+        # We received one entry. Check if we need to start another process
+        # If all processes are running we should have as many processes as
+        # we have OTAs to be reduced
+        #
+        # Doing this in here ensures we only have a limited number of processes 
+        # doing active work, hence keeping the machine from overloading.
+        # 
+        if (len(processes) < len(list_of_otas_being_reduced)):
+            # We don't have enough processes yet, start another one
+            p = multiprocessing.Process(target=parallel_collect_reduce_ota, args=worker_args)
+            p.start()
+            processes.append(p)
+            logger.debug("Starting another process for another OTA")
+            if (not process_tracker == None):
+                if (verbose): print "Adding current slave process to process-tracker...", i
+                process_tracker.put(p.pid)
+                if (verbose): print "done adding to process-tracker"
+            # Also send another quit command for this process
+            queue.put(None)
+
+
+        header = data_products['header']
+
+        if (header == None):
+            continue
+        
+        extname = header['EXTNAME']
+        ota_headers[extname] = header
+
+        sky_samples[header['EXTNAME']] = data_products['sky-samples']
+
+        if (not data_products['fringe_scaling'] == None):
+            fringe_scaling = data_products['fringe_scaling'] if fringe_scaling == None else \
+                numpy.append(fringe_scaling, data_products['fringe_scaling'], axis=0)
+            logger.debug("XXX fringe scaling:\n%s" % (str(fringe_scaling)))
+
+        # Add something about pupilghost scaling XXXXXXXXXXXXX
+        if (not data_products['pupilghost-scaling'] == None):
+            pupilghost_scaling = data_products['pupilghost-scaling'] if (pupilghost_scaling == None) \
+                else numpy.append(pupilghost_scaling, data_products['pupilghost-scaling'], axis=0)
+            
+
+    logger.debug("Received all intermediate data")
+
+    ############################################################################
+    #
+    # To do now: 
+    # 1) Compute the global values for pupil-ghost correction and fringe scaling
+    # 2) Send the results back to all worker threads so they can finish up their 
+    #    work
+    #
+    ############################################################################
+    fringe_scaling_median = fringe_scaling_std = 0
+    if (not options['fringe_dir'] == None and not fringe_scaling == None): #.shape[0] > 0):
+        # Determine the global scaling factor
+        good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])
+        fringe_scaling_median = numpy.median(good_scalings)
+        fringe_scaling_std    = numpy.std(good_scalings)
+
+        # and log the values in the primary header
+        ota_list[0].header["FRNG_SCL"] = fringe_scaling_median
+        ota_list[0].header["FRNG_STD"] = fringe_scaling_std
+
+        
+    # 
+    # Now combine all sky-samples to compute the global background level.
+    # Take care to exclude OTAs marked as guide-OTAs and those not covered 
+    # by the narrow-band filters.
+    # 
+    logger.debug("Combining sky-samples from all OTAs into global sky value")
+    sky_samples_global = None #numpy.empty(0)
+    valid_ext = otas_for_photometry[get_valid_filter_name(ota_list[0].header)]
+    for ext in sky_samples:
+        # print ext, valid_ext, int(ext[3:5])
+        ota_number = int(ext[3:5])
+        ota_name = "OTA%02d.SCI" % (ota_number)
+        not_a_guiding_ota = False
+
+        if (not ota_name in ota_headers):
+            # We don't know wbout this OTA, skip it
+            continue
+
+        not_a_guiding_ota = ota_headers[ota_name]['CELLMODE'].find("V") < 0
+        if (ota_number in valid_ext and not_a_guiding_ota and not sky_samples[ext] == None):
+            if (sky_samples_global == None):
+                sky_samples_global = sky_samples[ext]
+            else:
+                sky_samples_global = numpy.append(sky_samples_global, sky_samples[ext], axis=0)
+
+    sky_global_median = numpy.median(sky_samples_global[:,4])
+    ota_list[0].header["SKYLEVEL"] = sky_global_median
+    ota_list[0].header["SKYBG"] = sky_global_median
+    logger.debug("Found global median sky-value = %.1f" % (sky_global_median))
+
+    #
+    # Compute the global median pupil-ghost contribution
+    #
+    pupilghost_scaling_median = pupilghost_scaling_std = 0.
+    if (options['pupilghost_dir'] != None and not pupilghost_scaling == None):
+
+        ratio = pupilghost_scaling[:,4] / pupilghost_scaling[:,5]
+        pg_max = numpy.max(pupilghost_scaling[:,5])
+        strong_pg_signal = pupilghost_scaling[:,5] > 0.4*pg_max
+        valid_ratios = ratio[strong_pg_signal]
+        good_ratios, valid = three_sigma_clip(ratio, return_mask=True) #[strong_pg_signal])
+
+        median_ratio = numpy.median(valid_ratios)
+        logger.debug("median_ratio = %f" % (median_ratio))
+        logger.debug("error = %f" % (numpy.std(valid_ratios)))
+        logger.debug("clipped median: %f" % (numpy.median(good_ratios)))
+        logger.debug("clipped std: %f" % (numpy.std(good_ratios)))
+
+        #numpy.savetxt("merged_all", merged_all)
+        #numpy.savetxt("merged_clipped", good_ratios)
+
+        clipped_median = numpy.median(good_ratios)
+        clipped_std = numpy.std(good_ratios)
+        pupilghost_scaling_median = clipped_median
+        pupilghost_scaling_std = clipped_std
+
+        #ota_list[0].header["PUPLGOST"] = (pg_template, "p.g. template")
+        ota_list[0].header["PUPLGFAC"] = (pupilghost_scaling_median, "pupilghost scaling")
+        # filter_name = ota_list[0].header['FILTER']
+        # if (filter_name in podi_matchpupilghost.scaling_factors):
+        #     bg_scaled = podi_matchpupilghost.scaling_factors[filter_name]*sky_global_median
+        #     ota_list[0].header["PUPLGFA2"] = (bg_scaled, "analytical pupilghost scaling")
+        stdout_write(" done!\n")
+
+    ############################################################################
+    #
+    # Send back the intermediate global numbers and finish work
+    #
+    # Again make sure we do not overload the machine with too many concurrent,
+    # active processes.
+    # Combine this with reading all the remaining values returned from the 
+    # worker processes
+    # 
+    ############################################################################
+
+    logger.debug("Computed all intermediate data parameters")
+    intermed_results = {
+        "pupilghost-scaling-median": pupilghost_scaling_median,
+        "pupilghost-scaling-std": pupilghost_scaling_median,
+        "fringe-scaling-median": fringe_scaling_median,
+        "fringe-scaling-std": fringe_scaling_std,
+    }
+    
+    # Send off the initial bunch of results to the worker threads
+    # logger.debug("Intermediate results:\n%s" % (str(intermediate_results_sent)))
+    for i in range(number_cpus):
+        
+        if (i < len(intermediate_results)):
+
+            target_ota_id = intermediate_results[i]['ota-id']
+            pipe_send = intermediate_results[i]['pipe-send']
+
+            # Sent the intermediate results
+            logger.debug("Sending finalization data back to ota-id %02d" % (target_ota_id))
+            pipe_send.send(intermed_results)
+            intermediate_results[i]['sent'] = True
+
+        else:
+            break
+
+    for i in range(len(list_of_otas_being_reduced)):
+        try:
+            ota_id, data_products = return_queue.get()
+        except (KeyboardInterrupt, SystemExit):
+            while (not return_queue.empty()):
+                return_queue.get()
+            raise
+            return
+
+        # We received a final answer, so if necessary send off another intermediate results
+        logger.debug("received final answer from OTA-ID %02d" % (ota_id))
+        for j in range(len(intermediate_results)):
+            if (not intermediate_results[j]['sent']):
+                target_ota_id = intermediate_results[j]['ota-id']
+                pipe_send = intermediate_results[j]['pipe-send']
+                pipe_send.send(intermed_results)
+                intermediate_results[j]['sent'] = True
+                # logger.info("sending new instructions:\nIntermed results sent:\n%s" % (str(intermediate_results_sent)))
+                break
+
+        for j in range(len(intermediate_results)): 
+            if (intermediate_results[j]['ota-id'] == ota_id):
+                # Close the communication pipes
+                intermediate_results[j]['pipe-send'].close()
+                intermediate_results[j]['pipe-recv'].close()
+        
         hdu = data_products['hdu']
-        wcsfix_data = data_products['wcsdata']
-
         if (hdu == None):
             continue
+        
+        ota_list[ota_id] = hdu
+        extname = hdu.header['EXTNAME']
+
+        wcsfix_data = data_products['wcsdata']
 
         if ('reduction_files_used' in data_products):
             files_this_frame = data_products['reduction_files_used']
@@ -1952,16 +2290,6 @@ def collectcells(input, outputfile,
         global_gain_sum += (hdu.header['GAIN'] * hdu.header['NGAIN'])
         global_gain_count += hdu.header['NGAIN']
 
-        ota_list[ota_id] = hdu
-        
-        sky_samples[hdu.header['EXTNAME']] = data_products['sky-samples']
-
-        if (not data_products['fringe_scaling'] == None):
-            #print data_products['fringe_scaling'].shape
-            #if (fringe_scaling != None): print fringe_scaling.shape
-            fringe_scaling = data_products['fringe_scaling'] if fringe_scaling == None else \
-                numpy.append(fringe_scaling, data_products['fringe_scaling'], axis=0)
-
         if (not data_products['sourcecat'] == None):
             global_source_cat = data_products['sourcecat'] if (global_source_cat == None) \
                 else numpy.append(global_source_cat, data_products['sourcecat'], axis=0)
@@ -1970,23 +2298,21 @@ def collectcells(input, outputfile,
             all_tech_headers.append(data_products['tech-header'])
             # print "techdata for ota",ota_id,"\n",data_products['tech-header']
 
+
+
     #
     # Update the global gain variables
     #
     ota_list[0].header['GAIN'] = (global_gain_sum / global_gain_count)
     ota_list[0].header['NGAIN'] = global_gain_count
 
-    # Now all processes have returned their results, terminate them 
-    # and delete all instances to free up memory
-    for cur_process in processes:
-        cur_process.join()
-        #cur_process.terminate()
-        #del cur_process
+    # Compute the noise of the sky-level based on gain and readnoise XXXXXXX
+    ota_list[0].header["SKYNOISE"] = math.sqrt( 8.**2 + (sky_global_median*ota_list[0].header['GAIN'])**2 )
+
 
     logger.debug("all data received from worker processes!")
     logger.info("Starting post-processing")
     additional_reduction_files = {}
-
 
     if (options['fixwcs'] and verbose):
         print fixwcs_extension
@@ -2061,79 +2387,6 @@ def collectcells(input, outputfile,
                 continue
             del ota.header[header]
 
-    # 
-    # Now combine all sky-samples to compute the global background level.
-    # Take care to exclude OTAs marked as guide-OTAs and those not covered 
-    # by the narrow-band filters.
-    # 
-    logger.debug("Combining sky-samples from all OTAs into global sky value")
-    sky_samples_global = None #numpy.empty(0)
-    valid_ext = otas_for_photometry[get_valid_filter_name(ota_list[0].header)]
-    for ext in sky_samples:
-        # print ext, valid_ext, int(ext[3:5])
-        ota_number = int(ext[3:5])
-        ota_name = "OTA%02d.SCI" % (ota_number)
-        not_a_guiding_ota = False
-        for i in range(1, len(ota_list)):
-            if (ota_list[i].header['EXTNAME'] == ota_name):
-                not_a_guiding_ota = (ota_list[i].header['CELLMODE'].find("V") < 0)
-                break
-        if (ota_number in valid_ext and not_a_guiding_ota and not sky_samples[ext] == None):
-            if (sky_samples_global == None):
-                sky_samples_global = sky_samples[ext]
-            else:
-                sky_samples_global = numpy.append(sky_samples_global, sky_samples[ext], axis=0)
-
-    sky_global_median = numpy.median(sky_samples_global[:,4])
-    ota_list[0].header["SKYLEVEL"] = sky_global_median
-    ota_list[0].header["SKYBG"] = sky_global_median
-    ota_list[0].header["SKYNOISE"] = math.sqrt( 8.**2 + (sky_global_median*ota_list[0].header['GAIN'])**2 )
-    logger.debug("Found global median sky-value = %.1f" % (sky_global_median))
-
-    #
-    # Now that we have the global sky-level, subtract the 
-    # contribution of the pupil ghost to the science frame.
-    # Different from the case of the calibration frames, use the radial
-    # profile here, and ignore rotation (not needed anyway) to speed things up.
-    #
-    if (options['pupilghost_dir'] != None):
-        logger.debug("Getting ready to subtract pupil ghost from science frame")
-        filter_level = get_filter_level(ota_list[0].header)
-        filter_name = get_valid_filter_name(ota_list[0].header)
-        binning = ota_list[0].header['BINNING']
-#        pg_template = "%s/pupilghost_radial___level_%d__bin%d.fits" % (options['pupilghost_dir'], filter_level, binning)
-        pg_template = "%s/pupilghost_template___level_%d__bin%d.fits" % (options['pupilghost_dir'], filter_level, binning)
-        logger.debug("looking for radial pupil ghost template %s...\n" % (pg_template))
-        # If we have a template for this level
-        if (os.path.isfile(pg_template)):
-            logger.debug("\n   Using pupilghost template %s, filter %s ... " % (pg_template, filter_name))
-            pg_hdu = pyfits.open(pg_template)
-
-            # Find the optimal scaling factor
-            logger.debug("Searching for optimal pupilghost scaling factor")
-            any_affected, scaling, scaling_std = podi_matchpupilghost.get_pupilghost_scaling(ota_list, pg_hdu)
-            logger.debug("Check if any OTA is affected: %s" % ("yes" if any_affected else "no"))
-            logger.debug("Optimal scaling factor found: %.2f +/- %.2f" % (scaling, scaling_std))
-
-            if (any_affected):
-                # And subtract the scaled pupilghost templates.
-                logger.debug("Commencing pupilghost subtraction")
-                podi_matchpupilghost.subtract_pupilghost(ota_list, pg_hdu, scaling, 
-                                                         # rotate=False,
-                                                         rotate=True,
-                                                         source_center_coords='header')
-
-                ota_list[0].header["PUPLGOST"] = (pg_template, "p.g. template")
-                ota_list[0].header["PUPLGFAC"] = (scaling, "pupilghost scaling")
-                bg_scaled = podi_matchpupilghost.scaling_factors[filter_name]*sky_global_median
-                ota_list[0].header["PUPLGFA2"] = (bg_scaled, "analytical pupilghost scaling")
-                stdout_write(" done!\n")
-                additional_reduction_files['pupilghost'] = pg_template
-
-            pg_hdu.close()
-        else:
-            logger.info("Pupilghost correction requested, but no template found:")
-            logger.info("  was looking for filename %s" % (pg_template))
 
     #
     # Fix the WCS if requested
@@ -2153,6 +2406,7 @@ def collectcells(input, outputfile,
         else:
             logger.info("Couldn't find enough stars for astrometric calibration!")
 
+    logger.debug("Next up: fixwcs")
     if (options['fixwcs'] 
         and enough_stars_for_fixwcs):
 
@@ -2237,6 +2491,7 @@ def collectcells(input, outputfile,
         ota_list[0].header['SEEING_N'] = (seeing_clipped.shape[0], "number of stars in seeing comp")
 
         
+    logger.debug("Next up: fixwcs & qaplots")
     if (options['fixwcs'] 
         and options['create_qaplots']
         and enough_stars_for_fixwcs):
@@ -2358,6 +2613,7 @@ def collectcells(input, outputfile,
     #
     # If requested, perform photometric calibration
     #
+    logger.debug("Next up: photcalib")
     if (options['photcalib'] 
         and options['fixwcs']
         and enough_stars_for_fixwcs):
@@ -2499,6 +2755,7 @@ def collectcells(input, outputfile,
     # Create the image quality plot
     # Also create a diagnostic plot for the Seeing.
     # choose the sdssm-matched catalog if available, otherwise use the raw source catalog.
+    logger.debug("Next up: photcalib & seeingplots")
     if (options['fixwcs'] and options['create_qaplots'] and enough_stars_for_fixwcs):
 
         if (options['photcalib'] and not odi_sdss_matched == None and odi_sdss_matched.shape[0] > 0):
@@ -2533,36 +2790,6 @@ def collectcells(input, outputfile,
         logger.info("Starting non-sidereal WCS modification")
         apply_nonsidereal_correction(ota_list, options, logger)
 
-    #
-    # If requested by user via command line:
-    # Execute the fringing correction
-    #
-    if (not options['fringe_dir'] == None and not fringe_scaling == None): #.shape[0] > 0):
-        
-        # Determine the global scaling factor
-        good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])
-        fringe_scaling_median = numpy.median(good_scalings)
-        fringe_scaling_std    = numpy.std(good_scalings)
-
-        # and log the values in the primary header
-        ota_list[0].header["FRNG_SCL"] = fringe_scaling_median
-        ota_list[0].header["FRNG_STD"] = fringe_scaling_std
-
-        # Construct the name of the fringe map
-        filter_name = ota_list[0].header['FILTER']
-        fringe_filename = check_filename_directory(options['fringe_dir'], "fringe__%s.fits" % (filter_name))
-        # print fringe_filename
-        if (os.path.isfile(fringe_filename)):
-            additional_reduction_files['fringemap'] = fringe_filename
-            fringe_hdulist = pyfits.open(fringe_filename)
-
-            # Now do the correction
-            for ext in range(1, len(ota_list)):
-                extname = ota_list[ext].header['EXTNAME']
-                if (type(ota_list[ext]) != pyfits.hdu.image.ImageHDU):
-                    continue
-                # print "subtracting",extname
-                ota_list[ext].data -= (fringe_hdulist[extname].data * fringe_scaling_median)
 
 
     #
@@ -2573,6 +2800,13 @@ def collectcells(input, outputfile,
     ota_list[0].header['PHOTCLAM'] = (bandpass[0], "central wavelength of filter [nm]")
     ota_list[0].header['PHOTBW'] = (bandpass[1], "RMS width of filter [nm]")
     ota_list[0].header['PHOTFWHM'] = (bandpass[1], "FWHM of filter [nm]")
+
+
+    # Now all processes have returned their results, terminate them 
+    # and delete all instances to free up memory
+    for cur_process in processes:
+        cur_process.join()
+
 
     #
     # Prepare the Tech-HDU and add it to output HDU
@@ -3371,6 +3605,7 @@ if __name__ == "__main__":
                                           process_tracker=process_tracker)
             else:
                 collectcells(input, outputfile, process_tracker=process_tracker, options=options)
+                print "done with collectcells"
     except:
         print "Cleaning up left over child processes"
         podi_logging.log_exception()
