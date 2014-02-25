@@ -182,6 +182,31 @@ def measure_focus_ota(filename, n_stars=5):
     obsid = hdulist[0].header['OBSID']
     ota = int(hdulist[0].header['FPPOS'][2:4])
 
+    # Check the object name to see if if contains the information about the exposure
+    focus_positions = numpy.arange(n_stars)[::-1]+1.
+    real_focus_positions = False
+    object_name = hdulist[0].header['OBJECT']
+    if (object_name.startswith("Focus Center")):
+        # This looks like it might be the right format
+        try:
+            items = object_name.split()
+            # Check all items
+            if (len(items) == 7 and
+                items[0] == "Focus" and
+                items[1] == "Center" and 
+                items[3] == "NStep" and
+                items[5] == "DStep"):
+                n_stars = int(items[4])
+                focus_center = float(items[2])
+                focus_step = float(items[6])
+                focus_start = focus_center - (n_stars-1)/2*focus_step
+                focus_positions = focus_positions.astype(numpy.float32) * focus_step + focus_start
+                print focus_step, focus_start
+                print focus_positions
+                real_focus_positions = True
+        except:
+            pass
+
     # Run SourceExtractor on the file
     basedir, _ = os.path.split(os.path.abspath(sys.argv[0]))
     sex_config = "%s/.config/focus.sexconf" % (basedir)
@@ -419,7 +444,7 @@ def measure_focus_ota(filename, n_stars=5):
         #numpy.savetxt(focus_stars, si)
         sorted_candidates = candidates[si]
 
-        sorted_candidates[:,0] = numpy.arange(sorted_candidates.shape[0])[::-1]+1.
+        sorted_candidates[:,0] = focus_positions
         #numpy.savetxt(focus_stars, sorted_candidates)
         #numpy.savetxt(focus_stars, numpy.degrees(angles[good]))
         #numpy.savetxt(focus_stars, in_cone[good])
@@ -491,7 +516,7 @@ def measure_focus_ota(filename, n_stars=5):
     # final_focus.close()
 
     logger.debug("Found %d focus stars" % (all_candidates.shape[0]))
-    return all_candidates
+    return all_candidates, real_focus_positions
 
     logger.debug("Returning final FITS table catalog")
     return None
@@ -516,12 +541,6 @@ def get_focus_measurement(filename, n_stars=5, output_dir="./", mp=False):
         Directory to hold all the saturation catalogs. This is the directory
         that will be fed into collectcells via the -persistency command line
         flag.
-
-    mp : bool - not used
-
-    redo : bool
-
-        Recreate the saturation catalog if it already exists
 
     Returns
     -------
@@ -602,10 +621,15 @@ def get_focus_measurement(filename, n_stars=5, output_dir="./", mp=False):
 
     logger.info("Collecting catalogs for each OTA")
     all_foci = None
+    real_numbers = False
     for i in range(number_jobs_queued):
-        focus_positions = return_queue.get()
-        if (focus_positions == None):
+        returned = return_queue.get()
+        if (returned == None):
             continue
+
+        focus_positions, found_real_numbers = returned
+        if (found_real_numbers):
+            real_numbers = True
 
         logger.debug("Received %d focus positions" % (focus_positions.shape[0]))
 
@@ -632,7 +656,7 @@ def get_focus_measurement(filename, n_stars=5, output_dir="./", mp=False):
     pfit, uncert, fwhm_median, fwhm_std, fwhm_cleaned, best_focus_position, best_focus = stats
 
     plotfilename = "%s/%s_focus.png" % (output_dir, obsid)
-    create_focus_plot(all_foci, stats, basename, plotfilename)
+    create_focus_plot(all_foci, stats, basename, plotfilename, real_numbers)
 
     logger.debug("all done!")
     return
@@ -696,7 +720,7 @@ def get_mean_focuscurve(foci):
 #    print all_fwhms.shape
 
     
-def create_focus_plot(plotdata, stats, obsid, plotfile):
+def create_focus_plot(plotdata, stats, obsid, plotfile, real_numbers):
 
     fig = matplotlib.pyplot.figure()
     ax = fig.add_subplot(111)
@@ -750,7 +774,10 @@ def create_focus_plot(plotdata, stats, obsid, plotfile):
     # Set title
     if (pfit[2] > 0):
         # This means we found a minimum
-        info = "Best focus: %f at position %f" % (best_focus, best_focus_position)
+        if (real_numbers):
+            info = "Best focus: %.2f'' at position %.0f" % (best_focus, best_focus_position)
+        else:
+            info = "Best focus: %.2f'' at position %.2f" % (best_focus, best_focus_position)
     else:
         median_focus_pos = numpy.median(plotdata[0,:,0])
         slope = 2*pfit[2]*median_focus_pos + pfit[1]
@@ -772,6 +799,13 @@ def create_focus_plot(plotdata, stats, obsid, plotfile):
              head_length=0.03*(max_y-min_y),
              length_includes_head=True,
              )
+
+    parabola_eq = "best-fit: y=%+3f %s %4fx %s %4fx**2" % (
+        pfit[0], 
+        "+" if pfit[1] > 0 else "-", math.fabs(pfit[1]),
+        "+" if pfit[2] > 0 else "-", math.fabs(pfit[2]),
+        )
+    fig.text(0.01, 0.01, parabola_eq, fontsize='xx-small')
     # ax.annotate(" ", (best_focus_position, best_focus), 
     #          xytext=None, xycoords='data',
     #          textcoords='data', arrowprops=None)
