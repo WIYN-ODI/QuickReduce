@@ -679,6 +679,8 @@ def collect_reduce_ota(filename,
         hdu.header['PGAFCTD'] = False
 
         # If the third parameter points to a directory with flat-fields
+        hdu.header['GAIN'] = 1.3
+        gain_from_flatfield = None
         if (not options['flat_dir'] == None):
             flatfield_filename = check_filename_directory(options['flat_dir'], "flat_%s_bin%d.fits" % (filter_name, binning))
             if (os.path.isfile(flatfield_filename)):
@@ -699,8 +701,7 @@ def collect_reduce_ota(filename,
                         # keyword with the average gain value of the flatfield.
                         ff_gain = flatfield[0].header['GAIN'] \
                                   if 'GAIN' in flatfield[0].header else 1.3
-                        hdu.header['GAIN'] = ff_gain
-                        logger.debug("Overwriting GAIN keyword: %f" % (ff_gain))
+                        gain_from_flatfield = ff_gain
                         
                         logger.debug("Checking if extension has PGAFCTD keyword: %s" % (str('PGAFCTD' in ff_ext.header)))
                         if ('PGAFCTD' in ff_ext.header):
@@ -756,12 +757,6 @@ def collect_reduce_ota(filename,
         # Now apply the gain correction
         #
 
-        # Compute the gain across this OTA
-        valid_gain = (all_gains > 0) & (numpy.isfinite(all_gains))
-        gain_avg = numpy.mean(all_gains[valid_gain])
-        hdu.header['GAIN_RAW'] = (gain_avg, 'gain averaged over all cells')
-        hdu.header['NGAINRAW'] = (numpy.sum(valid_gain), 'number of cells contrib. to avg. gain')
-
         logger.debug("GAIN setting:"+str(options['gain_correct']))
         if (options['gain_correct']):
             # Correct for the gain variations in each cell
@@ -815,19 +810,35 @@ def collect_reduce_ota(filename,
         # Set the GAIN to be used for photometry. This gain is 1.0 if we 
         # already applied the gain correction to the data
         valid_gain = (all_gains > 0) & (numpy.isfinite(all_gains))
-        gain_avg = numpy.mean(all_gains[valid_gain])
-        hdu.header['GAIN'] = (gain_avg, 'gain averaged over all cells')
+        gain_avg = numpy.mean(all_gains[valid_gain]) if numpy.sum(valid_gain) > 0 else 1.3
+        hdu.header['GAINX'] = (gain_avg, 'gain averaged over all cells')
         hdu.header['NGAIN'] = (numpy.sum(valid_gain), 'number of cells contrib. to avg. gain')
 
         valid_ron = (all_readnoise > 0) & (numpy.isfinite(all_readnoise))
-        ron_avg = numpy.mean(all_readnoise[valid_ron])
+        ron_avg = numpy.mean(all_readnoise[valid_ron]) if numpy.sum(valid_ron) > 0 else 6.0
         hdu.header['RDNOISE'] = (ron_avg, 'readnoise averaged over all cells')
         hdu.header['NRDNOISE'] = (numpy.sum(valid_ron), 'number of cells contrib. to avg. readnoise')
 
         valid_rone = (all_readnoise_electrons > 0) & (numpy.isfinite(all_readnoise_electrons))
-        rone_avg = numpy.mean(all_readnoise_electrons[valid_rone])
+        rone_avg = numpy.mean(all_readnoise_electrons[valid_rone]) if numpy.sum(valid_rone) > 0 else 8.5
         hdu.header['RDNOISEE'] = (rone_avg, 'readnoise in e- averaged over all cells')
         hdu.header['NRDNOSEE'] = (numpy.sum(valid_rone), 'number cells contrib. to avg. readnoise in e-')
+
+        if (not gain_from_flatfield == None):
+            hdu.header['GAIN'] = gain_from_flatfield
+            logger.debug("Overwriting GAIN keyword: %f" % (ff_gain))
+        else:
+            hdu.header['GAIN'] = hdu.header['GAINX']
+
+        # # Compute the gain across this OTA
+        # print extname,"-->\n",all_gains
+        # valid_gain = (all_gains > 0) & (numpy.isfinite(all_gains))
+        # if (numpy.sum(valid_gain) <= 0):
+        #     gain_avg = 1.3
+        # else:
+        #     gain_avg = numpy.mean(all_gains[valid_gain])
+        # hdu.header['GAIN_RAW'] = (gain_avg, 'gain averaged over all cells')
+        # hdu.header['NGAINRAW'] = (numpy.sum(valid_gain), 'number of cells contrib. to avg. gain')
 
         
         
