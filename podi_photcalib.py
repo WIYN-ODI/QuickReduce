@@ -1016,6 +1016,10 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         zp_std = 1
         zp_exptime = 99
         diagplots = False
+        zp_stderrofmean = 0.0
+        zp_upper1sigma = 99.
+        zp_lower1sigma = 99.
+        n_clipped = 0
     else:
         if (zp.shape[0] <=5):
             zp_clipped = zp
@@ -1076,14 +1080,17 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         pfit = fit[0]
         uncert = numpy.sqrt(numpy.diag(fit[1]))
         detailed_return['zp_magnitude_slope'] = (pfit, uncert)
-        
+
+        zp_stderrofmean = scipy.stats.sem(zp_clipped)
+        n_clipped = zp_clipped.shape[0]
+
     detailed_return['median'] = zp_median
     detailed_return['std'] = zp_std
     detailed_return['zp_exptime'] = zp_exptime
-    detailed_return['stderrofmean'] = scipy.stats.sem(zp_clipped)
+    detailed_return['stderrofmean'] = zp_stderrofmean
     detailed_return['zp_upper1sigma'] = zp_upper1sigma
     detailed_return['zp_lower1sigma'] = zp_lower1sigma
-    detailed_return['n_clipped'] = zp_clipped.shape[0]
+    detailed_return['n_clipped'] = n_clipped
     detailed_return['n_raw'] = zp.shape[0]
 
     # Make plots
