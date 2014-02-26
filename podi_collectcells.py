@@ -236,6 +236,7 @@ import ephem
 import traceback
 #import psutil
 import datetime
+import warnings
 
 import Queue
 import threading
@@ -1006,13 +1007,13 @@ def collect_reduce_ota(filename,
         # =========================================================
         #
         if (options['offset_pointing'] != None or options['offset_dither'] != None):
-            offset_total = numpy.array([0,0])
+            offset_total = numpy.array([0.,0.], dtype=numpy.float32)
             if (options['offset_pointing'] != None):
                 offset_total += numpy.array(options['offset_pointing'])
+                logger.debug("Adding offset to Ra/Dec: %s --> %s" % (str(numpy.array(options['offset_pointing'])), str(offset_total)))
             if (options['offset_dither'] != None):
                 offset_total += numpy.array(options['offset_dither'])
-            if (options['verbose']): 
-                stdout_write("Adding user's WCS offset (ra: %f, dec: %f degrees)\n" % (offset_total[0], offset_total[1]))
+            logger.debug("Adding user's WCS offset (ra: %f, dec: %f degrees)" % (offset_total[0], offset_total[1]))
             hdu.header['CRVAL1'] += offset_total[0] 
             hdu.header['CRVAL2'] += offset_total[1]
 
@@ -1120,8 +1121,11 @@ def collect_reduce_ota(filename,
                 logger.debug("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
 
                 try:
+                    source_cat = None
                     try:
-                        source_cat = numpy.loadtxt(catfile)
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore")
+                            source_cat = numpy.loadtxt(catfile)
                     except IOError:
                         print "The Sextractor catalog is empty, ignoring this OTA"
                         source_cat = None
@@ -1155,9 +1159,9 @@ def collect_reduce_ota(filename,
                                                                          min_found=200, boxwidth=30))
 
         if (sky_samples.shape[0] <= 0): #not sky_samples.shape[1] > 4):
-            print "Something went wrong with the sky-calculation"
-            print "sky-samples =",sky_samples
-            print "sky-samples.shape =",sky_samples.shape
+            logger.warning("Something went wrong with the sky-calculation: %s" % (str(sky_samples.shape)))
+            # print "sky-samples =",sky_samples
+            # print "sky-samples.shape =",sky_samples.shape
             sky_level_median, sky_level_mean, sky_level_std = -1, -1, -1
             sky_samples = None
         else:
@@ -2664,7 +2668,12 @@ def collectcells(input, outputfile,
         ota_list[0].header["MAGZERO"] = (photcalib_details['median'], "phot. zeropoint corr for exptime")
         ota_list[0].header["MAGZSIG"] = (photcalib_details['std'], "phot ZP dispersion")
         ota_list[0].header["MAGZERR"] = (photcalib_details['stderrofmean'], "phot ZP uncertainty")
-        flux_scaling = math.pow(10., -0.4*(zeropoint_exptime - 25.0))
+
+        flux_scaling = 1.0
+        if (photcalib_details['n_raw'] > 0 and
+            photcalib_details['median'] > 0 and
+            photcalib_details['median'] < 50):
+            flux_scaling = math.pow(10., -0.4*(zeropoint_exptime - 25.0))
         ota_list[0].header["FLXSCALE"] = flux_scaling
         # For swarp to work properly, also copy the FLXSCALE keyword into every image extension
         for i in range(len(ota_list)):
@@ -3451,7 +3460,6 @@ Calibration data:
     # the dither offsets change.
     #
     options['target_coords'] = None
-    options['offset_pointing'] = None
     options['offset_dither'] = None
     # -target: overwrites the pointing information from the wcs header
     if (cmdline_arg_isset("-target")):
