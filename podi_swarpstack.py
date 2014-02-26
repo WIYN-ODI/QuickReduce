@@ -596,9 +596,9 @@ if __name__ == "__main__":
     podi_logging.setup_logging(options)
 
     if (cmdline_arg_isset("-fromfile")):
-        print "Reading additional command line parameters from file"
         configfile = get_cmdline_arg("-fromfile")
         if (os.path.isfile(configfile)):
+            logger.info("Reading additional command line parameters from file (%s)" % (configfile))
             conf = open(configfile, "r")
             lines = conf.readlines()
             for line in lines:
@@ -608,6 +608,8 @@ if __name__ == "__main__":
                 # print "Adding ",line.strip(),"to command line"
                 if (not line.startswith("#")):
                     sys.argv.append(line)
+        else:
+            logger.error("Can't open the configfile (%s)" % (configfile))
 
     try:
         swarpstack()
