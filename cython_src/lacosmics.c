@@ -237,7 +237,7 @@ void lacosmics__cy(double* data,
     int tracepixel = 233+484*sy; //484 + 233*sy;
 
     
-    int lx, ly, _x, _y, i, wx, wy, n, x, y;
+    int lx, ly, _x, _y, i, j, wx, wy, n, x, y, ix, iy;
     int kernel_center = 1, ksize=3;
     int dx, dy, kx, ky;
     double tmpd;
@@ -353,11 +353,16 @@ void lacosmics__cy(double* data,
                     //
                     for (kx = -1*kernel_center; kx<= kernel_center; kx++) {
                         for (ky = -1*kernel_center; ky<= kernel_center; ky++) {
-                            if (!(dx+kx < 0 || dx+kx >= sx2 || dy+ky < 0 || dy+ky > sy2)) {
+                            /* if (!(dx+kx < 0 || dx+kx >= sx2 || dy+ky < 0 || dy+ky > sy2)) { */
 
-                                lapla_convolved[i] += larger_2x2[dy+ky + (dx+kx)*sy2]
-                                    * laplace_kernel[ky+kernel_center + (kx+kernel_center)*ksize];
-                            }
+                            /*     lapla_convolved[i] += larger_2x2[dy+ky + (dx+kx)*sy2] */
+                            /*         * laplace_kernel[ky+kernel_center + (kx+kernel_center)*ksize]; */
+                            /* } */
+                            ix = ( dx+kx + sx2 ) % sx2;
+                            iy = ( dy+ky + sy2 ) % sy2;
+                            
+                            lapla_convolved[i] += larger_2x2[iy + ix*sy2]
+                                * laplace_kernel[ky+kernel_center + (kx+kernel_center)*ksize];
                         }
                     }
                     /* printf("replacing negative pixel values\n"); */
@@ -398,18 +403,16 @@ void lacosmics__cy(double* data,
                 // only do work if necessary
                 if (pixel_changed[i]==1 || iteration == 0 || rerun_entirely) {
                     n = 0;
-                    for ( x = ( (_x-2) <  0 ?  0 : (_x-2) );
-                          x < ( (_x+3) > sx ? sx : (_x+3) );
-                          x++) {
-                        for ( y = ( (_y-2) <  0 ?  0 : (_y-2) );
-                              y < ( (_y+3) > sy ? sy : (_y+3) );
-                              y++) {
-                            neighbors[n++] = data[y + x*sy];
+                    
+                    for ( x = (_x-2); x < (_x+3); x++) {
+                        for ( y = (_y-2); y < (_y+3); y++) {
+                            ix = ( x+sx ) % sx;
+                            iy = ( y+sy ) % sy;
+
+                            neighbors[n++] = data[iy + ix*sy];
                         }
                     }
-                    // Now compute the median
-                    //gsl_sort(neighbors, 1, n);
-                    //tmpd = gsl_stats_median_from_sorted_data(neighbors, 1, n);
+
                     tmpd = find_median(neighbors, n);
                     data_med5[i] = tmpd < 0.00001 ? 0.00001 : tmpd;
 
@@ -424,6 +427,7 @@ void lacosmics__cy(double* data,
                     noise[i] = sqrt(data_med5[i]*gain + readnoise*readnoise)/gain;
                     // Compute significance of pixel
                     sigmap[i] = (deriv2[i] / noise[i]) / 2.;
+                    
                 }
             }
         }
@@ -465,14 +469,12 @@ void lacosmics__cy(double* data,
                 // only do work if necessary
                 if (pixel_changed[i]==1 || iteration == 0 || rerun_entirely) {
                     n = 0;
-                    for ( x = ( (_x-2) <  0 ?  0 : (_x-2) );
-                          x < ( (_x+3) > sx ? sx : (_x+3) );
-                          x++) {
-                        for ( y = ( (_y-2) <  0 ?  0 : (_y-2) );
-                              y < ( (_y+3) > sy ? sy : (_y+3) );
-                              y++) {
+                    for ( x = (_x-2); x < (_x+3); x++) {
+                        for ( y = (_y-2); y < (_y+3); y++) {
+                            ix = ( x+sx ) % sx;
+                            iy = ( y+sy ) % sy;
 
-                            neighbors[n++] = sigmap[y + x*sy];
+                            neighbors[n++] = sigmap[iy + ix*sy];
                         }
                     }
                     // Now compute the median
@@ -503,13 +505,11 @@ void lacosmics__cy(double* data,
                     // do 3x3 median filtering
                     //
                     n=0;
-                    for ( x = ( (_x-1) <  0 ?  0 : (_x-1) );
-                          x < ( (_x+2) > sx ? sx : (_x+2) );
-                          x++) {
-                        for ( y = ( (_y-1) <  0 ?  0 : (_y-1) );
-                              y < ( (_y+2) > sy ? sy : (_y+2) );
-                              y++) {
-                            neighbors[n++] = data[y + x*sy];
+                    for ( x = (_x-1); x < (_x+2); x++) {
+                        for ( y = (_y-1); y < (_y+2); y++) {
+                            ix = ( x+sx ) % sx;
+                            iy = ( y+sy ) % sy;
+                            neighbors[n++] = data[iy + ix*sy];
                         }
                     }
                     /* gsl_sort(neighbors, 1, n); */
@@ -535,12 +535,10 @@ void lacosmics__cy(double* data,
                     // do 7x7 median filtering
                     //
                     n=0;
-                    for ( x = ( (_x-3) <  0 ?  0 : (_x-3) );
-                          x < ( (_x+4) > sx ? sx : (_x+4) );
-                          x++) {
-                        for ( y = ( (_y-3) <  0 ?  0 : (_y-3) );
-                              y < ( (_y+4) > sy ? sy : (_y+4) );
-                              y++) {
+                    for ( x = (_x-3); x < (_x+4); x++) {
+                        for ( y = (_y-3); y < (_y+4); y++) {
+                            ix = ( x+sx ) % sx;
+                            iy = ( y+sy ) % sy;
                             neighbors[n++] = data_med3[y + x*sy];
                         }
                     }
@@ -609,17 +607,17 @@ void lacosmics__cy(double* data,
 
                     // Collect all pixels in the neighborhood of this pixel
                     n = 0;
-                    for ( x = ( (_x-2) <  0 ?  0 : (_x-2) );
-                          x < ( (_x+3) > sx ? sx : (_x+3) );
-                          x++) {
-                        for ( y = ( (_y-2) <  0 ?  0 : (_y-2) );
-                              y < ( (_y+3) > sy ? sy : (_y+3) );
-                              y++) {
+                    for ( x = (_x-2); x < (_x+3); x++) {
+                        for ( y = (_y-2); y < (_y+3); y++) {
+                            ix = ( x+sx ) % sx;
+                            iy = ( y+sy ) % sy;
+                            j = iy + ix*sy;
+                            
                             // Filter out pixels labeled as cosmics
                             // Ignore all pixels masked as cosmic rays in this
                             // or any of the past iterations
-                            if (crj_iteration[y + x*sy] == 0 && finalsel[y + x*sy] == 0) {
-                                neighbors[n++] = data[y + x*sy];
+                            if (crj_iteration[j] == 0 && finalsel[j] == 0) {
+                                neighbors[n++] = data[j];
                             }
                         }
                     }
@@ -710,6 +708,7 @@ void lacosmics__cy(double* data,
     
 
 #ifdef __STANDALONE__
+#define NMAX 2000000
 
 void main()
 {
@@ -718,13 +717,45 @@ void main()
 
     int sx=512, sy=512, i, j;
 
-    double* data = (double*)malloc(sx*sy*sizeof(double));
-    double* retval = (double*)malloc(sx*sy*sizeof(double));
+    //double* data = (double*)malloc(sx*sy*sizeof(double));
+    //double* retval = (double*)malloc(sx*sy*sizeof(double));
 
     double neighbors_a[250], neighbors_b[250], neighbors_c[250];
     double median1, median2, median3;
     clock_t c1, c2, c3, c4;
     double time_a = 0, time_b = 0, time_c=0;
+
+    
+    printf("N=%d\n", NMAX);
+    printf(" -2 % 6 = %d\n", -2%6);
+    printf("  8 % 6 = %d\n",  8%6);
+    printf("nan=%d\n", 0./0.);
+    printf("nan==nan = %d\n", nan==nan);
+    printf("isnan(nan)=%d\n", isnan(nan));
+    printf("5==5=%d\n", 5==5);
+    
+    printf("nan!=nan = %d\n", nan!=nan);
+    
+        
+    int random_numbers[NMAX];
+    for (i=0; i<NMAX; i++) {
+        // Create random numbers in the range -200 ... +800
+        random_numbers[i] = rand()%1000 - 200;
+    }
+    c1 = clock();
+    for (i=0; i<NMAX; i++) {
+        j = random_numbers[i] % 600;
+    }
+    c2 = clock();
+    for (i=0; i<NMAX; i++) {
+        j = random_numbers[i] >= 600 ? random_numbers[i] - 600 : (random_numbers[i] < 0 ? random_numbers[i] + 600 : random_numbers[i]);
+    }
+    c3 = clock();
+    time_a = (double)(c2 - c1)/CLOCKS_PER_SEC;
+    time_b = (double)(c3 - c2)/CLOCKS_PER_SEC;
+    printf("Timing a=%f, b=%f, a/b=%f\n", time_a, time_b, time_a/time_b);
+        
+    return;
     
     int n = 25;
     for (i=0; i<5000000; i++) {
