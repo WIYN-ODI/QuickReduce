@@ -212,9 +212,8 @@ def swarpstack():
                     ota = int(ext.header['EXTNAME'][3:5])
                 except:
                     pass
-                print "found ota",ota
                 if (ota in options['skip_otas']):
-                    print "skipping ota"
+                    logger.debug("skipping ota %s as requested" % (ext.header['EXTNAME']))
                     continue
                 ota_list.append(ext)
             hdulist = pyfits.HDUList(ota_list)
@@ -595,6 +594,7 @@ if __name__ == "__main__":
     options = set_default_options()
     podi_logging.setup_logging(options)
 
+    logger = logging.getLogger("SwarpStack-Startup")
     if (cmdline_arg_isset("-fromfile")):
         configfile = get_cmdline_arg("-fromfile")
         if (os.path.isfile(configfile)):
