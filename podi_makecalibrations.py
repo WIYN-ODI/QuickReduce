@@ -838,8 +838,9 @@ if __name__ == "__main__":
 
                 
                 # Relabel the file as 'master-bias" and save to disk
-                bias_hdu[0].header['OBJECT'] = "master-bias"
-                bias_hdu.writeto(bias_frame, clobber=True)
+                if (not bias_hdu == None):
+                    bias_hdu[0].header['OBJECT'] = "master-bias"
+                    bias_hdu.writeto(bias_frame, clobber=True)
 
                 logger.debug("Stacking %s done!" % (bias_frame))
             else:
@@ -889,8 +890,9 @@ if __name__ == "__main__":
                 dark_hdu = imcombine(darks_to_stack, dark_frame, "sigmaclipmean", return_hdu=True)
                 
                 # Relabel the file as 'master-dark" and save to disk
-                dark_hdu[0].header['OBJECT'] = "master-dark"
-                dark_hdu.writeto(dark_frame, clobber=True)
+                if (not dark_hdu == None):
+                    dark_hdu[0].header['OBJECT'] = "master-dark"
+                    dark_hdu.writeto(dark_frame, clobber=True)
 
                 logger.debug("Stacking %s done!" % (dark_frame))
             else:
@@ -966,6 +968,10 @@ if __name__ == "__main__":
 
                     logger.info("Stacking %d frames into %s ..." % (len(flats_to_stack), flat_frame))
                     flat_hdus = imcombine(flats_to_stack, flat_frame, "sigmaclipmean", return_hdu=True)
+
+                    if (flat_hdus == None):
+                        # There was a problem with the stacking, so skip to the next flat-field
+                        continue
 
                     # Relabel the file
                     flat_hdus[0].header['OBJECT'] = "master-flat %s" % (filter)

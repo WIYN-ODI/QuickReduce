@@ -389,7 +389,7 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
 
     if (len(filelist) <= 0):
         stdout_write("No existing files found in input list, hence nothing to do!\n")
-        return
+        return None
     # elif (len(filelist) == 1):
     #     # stdout_write("Only 1 file to combine, save the hassle and copy the file!\n")
     #     hdulist = pyfits.open(filelist[0])
@@ -486,7 +486,7 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
     else:
         stdout_write(" couldn't write output file, no filename given!\n")
 
-    return
+    return None
 
 if __name__ == "__main__":
 
