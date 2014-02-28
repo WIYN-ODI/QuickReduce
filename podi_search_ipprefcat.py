@@ -73,6 +73,8 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
     if (cattype == "2mass_web"):
         return twomass_from_cds(ra, dec, radius, verbose)
 
+    print "In get_ref_catalog, cattype=%s, dir=%s" % (cattype, basedir)
+
     # Load the SkyTable so we know in what files to look for the catalog"
     skytable_filename = "%s/SkyTable.fits" % (basedir)
     skytable_hdu = pyfits.open(skytable_filename)
@@ -85,10 +87,14 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
     # Select entries that match our list
     if (verbose): print "# Searching for stars within %.1f degress around %f , %f ..." % (radius, ra, dec)
 
-    min_dec = dec - radius
-    max_dec = dec + radius
-    min_ra = ra - radius/math.cos(math.radians(dec))
-    max_ra = ra + radius/math.cos(math.radians(dec))
+    if (not radius == None and radius > 0):
+        min_dec = dec - radius
+        max_dec = dec + radius
+        min_ra = ra - radius/math.cos(math.radians(dec))
+        max_ra = ra + radius/math.cos(math.radians(dec))
+    else:
+        min_dec, max_dec = dec[0], dec[1]
+        min_ra, max_ra = ra[0], ra[1]
 
     if (max_ra > 360.):
         # This wraps around the high end, shift all ra values by -180
@@ -159,7 +165,9 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
 
             if (verbose): print "# Read %d stars from catalog %s ..." % (array_to_add.shape[0], catalogfile)
 
-        elif (cattype in ('2mass_opt', '2mass_nir')):
+        elif (cattype in ('2mass_opt', 
+                          '2mass_nir', 
+                          'ucac4')):
             if (verbose): print "Reading 2mass catalog"
             catalogfile = "%s/%s.fits" % (basedir, catalogname)
 
@@ -178,8 +186,8 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
 
             select_from_cat = (cat_ra_shifted > min_ra) & (cat_ra_shifted < max_ra ) & (cat_dec > min_dec) & (cat_dec < max_dec)
 
-
-            if (cattype == ('2mass_opt')):
+            sys.stderr.write("cattype=%s\n" % (cattype))
+            if (cattype == '2mass_opt'):
                 # select only sources with optical counterparts, i.e. valid b or vr magnitudes
                 optical_counterparts = numpy.isfinite(hdu_cat[1].data.field('mag_b')) | numpy.isfinite(hdu_cat[1].data.field('mag_vr'))
                 selected = select_from_cat & optical_counterparts
@@ -194,7 +202,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
                 # alignment in fixwcs) is a valid entry
                 array_to_add[:,3][numpy.isnan(array_to_add[:,3])] = array_to_add[:,2]
 
-            else:
+            elif (cattype == '2mass_nir'):
 
                 array_to_add = numpy.zeros(shape=(numpy.sum(select_from_cat),5))
                 array_to_add[:,0] = cat_ra[select_from_cat]
@@ -203,6 +211,20 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
                 array_to_add[:,3] = hdu_cat[1].data.field('mag_h')[select_from_cat]
                 array_to_add[:,4] = hdu_cat[1].data.field('mag_k')[select_from_cat]
 
+            elif (cattype == 'ucac4'):
+                sys.stderr.write("Using ucac4 catalog\n")
+                catalog_columns = ['RA', 'DEC',
+                                   'MAG_UCAC', 'ERR_UCAC',
+                                   'MAG_B', 'ERR_B',
+                                   'MAG_V', 'ERR_V',
+                                   'MAG_G', 'ERR_G',
+                                   'MAG_R', 'ERR_R',
+                                   'MAG_I', 'ERR_I',
+                               ]
+                array_to_add = numpy.zeros(shape=(numpy.sum(select_from_cat),len(catalog_columns)))
+                for i in range(len(catalog_columns)):
+                    array_to_add[:,i] = hdu_cat[1].data.field(catalog_columns[i])[select_from_cat]
+                
             if (verbose): print "# Read %d stars from catalog %s ..." % (array_to_add.shape[0], catalogfile)
 
         if (full_catalog == None):
@@ -220,21 +242,22 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
 
 if __name__ == "__main__":
     
-    ra = float(sys.argv[1])
-    dec = float(sys.argv[2])
-    radius = float(sys.argv[3])
+    ra = float(get_clean_cmdline()[1])
+    dec = float(get_clean_cmdline()[2])
+    radius = float(get_clean_cmdline()[3])
 
     basedir = "/Volumes/odifile/Catalogs/IPPRefCat/catdir.synth.grizy/"
-
-    basedir = cmdline_arg_set_or_default("-basedir", "/Volumes/odifile/Catalogs/IPPRefCat/catdir.synth.grizy/")
-    catalog_type = cmdline_arg_set_or_default("-cattype", "IPPRef")
 
     import podi_sitesetup as sitesetup
     basedir = sitesetup.wcs_ref_dir
     catalog_type = sitesetup.wcs_ref_type
 
+    basedir = cmdline_arg_set_or_default("-basedir", sitesetup.wcs_ref_dir)
+    catalog_type = cmdline_arg_set_or_default("-cattype", sitesetup.wcs_ref_type)
+    verbose = cmdline_arg_isset("-v")
 
-    catalog = get_reference_catalog(ra, dec, radius, basedir=basedir, cattype=catalog_type)
+
+    catalog = get_reference_catalog(ra, dec, radius, basedir=basedir, cattype=catalog_type, verbose=verbose)
 
     # if (True): #False):
     #     for i in range(catalog.shape[0]):
