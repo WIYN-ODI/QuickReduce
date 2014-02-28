@@ -931,7 +931,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             logger.debug("No color-term definition for this filter (%s)" % (filtername))
     elif (detailed_return['catalog'] == "UCAC4"):
         
-        logger.warning("Using UCAC!")
+        logger.info("No SDSS sources found, using UCAC instead.")
         # For test-purposes, always assume the g-band filter
         pc = 2
         detailed_return['reference_filter'] = "UCAC-Red"
