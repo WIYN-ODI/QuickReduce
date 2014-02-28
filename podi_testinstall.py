@@ -115,6 +115,10 @@ def update_sitesetup():
                    "If local SDSS catalog, specify source directory", 
                    "/some/dir", True, config_array)
 
+    changes = changes | ask_for_option('ucac4_ref_dir', 
+                   "Directory of the UCAC4 directory - specify none if it does not exist", 
+                   "none", True, config_array)
+
     changes = changes | ask_for_option('scratch_dir', 
                    "Scratch-directory for temporary files (the faster the better)", 
                    "/tmp", True, config_array)
