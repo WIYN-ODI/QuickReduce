@@ -652,12 +652,9 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
     close_to_median = (zp_raw > zp_median - 3 * delta) & (zp_raw < zp_median + 3 * delta)
     
     #zp_max, zp_min = zp_median+3*delta, zp_median-3*delta
-    scale_multiplier = 1.0
-    if (not details == None and details['catalog'] == "UCAC"):
-        scale_multiplier = 2
-    zp_min = zp_median-scale_multiplier*sitesetup.diagplot__zeropoint_ZPrange[0] if \
+    zp_min = zp_median-sitesetup.diagplot__zeropoint_ZPrange[0] if \
              (sitesetup.diagplot__zeropoint_ZPrange[0] > 0) else zp_median-5*zp_std-0.3
-    zp_max = zp_median+scale_multiplier*sitesetup.diagplot__zeropoint_ZPrange[1] if \
+    zp_max = zp_median+sitesetup.diagplot__zeropoint_ZPrange[1] if \
              (sitesetup.diagplot__zeropoint_ZPrange[1] > 0) else zp_median+5*zp_std+0.3
 
     # Determine the min and max sdss magnitudes
