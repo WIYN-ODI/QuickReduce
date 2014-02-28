@@ -245,10 +245,10 @@ filter_bandpass = {
     #
     # Full ODI filters
     #
-    "odi_g": [476., 74.],
-    "odi_r": [635., 75.],
-    "odi_i": [760., 60.],
-    "odi_z": [905., 75.],
+    "odi_g": [479., 152.],
+    "odi_r": [622., 139.],
+    "odi_i": [757., 130.],
+    "odi_z": [869., 104.],
     #
     # All other filters
     #
