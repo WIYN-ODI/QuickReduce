@@ -652,9 +652,12 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
     close_to_median = (zp_raw > zp_median - 3 * delta) & (zp_raw < zp_median + 3 * delta)
     
     #zp_max, zp_min = zp_median+3*delta, zp_median-3*delta
-    zp_min = zp_median-sitesetup.diagplot__zeropoint_ZPrange[0] if \
+    scale_multiplier = 1.0
+    if (not details == None and details['catalog'] == "UCAC"):
+        scale_multiplier = 2
+    zp_min = zp_median-scale_multiplier*sitesetup.diagplot__zeropoint_ZPrange[0] if \
              (sitesetup.diagplot__zeropoint_ZPrange[0] > 0) else zp_median-5*zp_std-0.3
-    zp_max = zp_median+sitesetup.diagplot__zeropoint_ZPrange[1] if \
+    zp_max = zp_median+scale_multiplier*sitesetup.diagplot__zeropoint_ZPrange[1] if \
              (sitesetup.diagplot__zeropoint_ZPrange[1] > 0) else zp_median+5*zp_std+0.3
 
     # Determine the min and max sdss magnitudes
@@ -735,7 +738,7 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
             maxx = numpy.max(sdss_mag[clipped])
             slopefit_x = numpy.linspace(minx-0.1*(maxx-minx), maxx+0.1*(maxx-minx), 100)
             slopefit_y = fit[0] + fit[1] * slopefit_x
-            ax.plot(slopefit_x, slopefit_y, "k-", label="fit ZP(SDSS-mag)")
+            ax.plot(slopefit_x, slopefit_y, "k-", label="fit ZP(%s-ODI)" % (details['catalog']))
 
     ax.grid(True)
     ax.legend(loc='upper left', borderaxespad=0.5, prop={'size':9})
@@ -749,8 +752,14 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
 
     title_string = title if (title != None) else ""
     matplotlib.pyplot.title(title_string)
-    matplotlib.pyplot.xlabel("SDSS magnitude in %s" % (sdss_filtername), labelpad=7)
-    matplotlib.pyplot.ylabel("zeropoint (sdss [%s] - odi [%s])" % (sdss_filtername, odi_filtername), labelpad=20)
+    ref_mag_name = "reference" 
+    ref_filter = "none"
+    if (not details == None and 'catalog' in details):
+        ref_mag_name = details['catalog']
+        ref_filter = details['reference_filter']
+
+    matplotlib.pyplot.xlabel("%s magnitude in %s" % (ref_mag_name, ref_filter), labelpad=7)
+    matplotlib.pyplot.ylabel("zeropoint (%s [%s] - odi [%s])" % (ref_mag_name, ref_filter, odi_filtername), labelpad=20)
     matplotlib.pyplot.xlim((sdss_minint, sdss_maxint))
     matplotlib.pyplot.ylim((zp_min, zp_max))
 #    matplotlib.pyplot.axes().set_aspect('equal')

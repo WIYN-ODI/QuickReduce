@@ -109,7 +109,8 @@ import scipy
 import scipy.stats
 
 import podi_matchcatalogs
-import podi_sitesetup
+import podi_sitesetup as sitesetup
+import podi_search_ipprefcat
 
 import podi_logging
 import logging
@@ -618,16 +619,16 @@ def query_sdss_catalog(ra_range, dec_range, sdss_filter, verbose=False):
     # 
     std_stars = None
 
-    if (podi_sitesetup.sdss_ref_type == "stripe82"):
+    if (sitesetup.sdss_ref_type == "stripe82"):
         std_stars = numpy.zeros(shape=(0,0)) #load_catalog_from_stripe82cat(ra, dec, calib_directory, sdss_filter)
         print std_stars.shape
 
-    elif (podi_sitesetup.sdss_ref_type == 'local'):
+    elif (sitesetup.sdss_ref_type == 'local'):
         
-        std_stars = load_sdss_catalog_from_fits(podi_sitesetup.sdss_ref_dir, ra_range, dec_range,
+        std_stars = load_sdss_catalog_from_fits(sitesetup.sdss_ref_dir, ra_range, dec_range,
                                                 verbose=verbose)
         
-    elif (podi_sitesetup.sdss_ref_type == 'web'):
+    elif (sitesetup.sdss_ref_type == 'web'):
         #stdout_write("Trying to get one directly from SDSS, please wait!\n\n")
         #std_stars = load_catalog_from_sdss(ra, dec, sdss_filter)
         std_stars = load_catalog_from_sdss(ra_range, dec_range, sdss_filter,
@@ -755,15 +756,8 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     detailed_return['aperture_size'] = -99.
     detailed_return['aperture_mag'] = None
     detailed_return['aperture_magerr'] = None
-
-    # Figure out which SDSS to use for calibration
-    sdss_filter = sdss_equivalents[filtername]
-    logger.debug("Translating filter: %s --> %s" % (filtername, sdss_filter))
-    if (sdss_filter == None):
-        # This filter is not covered by SDSS, can't perform photometric calibration
-        return error_return_value
-
-    pc = sdss_photometric_column[sdss_filter]
+    detailed_return['catalog'] = "none"
+    detailed_return['reference_filter'] = "none"
 
     # Eliminate all stars with flags
     if (eliminate_flags):
@@ -786,15 +780,51 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     ra_range  = [ra_min, ra_max]
     dec_range = [dec_min, dec_max]
 
-    std_stars = query_sdss_catalog(ra_range, dec_range, sdss_filter)
-
-    if (std_stars.shape[0] <= 0):
-        logger.debug("No stars not found - looks like this region isn't covered by SDSS - sorry!")
-        stdout_write("No stars not found - looks like this region isn't covered by SDSS - sorry!\n\n")
+    # Figure out which SDSS to use for calibration
+    sdss_filter = sdss_equivalents[filtername]
+    logger.debug("Translating filter: %s --> %s" % (filtername, sdss_filter))
+    if (sdss_filter == None):
+        # This filter is not covered by SDSS, can't perform photometric calibration
         return error_return_value
-    if (verbose):
-        stdout_write("Found %d reference stars in the SDSS...\n" % (std_stars.shape[0]))
-        numpy.savetxt("sdss.cat", std_stars)
+
+    std_stars = query_sdss_catalog(ra_range, dec_range, sdss_filter)
+    if (std_stars.shape[0] > 0):
+        detailed_return['catalog'] = "SDSS"
+        # Found some SDSS stars
+        logger.debug("Found %d stars in the SDSS" % (std_stars.shape[0]))
+        pass
+
+    else:
+        detailed_return['catalog'] = "UCAC4"
+        logger.debug("No stars not found - looks like this region isn't covered by SDSS - sorry!")
+
+        # Try to get some data from UCAC4 instead
+        if (not sitesetup.ucac4_ref_dir == None and 
+            not sitesetup.ucac4_ref_dir == "none" and
+            os.path.isdir(sitesetup.ucac4_ref_dir)):
+            
+            std_stars = podi_search_ipprefcat.get_reference_catalog(
+                ra=ra_range, 
+                dec=dec_range,
+                radius=None,
+                basedir=sitesetup.ucac4_ref_dir,
+                cattype='ucac4',
+                verbose=False
+            )
+
+            
+            # Sort out all stars with invalid magnitudes
+            valid = (std_stars[:,2] < 20) & (numpy.fabs(std_stars[:,3]) <= 0.9)
+            logger.debug("Number of UCAC4 stars: %s" % (str(std_stars.shape)))
+            numpy.savetxt("ucac.dump", std_stars)
+
+            std_stars = std_stars[valid]
+            numpy.savetxt("ucac.dump2", std_stars)
+        else:
+            return error_return_value
+
+
+
 
     #
     # Now go through each of the extension
@@ -804,18 +834,14 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     # results = open(output_filename+".photcal", "w")
 
     odi_sdss_matched = podi_matchcatalogs.match_catalogs(source_cat, std_stars, matching_radius=matching_radius)
-    if (verbose):
-        print "ODI+SDSS matched:",odi_sdss_matched.shape
+    numpy.savetxt("odisource.dump", source_cat)
+    numpy.savetxt("matched.dump", odi_sdss_matched)
 
-    # if (odi_sdss_matched != None):
-    #     numpy.savetxt(results, odi_sdss_matched, delimiter=" ")
 
     # Stars without match in SDSS have RA=-9999, let's sort them out
     found_sdss_match = odi_sdss_matched[:,2] >= 0
-    if (verbose):
-        print "ODI+SDSS matched (good coords):",numpy.sum(found_sdss_match)
-  
     odi_sdss_matched = odi_sdss_matched[found_sdss_match]
+    numpy.savetxt("matched.dump2", odi_sdss_matched)
 
     odi_ra, odi_dec = odi_sdss_matched[:,0], odi_sdss_matched[:,1]
     sdss_ra, sdss_dec = odi_sdss_matched[:,2], odi_sdss_matched[:,3]
@@ -878,28 +904,42 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     odi_mag = odi_sdss_matched[:,SXcolumn[col_mag]+2]
     odi_magerr = odi_sdss_matched[:,SXcolumn[col_magerr]+2]
 
-    # Compute the calibration magnitude from SDSS, 
-    # accounting for color-terms if needed
-    sdss_mag = odi_sdss_matched[:,(source_cat.shape[1]+pc)]
-    sdss_magerr = odi_sdss_matched[:,(source_cat.shape[1]+pc+1)]
 
-    if (filtername in photzp_colorterms):
-        logger.debug("Found color-term definition for this filter (%s)" % (filtername))
-        colorterm, filter1, filter2 = photzp_colorterms[filtername]
+    if (detailed_return['catalog'] == "SDSS"):
+        # Compute the calibration magnitude from SDSS, 
+        # accounting for color-terms if needed
+        pc = sdss_photometric_column[sdss_filter]
+        detailed_return['reference_filter'] = sdss_filter
+        sdss_mag = odi_sdss_matched[:,(source_cat.shape[1]+pc)]
+        sdss_magerr = odi_sdss_matched[:,(source_cat.shape[1]+pc+1)]
 
-        col1 = sdss_photometric_column[filter1]
-        col2 = sdss_photometric_column[filter2]
-        sdss_color = odi_sdss_matched[:,(source_cat.shape[1]+col1)] - odi_sdss_matched[:,(source_cat.shape[1]+col2)]
-        color_correction = colorterm * sdss_color
+        if (filtername in photzp_colorterms):
+            logger.debug("Found color-term definition for this filter (%s)" % (filtername))
+            colorterm, filter1, filter2 = photzp_colorterms[filtername]
 
-        sdss_mag -= color_correction
+            col1 = sdss_photometric_column[filter1]
+            col2 = sdss_photometric_column[filter2]
+            sdss_color = odi_sdss_matched[:,(source_cat.shape[1]+col1)] - odi_sdss_matched[:,(source_cat.shape[1]+col2)]
+            color_correction = colorterm * sdss_color
 
-        detailed_return['colorterm'] = colorterm
-        detailed_return['colorcorrection'] = "sdss_%s - sdss_%s" % (filter1, filter2)
-    else:    
-        detailed_return['colorterm'] = None
-        logger.debug("No color-term definition for this filter (%s)" % (filtername))
+            sdss_mag -= color_correction
 
+            detailed_return['colorterm'] = colorterm
+            detailed_return['colorcorrection'] = "sdss_%s - sdss_%s" % (filter1, filter2)
+        else:    
+            detailed_return['colorterm'] = None
+            logger.debug("No color-term definition for this filter (%s)" % (filtername))
+    elif (detailed_return['catalog'] == "UCAC4"):
+        
+        logger.warning("Using UCAC!")
+        # For test-purposes, always assume the g-band filter
+        pc = 2
+        detailed_return['reference_filter'] = "UCAC-Red"
+        sdss_mag = odi_sdss_matched[:,(source_cat.shape[1]+pc)]
+        sdss_magerr = odi_sdss_matched[:,(source_cat.shape[1]+pc+1)]
+
+    else:
+        return error_return_value
 
     if (verbose):
         print "ODI/SDSS", odi_mag.shape, sdss_mag.shape
@@ -1196,7 +1236,6 @@ if __name__ == "__main__":
         raw_frame = get_clean_cmdline()[2]
 
         import podi_collectcells
-        import podi_sitesetup as sitesetup
         options = podi_collectcells.read_options_from_commandline()
 
         # Run SourceExtractor
@@ -1243,7 +1282,6 @@ if __name__ == "__main__":
     elif (cmdline_arg_isset("-aucap")):
 
         import podi_collectcells
-        import podi_sitesetup as sitesetup
         options = podi_collectcells.read_options_from_commandline()
 
         print "Starting phot-calib..."
