@@ -260,7 +260,7 @@ sdss_photometric_column = {"u":  2,
                            "i":  8,
                            "z": 10,
                            }
-ucac_photometric_column = {"UCAC_Red", 2
+ucac_photometric_column = {"UCAC_Red": 2,
                            "B":  4,
                            "V":  6,
                            "g":  8,
