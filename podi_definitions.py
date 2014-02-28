@@ -222,8 +222,8 @@ sdss_equivalents = {
     "918R_v1": None,
     "BATC_390": None,
     "BATC_420": None,
-    "CTIO_Ha": None,
-    "CTIO_Ha_8nm": None,
+    "CTIO_Ha": "r",
+    "CTIO_Ha_8nm": "r",
     "CTIO_OIII": None,
     "Halpha_and_odiz": None,
     "KPNO_815": None,
@@ -259,6 +259,13 @@ sdss_photometric_column = {"u":  2,
                            "r":  6,
                            "i":  8,
                            "z": 10,
+                           }
+ucac_photometric_column = {"UCAC_Red", 2
+                           "B":  4,
+                           "V":  6,
+                           "g":  8,
+                           "r": 10,
+                           "i": 12,
                            }
 
 cellmode_ids = {
