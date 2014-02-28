@@ -73,7 +73,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
     if (cattype == "2mass_web"):
         return twomass_from_cds(ra, dec, radius, verbose)
 
-    print "In get_ref_catalog, cattype=%s, dir=%s" % (cattype, basedir)
+    # print "In get_ref_catalog, cattype=%s, dir=%s" % (cattype, basedir)
 
     # Load the SkyTable so we know in what files to look for the catalog"
     skytable_filename = "%s/SkyTable.fits" % (basedir)
@@ -186,7 +186,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
 
             select_from_cat = (cat_ra_shifted > min_ra) & (cat_ra_shifted < max_ra ) & (cat_dec > min_dec) & (cat_dec < max_dec)
 
-            sys.stderr.write("cattype=%s\n" % (cattype))
+            # sys.stderr.write("cattype=%s\n" % (cattype))
             if (cattype == '2mass_opt'):
                 # select only sources with optical counterparts, i.e. valid b or vr magnitudes
                 optical_counterparts = numpy.isfinite(hdu_cat[1].data.field('mag_b')) | numpy.isfinite(hdu_cat[1].data.field('mag_vr'))
@@ -212,7 +212,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
                 array_to_add[:,4] = hdu_cat[1].data.field('mag_k')[select_from_cat]
 
             elif (cattype == 'ucac4'):
-                sys.stderr.write("Using ucac4 catalog\n")
+                # sys.stderr.write("Using ucac4 catalog\n")
                 catalog_columns = ['RA', 'DEC',
                                    'MAG_UCAC', 'ERR_UCAC',
                                    'MAG_B', 'ERR_B',
