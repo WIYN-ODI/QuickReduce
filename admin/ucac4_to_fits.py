@@ -337,6 +337,9 @@ def import_ucac(catalog_dir, ucac_ascii):
                    pyfits.Column(name='ra_err',  format='E', array=ucac_portion[:, 7]),
                    pyfits.Column(name='dec_err', format='E', array=ucac_portion[:, 8]),
 
+                   pyfits.Column(name='mag_ucac', format='E', array=ucac_portion[:, 3]),
+                   pyfits.Column(name='err_ucac', format='E', array=ucac_portion[:, 4]),
+
                    pyfits.Column(name='mag_B',   format='E', array=ucac_portion[:,28]),
                    pyfits.Column(name='err_B',   format='E', array=ucac_portion[:,33]),
                    pyfits.Column(name='mag_V',   format='E', array=ucac_portion[:,29]),
