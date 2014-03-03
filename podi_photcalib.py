@@ -626,50 +626,79 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     ra_range  = [ra_min, ra_max]
     dec_range = [dec_min, dec_max]
 
-    # Figure out which SDSS to use for calibration
+
     sdss_filter = sdss_equivalents[filtername]
     logger.debug("Translating filter: %s --> %s" % (filtername, sdss_filter))
     if (sdss_filter == None):
         # This filter is not covered by SDSS, can't perform photometric calibration
         return error_return_value
 
-    std_stars = podi_search_ipprefcat.get_reference_catalog(ra_range, dec_range, 
-                                                            radius=None,
-                                                            basedir=sitesetup.sdss_ref_dir,
-                                                            cattype="sdss")
-    if (std_stars.shape[0] > 0):
-        detailed_return['catalog'] = "SDSS"
-        # Found some SDSS stars
-        logger.debug("Found %d stars in the SDSS" % (std_stars.shape[0]))
-        pass
+    std_stars = None
+    for catname in sitesetup.photcalib_order:
 
-    else:
-        detailed_return['catalog'] = "UCAC4"
-        logger.debug("No stars not found - looks like this region isn't covered by SDSS - sorry!")
+        if (catname == "sdss"):
+            # Figure out which SDSS to use for calibration
+            logger.info("Querying the SDSS catalog")
+            _std_stars = podi_search_ipprefcat.get_reference_catalog(ra_range, dec_range, 
+                                                                    radius=None,
+                                                                    basedir=sitesetup.sdss_ref_dir,
+                                                                    cattype="sdss")
+            if (_std_stars.shape[0] > 0):
+                detailed_return['catalog'] = "SDSS"
+                # Found some SDSS stars
+                std_stars = _std_stars
+                logger.debug("Found %d stars in the SDSS" % (std_stars.shape[0]))
+                break
+            else:
+                logger.debug("No stars not found - looks like this region isn't covered by SDSS - sorry!")
 
-        # Try to get some data from UCAC4 instead
-        if (not sitesetup.ucac4_ref_dir == None and 
-            not sitesetup.ucac4_ref_dir == "none" and
-            os.path.isdir(sitesetup.ucac4_ref_dir)):
-            
-            std_stars = podi_search_ipprefcat.get_reference_catalog(
-                ra=ra_range, 
-                dec=dec_range,
-                radius=None,
-                basedir=sitesetup.ucac4_ref_dir,
-                cattype='ucac4',
-                verbose=False
-            )
+        elif (catname == "ucac4"):
 
-            
-            # Sort out all stars with invalid magnitudes
-            valid = (std_stars[:,2] < 20) & (numpy.fabs(std_stars[:,3]) <= 0.9)
-            logger.debug("Number of UCAC4 stars: %s" % (str(std_stars.shape)))
-            numpy.savetxt("ucac.dump", std_stars)
+            detailed_return['catalog'] = "UCAC4"
 
-            std_stars = std_stars[valid]
-            numpy.savetxt("ucac.dump2", std_stars)
+            # Try to get some data from UCAC4 instead
+            if (not sitesetup.ucac4_ref_dir == None and 
+                not sitesetup.ucac4_ref_dir == "none" and
+                os.path.isdir(sitesetup.ucac4_ref_dir)):
+                logger.debug("Running UCAC4 query (%s)" % (sitesetup.ucac4_ref_dir))
+                _std_stars = podi_search_ipprefcat.get_reference_catalog(
+                    ra=ra_range, 
+                    dec=dec_range,
+                    radius=None,
+                    basedir=sitesetup.ucac4_ref_dir,
+                    cattype='ucac4',
+                    verbose=False
+                )
+
+
+                # Sort out all stars with invalid magnitudes
+                valid = (_std_stars[:,2] < 20) & (numpy.fabs(_std_stars[:,3]) <= 0.9)
+                logger.debug("Number of UCAC4 stars: %s" % (str(_std_stars.shape)))
+                numpy.savetxt("ucac.dump", _std_stars)
+
+                std_stars = _std_stars[valid]
+                numpy.savetxt("ucac.dump2", std_stars)
+                logger.debug("Found a valid UCAC4 source catalog (%s)" % (str(std_stars.shape)))
+                break
+            else:
+                logger.warning("Problem with querying the UCAC4 catalog")
+
+        elif (catname == "ippref"):
+            logger.debug("Running IPPRef query (%s)" % (sitesetup.ippref_ref_dir))
+            _std_stars = podi_search_ipprefcat.get_reference_catalog(ra_range, dec_range, 
+                                                                     radius=None,
+                                                                     basedir=sitesetup.ippref_ref_dir,
+                                                                     cattype="IPPRef")
+            if (_std_stars.shape[0] > 0):
+                detailed_return['catalog'] = "IPPRef"
+                std_stars = _std_stars
+                logger.debug("Found %d reference sources in IPPRef catalog" % (std_stars.shape[0]))
+                break
+            else:
+                logger.warning("Problem with querying the IPPRef catalog")
+                
         else:
+            logger.error("Illegal catalog name in the photcalib order: %s" % (catname))
             return error_return_value
 
 
@@ -780,13 +809,24 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             logger.debug("No color-term definition for this filter (%s)" % (filtername))
     elif (detailed_return['catalog'] == "UCAC4"):
         
-        logger.info("No SDSS sources found, using UCAC instead.")
+        logger.info("Using UCAC for photometric calibration.")
         # For test-purposes, always assume the g-band filter
         pc = 2
         detailed_return['reference_filter'] = "UCAC-Red"
         sdss_mag = odi_sdss_matched[:,(source_cat.shape[1]+pc)]
         sdss_magerr = odi_sdss_matched[:,(source_cat.shape[1]+pc+1)]
 
+    elif (detailed_return['catalog'] == "IPPRef"):
+        
+        logger.info("Using IPPRef for photometric calibration.")
+        ipp_ref_columns = {"g": 2, "r": 4, "i": 6, "z": 8}
+        if (sdss_filter in ipp_ref_columns):
+            pc = ipp_ref_columns[sdss_filter]
+            sdss_mag = odi_sdss_matched[:,(source_cat.shape[1]+pc)]
+            sdss_magerr = odi_sdss_matched[:,(source_cat.shape[1]+pc+1)]
+        else:
+            logger.debug("No reference photometry for this filter (%s -> %s) found in IPPRef" % (
+                filtername, sdss_filter))
     else:
         return error_return_value
 

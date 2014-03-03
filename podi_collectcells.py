@@ -2969,7 +2969,7 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
         columns.append(pyfits.Column(name='SDSS_RA', disp='right ascension',
                                      format='D', unit='degrees', 
                                      array=odi_sdss_matched[:, 2]))
-        columns.append(pyfits.Column(name='SDSS_DEC', disp='right ascension',
+        columns.append(pyfits.Column(name='SDSS_DEC', disp='declination',
                                      format='D', unit='degrees', 
                                      array=odi_sdss_matched[:, 3]))
 
@@ -3016,12 +3016,12 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
         #
         # Ra/Dec from SDSS
         #
-        pyfits.Column(name='UCAC_RA', disp='right ascension',
-                      format='D', unit='degrees', 
-                      array=odi_sdss_matched[:, 2]),
-        pyfits.Column(name='UCAC_DEC', disp='right ascension',
-                      format='D', unit='degrees', 
-                      array=odi_sdss_matched[:, 3]),
+        columns.append(pyfits.Column(name='UCAC_RA', disp='right ascension',
+                                     format='D', unit='degrees', 
+                                     array=odi_sdss_matched[:, 2]))
+        columns.append(pyfits.Column(name='UCAC_DEC', disp='declination',
+                                     format='D', unit='degrees', 
+                                     array=odi_sdss_matched[:, 3]))
 
         catalog_columns = ['RA', 'DEC',
                            'MAG_UCAC', 'ERR_UCAC',
@@ -3054,7 +3054,44 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
                                          array=odi_sdss_matched[:, UCACcolumn[col]]))
 
         # end UCAC
-        
+    elif (photcalib_details['catalog'] == "IPPRef"):
+        #
+        # Ra/Dec from IPPRef
+        #
+        columns.append(pyfits.Column(name='IPP_RA', disp='right ascension',
+                                     format='D', unit='degrees', 
+                                     array=odi_sdss_matched[:, 2]))
+        columns.append(pyfits.Column(name='IPP_DEC', disp='declination',
+                                     format='D', unit='degrees', 
+                                     array=odi_sdss_matched[:, 3]))
+
+        catalog_columns = ['RA', 'DEC',
+                           'MAG_G', 'ERR_G',
+                           'MAG_R', 'ERR_R',
+                           'MAG_I', 'ERR_I',
+                           'MAG_Z', 'ERR_Z',
+                       ]
+        IPPcolumn = {}
+        for name in catalog_columns:
+            IPPcolumn[name] = len(IPPcolumn) + len(SXcolumn)
+
+        ipp_columns = [ ('IPP_MAG_G', "synth. IPP magnitude g", 'MAG_G'), 
+                        ('IPP_ERR_G', "synth. IPP mag error g", 'ERR_G'), 
+                        ('IPP_MAG_R', "synth. IPP magnitude r", 'MAG_R'), 
+                        ('IPP_ERR_R', "synth. IPP mag error r", 'ERR_R'), 
+                        ('IPP_MAG_I', "synth. IPP magnitude i", 'MAG_I'), 
+                        ('IPP_ERR_I', "synth. IPP mag error i", 'ERR_I'), 
+                        ('IPP_MAG_Z', "synth. IPP magnitude z", 'MAG_Z'), 
+                        ('IPP_ERR_Z', "synth. IPP mag error z", 'ERR_Z'), 
+                    ]
+        for (name, disp, col) in ipp_columns:
+            columns.append(pyfits.Column(name=name, disp=disp,
+                                         format='E', unit='mag', 
+                                         array=odi_sdss_matched[:, IPPcolumn[col]]))
+
+        # end UCAC
+
+
     columns.append(pyfits.Column(name='ODI_FWHM', disp='FWHM in ODI frame',
                                  format='D', unit='degrees', 
                                  array=odi_sdss_matched[:, SXcolumn['fwhm_world']+2]))
