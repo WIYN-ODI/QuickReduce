@@ -111,11 +111,7 @@ import pyfits
 import subprocess
 
 from podi_collectcells import *
-
-
-swarp_exec = "swarp"
-tmp_dir = "/scratch/"
-single_dir = "."
+import podi_sitesetup as sitesetup
 
 import podi_logging
 import logging
@@ -159,7 +155,7 @@ def swarpstack():
             # Assemble the temporary filename for the corrected frame
             
             corrected_filename = "%(single_dir)s/%(obsid)s.nonsidereal.fits" % {
-                "single_dir": single_dir,
+                "single_dir": sitesetup.swarp_singledir,
                 "obsid": hdulist[0].header['OBSID'],
             }
 
@@ -202,7 +198,7 @@ def swarpstack():
             hdulist = pyfits.open(inputfiles[i])
 
             corrected_filename = "%(single_dir)s/%(obsid)s.otaselect.fits" % {
-                "single_dir": single_dir,
+                "single_dir": sitesetup.swarp_singledir,
                 "obsid": hdulist[0].header['OBSID'],
             }
             ota_list = []
@@ -229,7 +225,7 @@ def swarpstack():
     if (stacked_output.endswith(".fits")):
         stacked_output = stacked_output[:-5]
 
-    header_only_file = "%s/preswarp.fits" % (tmp_dir)
+    header_only_file = "%s/preswarp.fits" % (sitesetup.scratch_dir)
 
     reference_file = cmdline_arg_set_or_default("-reference", None)
     # Make sure the reference file is a valid file
@@ -269,7 +265,7 @@ def swarpstack():
                -COMBINE_TYPE %(combine_type)s \
               """ % {
                   'imageout': header_only_file,
-                  'weightout': "%s/preswarp.weight.fits" % (tmp_dir),
+                  'weightout': "%s/preswarp.weight.fits" % (sitesetup.scratch_dir),
                   'combine_type': 'AVERAGE',
               }
 
@@ -285,7 +281,7 @@ def swarpstack():
         # to the user
         #
         swarp_cmd = "%(swarp)s %(opts)s -HEADER_ONLY Y %(files)s" % {
-            'swarp': swarp_exec,
+            'swarp': sitesetup.swarp_exec,
             'opts': swarp_opts,
             'files': " ".join(inputfiles),
         }
@@ -338,7 +334,7 @@ def swarpstack():
         obsid = hdulist[0].header['OBSID']
 
         # assemble all swarp options for that run
-        dic = {'singledir': single_dir,
+        dic = {'singledir': sitesetup.swarp_singledir,
                'obsid': obsid,
                'pixelscale': pixelscale,
                'pixelscale_type': "MANUAL" if pixelscale > 0 else "MEDIAN",
@@ -346,7 +342,7 @@ def swarpstack():
                'center_dec': out_crval2,
                'imgsizex': out_naxis1,
                'imgsizey': out_naxis2,
-               'resample_dir': tmp_dir,
+               'resample_dir': sitesetup.scratch_dir,
                'inputfile': singlefile,
                'swarp_default': swarp_default,
            }
@@ -370,7 +366,7 @@ def swarpstack():
         single_file = "%(singledir)s/%(obsid)s.fits" % dic
 
         # print swarp_opts
-        swarp_cmd = "%s %s" % (swarp_exec, swarp_opts)
+        swarp_cmd = "%s %s" % (sitesetup.swarp_exec, swarp_opts)
 
         if (add_only and os.path.isfile(single_file)):
             logger.info("This single-swarped file (%s) exist, skipping it" % (single_file))
@@ -508,7 +504,7 @@ def swarpstack():
     logger.info("Starting final stacking...")
     # print swarp_opts
 
-    swarp_cmd = "%s %s %s" % (swarp_exec, swarp_opts, " ".join(single_prepared_files))
+    swarp_cmd = "%s %s %s" % (sitesetup.swarp_exec, swarp_opts, " ".join(single_prepared_files))
     logger.debug(" ".join(swarp_cmd.split()))
     try:
         ret = subprocess.Popen(swarp_cmd.split(), 

@@ -165,6 +165,14 @@ def update_sitesetup():
     changes = changes | ask_for_option('crj_niter', 
                    "Cosmic Ray rejection: Number of CR rejection iterations (typically in the range 1-4)", 
                    4, False, config_array)
+
+    changes = changes | ask_for_option('swarp_exec', 
+                   "Path to Swarp executable (Hint: run 'which swarp' in another terminal)", 
+                   "swarp", False, config_array)
+    changes = changes | ask_for_option('swarp_singledir', 
+                   "Path for swarp intermediate files (you'll need several GB here!)", 
+                   ".", False, config_array)
+    
     
     config_array.append("")
 
