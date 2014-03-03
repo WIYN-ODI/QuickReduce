@@ -45,6 +45,10 @@ number_cpus = "auto"
 #
 #
 
+# This the order in which the catalogs are queried for the photometric 
+# calibration. This is the currently best order, so mess with it on you 
+# own risk. 
+photcalib_order = ['sdss', 'ippref', 'ucac4']
 
 
 

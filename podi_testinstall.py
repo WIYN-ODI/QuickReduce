@@ -119,6 +119,10 @@ def update_sitesetup():
                    "Directory of the UCAC4 directory - specify none if it does not exist", 
                    "none", True, config_array)
 
+    changes = changes | ask_for_option('ippref_ref_dir', 
+                   "Directory of the IPPRef directory - specify none if it does not exist", 
+                   "none", True, config_array)
+
     changes = changes | ask_for_option('scratch_dir', 
                    "Scratch-directory for temporary files (the faster the better)", 
                    "/tmp", True, config_array)
