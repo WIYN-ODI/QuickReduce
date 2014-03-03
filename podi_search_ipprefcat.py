@@ -310,6 +310,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
     for catalogname in files_to_read:
 
         if (cattype == "IPPRef"):
+            logger.debug("Reading from IPPRef catalog")
             if (verbose): print "Reading IPPRef catalog"
             catalogfile = "%s/%s.cpt" % (basedir, catalogname)
 
@@ -335,8 +336,9 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
             array_to_add[:,0] = cat_ra[select_from_cat]
             array_to_add[:,1] = cat_dec[select_from_cat]
 
-            # array_to_add[:,2:6] = photom_grizy[:,0:4][select_from_cat] / 1e3
-            for i_mag in range(4):
+            for i_mag in range(4): # this only takes the griz data, excluding the Y photometry
+                # convert data from milli-mags
+                # no errors, so assume all errors to be 0.000 mag
                 array_to_add[:,i_mag*2+2] = photom_grizy[:,i_mag][select_from_cat] / 1e3
 
             if (verbose): print "# Read %d stars from catalog %s ..." % (array_to_add.shape[0], catalogfile)
@@ -380,14 +382,14 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
                 array_to_add[:,3][numpy.isnan(array_to_add[:,3])] = array_to_add[:,2]
 
             elif (cattype == '2mass_nir'):
-                catalog_columns = ['ra', 'dec',
-                                   'mag_j', 'err_j',
-                                   'mag_h', 'err_h',
-                                   'mag_k', 'err_k',
+                catalog_columns = ['RA', 'DEC',
+                                   'MAG_J', 'ERR_J',
+                                   'MAG_H', 'ERR_H',
+                                   'MAG_K', 'ERR_K',
                                ]
                 array_to_add = numpy.zeros(shape=(numpy.sum(select_from_cat),len(catalog_columns)))
                 for i in range(len(catalog_columns)):
-                    if (catalog_columns[i] in hdu_cat[1].data.columns.names):
+                    if (catalog_columns[i] in [x.upper() for x in hdu_cat[1].data.columns.names]):
                         array_to_add[:,i] = hdu_cat[1].data.field(catalog_columns[i])[select_from_cat]
              
                 # array_to_add = numpy.zeros(shape=(numpy.sum(select_from_cat),5))
@@ -409,7 +411,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
                                ]
                 array_to_add = numpy.zeros(shape=(numpy.sum(select_from_cat),len(catalog_columns)))
                 for i in range(len(catalog_columns)):
-                    if (catalog_columns[i] in hdu_cat[1].data.columns.names):
+                    if (catalog_columns[i] in [x.upper() for x in hdu_cat[1].data.columns.names]):
                         array_to_add[:,i] = hdu_cat[1].data.field(catalog_columns[i])[select_from_cat]
                 
             elif (cattype == 'sdss'):
@@ -422,7 +424,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
                 ]
                 array_to_add = numpy.zeros(shape=(numpy.sum(select_from_cat),len(catalog_columns)))
                 for col in range(len(catalog_columns)):
-                    if (catalog_columns[i] in hdu_cat[1].data.columns.names):
+                    if (catalog_columns[i] in [x.upper() for x in hdu_cat[1].data.columns.names]):
                         array_to_add[:,col] = hdu_cat[1].data.field(catalog_columns[col])[select_from_cat]
 
             if (verbose): print "# Read %d stars from catalog %s ..." % (array_to_add.shape[0], catalogfile)
