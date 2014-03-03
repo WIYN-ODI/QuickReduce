@@ -182,160 +182,6 @@ def load_catalog_from_stripe82cat(ra, dec, calib_directory, sdss_filter):
     return std_stars
 
 
-def load_catalog_from_sdss(ra, dec, sdss_filter, verbose=False, return_query=False, max_catsize=-1):
-    """
-    Query the SDSS online and return a catalog of sources within the specified 
-    area
-
-    Parameters
-    ----------
-    ra : float[2] (e.g. [165.5, 165.9]
-
-        Min and max values for RA
-
-    dec : float[2]
-
-        Same as ra, just for declination
-
-    sdss_filter : string (allowed are u,g,r,i,z)
-
-        Name of the SDSS filter for which to return magnitudes
-
-    verbose : Bool
-
-        Add debugging output
-
-    return_query : Bool
-
-        If set to false, the return value also contains the SQL query used to 
-        query the SDSS catalog
-
-    max_catsize : int
-
-        Maximum number of SDSS stars to be returned
-
-    Returns
-    -------
-        The SDSS catalog, in the format
-
-        Ra, Dec, mag_u, magerr_u, mag_g, magerr_g, ..r, ..i, ..z
-
-    """
-
-
-    #import sqlcl
-    logger = logging.getLogger("GetCatalogFromSDSS")
-
-    #ra = 0
-    #print "# Loading catalog from SDSS online..."
-    
-    if (numpy.array(ra).ndim > 0):
-        min_ra = ra[0]
-        max_ra = ra[1]
-    else:
-        min_ra = ra - 0.6/math.cos(math.radians(dec))
-        max_ra = ra + 0.6/math.cos(math.radians(dec))
-        
-    if (min_ra < 0):
-        ra_query = "( ra > %(min_ra)f or ra < %(max_ra)f )" % {"min_ra": min_ra+360, "max_ra": max_ra,} 
-    elif (max_ra > 360):
-        ra_query = "( ra > %(min_ra)f or ra < %(max_ra)f )" % {"min_ra": min_ra, "max_ra": max_ra-360.,} 
-    else:
-        ra_query = "ra BETWEEN %(min_ra)f and %(max_ra)f" % {"min_ra": min_ra, "max_ra": max_ra,} 
-        
-    if (numpy.array(dec).ndim > 0):
-        min_dec = dec[0]
-        max_dec = dec[1]
-    else:
-        min_dec = dec - 0.6
-        max_dec = dec + 0.6
-
-    #
-    # This query is taken from the SDSS website and selects stars with clean photometry
-    # --> http://skyserver.sdss3.org/dr8/en/help/docs/realquery.asp#cleanStars
-    #
-    sql_query = """\
-SELECT ra,dec, u, err_u, g, err_g, r, err_r, i, err_i, z, err_z
-FROM Star 
-WHERE 
-%(ra_query)s AND dec BETWEEN %(min_dec)f and %(max_dec)f
-AND ((flags_r & 0x10000000) != 0)
--- detected in BINNED1
-AND ((flags_r & 0x8100000c00a4) = 0)
--- not EDGE, NOPROFILE, PEAKCENTER, NOTCHECKED, PSF_FLUX_INTERP,
--- SATURATED, or BAD_COUNTS_ERROR
-AND (((flags_r & 0x400000000000) = 0) or (psfmagerr_r <= 0.2))
--- not DEBLEND_NOPEAK or small PSF error
--- (substitute psfmagerr in other band as appropriate)
-AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
--- not INTERP_CENTER or not COSMIC_RAY
-""" % {"filter": sdss_filter,
-       "min_ra": min_ra, "max_ra": max_ra,
-       "min_dec": min_dec, "max_dec": max_dec,
-       "ra_query": ra_query,
-       }
-
-    if (verbose): print sql_query
-    logger.debug("Downloading catalog from SDSS ...")
-    logger.debug(sql_query)
-
-    # stdout_write("Downloading catalog from SDSS ...")
-
-    # Taken from Tomas Budavari's sqlcl script
-    # see http://skyserver.sdss3.org/dr8/en/help/download/sqlcl/default.asp 
-    import urllib
-    # Filter out comments starting with "--"
-    fsql = ""
-    for line in sql_query.split('\n'):
-        fsql += line.split('--')[0] + ' ' + os.linesep;
-    params = urllib.urlencode({'cmd': fsql, 'format': 'csv'})
-    url = 'http://skyserver.sdss3.org/dr8/en/tools/search/x_sql.asp'
-    sdss = urllib.urlopen(url+'?%s' % params)
-    # Budavari end
-
-
-    answer = []
-    for line in sdss:
-        if (max_catsize > 0 and len(answer) >= max_catsize):
-            break
-        answer.append(line)
-        if (((len(answer)-1)%10) == 0):
-            if (verbose): stdout_write("\rFound %d stars so far ..." % (len(answer)-1))
-    #answer = sdss.readlines()
-    if (answer[0].strip() == "No objects have been found"):
-        stdout_write(" nothing found\n")
-        if (return_query):
-            return numpy.zeros(shape=(0,12)), fsql #sql_query
-        return numpy.zeros(shape=(0,12))
-
-    # stdout_write(" found %d stars!\n" % (len(answer)-1))
-    logger.debug(" found %d stars!\n" % (len(answer)-1))
-
-    if (verbose):
-        print "Returned from SDSS:"
-        print "####################################################"
-        print ''.join(answer)
-        print "####################################################"
-
-    # If we are here, then the query returned at least some results.
-    # Dump the first line just repeating what the output was
-    del answer[0]
-
-    
-    # if (verbose): print "Found %d results" % (len(answer))
-    results = numpy.zeros(shape=(len(answer),12))
-    # Results are comma-separated, so split them up and save as numpy array
-    for i in range(len(answer)):
-        items = answer[i].split(",")
-        for col in range(len(items)):
-            results[i, col] = float(items[col])
-        #ra, dec = float(items[0]), float(items[1])
-        #mag, mag_err =  float(items[2]), float(items[3])
-        #results[i, :] = [ra, dec, mag, mag, mag_err, mag_err]
-    
-    if (return_query):
-        return results, fsql #sql_query
-    return results
     
     
 def photcalib_old(fitsfile, output_filename, calib_directory, overwrite_cat=None):
@@ -787,7 +633,10 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         # This filter is not covered by SDSS, can't perform photometric calibration
         return error_return_value
 
-    std_stars = query_sdss_catalog(ra_range, dec_range, sdss_filter)
+    std_stars = podi_search_ipprefcat.get_reference_catalog(ra_range, dec_range, 
+                                                            radius=None,
+                                                            basedir=sitesetup.sdss_ref_dir,
+                                                            cattype="sdss")
     if (std_stars.shape[0] > 0):
         detailed_return['catalog'] = "SDSS"
         # Found some SDSS stars

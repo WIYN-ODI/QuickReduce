@@ -27,6 +27,9 @@ import numpy
 import os
 import math
 
+import podi_logging
+import logging
+
 from podi_definitions import *
 import pyfits
 
@@ -68,10 +71,180 @@ def twomass_from_cds(ra, dec, radius, verbose):
     return numpy.array(catalog)
 
 
+
+
+def load_catalog_from_sdss(ra, dec, sdss_filter, verbose=False, return_query=False, max_catsize=-1):
+    """
+    Query the SDSS online and return a catalog of sources within the specified 
+    area
+
+    Parameters
+    ----------
+    ra : float[2] (e.g. [165.5, 165.9]
+
+        Min and max values for RA
+
+    dec : float[2]
+
+        Same as ra, just for declination
+
+    sdss_filter : string (allowed are u,g,r,i,z)
+
+        Name of the SDSS filter for which to return magnitudes
+
+    verbose : Bool
+
+        Add debugging output
+
+    return_query : Bool
+
+        If set to false, the return value also contains the SQL query used to 
+        query the SDSS catalog
+
+    max_catsize : int
+
+        Maximum number of SDSS stars to be returned
+
+    Returns
+    -------
+        The SDSS catalog, in the format
+
+        Ra, Dec, mag_u, magerr_u, mag_g, magerr_g, ..r, ..i, ..z
+
+    """
+
+
+    #import sqlcl
+    logger = logging.getLogger("GetCatalogFromSDSS")
+
+    #ra = 0
+    #print "# Loading catalog from SDSS online..."
+    
+    if (numpy.array(ra).ndim > 0):
+        min_ra = ra[0]
+        max_ra = ra[1]
+    else:
+        min_ra = ra - 0.6/math.cos(math.radians(dec))
+        max_ra = ra + 0.6/math.cos(math.radians(dec))
+        
+    if (min_ra < 0):
+        ra_query = "( ra > %(min_ra)f or ra < %(max_ra)f )" % {"min_ra": min_ra+360, "max_ra": max_ra,} 
+    elif (max_ra > 360):
+        ra_query = "( ra > %(min_ra)f or ra < %(max_ra)f )" % {"min_ra": min_ra, "max_ra": max_ra-360.,} 
+    else:
+        ra_query = "ra BETWEEN %(min_ra)f and %(max_ra)f" % {"min_ra": min_ra, "max_ra": max_ra,} 
+        
+    if (numpy.array(dec).ndim > 0):
+        min_dec = dec[0]
+        max_dec = dec[1]
+    else:
+        min_dec = dec - 0.6
+        max_dec = dec + 0.6
+
+    #
+    # This query is taken from the SDSS website and selects stars with clean photometry
+    # --> http://skyserver.sdss3.org/dr8/en/help/docs/realquery.asp#cleanStars
+    #
+    sql_query = """\
+SELECT ra,dec, u, err_u, g, err_g, r, err_r, i, err_i, z, err_z
+FROM Star 
+WHERE 
+%(ra_query)s AND dec BETWEEN %(min_dec)f and %(max_dec)f
+AND ((flags_r & 0x10000000) != 0)
+-- detected in BINNED1
+AND ((flags_r & 0x8100000c00a4) = 0)
+-- not EDGE, NOPROFILE, PEAKCENTER, NOTCHECKED, PSF_FLUX_INTERP,
+-- SATURATED, or BAD_COUNTS_ERROR
+AND (((flags_r & 0x400000000000) = 0) or (psfmagerr_r <= 0.2))
+-- not DEBLEND_NOPEAK or small PSF error
+-- (substitute psfmagerr in other band as appropriate)
+AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
+-- not INTERP_CENTER or not COSMIC_RAY
+""" % {"filter": sdss_filter,
+       "min_ra": min_ra, "max_ra": max_ra,
+       "min_dec": min_dec, "max_dec": max_dec,
+       "ra_query": ra_query,
+       }
+
+    if (verbose): print sql_query
+    logger.debug("Downloading catalog from SDSS ...")
+    logger.debug(sql_query)
+
+    # stdout_write("Downloading catalog from SDSS ...")
+
+    # Taken from Tomas Budavari's sqlcl script
+    # see http://skyserver.sdss3.org/dr8/en/help/download/sqlcl/default.asp 
+    import urllib
+    # Filter out comments starting with "--"
+    fsql = ""
+    for line in sql_query.split('\n'):
+        fsql += line.split('--')[0] + ' ' + os.linesep;
+    params = urllib.urlencode({'cmd': fsql, 'format': 'csv'})
+    url = 'http://skyserver.sdss3.org/dr8/en/tools/search/x_sql.asp'
+    sdss = urllib.urlopen(url+'?%s' % params)
+    # Budavari end
+
+
+    answer = []
+    for line in sdss:
+        if (max_catsize > 0 and len(answer) >= max_catsize):
+            break
+        answer.append(line)
+        if (((len(answer)-1)%10) == 0):
+            if (verbose): stdout_write("\rFound %d stars so far ..." % (len(answer)-1))
+    #answer = sdss.readlines()
+    if (answer[0].strip() == "No objects have been found"):
+        stdout_write(" nothing found\n")
+        if (return_query):
+            return numpy.zeros(shape=(0,12)), fsql #sql_query
+        return numpy.zeros(shape=(0,12))
+
+    # stdout_write(" found %d stars!\n" % (len(answer)-1))
+    logger.debug(" found %d stars!\n" % (len(answer)-1))
+
+    if (verbose):
+        print "Returned from SDSS:"
+        print "####################################################"
+        print ''.join(answer)
+        print "####################################################"
+
+    # If we are here, then the query returned at least some results.
+    # Dump the first line just repeating what the output was
+    del answer[0]
+
+    
+    # if (verbose): print "Found %d results" % (len(answer))
+    results = numpy.zeros(shape=(len(answer),12))
+    # Results are comma-separated, so split them up and save as numpy array
+    for i in range(len(answer)):
+        items = answer[i].split(",")
+        for col in range(len(items)):
+            results[i, col] = float(items[col])
+        #ra, dec = float(items[0]), float(items[1])
+        #mag, mag_err =  float(items[2]), float(items[3])
+        #results[i, :] = [ra, dec, mag, mag, mag_err, mag_err]
+    
+    if (return_query):
+        return results, fsql #sql_query
+    return results
+
+
+
+
 def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose=False):
 
-    if (cattype == "2mass_web"):
-        return twomass_from_cds(ra, dec, radius, verbose)
+    logger = logging.getLogger("ReadCatalog")
+
+    # Handle the separate case of web-based catalogs
+    if (cattype.startswith("web:")):
+
+        if (cattype == "web:2mass"):
+            return twomass_from_cds(ra, dec, radius, verbose)
+        elif (cattype == "web:sdss"):
+            return load_catalog_from_sdss(ra, dec, 
+                                          verbose=verbose, 
+                                          return_query=False, 
+                                          max_catsize=-1)
 
     # print "In get_ref_catalog, cattype=%s, dir=%s" % (cattype, basedir)
 
@@ -117,6 +290,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
     #print skytable[needed_catalogs]
     
     files_to_read = skytable['NAME'][needed_catalogs]
+    logger.debug(files_to_read)
 
     # Now quickly go over the list and take care of all filenames that still have a 0x00 in them
     for i in range(len(files_to_read)):
@@ -157,17 +331,20 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
 
             select_from_cat = (cat_ra_shifted > min_ra) & (cat_ra_shifted < max_ra ) & (cat_dec > min_dec) & (cat_dec < max_dec)
 
-            array_to_add = numpy.zeros(shape=(numpy.sum(select_from_cat),6))
+            array_to_add = numpy.zeros(shape=(numpy.sum(select_from_cat),2+4*2))  # Ra, dec + 4*(mag/error)
             array_to_add[:,0] = cat_ra[select_from_cat]
             array_to_add[:,1] = cat_dec[select_from_cat]
 
-            array_to_add[:,2:6] = photom_grizy[:,0:4][select_from_cat] / 1e3
+            # array_to_add[:,2:6] = photom_grizy[:,0:4][select_from_cat] / 1e3
+            for i_mag in range(4):
+                array_to_add[:,i_mag*2+2] = photom_grizy[:,i_mag][select_from_cat] / 1e3
 
             if (verbose): print "# Read %d stars from catalog %s ..." % (array_to_add.shape[0], catalogfile)
 
         elif (cattype in ('2mass_opt', 
                           '2mass_nir', 
-                          'ucac4')):
+                          'ucac4',
+                          'sdss')):
             if (verbose): print "Reading 2mass catalog"
             catalogfile = "%s/%s.fits" % (basedir, catalogname)
 
@@ -203,13 +380,22 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
                 array_to_add[:,3][numpy.isnan(array_to_add[:,3])] = array_to_add[:,2]
 
             elif (cattype == '2mass_nir'):
-
-                array_to_add = numpy.zeros(shape=(numpy.sum(select_from_cat),5))
-                array_to_add[:,0] = cat_ra[select_from_cat]
-                array_to_add[:,1] = cat_dec[select_from_cat]
-                array_to_add[:,2] = hdu_cat[1].data.field('mag_j')[select_from_cat]
-                array_to_add[:,3] = hdu_cat[1].data.field('mag_h')[select_from_cat]
-                array_to_add[:,4] = hdu_cat[1].data.field('mag_k')[select_from_cat]
+                catalog_columns = ['ra', 'dec',
+                                   'mag_j', 'err_j',
+                                   'mag_h', 'err_h',
+                                   'mag_k', 'err_k',
+                               ]
+                array_to_add = numpy.zeros(shape=(numpy.sum(select_from_cat),len(catalog_columns)))
+                for i in range(len(catalog_columns)):
+                    if (catalog_columns[i] in hdu_cat[1].data.columns.names):
+                        array_to_add[:,i] = hdu_cat[1].data.field(catalog_columns[i])[select_from_cat]
+             
+                # array_to_add = numpy.zeros(shape=(numpy.sum(select_from_cat),5))
+                # array_to_add[:,0] = cat_ra[select_from_cat]
+                # array_to_add[:,1] = cat_dec[select_from_cat]
+                # array_to_add[:,2] = hdu_cat[1].data.field('mag_j')[select_from_cat]
+                # array_to_add[:,3] = hdu_cat[1].data.field('mag_h')[select_from_cat]
+                # array_to_add[:,4] = hdu_cat[1].data.field('mag_k')[select_from_cat]
 
             elif (cattype == 'ucac4'):
                 # sys.stderr.write("Using ucac4 catalog\n")
@@ -223,9 +409,27 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
                                ]
                 array_to_add = numpy.zeros(shape=(numpy.sum(select_from_cat),len(catalog_columns)))
                 for i in range(len(catalog_columns)):
-                    array_to_add[:,i] = hdu_cat[1].data.field(catalog_columns[i])[select_from_cat]
+                    if (catalog_columns[i] in hdu_cat[1].data.columns.names):
+                        array_to_add[:,i] = hdu_cat[1].data.field(catalog_columns[i])[select_from_cat]
                 
+            elif (cattype == 'sdss'):
+                catalog_columns = ['RA', 'DEC',
+                                   'MAG_U', 'MAGERR_U',
+                                   'MAG_G', 'MAGERR_G',
+                                   'MAG_R', 'MAGERR_R',
+                                   'MAG_I', 'MAGERR_I',
+                                   'MAG_Z', 'MAGERR_Z',
+                ]
+                array_to_add = numpy.zeros(shape=(numpy.sum(select_from_cat),len(catalog_columns)))
+                for col in range(len(catalog_columns)):
+                    if (catalog_columns[i] in hdu_cat[1].data.columns.names):
+                        array_to_add[:,col] = hdu_cat[1].data.field(catalog_columns[col])[select_from_cat]
+
             if (verbose): print "# Read %d stars from catalog %s ..." % (array_to_add.shape[0], catalogfile)
+
+        else:
+            print "This catalog name is not known"
+            return None
 
         if (full_catalog == None):
             full_catalog = array_to_add
@@ -246,6 +450,11 @@ if __name__ == "__main__":
     dec = float(get_clean_cmdline()[2])
     radius = float(get_clean_cmdline()[3])
 
+    dec_min, dec_max = dec-radius, dec+radius
+    dec_range = numpy.array([dec_min, dec_max])
+    cos_dec = numpy.min( numpy.cos(numpy.radians(dec_range)))
+    ra_range = numpy.array([ ra-radius/cos_dec, ra+radius/cos_dec])
+
     basedir = "/Volumes/odifile/Catalogs/IPPRefCat/catdir.synth.grizy/"
 
     import podi_sitesetup as sitesetup
@@ -257,13 +466,14 @@ if __name__ == "__main__":
     verbose = cmdline_arg_isset("-v")
 
 
-    catalog = get_reference_catalog(ra, dec, radius, basedir=basedir, cattype=catalog_type, verbose=verbose)
+    # catalog = get_reference_catalog(ra, dec, radius, basedir=basedir, cattype=catalog_type, verbose=verbose)
+    catalog = get_reference_catalog(ra_range, dec_range, radius=None, basedir=basedir, cattype=catalog_type, verbose=verbose)
 
     # if (True): #False):
     #     for i in range(catalog.shape[0]):
     #         for j in range(catalog.shape[1]):
     #             print catalog[i,j],
     #         print
-
-    numpy.savetxt(sys.stdout, catalog)
+    if (not catalog == None):
+        numpy.savetxt(sys.stdout, catalog)
 
