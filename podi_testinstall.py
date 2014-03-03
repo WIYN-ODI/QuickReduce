@@ -185,7 +185,7 @@ def update_sitesetup():
     for i in range(len(lines)):
         # print "____%s___" % (lines[i].strip())
         if (lines[i].startswith("###AUTO-CONFIG-INSERT-HERE")):
-            print "Found insert point"
+            # print "Found insert point"
             insert_at = i
             break
 
