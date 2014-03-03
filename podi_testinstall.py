@@ -168,10 +168,10 @@ def update_sitesetup():
 
     changes = changes | ask_for_option('swarp_exec', 
                    "Path to Swarp executable (Hint: run 'which swarp' in another terminal)", 
-                   "swarp", False, config_array)
+                   "swarp", True, config_array)
     changes = changes | ask_for_option('swarp_singledir', 
                    "Path for swarp intermediate files (you'll need several GB here!)", 
-                   ".", False, config_array)
+                   ".", True, config_array)
     
     
     config_array.append("")
