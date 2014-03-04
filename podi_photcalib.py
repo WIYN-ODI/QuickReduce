@@ -953,8 +953,13 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     else:
         if (zp.shape[0] <=5):
             zp_clipped = zp
+            zperr_clipped = zperr
+            sdss_mag_clipped = sdss_mag
+
         else:
-            zp_clipped = three_sigma_clip(zp)
+            zp_clipped, clipping_mask = three_sigma_clip(zp, return_mask=True)
+            zperr_clipped = zperr[clipping_mask]
+            sdss_mag_clipped = sdss_mag[clipping_mask]
 
         zp_upper1sigma = scipy.stats.scoreatpercentile(zp_clipped, 84)
         zp_lower1sigma = scipy.stats.scoreatpercentile(zp_clipped, 16)
@@ -1005,11 +1010,17 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             return (linear - zp) / zp_err
 
         p_init = [zp_median, 0]
-        args = (sdss_mag, zp, zperr)
+
+        # enlarge the error bars a bit to prevent single points with 
+        # unrealistically small uncertainties to dominate teh fit
+        zperr_larger = numpy.hypot(zperr_clipped, 0.05)
+
+        args = (sdss_mag_clipped, zp_clipped, zperr_larger)
         fit = scipy.optimize.leastsq(linear_fit_err, p_init, args=args, full_output=1)
         pfit = fit[0]
         uncert = numpy.sqrt(numpy.diag(fit[1]))
         detailed_return['zp_magnitude_slope'] = (pfit, uncert)
+        logger.debug("Clipped zp-slope: %.3f (+/- %.3f) + (%.5f +/- %.5f) * sdss_mag" % (pfit[0], uncert[0], pfit[1], uncert[1]))
 
         zp_stderrofmean = scipy.stats.sem(zp_clipped)
         n_clipped = zp_clipped.shape[0]
