@@ -42,6 +42,8 @@ import scipy
 import scipy.ndimage
 from bottleneck import nanmean, nanmedian
 
+from podi_commandline import *
+
 #
 # Update this variable below when changing versions
 #
@@ -519,76 +521,6 @@ def shmem_as_ndarray( raw_array ):
     }
     return numpy.asarray(d)#.view( dtype=numpy.float32 )
 
-
-
-def cmdline_arg_isset(arg):
-    """
-
-    Check if the given argument was given on the command line
-
-    """
-    # Go through all command line arguments and check
-    # if the requested argument is one of them
-    for cur in sys.argv[1:]:
-        name,sep,value = cur.partition("=")
-        if (name == arg):
-            return True
-    return False
-
-
-def get_cmdline_arg(arg):
-    """
-
-    Retreive the value of a command-line argument
-
-    """
-
-    # Check all arguments if 
-    for cur in sys.argv[1:]:
-        name,sep,value = cur.partition("=")
-        if (name == arg):
-            if (sep == ""):
-                return None
-            return value
-    return None
-
-
-def get_clean_cmdline():
-    """
-    
-    Return all values entered on the command line with all command-line flags
-    removed.
-
-    Example:
-        
-        The user called a program ``./podi_something param1 -flag1 -flag2 param2``
-
-        This function would then return a list containing
-        ['./podi_something', 'param1', 'param2']
-
-    """
-    
-    list = []
-    for cur in sys.argv:
-        if (cur[0] != "-" or cur[1].isdigit()):
-            list.append(cur)
-    return list
-
-
-def cmdline_arg_set_or_default(name, defvalue):
-    """
-
-    Return the value of a command line argument. If no argument was passed (for
-    example -flag= ), assign the specified default value instead.
-
-    """
-
-    if (cmdline_arg_isset(name)):
-        val = get_cmdline_arg(name)
-        if (val == None):
-            return defvalue
-        return val
-    return defvalue
 
 
 
