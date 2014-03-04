@@ -27,7 +27,8 @@ import threading
 import multiprocessing
 import traceback
 
-from  podi_definitions import *
+from podi_definitions import *
+from podi_commandline import *
 import podi_sitesetup as sitesetup
 
 

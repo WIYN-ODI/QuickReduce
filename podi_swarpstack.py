@@ -110,7 +110,8 @@ import sys
 import pyfits
 import subprocess
 
-from podi_collectcells import *
+from podi_commandline import *
+#from podi_collectcells import *
 import podi_sitesetup as sitesetup
 
 import podi_logging

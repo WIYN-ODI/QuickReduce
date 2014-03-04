@@ -39,6 +39,7 @@ import scipy.interpolate
 import math
 
 from podi_definitions import *
+from podi_commandline import *
 from podi_plotting import *
 
 from astLib import astWCS

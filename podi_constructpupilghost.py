@@ -35,6 +35,7 @@ import bottleneck
 import dev_pgcenter
 
 from podi_definitions import *
+from podi_commandline import *
 az_knot_limit = [50,600]
 
 write_intermediate = True

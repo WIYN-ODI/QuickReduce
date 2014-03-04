@@ -31,6 +31,7 @@ import podi_logging
 import logging
 
 from podi_definitions import *
+from podi_commandline import *
 import pyfits
 
 IPP_DIR = "/Volumes/odifile/Catalogs/IPPRefCat/catdir.synth.grizy/"

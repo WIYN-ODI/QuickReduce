@@ -66,6 +66,7 @@ import multiprocessing
 import ctypes
 
 from podi_definitions import *
+from podi_commandline import *
 import podi_imcombine
 import podi_fitskybackground
 import time

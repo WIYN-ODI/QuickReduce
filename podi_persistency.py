@@ -83,8 +83,8 @@ import multiprocessing
 import Queue
 
 from podi_definitions import *
+from podi_commandline import *
 import podi_sitesetup as sitesetup
-import podi_collectcells
 import podi_logging
 import logging
 
@@ -1216,7 +1216,7 @@ def create_new_persistency_map(shape=None, write_fits=None):
 
 if __name__ == "__main__":
 
-    options = podi_collectcells.read_options_from_commandline()
+    options = read_options_from_commandline()
     podi_logging.setup_logging(options)
 
     if (cmdline_arg_isset('-newmap')):

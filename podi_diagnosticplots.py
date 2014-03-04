@@ -43,6 +43,7 @@ gain_correct_frames = False
 import matplotlib.lines
 
 from podi_definitions import *
+from podi_commandline import *
 import podi_sitesetup as sitesetup
 
 import Queue

@@ -88,8 +88,8 @@ import Queue
 import itertools
 
 from podi_definitions import *
+from podi_commandline import *
 import podi_sitesetup as sitesetup
-import podi_collectcells
 import podi_logging
 import logging
 
@@ -827,7 +827,7 @@ def create_focus_plot(plotdata, stats, obsid, plotfile, real_numbers):
 
 if __name__ == "__main__":
 
-    options = podi_collectcells.read_options_from_commandline()
+    options = read_options_from_commandline()
     podi_logging.setup_logging(options)
 
     n_stars = int(cmdline_arg_set_or_default('-nstars', 5))

@@ -34,6 +34,7 @@ import numpy
 import scipy
 
 from podi_definitions import *
+from podi_commandline import *
 
 def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=3, batchmode_hdu=None):
 

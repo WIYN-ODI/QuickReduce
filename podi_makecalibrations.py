@@ -90,6 +90,7 @@ import scipy
 
 gain_correct_frames = False
 from podi_definitions import *
+from podi_commandline import *
 from podi_collectcells import *
 from podi_imcombine import *
 from podi_makeflatfield import *

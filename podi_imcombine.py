@@ -83,6 +83,7 @@ except:
 #number_cpus = 1
 
 from podi_definitions import *
+from podi_commandline import *
 import bottleneck
 verbose = cmdline_arg_isset("-verbose")
 

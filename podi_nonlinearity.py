@@ -86,7 +86,7 @@ from podi_plotting import *
 
 gain_correct_frames = False
 from podi_definitions import *
-
+from podi_commandline import *
 
 
 import podi_plotting
@@ -949,8 +949,7 @@ Creating all fits
 
     if (cmdline_arg_isset("-findfile")):
         target_mjd = float(get_clean_cmdline()[1])
-        import podi_collectcells
-        options = podi_collectcells.read_options_from_commandline(None)
+        options = podi_commandline.read_options_from_commandline(None)
         filename = find_nonlinearity_coefficient_file(target_mjd, options)
         print filename
         sys.exit(0)

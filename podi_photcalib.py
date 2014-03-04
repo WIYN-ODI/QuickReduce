@@ -99,6 +99,7 @@ import numpy
 import os
 from query_usno import query_usno
 from podi_definitions import *
+from podi_commandline import *
 import pyfits
 #import date
 import datetime

@@ -23,6 +23,7 @@ import multiprocessing
 import datetime
 
 from podi_definitions import *
+from podi_commandline import *
 import podi_collectcells
 import podi_focus
 

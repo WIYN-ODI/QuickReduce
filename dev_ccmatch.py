@@ -18,7 +18,8 @@ import math
 import scipy.spatial
 import itertools
 
-from  podi_definitions import *
+from podi_definitions import *
+from podi_commandline import *
 import podi_search_ipprefcat
 from podi_wcs import *
 import podi_search_ipprefcat

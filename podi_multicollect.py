@@ -80,6 +80,7 @@ import traceback
 gain_correct_frames = False
 from podi_collectcells import *
 from podi_definitions import *
+from podi_commandline import *
 
 
 if __name__ == "__main__":

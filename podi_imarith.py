@@ -50,6 +50,7 @@ import scipy
 import scipy.stats
 
 from podi_definitions import *
+from podi_commandline import *
 
 if __name__ == "__main__":
 

@@ -11,6 +11,7 @@ import ext_cosmics as cosmics
 import pyfits
 import numpy
 from podi_definitions import *
+from podi_commandline import *
 import itertools
 import podi_sitesetup as sitesetup
 import time

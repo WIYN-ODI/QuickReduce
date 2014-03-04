@@ -55,6 +55,7 @@ overexposed = [1.0, 0.0, 0.0]
 
 crossout_missing_otas = True
 from podi_definitions import *
+from podi_commandline import *
 
 def create_quickview(filename, output_directory, verbose=False, clobber=True):
 

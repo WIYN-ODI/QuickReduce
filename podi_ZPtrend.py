@@ -50,6 +50,7 @@ import matplotlib
 import matplotlib.pyplot
 from podi_observingplots import *
 from podi_definitions import *
+from podi_commandline import *
 
 dzp_limit_max = 0.3
 dzp_limit_min = -3.

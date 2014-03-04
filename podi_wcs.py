@@ -11,6 +11,7 @@ import sys
 import numpy
 import os
 from podi_definitions import *
+from podi_commandline import *
 import pyfits
 import datetime
 import scipy
