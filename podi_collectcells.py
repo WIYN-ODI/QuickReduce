@@ -288,7 +288,11 @@ else:
 
 
 
-
+def add_fits_header_title(header, title, before_keyword):
+    header.add_blank(before=before_keyword)
+    header.add_blank(title, before=before_keyword)
+    header.add_blank(before=before_keyword)
+    return
 
 def collect_reduce_ota(filename,
                        verbose=False,
@@ -1892,6 +1896,7 @@ def collectcells(input, outputfile,
     ota_list[0].header["PLVERSIO"] = (pipeline_version, "pipeline version")
     ota_list[0].header["PLAUTHOR"] = ("Ralf Kotulla", "pipeline author")
     ota_list[0].header["PLEMAIL"] = ("kotulla@uwm.edu", "contact email")
+    add_fits_header_title(ota_list[0].header, "Pipeline information", 'PLVER')
     for key, value in options['additional_fits_headers'].iteritems():
         ota_list[0].header[key] = (value, "user-added keyword")
 
@@ -2065,6 +2070,7 @@ def collectcells(input, outputfile,
                                      "MJD at exposure mid-point")
     ota_list[0].header['MJD-END'] = (mjd + (hdulist[0].header['EXPMEAS']/86400.), 
                                      "MJD at exposure end-point")
+    add_fits_header_title(ota_list[0].header, "Additional time stamps", 'DATE-MID')
 
     # We know enough about the current frame, so close the file
     hdulist.close()
@@ -2155,17 +2161,6 @@ def collectcells(input, outputfile,
     #    work
     #
     ############################################################################
-    fringe_scaling_median = fringe_scaling_std = 0
-    if (not options['fringe_dir'] == None and not fringe_scaling == None): #.shape[0] > 0):
-        # Determine the global scaling factor
-        good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])
-        fringe_scaling_median = numpy.median(good_scalings)
-        fringe_scaling_std    = numpy.std(good_scalings)
-
-        # and log the values in the primary header
-        ota_list[0].header["FRNG_SCL"] = fringe_scaling_median
-        ota_list[0].header["FRNG_STD"] = fringe_scaling_std
-
         
     # 
     # Now combine all sky-samples to compute the global background level.
@@ -2175,6 +2170,7 @@ def collectcells(input, outputfile,
     logger.debug("Combining sky-samples from all OTAs into global sky value")
     sky_samples_global = None #numpy.empty(0)
     valid_ext = otas_for_photometry[get_valid_filter_name(ota_list[0].header)]
+    sky_global_median = -1.
     for ext in sky_samples:
         # print ext, valid_ext, int(ext[3:5])
         ota_number = int(ext[3:5])
@@ -2193,9 +2189,26 @@ def collectcells(input, outputfile,
                 sky_samples_global = numpy.append(sky_samples_global, sky_samples[ext], axis=0)
 
     sky_global_median = numpy.median(sky_samples_global[:,4])
-    ota_list[0].header["SKYLEVEL"] = sky_global_median
-    ota_list[0].header["SKYBG"] = sky_global_median
+    ota_list[0].header["SKYLEVEL"] = (sky_global_median, "median global sky level")
+    ota_list[0].header["SKYBG"] = (sky_global_median, "median global sky background")
     logger.debug("Found global median sky-value = %.1f" % (sky_global_median))
+    add_fits_header_title(ota_list[0].header, "Derived global data", 'SKYLEVEL')
+
+    #
+    # Compute the global fringe scaling 
+    # 
+    fringe_scaling_median = fringe_scaling_std = 0
+    if (not options['fringe_dir'] == None and not fringe_scaling == None): #.shape[0] > 0):
+        # Determine the global scaling factor
+        good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])
+        fringe_scaling_median = numpy.median(good_scalings)
+        fringe_scaling_std    = numpy.std(good_scalings)
+    else:
+        fringe_scaling_median, fringe_scaling_std = -1., -1.
+
+    # and log the values in the primary header
+    ota_list[0].header["FRNG_SCL"] = (fringe_scaling_median, "median fringe scaling")
+    ota_list[0].header["FRNG_STD"] = (fringe_scaling_std, "fringe scaling uncertainty")
 
     #
     # Compute the global median pupil-ghost contribution
@@ -2224,12 +2237,14 @@ def collectcells(input, outputfile,
         pupilghost_scaling_std = clipped_std
 
         #ota_list[0].header["PUPLGOST"] = (pg_template, "p.g. template")
-        ota_list[0].header["PUPLGFAC"] = (pupilghost_scaling_median, "pupilghost scaling")
         # filter_name = ota_list[0].header['FILTER']
         # if (filter_name in podi_matchpupilghost.scaling_factors):
         #     bg_scaled = podi_matchpupilghost.scaling_factors[filter_name]*sky_global_median
         #     ota_list[0].header["PUPLGFA2"] = (bg_scaled, "analytical pupilghost scaling")
         stdout_write(" done!\n")
+    else:
+        pupilghost_scaling_median = -1.
+    ota_list[0].header["PUPLGFAC"] = (pupilghost_scaling_median, "pupilghost scaling")
 
     ############################################################################
     #
@@ -2323,11 +2338,12 @@ def collectcells(input, outputfile,
     #
     # Update the global gain variables
     #
-    ota_list[0].header['GAIN'] = (global_gain_sum / global_gain_count)
-    ota_list[0].header['NGAIN'] = global_gain_count
+    ota_list[0].header['GAIN'] = ((global_gain_sum / global_gain_count), "global average gain [e-/ADU]")
+    ota_list[0].header['NGAIN'] = (global_gain_count, "number of cells contribution to gain")
 
     # Compute the noise of the sky-level based on gain and readnoise XXXXXXX
-    ota_list[0].header["SKYNOISE"] = math.sqrt( 8.**2 + (sky_global_median*ota_list[0].header['GAIN'])**2 )
+    ota_list[0].header["SKYNOISE"] = (math.sqrt( 8.**2 + sky_global_median*ota_list[0].header['GAIN'] ), 
+                                      "noise level of sky background")
 
 
     logger.debug("all data received from worker processes!")
@@ -2372,6 +2388,7 @@ def collectcells(input, outputfile,
     #print "cleaned up, now",len(ota_list),"extensions left"
 
     # Now update the headers in all OTA extensions.
+    first_inherited_header = None
     for extension in range(1, len(ota_list)):
         ota = ota_list[extension]
 
@@ -2392,7 +2409,9 @@ def collectcells(input, outputfile,
             if (not header in ota_list[0].header):
                 (keyword, value, comment) = ota.header.cards[header]
                 ota_list[0].header[keyword] = (value, comment)
-            
+                first_inherited_header = keyword if first_inherited_header == None \
+                                         else first_inherited_header
+
             # By now the value should exist in the primary header, 
             # so delete it from each of the extensions
             del ota.header[header]
@@ -2407,6 +2426,8 @@ def collectcells(input, outputfile,
                 continue
             del ota.header[header]
 
+    add_fits_header_title(ota_list[0].header, "Exposure- and instrument-specific data", first_inherited_header)
+
 
     #
     # Fix the WCS if requested
@@ -2417,6 +2438,7 @@ def collectcells(input, outputfile,
     ota_list[0].header['WCSXRMS'] = (-1., "RMS in x-dir of astrometric solution")
     ota_list[0].header['WCSYRMS'] = (-1., "RMS in y-dir of astrometric solution")
     ota_list[0].header['ASTRMCAT'] = ("", "astrometric reference catalog")
+    add_fits_header_title(ota_list[0].header, "World Coordinate System", 'WCSFIXED')
 
     enough_stars_for_fixwcs = not global_source_cat == None \
                               and global_source_cat.shape[0]>3
@@ -2569,6 +2591,7 @@ def collectcells(input, outputfile,
     # Add some default photometric calibration keywords
     #
     ota_list[0].header['PHOTMCAT'] = (None, "catalog used for photometric calibration")
+    add_fits_header_title(ota_list[0].header, "Photometric calibration results", 'PHOTMCAT')
     ota_list[0].header['PHOTFILT'] = (None, "filter from reference catalog")
     
     ota_list[0].header["PHOTZP"]   = (-99., "phot. zeropoint corr for exptime")
@@ -2845,9 +2868,7 @@ def collectcells(input, outputfile,
     ota_list[0].header['FILTEQWD'] = (filter_area/10.,       "filter equivalent width [nm]")
     ota_list[0].header['FILTBLU5'] = (filter_left5/10.,      "blue filter edge at 5% max [nm]")
     ota_list[0].header['FILTRED5'] = (filter_right5/10.,     "red filter edge at 5% max [nm]")
-    ota_list[0].header.add_blank(before="PHOTCLAM")
-    ota_list[0].header.add_blank("Filter bandpass definitions", before="PHOTCLAM")
-    ota_list[0].header.add_blank(before="PHOTCLAM")
+    add_fits_header_title(ota_list[0].header, "Filter bandpass definitions", 'PHOTCLAM')
 
 
     # Now all processes have returned their results, terminate them 
