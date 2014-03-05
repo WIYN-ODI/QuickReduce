@@ -3,7 +3,8 @@
 import numpy
 import os
 import sys
-sys.path.append("/work/podi_devel/")
+dir, _ = os.path.split(os.path.abspath(sys.argv[0]))
+sys.path.append("%s/../" % (dir))
 from podi_commandline import *
 
 from scipy.interpolate import interp1d
@@ -112,7 +113,7 @@ if __name__ == "__main__":
 
         # print left_fwhm, right_fwhm
 
-        print "%25s: %7.2f %7.1f (%7.2f -- %7.2f) max=%0.4f mean=%.3f center=%.1f area=%7.2f   5%%=(%6.1f %6.1f)" % (
+        print "%30s: %7.2f %7.1f (%7.2f -- %7.2f) max=%0.4f mean=%.3f center=%.1f area=%7.2f   5%%=(%6.1f %6.1f)" % (
             fn, mean_pos, fwhm, left_fwhm, right_fwhm, max_amplitude, mean_throughput, centerpos, total_area, left_5, right_5)
         pycode.append(
             ' %30s: (%30s, %7.2f, %7.2f, %7.1f, %7.1f, %7.1f, %0.4f, %0.4f, %7.2f, %7.2f, %7.2f),' % (
@@ -121,6 +122,9 @@ if __name__ == "__main__":
         
         # Save the corrected filter curve
         numpy.savetxt("all_components/%s.final" % (fn), data)
+
+    print "\n\n\n"
+    print "\n".join(pycode)+"\n"
 
     ax.legend(fontsize=8, loc='best')
     ax2.legend(fontsize=8, loc='best')
@@ -132,4 +136,3 @@ if __name__ == "__main__":
     fig2.savefig("filter2.png")
 
 
-    print "\n".join(pycode)+"\n"
