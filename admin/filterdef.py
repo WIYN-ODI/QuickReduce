@@ -115,8 +115,8 @@ if __name__ == "__main__":
         print "%25s: %7.2f %7.1f (%7.2f -- %7.2f) max=%0.4f mean=%.3f center=%.1f area=%7.2f   5%%=(%6.1f %6.1f)" % (
             fn, mean_pos, fwhm, left_fwhm, right_fwhm, max_amplitude, mean_throughput, centerpos, total_area, left_5, right_5)
         pycode.append(
-            ' %30s: (%7.2f, %7.2f, %7.1f, %7.1f, %7.1f, %0.4f, %0.4f, %7.2f, %7.2f, %7.2f)' % (
-                ('"%s"' % fn), mean_pos, centerpos, fwhm, left_fwhm, right_fwhm, max_amplitude, mean_throughput, total_area, left_5, right_5)
+            ' %30s: (%30s, %7.2f, %7.2f, %7.1f, %7.1f, %7.1f, %0.4f, %0.4f, %7.2f, %7.2f, %7.2f),' % (
+                ('"%s"' % fn), ('"%s"' % fn), mean_pos, centerpos, fwhm, left_fwhm, right_fwhm, max_amplitude, mean_throughput, total_area, left_5, right_5)
         )
         
         # Save the corrected filter curve

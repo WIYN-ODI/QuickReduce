@@ -2825,10 +2825,29 @@ def collectcells(input, outputfile,
     # Add some information about the filter bandpasses to the output file
     #
     filtername = ota_list[0].header['FILTER']
-    bandpass = [0.,0.] if (not filtername in filter_bandpass) else filter_bandpass[filtername]
-    ota_list[0].header['PHOTCLAM'] = (bandpass[0], "central wavelength of filter [nm]")
-    ota_list[0].header['PHOTBW'] = (bandpass[1], "RMS width of filter [nm]")
-    ota_list[0].header['PHOTFWHM'] = (bandpass[1], "FWHM of filter [nm]")
+    bandpass = ("???", 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,) if (not filtername in filter_bandpass) else filter_bandpass[filtername]
+    (filter_def, filter_mean_pos, filter_center_pos, 
+     filter_fwhm, filter_fwhm_left, filter_fwhm_right, 
+     filter_max, filter_mean, filter_area, filter_left5, filter_right5) = bandpass
+    # Keywords for compatibility with AuCaP
+    ota_list[0].header['PHOTCLAM'] = (filter_center_pos/10., "central wavelength of filter [nm]")
+    ota_list[0].header['PHOTBW']   = (filter_fwhm/10.,       "RMS width of filter [nm]")
+    ota_list[0].header['PHOTFWHM'] = (filter_fwhm/10.,       "FWHM of filter [nm]")
+    # Extra keywords with more specifics
+    ota_list[0].header['FILTFILE'] = (filter_def,            "filename of filter definition")
+    ota_list[0].header['FILTAVGP'] = (filter_mean_pos/10.,   "weighted center position [nm]")
+    ota_list[0].header['FILTCTRP'] = (filter_center_pos/10., "filter center [nm]")
+    ota_list[0].header['FILTFWHM'] = (filter_fwhm/10.,       "filter FWHM [nm]")
+    ota_list[0].header['FILTBLUE'] = (filter_fwhm_left/10.,  "blue filter edge at half max [nm]")
+    ota_list[0].header['FILTRED']  = (filter_fwhm_right/10., "red filter edge at half max [nm]")
+    ota_list[0].header['FILTMAXT'] = (filter_max,            "filter maximum transmission")
+    ota_list[0].header['FILTAVGT'] = (filter_mean,           "filter average transmission")
+    ota_list[0].header['FILTEQWD'] = (filter_area/10.,       "filter equivalent width [nm]")
+    ota_list[0].header['FILTBLU5'] = (filter_left5/10.,      "blue filter edge at 5% max [nm]")
+    ota_list[0].header['FILTRED5'] = (filter_right5/10.,     "red filter edge at 5% max [nm]")
+    ota_list[0].header.add_blank(before="PHOTCLAM")
+    ota_list[0].header.add_blank("Filter bandpass definitions", before="PHOTCLAM")
+    ota_list[0].header.add_blank(before="PHOTCLAM")
 
 
     # Now all processes have returned their results, terminate them 
