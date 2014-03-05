@@ -148,9 +148,6 @@ Calibration data:
     options['gain_method'] = cmdline_arg_set_or_default("-gain", None)
 
     options['persistency_dir'] = cmdline_arg_set_or_default('-persistency', None)
-    if (not options['persistency_dir'] == None):
-        # This automatically creates the index.cat file
-        mjd_catalog_list = podi_persistency.get_list_of_saturation_tables(options['persistency_dir'])
 
     options["update_persistency_only"] = cmdline_arg_isset("-update_persistency_only")
 

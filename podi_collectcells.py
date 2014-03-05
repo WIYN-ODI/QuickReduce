@@ -1897,6 +1897,10 @@ def collectcells(input, outputfile,
 
     ota_list[0].header['BINNING'] = (binning, "binning factor")
 
+    # Creates the persistency index.cat file
+    if (not options['persistency_dir'] == None):
+        podi_persistency.get_list_of_saturation_tables(options['persistency_dir'])
+
     #
     # Set up the parallel processing environment
     #
