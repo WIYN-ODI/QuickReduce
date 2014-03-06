@@ -653,7 +653,8 @@ if __name__ == "__main__":
     options = read_options_from_commandline()
     # Setup everything we need for logging
     podi_logging.setup_logging(options)
-
+    logger = logging.getLogger("MakeCalibration_Init")
+    
     verbose = cmdline_arg_isset("-verbose")
 
     # Read the input file that has the list of files
@@ -661,11 +662,15 @@ if __name__ == "__main__":
 
     # Assign a fallback output filename if none is given 
     output_directory = get_clean_cmdline()[2]
+    if (not os.path.isdir(output_directory)):
+        logger.info("Output directory (%s) does not exist, creating it" % (output_directory))
+        os.mkdir(output_directory)
+        if (not os.path.isdir(output_directory)):
+            logger.error("Failed to create output-directory, aborting!")
+            sys.exit(-1)
 
     tmp_directory = cmdline_arg_set_or_default("-tmpdir", output_directory + "/tmp")
 
-    logger = logging.getLogger("MakeCalibration_Init")
-    
     if (not os.path.isfile(filelist_filename)):
         logger.critical("Unable to open input filelist %s" % (filelist_filename))
         podi_logging.shutdown_logging(options)
