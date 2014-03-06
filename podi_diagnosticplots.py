@@ -340,6 +340,14 @@ def plot_wcsdiag_shift(radec, d_radec,
 #    d_dec = matched_cat[:,1] - matched_cat[:,3]
 #    ramin, ramax = numpy.min(matched_cat[:,0]), numpy.max(matched_cat[:,0])
 #    decmin, decmax = numpy.min(matched_cat[:,1]), numpy.max(matched_cat[:,1])
+
+    around_zero = False
+    if ((numpy.max(radec[:,0]) - numpy.min(radec[:,0])) > 180):
+        
+        # This means we most likely have to deal with coordinates around 0
+        radec[:,0][radec[:,0] > 180] -= 360.
+        around_zero = True
+
     ramin, ramax = numpy.min(radec[:,0]), numpy.max(radec[:,0])
     decmin, decmax = numpy.min(radec[:,1]), numpy.max(radec[:,1])
 
@@ -392,6 +400,8 @@ def plot_wcsdiag_shift(radec, d_radec,
 
     if (not ota_outlines == None):
         corners = numpy.array(ota_outlines)
+        if (around_zero):
+            corners[:,:,0][corners[:,:,0] > 180.] -= 360.
         coll = matplotlib.collections.PolyCollection(corners,facecolor='none',edgecolor='#808080', linestyle='-')
         ax.add_collection(coll)
 
@@ -440,9 +450,17 @@ def wcsdiag_shift(matched_radec_odi,
 
     # Eliminate all matches with somehow illegal coordinates
     good_matches = numpy.isfinite(matched_radec_odi[:,0]) & numpy.isfinite(matched_radec_2mass[:,0])
-    matched_radec_odi   = matched_radec_odi[good_matches]
-    matched_radec_2mass = matched_radec_2mass[good_matches]
-    matched_ota         = matched_ota[good_matches]
+    matched_radec_odi   = matched_radec_odi[good_matches].copy()
+    matched_radec_2mass = matched_radec_2mass[good_matches].copy()
+    matched_ota         = matched_ota[good_matches].copy()
+
+    around_zero = False
+    if (((numpy.max(matched_radec_odi[:,0]) - numpy.min(matched_radec_odi[:,0])) > 180) or
+        ((numpy.max(matched_radec_2mass[:,0]) - numpy.min(matched_radec_2mass[:,0])) > 180)):
+        # This means we most likely have to deal with coordinates around 0
+        matched_radec_odi[:,0][matched_radec_odi[:,0] > 180] -= 360.
+        matched_radec_2mass[:,0][matched_radec_2mass[:,0] > 180] -= 360.
+        around_zero = True
 
     cos_declination = numpy.cos(numpy.radians(0.5 * (matched_radec_odi[:,1] + matched_radec_2mass[:,1])))
     d_radec = matched_radec_odi - matched_radec_2mass
@@ -823,6 +841,12 @@ def plot_zeropoint_map(ra, dec, zp, ota_outlines, output_filename, options, zp_r
     ax.ticklabel_format(useOffset=False)
     zp_min, zp_max = zp_range
 
+    around_zero = False
+    if ((numpy.max(ra) - numpy.min(ra)) > 180):
+        # This means we most likely have to deal with coordinates around 0
+        ra[ra > 180] -= 360.
+        around_zero = True
+
     if (ra.shape[0] < 5):
         zp_clipped = zp
         clipped = numpy.isfinite(zp)
@@ -843,6 +867,8 @@ def plot_zeropoint_map(ra, dec, zp, ota_outlines, output_filename, options, zp_r
 
     if (not ota_outlines == None):
         corners = numpy.array(ota_outlines)
+        if (around_zero):
+            corners[:,:,0][corners[:,:,0] > 180.] -= 360.
         coll = matplotlib.collections.PolyCollection(corners,facecolor='none',edgecolor='#808080', linestyle='-')
         ax.add_collection(coll)
 
@@ -932,9 +958,9 @@ def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
             in_this_ota = (ota == this_ota)
             if (numpy.sum(in_this_ota) <= 0):
                 continue
-            zp_ota = zp_raw[in_this_ota]
-            ra_ota = ra[in_this_ota]
-            dec_ota = dec[in_this_ota]
+            zp_ota = zp_raw[in_this_ota].copy()
+            ra_ota = ra[in_this_ota].copy()
+            dec_ota = dec[in_this_ota].copy()
 
             # ota_plotfile = "%s_OTA%02d" % (output_filename, this_ota)
             ota_plotfile = create_qa_otaplot_filename(output_filename, this_ota, options['structure_qa_subdirs'])
@@ -1005,12 +1031,21 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
 
     colormap_name = "spectral" #"hsv", "jet" #"rainbow" #"Dark2"
 
+    around_zero = False
+    if ((numpy.max(ra) - numpy.min(ra)) > 180):
+        # This means we most likely have to deal with coordinates around 0
+        ra[ra > 180] -= 360.
+        around_zero = True
+
     sc = matplotlib.pyplot.scatter(ra, dec, c=fwhm, alpha=0.75, 
                                    vmin=fwhm_min, vmax=fwhm_max, edgecolor='none',
                                    s=9, cmap=matplotlib.pyplot.cm.get_cmap(colormap_name))
 
     if (not ota_outlines == None):
         corners = numpy.array(ota_outlines)
+        if (around_zero):
+            corners[:,:,0][corners[:,:,0] > 180.] -= 360.
+
         coll = matplotlib.collections.PolyCollection(corners,facecolor='none',edgecolor='#808080', 
                                                      linestyle='-', linewidth=0.5)
         ax.add_collection(coll)
