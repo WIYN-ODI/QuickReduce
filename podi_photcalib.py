@@ -612,7 +612,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         no_flags_set = (flags == 0)
         source_cat = source_cat[no_flags_set]
 
-    numpy.savetxt("photcat", source_cat)
+    # numpy.savetxt("photcat", source_cat)
 
     ra_min = numpy.min(source_cat[:,SXcolumn['ra']])
     ra_max = numpy.max(source_cat[:,SXcolumn['ra']])
@@ -681,10 +681,10 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                 # Sort out all stars with invalid magnitudes
                 valid = (_std_stars[:,2] < 20) & (numpy.fabs(_std_stars[:,3]) <= 0.9)
                 logger.debug("Number of UCAC4 stars: %s" % (str(_std_stars.shape)))
-                numpy.savetxt("ucac.dump", _std_stars)
+                # numpy.savetxt("ucac.dump", _std_stars)
 
                 std_stars = _std_stars[valid]
-                numpy.savetxt("ucac.dump2", std_stars)
+                # numpy.savetxt("ucac.dump2", std_stars)
                 logger.debug("Found a valid UCAC4 source catalog (%s)" % (str(std_stars.shape)))
                 break
             else:
@@ -719,14 +719,14 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     # results = open(output_filename+".photcal", "w")
 
     odi_sdss_matched = podi_matchcatalogs.match_catalogs(source_cat, std_stars, matching_radius=matching_radius)
-    numpy.savetxt("odisource.dump", source_cat)
-    numpy.savetxt("matched.dump", odi_sdss_matched)
+    # numpy.savetxt("odisource.dump", source_cat)
+    # numpy.savetxt("matched.dump", odi_sdss_matched)
 
 
     # Stars without match in SDSS have RA=-9999, let's sort them out
     found_sdss_match = odi_sdss_matched[:,2] >= 0
     odi_sdss_matched = odi_sdss_matched[found_sdss_match]
-    numpy.savetxt("matched.dump2", odi_sdss_matched)
+    # numpy.savetxt("matched.dump2", odi_sdss_matched)
 
     odi_ra, odi_dec = odi_sdss_matched[:,0], odi_sdss_matched[:,1]
     sdss_ra, sdss_dec = odi_sdss_matched[:,2], odi_sdss_matched[:,3]

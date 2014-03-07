@@ -37,8 +37,8 @@ arcsec = 1./3600.
 
 def match_catalogs(ref_full, odi_full, matching_radius=2, verbose=False):
 
-    numpy.savetxt("ref_raw", ref_full)
-    numpy.savetxt("odi_raw", odi_full)
+    # numpy.savetxt("ref_raw", ref_full)
+    # numpy.savetxt("odi_raw", odi_full)
     # Make sure we handle zero-wraps correctly
     ref_max, ref_min = numpy.max(ref_full[:,0]), numpy.min(ref_full[:,0])
     odi_max, odi_min = numpy.max(odi_full[:,0]), numpy.min(odi_full[:,0])
@@ -51,8 +51,8 @@ def match_catalogs(ref_full, odi_full, matching_radius=2, verbose=False):
         around_zero_odi = True
         odi_full = odi_full.copy()
         odi_full[:,0][odi_full[:,0] > 180] -= 360.
-    numpy.savetxt("ref_fixed", ref_full)
-    numpy.savetxt("odi_fixed", odi_full)
+    # numpy.savetxt("ref_fixed", ref_full)
+    # numpy.savetxt("odi_fixed", odi_full)
 
     ref_ra_min, ref_ra_max = numpy.min(ref_full[:,0]), numpy.max(ref_full[:,0])
     ref_dec_min, ref_dec_max = numpy.min(ref_full[:,1]), numpy.max(ref_full[:,1])
@@ -77,11 +77,11 @@ def match_catalogs(ref_full, odi_full, matching_radius=2, verbose=False):
             matched_cat = matched_cat_segment if (matched_cat == None) \
                 else numpy.append(matched_cat, matched_cat_segment, axis=0)
 
-    numpy.savetxt("matched.raw", matched_cat)
+    # numpy.savetxt("matched.raw", matched_cat)
     # Fix coordinates with negative RAs
     matched_cat[:,0][matched_cat[:,0] < 0] += 360.
     matched_cat[:,2][(matched_cat[:,2] < 0) & (matched_cat[:,2] > -100)] += 360.
-    numpy.savetxt("matched.fixed", matched_cat)
+    # numpy.savetxt("matched.fixed", matched_cat)
 
     return matched_cat
 
