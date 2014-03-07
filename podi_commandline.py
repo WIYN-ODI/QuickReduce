@@ -296,6 +296,9 @@ Calibration data:
     options['crj_saturation'] = float(cmdline_arg_set_or_default("-crjsaturation", sitesetup.crj_saturation))
     options['crj_method'] = cmdline_arg_set_or_default("-crjmethod", "cy")
 
+    if (cmdline_arg_isset("-keepsex")):
+        sitesetup.sex_delete_tmps = False
+
     return options
 
 
