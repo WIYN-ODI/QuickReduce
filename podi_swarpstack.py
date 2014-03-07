@@ -256,9 +256,8 @@ def swarpstack():
         out_naxis2 = output_info[0].header['NAXIS2']
 
         if (pixelscale <= 0):
-            pixelscale = (output_info[0].header['CD1_1'] * output_info[0].header['CD2_2'] \
-                         - output_info[0].header['CD1_2'] * output_info[0].header['CD2_1']) * 3600.
-            logger.info("Setting pixelscale to %.4f arcsec/pixel" % (pixelscale))
+            pixelscale = math.fabs(output_info[0].header['CD1_1']) * 3600.
+            logger.info("Computing pixelscale from data: %.4f arcsec/pixel" % (pixelscale))
     else:
         #
         # This is the regular start-from-scratch mode
@@ -328,9 +327,10 @@ def swarpstack():
         out_naxis2 = output_info[0].header['NAXIS2']
         
         if (pixelscale <= 0):
-            pixelscale = (output_info[0].header['CD1_1'] * output_info[0].header['CD2_2'] \
-                         - output_info[0].header['CD1_2'] * output_info[0].header['CD2_1']) * 3600.
-            logger.info("Setting pixelscale to %.4f arcsec/pixel" % (pixelscale))
+            pixelscale = math.fabs(output_info[0].header['CD1_1']) * 3600.
+            #pixelscale = (output_info[0].header['CD1_1'] * output_info[0].header['CD2_2'] \
+            #             - output_info[0].header['CD1_2'] * output_info[0].header['CD2_1']) * 3600.
+            logger.info("Computing pixelscale from data: %.4f arcsec/pixel" % (pixelscale))
     
     #
     # Prepare the individual frames, rectified and re-projected 
