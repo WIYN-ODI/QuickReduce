@@ -1846,11 +1846,17 @@ def match_catalog_areas(src, to_match, radius):
 
     """
 
+    # Account for the cos(dec) effect
+    max_dec = numpy.max(numpy.fabs(src[:,1]))
+    cos_dec = numpy.cos(numpy.radians(max_dec))
+
     src_radec = src[:,0:2].copy()
+    src_radec[:,0] *= cos_dec
     #src_radec[:,0] *= numpy.cos(numpy.radians(src_radec[:,1]))
     src_tree = scipy.spatial.cKDTree(src_radec)
 
     match_radec = to_match[:,0:2].copy()
+    match_radec[:,0] *= cos_dec
     #match_radec[:,0] *= numpy.cos(numpy.radians(match_radec[:,1]))
     match_tree = scipy.spatial.cKDTree(match_radec)
 
