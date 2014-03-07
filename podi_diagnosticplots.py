@@ -842,7 +842,8 @@ def plot_zeropoint_map(ra, dec, zp, ota_outlines, output_filename, options, zp_r
     zp_min, zp_max = zp_range
 
     around_zero = False
-    if ((numpy.max(ra) - numpy.min(ra)) > 180):
+    min_ra, max_ra = numpy.min(ra), numpy.max(ra)
+    if ((max_ra - min_ra) > 180 or (max_ra > 0 and min_ra < 0) or max_ra > 360):
         # This means we most likely have to deal with coordinates around 0
         ra[ra > 180] -= 360.
         around_zero = True
@@ -929,9 +930,9 @@ def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
 
     # Create one plot for the full focal plane, using boxes to outlines OTAs
     zp_range = (zp_min, zp_max)
-    kwargs = {"ra": ra, 
-              "dec": dec, 
-              "zp": zp_raw, 
+    kwargs = {"ra": ra.copy(), 
+              "dec": dec.copy(), 
+              "zp": zp_raw.copy(), 
               "ota_outlines": ota_outlines,
               "output_filename": output_filename,
               "options": options, 
