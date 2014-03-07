@@ -510,6 +510,44 @@ if __name__ == "__main__":
                 clobberfile(outfile)
                 hdu_out.writeto(outfile, clobber=True)
                 stdout_write(" done!\n")
+
+    elif (cmdline_arg_isset("-sample")):
+        fitsfile = get_clean_cmdline()[1]
+        output_base = get_clean_cmdline()[2]
+
+        n_samples = int(cmdline_arg_set_or_default('-nsamples', 750))
+        boxsize = int(cmdline_arg_set_or_default('-boxsize', 10))
+        hdulist = pyfits.open(fitsfile)
+        try:
+            src_hdu = hdulist['CAT.ODI']
+            src_catalog = src_hdu.data
+        except:
+            src_catalog = None
+
+        # print src_catalog
+        for i in range(len(hdulist)):
+            if (not is_image_extension(hdulist[i])):
+                continue
+
+            ota = hdulist[i].header['OTA']
+            print ota
+            if (not src_catalog == None):
+                src_this_ota = src_catalog.field('OTA') == ota
+                #src_cat = numpy.zeros(shape=(numpy.sum(src_this_ota),2))
+                #src_cat[:,0] = src_catalog.field('X')[src_this_ota]
+                #src_cat[:,1] = src_catalog.field('Y')[src_this_ota]
+                src_cat = (src_catalog.field('X')[src_this_ota], 
+                           src_catalog.field('Y')[src_this_ota])
+            else:
+                src_cat = None
+
+
+            bgsample = sample_background(data=hdulist[i].data, wcs=None, 
+                                         starcat=src_cat, min_found=n_samples, 
+                                         boxwidth=boxsize, 
+                                         fit_regions=[], box_center=None)
+            numpy.savetxt(output_base+".OTA%02d" % ota, bgsample)
+            
     else:
         filename = sys.argv[1]
         outfile = sys.argv[2]
