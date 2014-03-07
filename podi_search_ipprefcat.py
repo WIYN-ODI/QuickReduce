@@ -270,6 +270,9 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
         min_dec, max_dec = dec[0], dec[1]
         min_ra, max_ra = ra[0], ra[1]
 
+    logger.debug("Querying catalog (%s): Ra=%f...%f Dec=%f...%f" % (
+        cattype, min_ra, max_ra, min_dec, max_dec))
+
     if (max_ra > 360.):
         # This wraps around the high end, shift all ra values by -180
         # Now all search RAs are ok and around the 180, next also move the catalog values
