@@ -1848,6 +1848,7 @@ def match_catalog_areas(src, to_match, radius):
 
     # Account for the cos(dec) effect
     max_dec = numpy.max(numpy.fabs(src[:,1]))
+    if (max_dec > 85): max_dec = 85
     cos_dec = numpy.cos(numpy.radians(max_dec))
 
     src_radec = src[:,0:2].copy()
