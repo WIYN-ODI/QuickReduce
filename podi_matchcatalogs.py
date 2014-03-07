@@ -31,11 +31,28 @@ import sys
 import numpy
 import os
 from podi_definitions import *
-
+import logging
 
 arcsec = 1./3600.
 
 def match_catalogs(ref_full, odi_full, matching_radius=2, verbose=False):
+
+    numpy.savetxt("ref_raw", ref_full)
+    numpy.savetxt("odi_raw", odi_full)
+    # Make sure we handle zero-wraps correctly
+    ref_max, ref_min = numpy.max(ref_full[:,0]), numpy.min(ref_full[:,0])
+    odi_max, odi_min = numpy.max(odi_full[:,0]), numpy.min(odi_full[:,0])
+    around_zero_ref, around_zero_odi = False, False
+    if ((ref_max - ref_min) > 180):
+        around_zero_ref = True
+        ref_full = ref_full.copy()
+        ref_full[:,0][ref_full[:,0] > 180] -= 360.
+    if ((odi_max - odi_min) > 180):
+        around_zero_odi = True
+        odi_full = odi_full.copy()
+        odi_full[:,0][odi_full[:,0] > 180] -= 360.
+    numpy.savetxt("ref_fixed", ref_full)
+    numpy.savetxt("odi_fixed", odi_full)
 
     ref_ra_min, ref_ra_max = numpy.min(ref_full[:,0]), numpy.max(ref_full[:,0])
     ref_dec_min, ref_dec_max = numpy.min(ref_full[:,1]), numpy.max(ref_full[:,1])
@@ -60,10 +77,18 @@ def match_catalogs(ref_full, odi_full, matching_radius=2, verbose=False):
             matched_cat = matched_cat_segment if (matched_cat == None) \
                 else numpy.append(matched_cat, matched_cat_segment, axis=0)
 
+    numpy.savetxt("matched.raw", matched_cat)
+    # Fix coordinates with negative RAs
+    matched_cat[:,0][matched_cat[:,0] < 0] += 360.
+    matched_cat[:,2][(matched_cat[:,2] < 0) & (matched_cat[:,2] > -100)] += 360.
+    numpy.savetxt("matched.fixed", matched_cat)
+
     return matched_cat
 
 def match_catalog_segment(ref_full, odi_full, ra_ranges, dec_ranges, 
                           matching_radius=2, verbose=False):
+
+    logger = logging.getLogger("MatchCatSegment")
 
     # First of all extract only the reference stars in the selected box
     ref_select = (ref_full[:,0] >  ra_ranges[0]) & (ref_full[:,0] <=  ra_ranges[1]) \
@@ -83,9 +108,8 @@ def match_catalog_segment(ref_full, odi_full, ra_ranges, dec_ranges,
                & (odi_full[:,1] > dec_ranges[0]-d_dec) & (odi_full[:,1] < dec_ranges[1]+d_dec)
     odi = odi_full[odi_select]
 
-    if (verbose):
-        print "Searching for reference stars: RA: %3.1f - %3.1f,  DEC: %+4.1f - %+4.1f" % (
-            ra_ranges[0]-d_ra, ra_ranges[1]+d_ra,dec_ranges[0]-d_dec,dec_ranges[1]+d_dec),
+    logger.debug("Searching for reference stars: RA: %3.1f - %3.1f,  DEC: %+4.1f - %+4.1f" % (
+            ra_ranges[0]-d_ra, ra_ranges[1]+d_ra,dec_ranges[0]-d_dec,dec_ranges[1]+d_dec))
 
     # Create the output array, and set all ODI position to the "not found" standard value
     output_array = numpy.zeros(shape=(ref.shape[0], ref.shape[1]+odi.shape[1]))
@@ -117,8 +141,7 @@ def match_catalog_segment(ref_full, odi_full, ra_ranges, dec_ranges,
                 output_array[star, odi_data_start:] = odi[si[0], 2:]
                 matches_found += 1
 
-    if (verbose):
-        print "  -->    %5d matches (%5d vs %5d)" % (matches_found, ref.shape[0], odi.shape[0])
+    logger.debug("  -->    %5d matches (%5d vs %5d)" % (matches_found, ref.shape[0], odi.shape[0]))
     
     return output_array
 

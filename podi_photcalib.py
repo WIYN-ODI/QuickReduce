@@ -612,11 +612,18 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         no_flags_set = (flags == 0)
         source_cat = source_cat[no_flags_set]
 
+    numpy.savetxt("photcat", source_cat)
+
     ra_min = numpy.min(source_cat[:,SXcolumn['ra']])
     ra_max = numpy.max(source_cat[:,SXcolumn['ra']])
+    logger.debug("ra-range: %f --- %f" % (ra_min, ra_max))
     # Make sure we deal with RAs around 0 properly
     if (math.fabs(ra_max - ra_min) > 180):
-        ra_min, ra_max = ra_max, ra_min+360.
+        ra_fixed = source_cat[:,SXcolumn['ra']].copy()
+        ra_fixed[ra_fixed > 180] -= 360
+        ra_min = numpy.min(ra_fixed)
+        ra_max = numpy.max(ra_fixed)
+        logger.debug("ra-range (fixed): %f --- %f" % (ra_min, ra_max))
 
     dec_min = numpy.min(source_cat[:,SXcolumn['dec']])
     dec_max = numpy.max(source_cat[:,SXcolumn['dec']])
@@ -626,7 +633,6 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     
     ra_range  = [ra_min, ra_max]
     dec_range = [dec_min, dec_max]
-
 
     sdss_filter = sdss_equivalents[filtername]
     logger.debug("Translating filter: %s --> %s" % (filtername, sdss_filter))
