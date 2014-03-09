@@ -312,7 +312,7 @@ This is not a OBJECT or FOCUS frame.
 I was told to ignore these kind of frames.
 \
 """ % (filename, fits_file)
-            return
+        return
             
 #    worker_queue.put( (filename, object_name, obsid) )
 
@@ -436,7 +436,7 @@ def SAMPListener():
     except:
         print "Finishing up work, please wait ..."
     worker_queue.put(None)
-    worker_process.join(1)
+    worker_process.join()
 
     print "All done, goodbye!"
 
