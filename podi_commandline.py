@@ -25,6 +25,7 @@ import os
 import sys
 import logging
 import numpy
+import pyfits
 
 def cmdline_arg_isset(arg):
     """
