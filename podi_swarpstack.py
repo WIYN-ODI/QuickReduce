@@ -166,6 +166,7 @@ def swarpstack():
             logger.info("Correcting input frame %s --> %s" % (
                 inputfiles[i], corrected_filename))
             # Apply the non-sidereal option
+            from podi_collectcells import apply_nonsidereal_correction
             apply_nonsidereal_correction(hdulist, options, logger)
 
             
