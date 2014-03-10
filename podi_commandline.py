@@ -228,7 +228,7 @@ Calibration data:
     if (cmdline_arg_isset('-plotformat')):
         inputstr = cmdline_arg_set_or_default("-plotformat", "png")
         options['plotformat'] = inputstr.split(",")
-        print "writing plots as ",options['plotformat']
+        logger.info("writing plots as %s" % (str(options['plotformat'])))
         
     options['otalevelplots'] = not cmdline_arg_isset("-nootalevelplots")
 
@@ -243,8 +243,18 @@ Calibration data:
     for entry in sys.argv[1:]:
         if (entry[:11] == "-addfitskey"):
             key_value = entry[12:]
-            key, value = key_value.split(',', 2)
-            print "Adding fits keyword %s = %s" % (key, value) 
+            comma_pos = key_value.find(",")
+            if (comma_pos < 0):
+                # no fitsheader given, ignore this one
+                continue
+            elif (comma_pos > 8):
+                logger.warning("FITS keyword given in -addfitskey option (%s) exceeds 8 character limit" % (
+                    key_value[:comma_pos]))
+                continue
+            else:
+                key = key_value[:comma_pos]
+                value = key_value[comma_pos+1:]
+            logger.info("Adding fits keyword %s = %s" % (key, value))
 
             options['additional_fits_headers'][key] = value
 
