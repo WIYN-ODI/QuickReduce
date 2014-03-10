@@ -112,6 +112,7 @@ import subprocess
 import math
 
 from podi_commandline import *
+from podi_definitions import *
 #from podi_collectcells import *
 import podi_sitesetup as sitesetup
 
@@ -142,7 +143,8 @@ def swarpstack():
 
     reuse_singles = cmdline_arg_isset("-reusesingles")
 
-
+    master_reduction_files_used = {}
+    
     use_nonsidereal = cmdline_arg_isset("-nonsidereal")
     options = read_options_from_commandline()
     logger.info("Removing some OTAs from input: %s" % (str(options['skip_otas'])))
@@ -153,9 +155,13 @@ def swarpstack():
         # First apply the non-sidereal correction to all input frames
         # Keep frames that are already modified
         for i in range(len(inputfiles)):
+            if (not os.path.isfile(inputfiles[i])):
+                continue
             hdulist = pyfits.open(inputfiles[i])
             # Assemble the temporary filename for the corrected frame
-            
+            master_reduction_files_used = collect_reduction_files_used(master_reduction_files_used, 
+                                                                       {"raw": inputfiles[i]})
+
             corrected_filename = "%(single_dir)s/%(obsid)s.nonsidereal.fits" % {
                 "single_dir": sitesetup.swarp_singledir,
                 "obsid": hdulist[0].header['OBSID'],
@@ -169,7 +175,14 @@ def swarpstack():
             from podi_collectcells import apply_nonsidereal_correction
             apply_nonsidereal_correction(hdulist, options, logger)
 
-            
+            try:
+                if (os.path.isfile(options['nonsidereal']['ref'])):
+                    master_reduction_files_used = collect_reduction_files_used(
+                        master_reduction_files_used, 
+                        {"nonsidereal-reference": options['nonsidereal']['ref']})
+            except:
+                pass
+                    
             if (options['skip_otas'] != []):
                 ota_list = []
                 for ext in hdulist:
@@ -183,6 +196,7 @@ def swarpstack():
                     ota_list.append(ext)
                 hdulist = pyfits.HDUList(ota_list)
 
+            clobberfile(corrected_filename)
             hdulist.writeto(corrected_filename, clobber=True)
             # else:
             #     logger.info("Input-frame %s with correction already exists (%s)" % (
@@ -198,7 +212,12 @@ def swarpstack():
 
     elif (options['skip_otas'] != []):
         for i in range(len(inputfiles)):
+            if (not os.path.isfile(inputfiles[i])):
+                continue
             hdulist = pyfits.open(inputfiles[i])
+
+            master_reduction_files_used = collect_reduction_files_used(master_reduction_files_used, 
+                                                                       {"raw": inputfiles[i]})
 
             corrected_filename = "%(single_dir)s/%(obsid)s.otaselect.fits" % {
                 "single_dir": sitesetup.swarp_singledir,
@@ -216,6 +235,7 @@ def swarpstack():
                     continue
                 ota_list.append(ext)
             hdulist = pyfits.HDUList(ota_list)
+            clobberfile(corrected_filename)
             hdulist.writeto(corrected_filename, clobber=True)
             inputfiles[i] = corrected_filename
 
@@ -506,7 +526,7 @@ def swarpstack():
                -BACK_SIZE %(BACK_SIZE)d
                -BACK_FILTERSIZE %(BACK_FILTERSIZE)d
         """ % dic
-        logger.info("Adding background parameters:\n\n"+bg_opts+"\n\n")
+        logger.debug("Adding background parameters:\n\n"+bg_opts+"\n\n")
         swarp_opts += bg_opts
 
 
@@ -582,6 +602,18 @@ def swarpstack():
             hdustack[0].header['NSR-ENDM'] = firsthdu[0].header['MJD-END']
         except:
             pass
+
+    # Add the user-defined keywords to the stacked file. This is required for
+    # proper integration with the PPA framework.
+    # print options['additional_fits_headers']
+    for key, value in options['additional_fits_headers'].iteritems():
+        hdustack[0].header[key] = (value, "user-added keyword")
+
+    #
+    # Create an association table from the master reduction files used.
+    # 
+    assoc_table = create_association_table(master_reduction_files_used)
+    hdustack.append(assoc_table)
 
     hdustack.flush()
     hdustack.close()
