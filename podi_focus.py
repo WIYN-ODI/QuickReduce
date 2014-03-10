@@ -202,9 +202,10 @@ def measure_focus_ota(filename, n_stars=5):
                 focus_center = float(items[2])
                 focus_step = float(items[6])
                 focus_start = focus_center - (n_stars-1)/2*focus_step
-                focus_positions = focus_positions.astype(numpy.float32) * focus_step + focus_start
-                print focus_step, focus_start
-                print focus_positions
+                focus_positions = numpy.arange(n_stars, dtype=numpy.float32) * focus_step + focus_start
+                logger.debug("Infom from header: N=%d, center=%.0f, step=%.0f, start=%.0f" % (
+                    n_stars, focus_center, focus_Step, focus_step, focus_start))
+                logger.debug("Focus positions: %s" % (str(focus_positions)))
                 real_focus_positions = True
         except:
             pass
@@ -446,6 +447,8 @@ def measure_focus_ota(filename, n_stars=5):
         #numpy.savetxt(focus_stars, si)
         sorted_candidates = candidates[si]
 
+        # print "XXX", sorted_candidates.shape, sorted_candidates[:,0].shape, focus_positions.shape, n_stars, candidates.shape[0]
+
         sorted_candidates[:,0] = focus_positions
         #numpy.savetxt(focus_stars, sorted_candidates)
         #numpy.savetxt(focus_stars, numpy.degrees(angles[good]))
@@ -467,7 +470,7 @@ def measure_focus_ota(filename, n_stars=5):
     step_vectors = []
 
     for i in range(1, n_stars):
-        logger.debug("Candidates: %d %s\n%s" % (all_candidates.ndim, str(all_candidates.shape), str(all_candidates)))
+        # logger.debug("Candidates: %d %s\n%s" % (all_candidates.ndim, str(all_candidates.shape), str(all_candidates)))
         if (all_candidates.ndim < 1 or
             all_candidates.shape[0] <= 0):
             # We ran out of candidates
@@ -671,8 +674,10 @@ def poly_err(p,x,y,err):
 
 def get_mean_focuscurve(foci):
 
+    logger = logging.getLogger("MeanFocusCurve")
+
     nstars = foci.shape[1]
-    print "using patterns with %d stars" % (nstars)
+    logger.debug("using patterns with %d stars" % (nstars))
     positions = foci[0,:,0]
 
     median_focus = numpy.median(foci, axis=0)
@@ -697,25 +702,27 @@ def get_mean_focuscurve(foci):
     fwhm_median = [numpy.median(fwhm_cleaned[a]) for a in range(len(fwhms)) ]
     fwhm_std = [numpy.std(fwhm_cleaned[a]) for a in range(len(fwhms)) ]
 
-    print fwhm_median
-    print fwhm_std
+    logger.debug("Median: %s" % (str(fwhm_median)))
+    logger.debug("std: %s" % (str(fwhm_std)))
 
     # Fit a polynomial to the data, using the uncertainties 
     # in each data point as error 
 
     pinit = [0,0,0]
+    logger.debug("Fitting focus-curve: initial guess: %s" % (str(pinit)))
     args = (positions, fwhm_median, fwhm_std)
     fit = scipy.optimize.leastsq(poly_err, pinit, args=args, full_output=1)
     pfit = fit[0]
     uncert = numpy.sqrt(numpy.diag(fit[1]))
-    print pfit, uncert
+    logger.debug("focus-curve fit results: %s" % (str(pfit)))
+    logger.debug("focus curve uncertainties: %s" % (str(uncert)))
 
     best_focus_position = -pfit[1] / (2 * pfit[2])
     best_focus = poly_fit(pfit, best_focus_position)
-    print best_focus_position,"-->",best_focus
+    logger.info("best focus (%s): %f at position %f" % (
+        "maximum" if pfit[2] < 0 else "minimum",
+        best_focus, best_focus_position))
     
-    print "found", "maximum" if pfit[2] < 0 else "minimum"
-
     return pfit, uncert, fwhm_median, fwhm_std, fwhm_cleaned, best_focus_position, best_focus
 
 #    all_fwhms = foci[:,:,6]
@@ -767,13 +774,13 @@ def create_focus_plot(plotdata, stats, obsid, plotfile, real_numbers):
     # Plot the median values and the uncertainties
     ax.errorbar(x=plotdata[0,:,0], y=fwhm_median, 
                 xerr=focus_step*0.1, yerr=fwhm_std,
-                c='green')
+                c='blue')
     ax.scatter(plotdata[0,:,0], fwhm_median, c='green')
                 
 
-    ax.plot(x_curve, y_curve, "-", linewidth=2, c='blue')
-
     # Set title
+    arrow_direction = +1. 
+    arrow_color = "green"
     if (pfit[2] > 0):
         # This means we found a minimum
         if (real_numbers):
@@ -785,20 +792,24 @@ def create_focus_plot(plotdata, stats, obsid, plotfile, real_numbers):
         slope = 2*pfit[2]*median_focus_pos + pfit[1]
         info = "No best focus found, try %s focus positions" % (
             "larger" if slope < 0 else "smaller")
+        arrow_direction = -1. 
+        arrow_color = "red"
+
+    ax.plot(x_curve, y_curve, "-", linewidth=3, c=arrow_color)
 
     title = "Focus %(obsid)s\n%(info)s" % {"obsid": obsid,
                                          "info": info,}
     ax.set_title(title)
 
     # Add a little arrow pointing at the minimum
-    arrow_height = 0.1 * (max_y - min_y)
+    arrow_height = 0.15 * (max_y - min_y)
     arrow_pos = best_focus_position
-    ax.arrow(x=best_focus_position, y=best_focus+arrow_height, 
-             dx=0., dy=-1*arrow_height,
-             linewidth=1.5, color="blue",
+    ax.arrow(x=best_focus_position, y=best_focus+arrow_height*arrow_direction,
+             dx=0., dy=-1*arrow_height*arrow_direction,
+             linewidth=1.5, color=arrow_color,
              head_starts_at_zero=False, 
-             head_width=0.02*(max_x-min_x),
-             head_length=0.03*(max_y-min_y),
+             head_width=0.03*(max_x-min_x),
+             head_length=0.04*(max_y-min_y),
              length_includes_head=True,
              )
 
