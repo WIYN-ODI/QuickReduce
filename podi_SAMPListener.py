@@ -24,13 +24,13 @@ import datetime
 
 from podi_definitions import *
 from podi_commandline import *
-import podi_collectcells
-import podi_focus
-
-import podi_logging
-
 import podi_SAMPsetup as setup
 
+if (not setup.use_ssh):
+    import podi_collectcells
+    import podi_focus
+
+import podi_logging
 import subprocess
 import logging
 
@@ -71,9 +71,9 @@ def worker_slave(queue):
 
     if (not setup.use_ssh):
         # If we reduce frames locally, prepare the QR logging.
-        options = podi_collectcells.read_options_from_commandline()
-        options = podi_logging.setup_logging(options)
         options['clobber'] = False
+
+    logger = logging.getLogger("SAMPWorker")
 
     while (True):
         try:
@@ -112,6 +112,7 @@ def worker_slave(queue):
             # This is most likely a focus exposure
             #
             n_stars = int(cmdline_arg_set_or_default("-nstars", 7))
+            logger.info("New focus exposure to analyze (with %d stars)" % (n_stars))
 
             if (setup.use_ssh):
 
@@ -126,6 +127,7 @@ def worker_slave(queue):
                 }
                 ssh_command = "ssh %(user)s@%(host)s %(podidir)s/podi_focus.py -nstars=%(nstars)d %(filename)s %(outdir)s" % kw
 
+                logger.info("Out-sourcing work to %(user)s@%(host)s via ssh" % kw)
                 process = subprocess.Popen(ssh_command.split(), 
                                            stdout=subprocess.PIPE,
                                            stderr=subprocess.PIPE)
@@ -138,11 +140,13 @@ def worker_slave(queue):
                 if (not _stderr == "" and not _stderr == None):
                     print _stderr
                     print "*"*80
-
+                
             else:
                 # Run locally
-                print "\nAnalyzing focus sequence (%s)\n" % (filename)
+                logger.info("Analyzing focus sequence (%s) locally" % (filename))
                 podi_focus.get_focus_measurement(filename, n_stars=n_stars, output_dir=setup.output_dir)
+
+            logger.info("Done with analysis")
 
             # Now check if we are supposed to open/display the focus plot
             if (not setup.focus_display == None):
@@ -151,6 +155,7 @@ def worker_slave(queue):
                 local_filename = setup.translate_filename_remote2local(filename, remote_filename)
 
                 cmd = "%s %s &" % (setup.focus_display, local_filename)
+                logger.info("Opening and displaying plot")
                 os.system(cmd)
 
         else:
@@ -187,7 +192,7 @@ def worker_slave(queue):
                     print "*"*80
 
             else:
-                print "\nRunning collectcells (%s)\n" % (filename)
+                logger.info("Running collectcells (%s)" % (filename))
                 podi_collectcells.collectcells_with_timeout(input=filename, 
                                                             outputfile=setup.output_format,
                                                             options=options,
@@ -222,12 +227,8 @@ def worker_slave(queue):
         #
         # Once the file is reduced, mark the current task as done.
         #
-        print "task done!"
+        logger.info("task done!")
         queue.task_done()
-
-    if (not setup.use_ssh):
-        print "Shutting down QuickReduce logging"
-        podi_logging.shutdown_logging(options)
 
     print "Terminating worker process..."
 
@@ -472,7 +473,13 @@ if __name__ == "__main__":
 
     else:
 
+        print "Starting logger"
+        options = read_options_from_commandline()
+        options = podi_logging.setup_logging(options)
         
         SAMPListener()
+
+        print "Shutting down QuickReduce logging"
+        podi_logging.shutdown_logging(options)
 
     
