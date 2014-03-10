@@ -2725,6 +2725,12 @@ def collectcells(input, outputfile,
         logger.info("Starting non-sidereal WCS modification")
         apply_nonsidereal_correction(ota_list, options, logger)
 
+        if ('ref' in options['nonsidereal'] and
+            os.path.isfile(options['nonsidereal']['ref'])):
+            master_reduction_files_used = collect_reduction_files_used(
+                master_reduction_files_used, 
+                {"nonsidereal-reference": options['nonsidereal']['ref']})
+
 
 
     #
