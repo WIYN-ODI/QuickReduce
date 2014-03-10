@@ -93,6 +93,8 @@ import podi_sitesetup as sitesetup
 import podi_logging
 import logging
 
+numpy.seterr(divide='ignore', invalid='ignore')
+
 try:
     import cPickle as pickle
 except:
