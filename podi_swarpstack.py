@@ -149,29 +149,39 @@ def swarpstack():
     options = read_options_from_commandline()
     logger.info("Removing some OTAs from input: %s" % (str(options['skip_otas'])))
 
-    if (use_nonsidereal):
-        logger.info("Applying the non-sidereal motion correction")
+    stack_start_time = 1e9
+    stack_end_time = -1e9
+    stack_total_exptime = 0
+    stack_framecount = 0
 
-        # First apply the non-sidereal correction to all input frames
-        # Keep frames that are already modified
-        for i in range(len(inputfiles)):
-            if (not os.path.isfile(inputfiles[i])):
-                continue
-            hdulist = pyfits.open(inputfiles[i])
-            # Assemble the temporary filename for the corrected frame
-            master_reduction_files_used = collect_reduction_files_used(master_reduction_files_used, 
-                                                                       {"calibrated": inputfiles[i]})
+    for i in range(len(inputfiles)):
+        if (not os.path.isfile(inputfiles[i])):
+            continue
+        hdulist = pyfits.open(inputfiles[i])
 
-            corrected_filename = "%(single_dir)s/%(obsid)s.nonsidereal.fits" % {
-                "single_dir": sitesetup.swarp_singledir,
-                "obsid": hdulist[0].header['OBSID'],
-            }
+        # Also set some global stack-related parameters that we will add to the 
+        # final stack at the end
+        mjd_obs_start = hdulist[0].header['MJD-OBS']
+        exptime = hdulist[0].header['EXPMEAS'] if 'EXPMEAS' in hdulist[0].header else \
+                  hdulist[0].header['EXPTIME']
+        mjd_obs_end = hdulist[0].header['MJD-OBS'] + (exptime/86400.)
 
-            # Check if the corrected file already exists - if not create it
-            #if (not os.path.isfile(corrected_filename)):
-            logger.info("Correcting input frame %s --> %s" % (
-                inputfiles[i], corrected_filename))
-            # Apply the non-sidereal option
+        stack_total_exptime += exptime
+        stack_framecount += 1
+
+        stack_start_time = numpy.min([stack_start_time, mjd_obs_start])
+        stack_end_time = numpy.max([stack_end_time, mjd_obs_end])
+
+        master_reduction_files_used = collect_reduction_files_used(master_reduction_files_used, 
+                                                                   {"calibrated": inputfiles[i]})
+        
+        corrected_filename = None
+
+        if (use_nonsidereal):
+            logger.info("Applying the non-sidereal motion correction")
+
+            # First apply the non-sidereal correction to all input frames
+            # Keep frames that are already modified
             from podi_collectcells import apply_nonsidereal_correction
             apply_nonsidereal_correction(hdulist, options, logger)
 
@@ -182,47 +192,18 @@ def swarpstack():
                         {"nonsidereal-reference": options['nonsidereal']['ref']})
             except:
                 pass
-                    
-            if (options['skip_otas'] != []):
-                ota_list = []
-                for ext in hdulist:
-                    ota = -1
-                    try:
-                        ota = int(ext.header['EXTNAME'][3:5])
-                    except:
-                        pass
-                    if (ota in options['skip_otas']):
-                        continue
-                    ota_list.append(ext)
-                hdulist = pyfits.HDUList(ota_list)
 
-            clobberfile(corrected_filename)
-            hdulist.writeto(corrected_filename, clobber=True)
-            # else:
-            #     logger.info("Input-frame %s with correction already exists (%s)" % (
-            #         inputfiles[i], corrected_filename))
 
-            # Now change the filename of the input list to reflect 
-            # the corrected file
-            inputfiles[i] = corrected_filename
-        #
-        # By now all frames have the non-sidereal correction applied,
-        # so we can go ahead and stack them as usual
-        #
-
-    elif (options['skip_otas'] != []):
-        for i in range(len(inputfiles)):
-            if (not os.path.isfile(inputfiles[i])):
-                continue
-            hdulist = pyfits.open(inputfiles[i])
-
-            master_reduction_files_used = collect_reduction_files_used(master_reduction_files_used, 
-                                                                       {"calibrated": inputfiles[i]})
-
-            corrected_filename = "%(single_dir)s/%(obsid)s.otaselect.fits" % {
+            # Assemble the temporary filename for the corrected frame
+            corrected_filename = "%(single_dir)s/%(obsid)s.nonsidereal.fits" % {
                 "single_dir": sitesetup.swarp_singledir,
                 "obsid": hdulist[0].header['OBSID'],
             }
+
+
+        print "before skip-ota",len(hdulist)
+        if (options['skip_otas'] != []):
+
             ota_list = []
             for ext in hdulist:
                 ota = -1
@@ -234,10 +215,62 @@ def swarpstack():
                     logger.debug("skipping ota %s as requested" % (ext.header['EXTNAME']))
                     continue
                 ota_list.append(ext)
+
+            # Save the modified OTA list for later
             hdulist = pyfits.HDUList(ota_list)
+
+            if (corrected_filename == None):
+                corrected_filename = "%(single_dir)s/%(obsid)s.otaselect.fits" % {
+                    "single_dir": sitesetup.swarp_singledir,
+                    "obsid": hdulist[0].header['OBSID'],
+                }
+        print "after skip-ota",len(hdulist)
+
+        if (not options['bpm_dir'] == None):
+            for ext in range(len(hdulist)):
+                if (not is_image_extension(hdulist[ext])):
+                    continue
+                    
+                fppos = None
+                if ('FPPOS' in hdulist[ext].header):
+                    fppos = hdulist[ext].header['FPPOS']
+                if (not fppos == None):
+                    region_file = "%s/bpm_%s.reg" % (options['bpm_dir'], fppos)
+                    if (os.path.isfile(region_file)):
+                        sum1 = numpy.sum(hdulist[ext].data)
+                        mask_broken_regions(hdulist[ext].data, region_file)
+                        sum2 = numpy.sum(hdulist[ext].data)
+                        print sum1, sum2, sum1-sum2
+
+
+            if (corrected_filename == None):
+                corrected_filename = "%(single_dir)s/%(obsid)s.bpmfixed.fits" % {
+                    "single_dir": sitesetup.swarp_singledir,
+                    "obsid": hdulist[0].header['OBSID'],
+                }
+
+        if (not corrected_filename == None):
+            # This means we made some modifications, either non-sidereal or 
+            # skip-ota or both
+ 
+            # Check if the corrected file already exists - if not create it
+            #if (not os.path.isfile(corrected_filename)):
+            logger.info("Correcting input frame %s --> %s" % (
+                inputfiles[i], corrected_filename))
+            
             clobberfile(corrected_filename)
             hdulist.writeto(corrected_filename, clobber=True)
+
+            # Now change the filename of the input list to reflect 
+            # the corrected file
             inputfiles[i] = corrected_filename
+
+
+    #
+    # By now all frames have all corrections applied,
+    # so we can go ahead and stack them as usual
+    #
+
 
     target_dimension = float(cmdline_arg_set_or_default('-dimension', -1))
 
@@ -563,11 +596,17 @@ def swarpstack():
     for hdrkey in [
             'TARGRA', 'TARGDEC',
             'FILTER', 'FILTERID', 'FILTDSCR', 
-            'EXPTIME', 'OBSID', 'OBJECT', 
+            'OBSID', 'OBJECT', 
             'DATE-OBS', 'TIME-OBS', 'MJD-OBS']:
         if (hdrkey in firsthdu[0].header):
             key, val, com = firsthdu[0].header.cards[hdrkey]
             hdustack[0].header[key] = (val, com)
+
+    hdustack[0].header['EXPTIME'] = (stack_total_exptime, "total exposure time in stack")
+    hdustack[0].header['MJD-STRT'] = (stack_start_time, "MJD at start of earliest exposure")
+    hdustack[0].header['MJD-END'] = (stack_end_time, "MJD at end of last exposure")
+    hdustack[0].header['NCOMBINE'] = (stack_framecount, "number of exposures in stack")
+
     # Add some additional headers
     hdustack[0].header['MAGZERO'] = 25.
     hdustack[0].header['_BGSUB'] = "yes" if subtract_back else "no"
