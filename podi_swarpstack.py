@@ -160,7 +160,7 @@ def swarpstack():
             hdulist = pyfits.open(inputfiles[i])
             # Assemble the temporary filename for the corrected frame
             master_reduction_files_used = collect_reduction_files_used(master_reduction_files_used, 
-                                                                       {"raw": inputfiles[i]})
+                                                                       {"calibrated": inputfiles[i]})
 
             corrected_filename = "%(single_dir)s/%(obsid)s.nonsidereal.fits" % {
                 "single_dir": sitesetup.swarp_singledir,
@@ -217,7 +217,7 @@ def swarpstack():
             hdulist = pyfits.open(inputfiles[i])
 
             master_reduction_files_used = collect_reduction_files_used(master_reduction_files_used, 
-                                                                       {"raw": inputfiles[i]})
+                                                                       {"calibrated": inputfiles[i]})
 
             corrected_filename = "%(single_dir)s/%(obsid)s.otaselect.fits" % {
                 "single_dir": sitesetup.swarp_singledir,
