@@ -201,7 +201,6 @@ def swarpstack():
             }
 
 
-        print "before skip-ota",len(hdulist)
         if (options['skip_otas'] != []):
 
             ota_list = []
@@ -224,7 +223,6 @@ def swarpstack():
                     "single_dir": sitesetup.swarp_singledir,
                     "obsid": hdulist[0].header['OBSID'],
                 }
-        print "after skip-ota",len(hdulist)
 
         if (not options['bpm_dir'] == None):
             for ext in range(len(hdulist)):
@@ -237,10 +235,7 @@ def swarpstack():
                 if (not fppos == None):
                     region_file = "%s/bpm_%s.reg" % (options['bpm_dir'], fppos)
                     if (os.path.isfile(region_file)):
-                        sum1 = numpy.sum(hdulist[ext].data)
                         mask_broken_regions(hdulist[ext].data, region_file)
-                        sum2 = numpy.sum(hdulist[ext].data)
-                        print sum1, sum2, sum1-sum2
 
 
             if (corrected_filename == None):
