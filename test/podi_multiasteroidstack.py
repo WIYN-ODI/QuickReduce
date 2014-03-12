@@ -14,6 +14,8 @@ import astropy.io.votable
 import math
 import numpy
 import ephem
+import time
+import scipy.stats
 
 if __name__ == "__main__":
 
@@ -109,6 +111,10 @@ if __name__ == "__main__":
             logger.error("Problem: the stacked output file doesn't exist")
             continue
 
+        coord_j2000 = ephem.Equatorial(obj_ra[obj], obj_dec[obj], epoch=ephem.J2000)
+        ra = numpy.degrees(coord_j2000.ra)
+        dec = numpy.degrees(coord_j2000.dec)
+
         logger.info("Creating cut-out centered on object ...")
         cutout_file = "%s__%s.cutout.fits" % (target_name, obj_name)
         cutout_weight = "%s__%s.cutout.weight.fits" % (target_name, obj_name)
@@ -117,10 +123,6 @@ if __name__ == "__main__":
             hdu = astropy.io.fits.open(outputfile)
             wcs = astropy.wcs.WCS(hdu[0].header)
             data = hdu[0].data.T
-
-            coord_j2000 = ephem.Equatorial(obj_ra[obj], obj_dec[obj], epoch=ephem.J2000)
-            ra = numpy.degrees(coord_j2000.ra)
-            dec = numpy.degrees(coord_j2000.dec)
 
             dec_width = smaller_region / 60. / 2.
             ra_width = dec_width / math.cos(math.radians(dec))
@@ -186,6 +188,100 @@ if __name__ == "__main__":
         # Next run source extractor on the frame
         compute_photometry = True
         if (compute_photometry):
+
+            catfile = "%s__%s.cat" % (target_name, obj_name)
+
+            basepath, _ = os.path.split(os.path.abspath(sys.argv[0]))
+            sex_config_file = "%s/../.config/wcsfix.sex" % (basepath)
+            parameters_file = "%s/../.config/wcsfix.sexparam" % (basepath)
+            sexcmd = "%(sex)s -c %(conf)s -PARAMETERS_NAME %(param)s -CATALOG_NAME %(catfile)s \
+                       -WEIGHT_IMAGE %(weightfile)s -WEIGHT_GAIN N -WEIGHT_TYPE MAP_VAR %(input)s" % {
+                'sex': sitesetup.sextractor, 
+                'conf': sex_config_file,
+                'param': parameters_file, 
+                'catfile': catfile, 
+                'weightfile': cutout_weight,
+                'input': cutout_file,
+            }
+            
+            logger.debug("Sextractor command:\n%s" % " ".join(sexcmd.split()))
+            start_time = time.time()
+            try:
+                ret = subprocess.Popen(sexcmd.split(), 
+                                       stdout=subprocess.PIPE, 
+                                       stderr=subprocess.PIPE)
+                (sex_stdout, sex_stderr) = ret.communicate()
+                #os.system(sexcmd)
+                if (ret.returncode != 0):
+                    logger.warning("Sextractor might have a problem, check the log")
+                    logger.debug("Stdout=\n"+sex_stdout)
+                    logger.debug("Stderr=\n"+sex_stderr)
+            except OSError as e:
+                podi_logging.log_exception()
+                print >>sys.stderr, "Execution failed:", e
+            end_time = time.time()
+            logger.debug("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
+
+            # Open the source catalog and get photometry for the object 
+            # closest to the calculated position
+            cat_data = numpy.loadtxt(catfile)
+            if (cat_data.ndim < 2):
+                logger.info("Problem with reading the catalog")
+            else:
+                # print SXcolumn['flags'], SXcolumn['mag_aper_2.0']
+                # print "flags=",cat_data[:,SXcolumn['flags']]
+                # print "mag2.",cat_data[:,SXcolumn['mag_aper_2.0']]
+
+                good_sources = (cat_data[:,SXcolumn['flags']] == 0) & \
+                               (cat_data[:,SXcolumn['mag_aper_2.0']] < 75)
+                if (numpy.sum(good_sources) > 10):
+                    psf_size = cat_data[:,SXcolumn['fwhm_world']][good_sources]
+                    psf_cleaned = three_sigma_clip(psf_size)
+                    seeing = numpy.array(scipy.stats.scoreatpercentile(psf_cleaned, [16,50,84]))
+                    print "seeing min/med/max=",seeing, seeing*3600.
+                else:
+                    # numpy.savetxt(sys.stdout, cat_data)
+                    seeing = numpy.array([0,2,5])
+                    pass
+
+                sig_lo = seeing[1] - 3*(seeing[1]-seeing[0])
+                sig_hi = seeing[1] + 3*(seeing[2]-seeing[1])
+                valid_psf_size = (cat_data[:,SXcolumn['fwhm_world']] > sig_lo) & \
+                                 (cat_data[:,SXcolumn['fwhm_world']] < sig_hi) & \
+                                 good_sources
+                starcat = cat_data[valid_psf_size]
+
+                # Search for the closest source to computed position
+                d_ra = starcat[:,SXcolumn['ra']] - ra
+                d_dec = starcat[:,SXcolumn['dec']] - dec
+                d = numpy.hypot(d_ra * math.cos(math.radians(dec)), d_dec)
+                
+                nearest = numpy.argmin(d)
+                asteroid = starcat[nearest]
+                # print asteroid
+                print "closest distance", d[nearest]*3600,"arcsec"
+                for col in ['ra', 'dec', 
+                            'mag_aper_2.0', 'mag_err_2.0',
+                            'mag_aper_3.0', 'mag_err_3.0',
+                            'mag_aper_5.0', 'mag_err_5.0',
+                            ]:
+                    print asteroid[SXcolumn[col]], 
+                print
+
+                # Create a small ds9 region file for this frame, showing the 
+                # computed position and the closest counterpart
+                ds9_regfile = "%s__%s.match.reg" % (target_name, obj_name)
+                reg = open(ds9_regfile, "w")
+                print >>reg,"# Region file format: DS9 version 4.1"
+                print >>reg, 'global color=green dashlist=8 3 width=1 font="helvetica 10 normal roman" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1'
+                print >>reg, "fk5"
+                
+                # Draw red circle around the computed position
+                print >>reg, 'circle(%f,%f,5") # width=3 color=green' % (ra, dec)
+                print >>reg, 'circle(%f,%f,%f") # width=2 color=red' % (
+                    asteroid[SXcolumn['ra']], asteroid[SXcolumn['dec']],
+                    seeing[1]*3600.,
+                )
             pass
 
         #break
