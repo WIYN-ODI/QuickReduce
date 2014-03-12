@@ -121,7 +121,7 @@ import logging
 
 
 
-def swarpstack():
+def swarpstack(outputfile, inputlist, swarp_params, options):
 
     logger = logging.getLogger("SwarpStack - Prepare")
 
@@ -130,23 +130,12 @@ def swarpstack():
     dirname, filename = os.path.split(abspath)
     swarp_default = "%s/.config/swarp.default" % (dirname)
 
-    stacked_output = get_clean_cmdline()[1]
-
-    inputfiles = get_clean_cmdline()[2:]
-
-    if (len(inputfiles) <= 0):
+    if (len(inputlist) <= 0):
         logger.error("No input files specified!")
         return
 
-    pixelscale = float(cmdline_arg_set_or_default("-pixelscale", 0))
-    subtract_back = cmdline_arg_isset("-bgsub")
-
-    reuse_singles = cmdline_arg_isset("-reusesingles")
-
     master_reduction_files_used = {}
     
-    use_nonsidereal = cmdline_arg_isset("-nonsidereal")
-    options = read_options_from_commandline()
     logger.info("Removing some OTAs from input: %s" % (str(options['skip_otas'])))
 
     stack_start_time = 1e9
@@ -154,10 +143,13 @@ def swarpstack():
     stack_total_exptime = 0
     stack_framecount = 0
 
-    for i in range(len(inputfiles)):
-        if (not os.path.isfile(inputfiles[i])):
+    print "input=",inputlist
+    print "output=",outputfile
+
+    for i in range(len(inputlist)):
+        if (not os.path.isfile(inputlist[i])):
             continue
-        hdulist = pyfits.open(inputfiles[i])
+        hdulist = pyfits.open(inputlist[i])
 
         # Also set some global stack-related parameters that we will add to the 
         # final stack at the end
@@ -173,16 +165,17 @@ def swarpstack():
         stack_end_time = numpy.max([stack_end_time, mjd_obs_end])
 
         master_reduction_files_used = collect_reduction_files_used(master_reduction_files_used, 
-                                                                   {"calibrated": inputfiles[i]})
+                                                                   {"calibrated": inputlist[i]})
         
         corrected_filename = None
 
-        if (use_nonsidereal):
+        if (swarp_params['use_nonsidereal']):
             logger.info("Applying the non-sidereal motion correction")
 
             # First apply the non-sidereal correction to all input frames
             # Keep frames that are already modified
             from podi_collectcells import apply_nonsidereal_correction
+            # print options['nonsidereal']
             apply_nonsidereal_correction(hdulist, options, logger)
 
             try:
@@ -251,14 +244,14 @@ def swarpstack():
             # Check if the corrected file already exists - if not create it
             #if (not os.path.isfile(corrected_filename)):
             logger.info("Correcting input frame %s --> %s" % (
-                inputfiles[i], corrected_filename))
+                inputlist[i], corrected_filename))
             
             clobberfile(corrected_filename)
             hdulist.writeto(corrected_filename, clobber=True)
 
             # Now change the filename of the input list to reflect 
             # the corrected file
-            inputfiles[i] = corrected_filename
+            inputlist[i] = corrected_filename
 
 
     #
@@ -269,12 +262,12 @@ def swarpstack():
 
     target_dimension = float(cmdline_arg_set_or_default('-dimension', -1))
 
-    add_only = cmdline_arg_isset("-add") and os.path.isfile(stacked_output)
+    add_only = cmdline_arg_isset("-add") and os.path.isfile(outputfile)
     if (add_only):
         logger.info("Activating ADD mode")
 
-    if (stacked_output.endswith(".fits")):
-        stacked_output = stacked_output[:-5]
+    if (outputfile.endswith(".fits")):
+        outputfile = outputfile[:-5]
 
     header_only_file = "%s/preswarp.fits" % (sitesetup.scratch_dir)
 
@@ -294,7 +287,7 @@ def swarpstack():
             output_info = pyfits.open(reference_file)
         else:
             # Open the existing output header and get data from there
-            output_info = pyfits.open(stacked_output+".fits")
+            output_info = pyfits.open(outputfile+".fits")
 
         logger.info("Stack information...")
         logger.info("   Output-dimensions: %(NAXIS1)5d x %(NAXIS2)5d" % (output_info[0].header))
@@ -304,9 +297,9 @@ def swarpstack():
         out_naxis1 = output_info[0].header['NAXIS1']
         out_naxis2 = output_info[0].header['NAXIS2']
 
-        if (pixelscale <= 0):
-            pixelscale = math.fabs(output_info[0].header['CD1_1']) * 3600.
-            logger.info("Computing pixelscale from data: %.4f arcsec/pixel" % (pixelscale))
+        if (swarp_params['pixelscale'] <= 0):
+            swarp_params['pixelscale'] = math.fabs(output_info[0].header['CD1_1']) * 3600.
+            logger.info("Computing pixelscale from data: %.4f arcsec/pixel" % (swarp_params['pixelscale']))
     else:
         #
         # This is the regular start-from-scratch mode
@@ -323,10 +316,10 @@ def swarpstack():
                   'combine_type': 'AVERAGE',
               }
 
-        if (pixelscale > 0):
-            swarp_opts += " -PIXELSCALE_TYPE MANUAL -PIXEL_SCALE %.4f " % (pixelscale)
+        if (swarp_params['pixelscale'] > 0):
+            swarp_opts += " -PIXELSCALE_TYPE MANUAL -PIXEL_SCALE %.4f " % (swarp_params['pixelscale'])
 
-        swarp_opts += " -SUBTRACT_BACK %s " % ("Y" if subtract_back else "N")
+        swarp_opts += " -SUBTRACT_BACK %s " % ("Y" if swarp_params['subtract_back'] else "N")
 
         logger.debug("SWARP options for pre-stack:\n"+" ".join(swarp_opts.split()))
 
@@ -337,7 +330,7 @@ def swarpstack():
         swarp_cmd = "%(swarp)s %(opts)s -HEADER_ONLY Y %(files)s" % {
             'swarp': sitesetup.swarp_exec,
             'opts': swarp_opts,
-            'files': " ".join(inputfiles),
+            'files': " ".join(inputlist),
         }
         logger.debug("swarp_cmd=\n"+swarp_cmd)
 
@@ -375,11 +368,11 @@ def swarpstack():
         out_naxis1 = output_info[0].header['NAXIS1']
         out_naxis2 = output_info[0].header['NAXIS2']
         
-        if (pixelscale <= 0):
-            pixelscale = math.fabs(output_info[0].header['CD1_1']) * 3600.
+        if (swarp_params['pixelscale'] <= 0):
+            swarp_params['pixelscale'] = math.fabs(output_info[0].header['CD1_1']) * 3600.
             #pixelscale = (output_info[0].header['CD1_1'] * output_info[0].header['CD2_2'] \
             #             - output_info[0].header['CD1_2'] * output_info[0].header['CD2_1']) * 3600.
-            logger.info("Computing pixelscale from data: %.4f arcsec/pixel" % (pixelscale))
+            logger.info("Computing pixelscale from data: %.4f arcsec/pixel" % (swarp_params['pixelscale']))
     
     #
     # Prepare the individual frames, rectified and re-projected 
@@ -387,15 +380,15 @@ def swarpstack():
     #
     logger = logging.getLogger("SwarpStack - Singles")
     single_prepared_files = []
-    for singlefile in inputfiles:
+    for singlefile in inputlist:
         hdulist = pyfits.open(singlefile)
         obsid = hdulist[0].header['OBSID']
 
         # assemble all swarp options for that run
         dic = {'singledir': sitesetup.swarp_singledir,
                'obsid': obsid,
-               'pixelscale': pixelscale,
-               'pixelscale_type': "MANUAL" if pixelscale > 0 else "MEDIAN",
+               'pixelscale': swarp_params['pixelscale'],
+               'pixelscale_type': "MANUAL" if swarp_params['pixelscale'] > 0 else "MEDIAN",
                'center_ra': out_crval1,
                'center_dec': out_crval2,
                'imgsizex': out_naxis1,
@@ -428,7 +421,7 @@ def swarpstack():
 
         if (add_only and os.path.isfile(single_file)):
             logger.info("This single-swarped file (%s) exist, skipping it" % (single_file))
-        elif (reuse_singles and os.path.isfile(single_file)):
+        elif (swarp_params['reuse_singles'] and os.path.isfile(single_file)):
             logger.info("This single-swarped file (%s) exist, re-using it" % (single_file))
             single_prepared_files.append(single_file)
         else:
@@ -463,21 +456,21 @@ def swarpstack():
 
         prev = 1
         while (True):
-            filename = "%s.prev%02d.fits" % (stacked_output, prev)
+            filename = "%s.prev%02d.fits" % (outputfile, prev)
             if (not os.path.isfile(filename)):
                 break
             prev += 1
             continue
                 
         # Rename the current output file and its weights
-        old_stacked = "%s.prev%02d.fits" % (stacked_output, prev)
-        old_weight = "%s.prev%02d.weight.fits" % (stacked_output, prev)
+        old_stacked = "%s.prev%02d.fits" % (outputfile, prev)
+        old_weight = "%s.prev%02d.weight.fits" % (outputfile, prev)
 
-        os.rename(stacked_output+".fits", old_stacked)
-        logger.debug("renamed old stack %s -> %s" % (stacked_output+".fits", old_stacked))
+        os.rename(outputfile+".fits", old_stacked)
+        logger.debug("renamed old stack %s -> %s" % (outputfile+".fits", old_stacked))
 
-        os.rename(stacked_output+".weight.fits", old_weight)
-        logger.debug("renamed old stack weight %s -> %s" % (stacked_output+".weight.fits", old_weight))
+        os.rename(outputfile+".weight.fits", old_weight)
+        logger.debug("renamed old stack weight %s -> %s" % (outputfile+".weight.fits", old_weight))
 
         # Also add the new re-named old stacked file to list of input files
         single_prepared_files.append(old_stacked)
@@ -491,10 +484,10 @@ def swarpstack():
     # Now all single files are prepared, go ahead and produce the actual stack
     #
     dic['combine_type'] = "AVERAGE"
-    dic['imageout'] = stacked_output+".fits"
-    dic['weightout'] = stacked_output+".weight.fits"
+    dic['imageout'] = outputfile+".fits"
+    dic['weightout'] = outputfile+".weight.fits"
     dic['prepared_files'] = " ".join(single_prepared_files)
-    dic['bgsub'] = "Y" if subtract_back else "N"
+    dic['bgsub'] = "Y" if swarp_params['subtract_back'] else "N"
 
     swarp_opts = """\
                  -c %(swarp_default)s \
@@ -520,7 +513,7 @@ def swarpstack():
     # subtraction to get s nice smooth background that does not over-subtract 
     # the target.
     #
-    if (target_dimension > 0 and subtract_back):
+    if (target_dimension > 0 and swarp_params['subtract_back']):
         dic['BACK_TYPE'] = "AUTO"
         dic['BACK_SIZE'] = 128
         dic['BACK_FILTERSIZE'] = 3
@@ -529,7 +522,7 @@ def swarpstack():
         # larger
         # first compute a reference size for the default settings
         ref_size = dic['BACK_SIZE'] * dic['BACK_FILTERSIZE'] \
-                   * pixelscale / 60. \
+                   * swarp_params['pixelscale'] / 60. \
                    * 0.1  # the last factor is a fudge-factor
         logger.debug("Reference size: %f" % (ref_size))
         # Now scale up the filtersize, making sure it stays between 3 and 7
@@ -540,7 +533,7 @@ def swarpstack():
 
         # in a next step, modify the backsize parameter. Make sure it does not
         # become too large or too small
-        backsize = (target_dimension * 60. / pixelscale) / filtersize
+        backsize = (target_dimension * 60. / swarp_params['pixelscale']) / filtersize
 
         logger.debug("BACK-SIZE: %f" % (backsize))
         if (backsize < 64): backsize = 64
@@ -586,7 +579,7 @@ def swarpstack():
     # Finally, open the output file and copy a bunch of headers into it
     hdustack = pyfits.open(dic['imageout'], mode='update')
     # Also open the first frame in the stack to be used as data source
-    firsthdu = pyfits.open(inputfiles[0])
+    firsthdu = pyfits.open(inputlist[0])
 
     for hdrkey in [
             'TARGRA', 'TARGDEC',
@@ -604,10 +597,10 @@ def swarpstack():
 
     # Add some additional headers
     hdustack[0].header['MAGZERO'] = 25.
-    hdustack[0].header['_BGSUB'] = "yes" if subtract_back else "no"
-    hdustack[0].header['_PXLSCLE'] = pixelscale
-    hdustack[0].header['_RESGL'] = ("yes" if reuse_singles else "no", "reuse singles?")
-    hdustack[0].header['_NONSDRL'] = ("yes" if use_nonsidereal else "no", "using non-sidereal correction?")
+    hdustack[0].header['_BGSUB'] = "yes" if swarp_params['subtract_back'] else "no"
+    hdustack[0].header['_PXLSCLE'] = swarp_params['pixelscale']
+    hdustack[0].header['_RESGL'] = ("yes" if swarp_params['reuse_singles'] else "no", "reuse singles?")
+    hdustack[0].header['_NONSDRL'] = ("yes" if swarp_params['use_nonsidereal'] else "no", "using non-sidereal correction?")
     valid_nonsidereal_reference = False
     try:
         hdustack[0].header['_NSID_RA'] = options['nonsidereal']['dra']
@@ -656,6 +649,20 @@ def swarpstack():
 
     return
 
+
+
+def read_swarp_params():
+
+    params = {}
+
+
+    params['pixelscale'] = float(cmdline_arg_set_or_default("-pixelscale", 0))
+    params['subtract_back'] = cmdline_arg_isset("-bgsub")
+    params['reuse_singles'] = cmdline_arg_isset("-reusesingles")
+    params['use_nonsidereal'] = cmdline_arg_isset("-nonsidereal")
+
+    return params
+
 if __name__ == "__main__":
     if (len(sys.argv) <= 1):
         import podi_swarpstack as me
@@ -683,8 +690,21 @@ if __name__ == "__main__":
         else:
             logger.error("Can't open the configfile (%s)" % (configfile))
 
+    options = read_options_from_commandline(options)
+
+    print "non-sid",options['nonsidereal']
     try:
-        swarpstack()
+
+        # Read command line and store all results in params dictionary
+        params = read_swarp_params()
+        outputfile = get_clean_cmdline()[1]
+        inputlist = get_clean_cmdline()[2:]
+
+        swarpstack(outputfile=outputfile, 
+                   inputlist=inputlist, 
+                   swarp_params=params, 
+                   options=options)
+
     except KeyboardInterrupt, SystemExit:
         pass
     except:
