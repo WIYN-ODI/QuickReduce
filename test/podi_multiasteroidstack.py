@@ -82,6 +82,7 @@ if __name__ == "__main__":
         #print obj_name
                 
         outputfile = "%s__%s.fits" % (target_name, obj_name)
+        outputfile_weight = "%s__%s.weight.fits" % (target_name, obj_name)
         logger.debug("Setting outputfie: %s" % (outputfile))
 
         # Create the stack-file so we can re-run just this one again later 
@@ -110,6 +111,7 @@ if __name__ == "__main__":
 
         logger.info("Creating cut-out centered on object ...")
         cutout_file = "%s__%s.cutout.fits" % (target_name, obj_name)
+        cutout_weight = "%s__%s.cutout.weight.fits" % (target_name, obj_name)
         if (smaller_region > 0):
             # Create a thumbnail centered on the asteroids position
             hdu = astropy.io.fits.open(outputfile)
@@ -156,7 +158,8 @@ if __name__ == "__main__":
             print "truncated area:", trunc_max-trunc_min
 
             print "insert region:",insert_min, insert_max
-            cutout[insert_min[0]:insert_max[0], insert_min[1]:insert_max[1]] = data[trunc_min[0]:trunc_max[0], trunc_min[1]:trunc_max[1]]
+            cutout[insert_min[0]:insert_max[0], insert_min[1]:insert_max[1]] = \
+                data[trunc_min[0]:trunc_max[0], trunc_min[1]:trunc_max[1]]
 
             hdu[0].data = cutout.T
             hdu[0].header['CRPIX1'] -= trunc_min[0]
@@ -166,7 +169,25 @@ if __name__ == "__main__":
             hdu.writeto(cutout_file, clobber=True)
             hdu.close()
 
-            
+            # Repeat the same procedure with the weight map
+            hdu_w = astropy.io.fits.open(outputfile_weight)
+            data_w = hdu_w[0].data.T
+            cutout_w = numpy.zeros((dimension[0], dimension[1]))
+            cutout_w[insert_min[0]:insert_max[0], insert_min[1]:insert_max[1]] = \
+                data_w[trunc_min[0]:trunc_max[0], trunc_min[1]:trunc_max[1]]
+            hdu_w[0].data = cutout_w.T
+            hdu_w[0].header['CRPIX1'] -= trunc_min[0]
+            hdu_w[0].header['CRPIX2'] -= trunc_min[1]
+
+            clobberfile(cutout_weight)
+            hdu_w.writeto(cutout_weight, clobber=True)
+            hdu_w.close()
+
+        # Next run source extractor on the frame
+        compute_photometry = True
+        if (compute_photometry):
+            pass
+
         #break
 
     podi_logging.shutdown_logging(options)
