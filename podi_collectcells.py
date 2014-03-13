@@ -2641,7 +2641,8 @@ def collectcells(input, outputfile,
 
         # Compute the sky-brightness 
         sky_arcsec = sky_global_median / (0.11**2) # convert counts/pixel to counts/arcsec*2
-        sky_mag = -2.5 * math.log10(sky_arcsec) + zeropoint_exptime
+        sky_mag = -99
+	if (sky_arcsec > 0 and zeropoint_exptime < 99): -2.5 * math.log10(sky_arcsec) + zeropoint_exptime
         ota_list[0].header['SKYMAG'] = sky_mag
 
 
