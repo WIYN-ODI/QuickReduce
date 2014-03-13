@@ -667,7 +667,7 @@ def collect_reduce_ota(filename,
                 elif ('EXPTIME' in dark[0].header):
                     darktime = dark[0].header['EXPTIME']
                 else:
-                    darktime = 0
+                    darktime = 1.
 
                 # Search for the flatfield data for the current OTA
                 for dark_ext in dark[1:]:
