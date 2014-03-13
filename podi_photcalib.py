@@ -946,17 +946,17 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         fig.savefig(zp_radial_plot)
 
 
+    # Set some default values for most return results
+    zp_median = 99
+    zp_std = 1
+    zp_exptime = 99
+    diagplots = False
+    zp_stderrofmean = 0.0
+    zp_upper1sigma = 99.
+    zp_lower1sigma = 99.
+    n_clipped = 0
     #import podi_collectcells
-    if (zp.shape[0] <= 0):
-        zp_median = 99
-        zp_std = 1
-        zp_exptime = 99
-        diagplots = False
-        zp_stderrofmean = 0.0
-        zp_upper1sigma = 99.
-        zp_lower1sigma = 99.
-        n_clipped = 0
-    else:
+    if (zp.shape[0] > 0):
         if (zp.shape[0] <=5):
             zp_clipped = zp
             zperr_clipped = zperr
@@ -985,25 +985,29 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         #
         # Now try to only use the top 100 brightest stars with errors < 0.1 mag
         #
-        brightest_star_mag = numpy.min(odi_mag[odi_magerr < 0.1])
-        si = numpy.argsort(odi_mag)
-        number_within_3mags = numpy.sum( ((odi_mag < brightest_star_mag+3) & (odi_magerr < 0.1)) )
-        sel_median, sel_std, sel_psigma, sel_msigma, sel_n = -99., -99., -99., -99., -1
-        if (number_within_3mags > 3):
-            if (number_within_3mags > 100): number_within_3mags = 100
-            zp_sel = numpy.zeros( (number_within_3mags, 4) )
-            for i in range(number_within_3mags):
-                zp_sel[i,:] = [odi_mag[si[i]], sdss_mag[si[i]], zp[si[i]], zperr[si[i]]]
-            # Now we have only a subset of all points
-            sel_median = numpy.median(zp_sel[:,2])
-            sel_std = numpy.std(zp_sel[:,2])
-            sel_psigma = scipy.stats.scoreatpercentile(zp_sel[:,2], 84)
-            sel_msigma = scipy.stats.scoreatpercentile(zp_sel[:,2], 16)
-            sel_medodimag = numpy.median(zp_sel[:,0])
-            sel_maxodimag = numpy.max(zp_sel[:,0])
-            sel_minodimag = numpy.min(zp_sel[:,0])
-            sel_n = number_within_3mags
-            detailed_return['zp_restricted'] = (sel_median, sel_std, sel_psigma, sel_msigma, sel_n, sel_medodimag, sel_maxodimag, sel_minodimag)
+        good_photometry = odi_magerr < 0.1
+        if (numpy.sum(good_photometry) > 3):
+            brightest_star_mag = numpy.min(odi_mag[odi_magerr < 0.1])
+            si = numpy.argsort(odi_mag)
+            number_within_3mags = numpy.sum( ((odi_mag < brightest_star_mag+3) & (odi_magerr < 0.1)) )
+            sel_median, sel_std, sel_psigma, sel_msigma, sel_n = -99., -99., -99., -99., -1
+            if (number_within_3mags > 3):
+                if (number_within_3mags > 100): number_within_3mags = 100
+                zp_sel = numpy.zeros( (number_within_3mags, 4) )
+                for i in range(number_within_3mags):
+                    zp_sel[i,:] = [odi_mag[si[i]], sdss_mag[si[i]], zp[si[i]], zperr[si[i]]]
+                # Now we have only a subset of all points
+                sel_median = numpy.median(zp_sel[:,2])
+                sel_std = numpy.std(zp_sel[:,2])
+                sel_psigma = scipy.stats.scoreatpercentile(zp_sel[:,2], 84)
+                sel_msigma = scipy.stats.scoreatpercentile(zp_sel[:,2], 16)
+                sel_medodimag = numpy.median(zp_sel[:,0])
+                sel_maxodimag = numpy.max(zp_sel[:,0])
+                sel_minodimag = numpy.min(zp_sel[:,0])
+                sel_n = number_within_3mags
+                detailed_return['zp_restricted'] = (sel_median, sel_std, sel_psigma, sel_msigma, sel_n, sel_medodimag, sel_maxodimag, sel_minodimag)
+        else:
+            detailed_return['zp_restricted'] = None
 
         #
         # Also fit a slope to the full data set. This way, if the slope is
@@ -1015,21 +1019,24 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             linear = linear_fit(p, odi_mag)
             return (linear - zp) / zp_err
 
-        p_init = [zp_median, 0]
+        if (zp_clipped.shape[0] > 10):
+            p_init = [zp_median, 0]
 
-        # enlarge the error bars a bit to prevent single points with 
-        # unrealistically small uncertainties to dominate teh fit
-        zperr_larger = numpy.hypot(zperr_clipped, 0.05)
+            # enlarge the error bars a bit to prevent single points with 
+            # unrealistically small uncertainties to dominate teh fit
+            zperr_larger = numpy.hypot(zperr_clipped, 0.05)
 
-        args = (sdss_mag_clipped, zp_clipped, zperr_larger)
-        fit = scipy.optimize.leastsq(linear_fit_err, p_init, args=args, full_output=1)
-        pfit = fit[0]
-        uncert = numpy.sqrt(numpy.diag(fit[1]))
-        detailed_return['zp_magnitude_slope'] = (pfit, uncert)
-        logger.debug("Clipped zp-slope: %.3f (+/- %.3f) + (%.5f +/- %.5f) * sdss_mag" % (pfit[0], uncert[0], pfit[1], uncert[1]))
+            args = (sdss_mag_clipped, zp_clipped, zperr_larger)
+            fit = scipy.optimize.leastsq(linear_fit_err, p_init, args=args, full_output=1)
+            pfit = fit[0]
+            uncert = numpy.sqrt(numpy.diag(fit[1]))
+            detailed_return['zp_magnitude_slope'] = (pfit, uncert)
+            logger.debug("Clipped zp-slope: %.3f (+/- %.3f) + (%.5f +/- %.5f) * sdss_mag" % (pfit[0], uncert[0], pfit[1], uncert[1]))
 
-        zp_stderrofmean = scipy.stats.sem(zp_clipped)
-        n_clipped = zp_clipped.shape[0]
+            zp_stderrofmean = scipy.stats.sem(zp_clipped)
+            n_clipped = zp_clipped.shape[0]
+        else:
+            detailed_return['zp_magnitude_slope'] = None
 
     detailed_return['median'] = zp_median
     detailed_return['std'] = zp_std
