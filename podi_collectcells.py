@@ -2837,9 +2837,12 @@ def apply_nonsidereal_correction(ota_list, options, logger=None):
     dra_t = options['nonsidereal']['dra'] * delta_t_hours / 3600.
     ddec_t = options['nonsidereal']['ddec'] * delta_t_hours / 3600.
 
-    ota_list[0].header['NSIDPMRA'] = options['nonsidereal']['dra']
-    ota_list[0].header['NSIDPMDE'] = options['nonsidereal']['ddec']
-    ota_list[0].header['NSIDBASE'] = options['nonsidereal']['ref_mjd']
+    ota_list[0].header['NSIDPMRA'] = (options['nonsidereal']['dra'], "proper motion dRa*cos(dec) [arcsec/hr]")
+    ota_list[0].header['NSIDPMDE'] = (options['nonsidereal']['ddec'], "proper motion dDec [arcsec/hr]")
+    ota_list[0].header['NSIDBASE'] = (options['nonsidereal']['ref_mjd'], "MJD of reference frame")
+    ota_list[0].header['NSIDDMJD'] = (mjd - options['nonsidereal']['ref_mjd'], "time diff to ref. frame [days]")
+    ota_list[0].header['NSID_DHR'] = (delta_t_hours, "time diff to ref. frame [hours]")
+    add_fits_header_title(ota_list[0].header, "Non-sidereal correction", 'NSIDPMRA')
     logger.debug("Tracking rates are dRA=%(dra)f dDEC=%(ddec)f arcsec/hour" % options['nonsidereal'])
     logger.debug("Time-offset to reference frame: %f hours" % (delta_t_hours))
 
@@ -2851,6 +2854,11 @@ def apply_nonsidereal_correction(ota_list, options, logger=None):
 
         ota_list[ext].header['CRVAL1'] -= dra_corrected
         ota_list[ext].header['CRVAL2'] -= ddec_t
+
+        if ('NSIDDRA'in ota_list[ext].header or
+            'NSIDDDEC' in ota_list[ext].header):
+            logger.error("This OTA already has a non-sidereal correction applied!")
+            continue
 
         ota_list[ext].header['NSIDDRA'] = dra_corrected
         ota_list[ext].header['NSIDDDEC'] = ddec_t
