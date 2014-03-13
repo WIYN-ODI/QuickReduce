@@ -662,7 +662,12 @@ def collect_reduce_ota(filename,
             if (os.path.isfile(dark_filename)):
                 dark = pyfits.open(dark_filename)
                 reduction_files_used['dark'] = dark_filename
-                darktime = dark[0].header['EXPMEAS']
+                if ('EXPMEAS' in dark[0].header):
+                    darktime = dark[0].header['EXPMEAS']
+                elif ('EXPTIME' in dark[0].header):
+                    darktime = dark[0].header['EXPTIME']
+                else:
+                    darktime = 0
 
                 # Search for the flatfield data for the current OTA
                 for dark_ext in dark[1:]:
