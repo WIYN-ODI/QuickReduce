@@ -1164,6 +1164,7 @@ def collect_reduce_ota(filename,
             ota_x, ota_y = source_cat[:,2], source_cat[:,3]
             starcat = (ota_x, ota_y)
         # Now sample the background, excluding regions close to known sources
+        logger.debug("Sampling sky background")
         sky_samples = numpy.array(podi_fitskybackground.sample_background(data=merged, wcs=None, 
                                                                          starcat=starcat, 
                                                                          min_found=200, boxwidth=30))
@@ -1181,7 +1182,7 @@ def collect_reduce_ota(filename,
             hdu.header["SKY_MEDI"] = (sky_level_median, "sky-level median")
             hdu.header["SKY_MEAN"] = (sky_level_mean, "sky-level mean")
             hdu.header["SKY_STD"] = (sky_level_std, "sky-level rms")
-
+        logger.debug("Found median sky-level: %d" % (sky_level_median))
 
     pupilghost_scaling = None
     pupilghost_template = None
@@ -1234,7 +1235,7 @@ def collect_reduce_ota(filename,
             # logger.debug("Check if any OTA is affected: %s" % ("yes" if any_affected else "no"))
             # logger.debug("Optimal scaling factor found: %.2f +/- %.2f" % (scaling, scaling_std))
 
-
+    
 
     data_products['hdu'] = hdu
     data_products['wcsdata'] = None #fixwcs_data
@@ -1244,7 +1245,8 @@ def collect_reduce_ota(filename,
     data_products['sourcecat'] = source_cat
     data_products['tech-header'] = tech_header
     data_products['reduction_files_used'] = reduction_files_used
-
+    
+    logger.debug("Done with collect_cells for this OTA")
     return data_products #hdu, fixwcs_data
     
 
