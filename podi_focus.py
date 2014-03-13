@@ -202,7 +202,7 @@ def measure_focus_ota(filename, n_stars=5):
                 focus_center = float(items[2])
                 focus_step = float(items[6])
                 focus_start = focus_center - (n_stars-1)/2*focus_step
-                focus_positions = numpy.arange(n_stars, dtype=numpy.float32) * focus_step + focus_start
+                focus_positions = numpy.arange(n_stars, dtype=numpy.float32)[::-1] * focus_step + focus_start
                 logger.debug("Infom from header: N=%d, center=%.0f, step=%.0f, start=%.0f" % (
                     n_stars, focus_center, focus_Step, focus_step, focus_start))
                 logger.debug("Focus positions: %s" % (str(focus_positions)))
