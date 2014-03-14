@@ -220,26 +220,26 @@ sdss_equivalents = {
     #
     # All other filters
     #
-    "823_v2": None,
-    "918R_v1": None,
-    "BATC_390": None,
-    "BATC_420": None,
+    "823_v2": "z",
+    "918R_v1": "z",
+    "BATC_390": "u",
+    "BATC_420": "g",
     "CTIO_Ha": "r",
     "CTIO_Ha_8nm": "r",
-    "CTIO_OIII": None,
+    "CTIO_OIII": "g",
     "Halpha_and_odiz": None,
-    "KPNO_815": None,
+    "KPNO_815": "z",
     "mosaic_u": 'u',
     "MosaicU_and_odir": None,
-    "OPEN": None,
+    "OPEN": "r",
     "sdss_u": 'u',
-    "s2_SII": None,
+    "s2_SII": "r",
     "UG5": None,
     "unknown": None,
     "UNKNOWN": None,
     "Us_solid": 'u',
     "windowGlass": None,
-    "WRC3": None,
+    "WRC3": "g",
     }	
 
 
