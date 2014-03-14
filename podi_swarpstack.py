@@ -126,9 +126,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     logger = logging.getLogger("SwarpStack - Prepare")
 
     # Figure out the config path
-    abspath = os.path.abspath(sys.argv[0])
-    dirname, filename = os.path.split(abspath)
-    swarp_default = "%s/.config/swarp.default" % (dirname)
+    swarp_default = "%s/.config/swarp.default" % (sitesetup.exec_dir)
     logger.debug("Using swarp-default in %s" % (swarp_default))
 
     if (len(inputlist) <= 0):
