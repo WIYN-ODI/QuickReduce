@@ -1496,15 +1496,32 @@ def is_image_extension(hdu):
     Check if a given HDU is a Image extension
 
     """
-    
+    if (hdu == None):
+        return False
+
     if (type(hdu) == pyfits.hdu.image.ImageHDU or
         type(hdu) == pyfits.hdu.compressed.CompImageHDU):
 
-        if (hdu.data == None):
+        try:
+            if (hdu.data == None):
+                return False
+        except:
+            # Can't access the .data block, hence this can't be an image extension
             return False
 
         return True
 
+    elif (type(hdu) == pyfits.hdu.image.PrimaryHDU):
+        # This might or might not be an image
+        if ('NAXIS' in hdu.header and
+            'NAXIS1' in hdu.header and
+            'NAXIS2' in hdu.header and
+            hdu.header['NAXIS'] == 2 and
+            hdu.header['NAXIS1'] > 0 and
+            hdu.header['NAXIS2'] > 0):
+            # This looks like it might be an image
+            return True
+            
     return False
 
 
