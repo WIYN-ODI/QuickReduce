@@ -176,6 +176,10 @@ def update_sitesetup():
     changes = changes | ask_for_option('swarp_singledir', 
                    "Path for swarp intermediate files (you'll need several GB here!)", 
                    ".", True, config_array)
+
+    changes = changes | ask_for_option('exec_dir', 
+                   "Path where all the podi-scripts are installed", 
+                   os.path.abspath("."), True, config_array)
     
     
     config_array.append("")
