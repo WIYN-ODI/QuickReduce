@@ -1347,9 +1347,9 @@ def parallel_collect_reduce_ota(queue, return_queue,
 
         # Now unpack the communication pipe
         logger.debug("Preparing communication pipe ...")
+	logger.debug(str(wrapped_pipe))
         fct, params = wrapped_pipe
         pipe = fct(*params)
-
 
         #
         # Wait to hear back with the rest of the instructions
@@ -1946,9 +1946,10 @@ def collectcells(input, outputfile,
     # fractions of a second to make ot python compatible
     date_format = "%Y-%m-%dT%H:%M:%S.%f"
     time_format = "%H:%M:%S.%f"
+    expmeas = hdulist[0].header['EXPMEAS'] if 'EXPMEAS' in hdulist[0].header else hdulist[0].header['EXPTIME']
     date_obs = datetime.datetime.strptime(hdulist[0].header['DATE-OBS'], date_format)
-    date_mid = date_obs + datetime.timedelta(seconds=(0.5*hdulist[0].header['EXPMEAS']))
-    date_end = date_obs + datetime.timedelta(seconds=hdulist[0].header['EXPMEAS'])
+    date_mid = date_obs + datetime.timedelta(seconds=(0.5*expmeas))
+    date_end = date_obs + datetime.timedelta(seconds=expmeas)
     mjd = hdulist[0].header['MJD-OBS']
 
     #
@@ -1962,9 +1963,9 @@ def collectcells(input, outputfile,
                                       "Date at exposure end-point")
     ota_list[0].header['TIME-END'] = (datetime.datetime.strftime(date_end, time_format)[:-3], 
                                       "Time at exposure end-point")
-    ota_list[0].header['MJD-MID'] = (mjd + (0.5 * hdulist[0].header['EXPMEAS'])/86400., 
+    ota_list[0].header['MJD-MID'] = (mjd + (0.5 * expmeas)/86400., 
                                      "MJD at exposure mid-point")
-    ota_list[0].header['MJD-END'] = (mjd + (hdulist[0].header['EXPMEAS']/86400.), 
+    ota_list[0].header['MJD-END'] = (mjd + (expmeas/86400.), 
                                      "MJD at exposure end-point")
     add_fits_header_title(ota_list[0].header, "Additional time stamps", 'DATE-MID')
 
