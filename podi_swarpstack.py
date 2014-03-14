@@ -129,6 +129,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     abspath = os.path.abspath(sys.argv[0])
     dirname, filename = os.path.split(abspath)
     swarp_default = "%s/.config/swarp.default" % (dirname)
+    logger.debug("Using swarp-default in %s" % (swarp_default))
 
     if (len(inputlist) <= 0):
         logger.error("No input files specified!")
@@ -146,10 +147,17 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     print "input=",inputlist
     print "output=",outputfile
 
+    modified_files = []
+
     for i in range(len(inputlist)):
         if (not os.path.isfile(inputlist[i])):
             continue
-        hdulist = pyfits.open(inputlist[i])
+        try:
+            hdulist = pyfits.open(inputlist[i])
+        except IOError:
+            logger.error("Can't open file %s" % (inputlist[i]))
+            inputlist[i] = None
+            continue
 
         # Also set some global stack-related parameters that we will add to the 
         # final stack at the end
@@ -157,6 +165,8 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
         exptime = hdulist[0].header['EXPMEAS'] if 'EXPMEAS' in hdulist[0].header else \
                   hdulist[0].header['EXPTIME']
         mjd_obs_end = hdulist[0].header['MJD-OBS'] + (exptime/86400.)
+
+        logger.debug("Exposure time: %f, MJD=%f" % (exptime, mjd_obs_start))
 
         stack_total_exptime += exptime
         stack_framecount += 1
@@ -252,12 +262,14 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
             # Now change the filename of the input list to reflect 
             # the corrected file
             inputlist[i] = corrected_filename
-
+            
 
     #
     # By now all frames have all corrections applied,
     # so we can go ahead and stack them as usual
     #
+
+    modified_files = inputlist
 
 
     target_dimension = float(cmdline_arg_set_or_default('-dimension', -1))
@@ -270,6 +282,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
         outputfile = outputfile[:-5]
 
     header_only_file = "%s/preswarp.fits" % (sitesetup.scratch_dir)
+    logger.debug("Using header-only-file: %s" % (header_only_file))
 
     reference_file = cmdline_arg_set_or_default("-reference", None)
     # Make sure the reference file is a valid file
@@ -647,7 +660,8 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     
     logger.info("All done!")
 
-    return
+    return modified_files, single_prepared_files
+
 
 
 
@@ -690,6 +704,7 @@ if __name__ == "__main__":
         else:
             logger.error("Can't open the configfile (%s)" % (configfile))
 
+    logger.debug("Reading options from command line")
     options = read_options_from_commandline(options)
 
     print "non-sid",options['nonsidereal']
@@ -700,6 +715,11 @@ if __name__ == "__main__":
         outputfile = get_clean_cmdline()[1]
         inputlist = get_clean_cmdline()[2:]
 
+        logger.debug("Commanding output: %s" % (outputfile))
+        for i in inputlist:        
+            logger.debug("Commanding input: %s" % (i))
+
+        logger.debug("Starting processing")
         swarpstack(outputfile=outputfile, 
                    inputlist=inputlist, 
                    swarp_params=params, 
