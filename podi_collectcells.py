@@ -1326,8 +1326,13 @@ def parallel_collect_reduce_ota(queue, return_queue,
             podi_logging.log_exception("parallel_collectcells")
             raise
 
-        # Trim the data section of the return data to keep transfer delays low
         return_hdu = data_products['hdu']
+        logger.debug("Received OTA pre-processed data for OTA %s" % (return_hdu.header['FPPOS']))
+
+        logger = logging.getLogger("OTAPostProc:%s" % (return_hdu.header['FPPOS']))
+        logger.debug("Trimming off pupilghost template and fringe template")
+
+        # Trim the data section of the return data to keep transfer delays low
         pg_image = data_products['pupilghost-template']
         del data_products['hdu']
         del data_products['pupilghost-template']
@@ -1336,12 +1341,15 @@ def parallel_collect_reduce_ota(queue, return_queue,
         del data_products['fringe-template']
 
         # However, we do need the headers for the intermediate processing steps
+        logger.debug("Adding back header")
         data_products['header'] = return_hdu.header
 
         # Send the results from this OTA to the main process handler
+        logger.debug("Sending results back to main process")
         return_queue.put( (ota_id, data_products) )
 
         # Now unpack the communication pipe
+        logger.debug("Preparing communication pipe ...")
         fct, params = wrapped_pipe
         pipe = fct(*params)
 
@@ -1349,6 +1357,7 @@ def parallel_collect_reduce_ota(queue, return_queue,
         #
         # Wait to hear back with the rest of the instructions
         #
+        logger.debug("Waiting to hear back with fringe/pupilghost scaling")
         final_parameters = pipe.recv()
         logger.debug("OTA-ID %02d received final parameters:\n%s" % (ota_id, final_parameters))
 
