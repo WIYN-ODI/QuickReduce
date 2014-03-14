@@ -26,6 +26,7 @@ import sys
 import logging
 import numpy
 import pyfits
+from podi_definitions import *
 
 def cmdline_arg_isset(arg):
     """
@@ -158,9 +159,9 @@ Calibration data:
     options['pupilghost_dir'] = cmdline_arg_set_or_default('-pupilghost', None)
 
     options['fixwcs'] = cmdline_arg_isset("-fixwcs")
+
     # For now assume that the WCS template file is located in the same directory as the executable
-    root_dir, py_exe = os.path.split(os.path.abspath(sys.argv[0]))
-    options['wcs_distortion'] = root_dir + "/2mass_distort5.fits"
+    options['wcs_distortion'] = sitesetup.exec_dir + "/2mass_distort5.fits"
     options['wcs_distortion'] = cmdline_arg_set_or_default("-wcs", options['wcs_distortion'])
     if (not os.path.isfile(options['wcs_distortion'])):
         options['wcs_distortion'] = None
@@ -345,8 +346,7 @@ def set_default_options(options_in=None):
 
     # Get directory of the executable. This also serves as the 
     # fall-back directory for some data
-    full_path = os.path.abspath(sys.argv[0])
-    options['exec_dir'], dummy = os.path.split(full_path)
+    options['exec_dir'] = sitesetup.exec_dir
 
     options['update_persistency_only'] = False
     options['persistency_dir'] = None

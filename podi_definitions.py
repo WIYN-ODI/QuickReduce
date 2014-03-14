@@ -43,6 +43,7 @@ import scipy.ndimage
 from bottleneck import nanmean, nanmedian
 
 from podi_commandline import *
+import podi_sitesetup as sitesetup
 
 #
 # Update this variable below when changing versions
@@ -51,8 +52,7 @@ pipeline_plver = "QuickReduce 1.0"
 pipeline_name = "QuickReduce"
 pipeline_version = "1.0"
 try:
-    basedir, _ = os.path.split(os.path.abspath(sys.argv[0]))
-    cmd = "svnversion -n %s" % (basedir)
+    cmd = "svnversion -n %s" % (sitesetup.exec_dir)
     ret = subprocess.Popen(cmd.split(), 
                            stdout=subprocess.PIPE, 
                            stderr=subprocess.PIPE)

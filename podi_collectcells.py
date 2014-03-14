@@ -517,8 +517,7 @@ def collect_reduce_ota(filename,
                     pass
                 techhdulist.close()
             else:
-                basedir, _ = os.path.split(os.path.abspath(sys.argv[0]))
-                techfile = "%s/techdata.fits" % (basedir)
+                techfile = "%s/techdata.fits" % (sitesetup.exec_dir)
                 if (os.path.isfile(techfile)):
                     logger.debug("Reading techdata from file %s" % (techfile))
                     techhdulist = pyfits.open(techfile)
@@ -1104,10 +1103,8 @@ def collect_reduce_ota(filename,
                 fitsfile = "%s/tmp.pid%d.%s_OTA%02d.fits" % (sitesetup.scratch_dir, process_id, obsid, ota)
                 catfile = "%s/tmp.pid%d.%s_OTA%02d.cat" % (sitesetup.scratch_dir, process_id, obsid, ota)
                 tmphdulist.writeto(fitsfile, clobber=True)
-                full_path = os.path.abspath(sys.argv[0])
-                basepath, dummy = os.path.split(full_path)
-                sex_config_file = "%s/.config/wcsfix.sex" % (basepath)
-                parameters_file = "%s/.config/wcsfix.sexparam" % (basepath)
+                sex_config_file = "%s/.config/wcsfix.sex" % (sitesetup.exec_dir)
+                parameters_file = "%s/.config/wcsfix.sexparam" % (sitesetup.exec_dir)
                 sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s" % (
                     sitesetup.sextractor, sex_config_file, parameters_file, catfile, 
                     fitsfile)
