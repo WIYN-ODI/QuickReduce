@@ -367,7 +367,13 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
         # some information about the resulting stack is in the output-file
         #
 
-        output_info = pyfits.open(header_only_file)
+        try:
+            output_info = pyfits.open(header_only_file)
+        except IOError:
+            podi_logging.log_exception()
+            logger.error("Couldn't open the pre-swarp file, aborting")
+            return
+            
         print "Stack information..."
         print "   Output-dimensions: %(NAXIS1)5d x %(NAXIS2)5d" % (output_info[0].header)
 
