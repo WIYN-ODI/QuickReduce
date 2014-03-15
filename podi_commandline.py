@@ -26,7 +26,6 @@ import sys
 import logging
 import numpy
 import pyfits
-from podi_definitions import *
 
 def cmdline_arg_isset(arg):
     """
@@ -99,6 +98,7 @@ def cmdline_arg_set_or_default(name, defvalue):
 
 
 import podi_sitesetup as sitesetup
+from podi_definitions import *
 
 
 def read_options_from_commandline(options=None):
