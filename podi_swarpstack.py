@@ -270,7 +270,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     modified_files = inputlist
 
 
-    add_only = params['add'] and os.path.isfile(outputfile)
+    add_only = swarp_params['add'] and os.path.isfile(outputfile)
     if (add_only):
         logger.info("Activating ADD mode")
 
@@ -281,18 +281,18 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     logger.debug("Using header-only-file: %s" % (header_only_file))
 
     # Make sure the reference file is a valid file
-    if (not params['reference_file'] == None and os.path.isfile(params['reference_file'])):
-        logger.info("Using %s as reference file" % (params['reference_file']))
+    if (not swarp_params['reference_file'] == None and os.path.isfile(swarp_params['reference_file'])):
+        logger.info("Using %s as reference file" % (swarp_params['reference_file']))
     else:
-        params['reference_file'] = None
+        swarp_params['reference_file'] = None
 
-    if (add_only or not params['reference_file'] == None):
+    if (add_only or not swarp_params['reference_file'] == None):
         #
         # This is the simpler add-only mode
         #
 
-        if (not params['reference_file'] == None):
-            output_info = pyfits.open(params['reference_file'])
+        if (not swarp_params['reference_file'] == None):
+            output_info = pyfits.open(swarp_params['reference_file'])
         else:
             # Open the existing output header and get data from there
             output_info = pyfits.open(outputfile+".fits")
@@ -326,6 +326,8 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
 
         if (swarp_params['pixelscale'] > 0):
             swarp_opts += " -PIXELSCALE_TYPE MANUAL -PIXEL_SCALE %.4f " % (swarp_params['pixelscale'])
+        if (swarp_params['no-fluxscale']):
+            swarp_opts += " -FSCALE_KEYWORD none "
 
         swarp_opts += " -SUBTRACT_BACK %s " % ("Y" if swarp_params['subtract_back'] else "N")
 
@@ -527,7 +529,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     # subtraction to get s nice smooth background that does not over-subtract 
     # the target.
     #
-    if (params['target_dimension'] > 0 and swarp_params['subtract_back']):
+    if (swarp_params['target_dimension'] > 0 and swarp_params['subtract_back']):
         dic['BACK_TYPE'] = "AUTO"
         dic['BACK_SIZE'] = 128
         dic['BACK_FILTERSIZE'] = 3
@@ -540,14 +542,14 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
                    * 0.1  # the last factor is a fudge-factor
         logger.debug("Reference size: %f" % (ref_size))
         # Now scale up the filtersize, making sure it stays between 3 and 7
-        filtersize = int(math.floor(math.sqrt(params['target_dimension'] / ref_size) * dic['BACK_FILTERSIZE']))
+        filtersize = int(math.floor(math.sqrt(swarp_params['target_dimension'] / ref_size) * dic['BACK_FILTERSIZE']))
         logger.debug("Simple filter size: %d" % (filtersize))
         if (filtersize < 3): filtersize = 3
         if (filtersize > 7): filtersize = 7
 
         # in a next step, modify the backsize parameter. Make sure it does not
         # become too large or too small
-        backsize = (params['target_dimension'] * 60. / swarp_params['pixelscale']) / filtersize
+        backsize = (swarp_params['target_dimension'] * 60. / swarp_params['pixelscale']) / filtersize
 
         logger.debug("BACK-SIZE: %f" % (backsize))
         if (backsize < 64): backsize = 64
@@ -678,6 +680,8 @@ def read_swarp_params():
     params['target_dimension'] = float(cmdline_arg_set_or_default('-dimension', -1))
     params['add'] = cmdline_arg_isset("-add")
     params['reference_file'] = cmdline_arg_set_or_default("-reference", None)
+    params['no-fluxscale'] = cmdline_arg_isset('-nofluxscale')
+
     return params
 
 if __name__ == "__main__":
