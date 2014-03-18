@@ -1362,16 +1362,24 @@ def parallel_collect_reduce_ota(queue, return_queue,
         # Finish work: fringe subtraction and pupilghost removal
         #
 
-        # Remove fringing by subtracting the scaled fringe template
-        if (not fringe_template == None and final_parameters['fringe-scaling-median'] > 0):
-            logger.debug("Subtracting fringes (%.2f)..." % (final_parameters['fringe-scaling-median']))
-            return_hdu.data -= (fringe_template * final_parameters['fringe-scaling-median'])
+        try:
+            # Remove fringing by subtracting the scaled fringe template
+            if (not fringe_template == None and final_parameters['fringe-scaling-median'] > 0):
+                logger.debug("Subtracting fringes (%.2f)..." % (final_parameters['fringe-scaling-median']))
+                return_hdu.data -= (fringe_template * final_parameters['fringe-scaling-median'])
+        except:
+            podi_logging.log_exception()
+            pass
 
-        # Also delete the pupilghost contribution
-        if (not pg_image == None and final_parameters['pupilghost-scaling-median'] > 0):
-            logger.debug("Subtracting pupilghost (%.2f)..." % (final_parameters['pupilghost-scaling-median']))
-            return_hdu.data -= (pg_image * final_parameters['pupilghost-scaling-median'])
-            
+        try:
+            # Also delete the pupilghost contribution
+            if (not pg_image == None and final_parameters['pupilghost-scaling-median'] > 0):
+                logger.debug("Subtracting pupilghost (%.2f)..." % (final_parameters['pupilghost-scaling-median']))
+                return_hdu.data -= (pg_image * final_parameters['pupilghost-scaling-median'])
+        except:
+            podi_logging.log_exception()
+            pass
+                
         # Add the complete ImageHDU to the return data stream
         data_products['hdu'] = return_hdu
         
