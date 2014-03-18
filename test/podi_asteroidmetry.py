@@ -57,6 +57,15 @@ def make_catalogs(inputlist):
 
     
 
+
+#
+#
+# To-do list
+#
+# - make sure every star is only part of a single tracklet
+#
+#
+
 if __name__ == "__main__":
 
     
@@ -66,7 +75,8 @@ if __name__ == "__main__":
 
     logger = logging.getLogger("Astro(id)metry")
 
-    inputlist = get_clean_cmdline()[1:]
+    sidereal_reference = get_clean_cmdline()[1]
+    inputlist = get_clean_cmdline()[2:]
 
     make_catalogs(inputlist)
     
@@ -88,11 +98,6 @@ if __name__ == "__main__":
 
         # Do some preparing of the catalog
         good_photometry = cat_data[:, SXcolumn['mag_aper_2.0']] < 0
-
-#        good_photometry = (cat_data[:, SXcolumn['x']] > 6100) & (cat_data[:, SXcolumn['x']] < 6300)
-#                          (cat_data[:, SXcolumn['y']] > 5100) & (cat_data[:, SXcolumn['y']] < 5350)
-#        print numpy.sum(good_photometry)
-       # if (numpy.sum(good_photometry) <= 0):
         cat_data = cat_data[good_photometry]
 
         catalog_filelist.append(catalog_filename)
@@ -112,6 +117,8 @@ if __name__ == "__main__":
 
     results = open("results", "w")
     moving_object_id = 0
+
+    candidates = []
 
     for ref_cat in range(len(catalog)-1):
         logger.debug("Checking out catalog %d" % (ref_cat))
@@ -174,6 +181,9 @@ if __name__ == "__main__":
             # check often the most frequent rate appears
             ratecount_max = numpy.max(motion_rates[:,6])
 
+            source_data = []
+            mjd_data = []
+
             if (ratecount_max > 4):
                 # We have 4 consistent data points, this might be something
 
@@ -181,7 +191,7 @@ if __name__ == "__main__":
                 frequent = (motion_rates[:,6] == ratecount_max)
 
                 frequent_rates = motion_rates[:, 4:6][frequent]
-                numpy.savetxt(sys.stdout, frequent_rates)
+                # numpy.savetxt(sys.stdout, frequent_rates)
 
                 # compute average rate as the average of all frequent rates
                 avg_rate = numpy.median(frequent_rates, axis=0)
@@ -202,6 +212,8 @@ if __name__ == "__main__":
                     ref_cat,
                     obj1,
                 )
+                source_data.append(catalog[ref_cat][obj1])
+                mjd_data.append(mjd_hours[ref_cat])
 
                 for p in range(len(counterparts)):
                     p_idx = counterparts[p]
@@ -221,13 +233,136 @@ if __name__ == "__main__":
                         motion_rates[p_idx, 4],
                         motion_rates[p_idx, 5]
                     )
+                    source_data.append(catalog[c2][o2])
+                    mjd_data.append(mjd_hours[c2])
+
+                source_data = numpy.array(source_data)
+                mjd_data = numpy.array(mjd_data) / 24.
+
+                #numpy.savetxt(sys.stdout, source_data)
+                #numpy.savetxt(sys.stdout, mjd_data)
+                #print "\n\n\n\n"
+
+                source_entry = {
+                    "sex": source_data,
+                    "mjd": mjd_data,
+                    'rate': avg_rate,
+                    'positions': source_data.shape[0],
+                }
+                candidates.append(source_entry)
 
         #numpy.savetxt("motion_rates_%d" % (ref_cat), motion_rates)
+    logger.info("all search-related work done, associating with known objects !")
 
-    numpy.savetxt("motion_rates", motion_rates)
+    print candidates
 
-    logger.info("all work done!")
+    # Query MPC for all objects nearby
+    logger.info("Getting list of known objects from MPC")
+    import podi_mpchecker
+    mpc_data = podi_mpchecker.get_mpc_catalog(sidereal_reference)
+    print mpc_data['Name']
 
+    reference_hdu = astropy.io.fits.open(sidereal_reference)
+    mjd_reference = reference_hdu[0].header['MJD-OBS']
+    print mjd_reference
+
+    #print mpc_data['RA'].shape
+    #print mpc_data['RA']
+
+    mpc_ra = [None]*len(mpc_data['Name'])
+    mpc_dec = [None]*len(mpc_data['Name'])
+    # Convert the sexagesimal data from MPC into degrees
+    ds9_known = open("asteroidmetry_known.reg", "w")
+    print >>ds9_known, """\
+# Region file format: DS9 version 4.1
+global color=red dashlist=8 3 width=1 font="helvetica 10 normal roman" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1
+fk5\
+"""
+    for i in range(len(mpc_data['Name'])):
+        j2000 = ephem.Equatorial(mpc_data['RA'][i], mpc_data['DEC'][i], epoch=ephem.J2000)
+        mpc_ra[i] = math.degrees(j2000.ra)
+        mpc_dec[i] = math.degrees(j2000.dec)
+        print >>ds9_known, 'circle(%f,%f,%f")' % (mpc_ra[i], mpc_dec[i], 3.) 
+    ds9_known.close()
+
+    #print mpc_ra
+    #print mpc_dec
+
+    #
+    # Now go though each found asteroid, and see if it's known already
+    #
+    ds9_reg = open("asteroidmetry.reg", "w")
+    print >>ds9_reg, """\
+# Region file format: DS9 version 4.1
+global color=green dashlist=8 3 width=1 font="helvetica 10 normal roman" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1
+fk5\
+"""
+    for cand in candidates:
+        # Correct all coordinates to match the MJD of the reference frame
+
+        # Get time difference in hours
+        delta_mjd_hours = (cand['mjd'] - mjd_reference) * 24.
+        # total motion
+        delta_radec = numpy.array(cand['rate']).reshape((1,2)).repeat(delta_mjd_hours.shape[0], axis=0) * delta_mjd_hours.reshape((delta_mjd_hours.shape[0],1)).repeat(2, axis=1)
+        # print delta_radec
+
+        # Account for the cos(dec) factor
+        cos_dec = numpy.cos(numpy.radians(cand['sex'][:,SXcolumn['dec']]))
+        delta_radec[:,0] /= cos_dec
+
+        ra_dec_corrected = cand['sex'][:,0:2] - delta_radec/3600.
+
+        radec = numpy.median(ra_dec_corrected, axis=0)
+        radec_std = numpy.std(ra_dec_corrected, axis=0)*3600.
+
+        print "\n\n"
+        # print ra_dec_corrected
+        print radec
+        print radec_std
+        print >>ds9_reg, 'circle(%f,%f,%f")' % (radec[0], radec[1], 10.) #13:22:17.482,-15:33:16.91,11.9449")
+        # With this information, search for asteroids that are both 
+        # nearby in Ra/Dec and in proper motion
+        #
+        # search radii: ra/dec: 5 arcsec, +/- 1''/hr
+
+        d_ra_cat = (mpc_ra - radec[0]) * math.cos(math.radians(radec[1]))
+        d_dec_cat = mpc_dec - radec[1]
+        d_total = numpy.hypot(d_ra_cat, d_dec_cat) * 3600. # convert to arcsec
+        # print d_total
+
+        d_dra = mpc_data['dracosdec'] - cand['rate'][0]
+        d_ddec = mpc_data['ddec'] - cand['rate'][1]
+        d_dtotal = numpy.hypot(d_dra, d_ddec) # this already is in arcsec/hr
+        # print d_dtotal
+
+        likely_id = (d_total < 5.) & (d_dtotal < 1.5)
+        # numpy.savetxt(sys.stdout, likely_id)
+
+        n_likelies = numpy.sum(likely_id)
+        if (n_likelies == 0):
+            logger.info("This is a new object")
+            print >>ds9_reg, '# text(%f,%f) text={NEW: %.1f, %.1f}' % (radec[0], radec[1], cand['rate'][0], cand['rate'][1])
+
+            # If this object is not known, draw markers at all detected positions
+            for i in range(cand['sex'].shape[0]):
+                print >>ds9_reg, 'point(%f,%f) # point=circle' % (cand['sex'][i,0], cand['sex'][i,1])
+
+            print d_total
+            print d_dtotal
+
+        elif (n_likelies == 1):
+            counterpart_name = (numpy.array(mpc_data['Name'])[likely_id])[0]
+            logger.info("Found unique counterpart: %s" % (counterpart_name))
+            print >>ds9_reg, '# text(%f,%f) text={%s (%.1f %.1f)}' % (radec[0], radec[1], counterpart_name, cand['rate'][0], cand['rate'][1])
+        else:
+            logger.info("Found more than one likely counterpart")
+            print >>ds9_reg, '# text(%f,%f) text={%s}' % (radec[0], radec[1], "-?-?-")
+
+        time.sleep(0.01)
+
+    ds9_reg.close()
+
+    logger.info("Done, shutting down")
     podi_logging.shutdown_logging(options)
 
 
