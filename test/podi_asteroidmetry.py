@@ -323,11 +323,11 @@ if __name__ == "__main__":
     logger.info("Getting list of known objects from MPC")
     import podi_mpchecker
     mpc_data = podi_mpchecker.get_mpc_catalog(sidereal_reference)
-    print mpc_data['Name']
+    # print mpc_data['Name']
 
     reference_hdu = astropy.io.fits.open(sidereal_reference)
     mjd_reference = reference_hdu[0].header['MJD-OBS']
-    print mjd_reference
+    logger.debug("MJD of reference frame: %f" % (mjd_reference))
 
     #print mpc_data['RA'].shape
     #print mpc_data['RA']
@@ -399,6 +399,7 @@ fk5\
 
         # numpy.savetxt(sys.stdout, likely_id)
 
+        new_discovery = False
         n_likelies = numpy.sum(likely_id)
         if (n_likelies == 0):
             logger.info("This is a new object")
@@ -410,6 +411,7 @@ fk5\
 
             print d_total
             print d_dtotal
+            new_discovery = True
 
         elif (n_likelies == 1):
             counterpart_name = (numpy.array(mpc_data['Name'])[likely_id])[0]
@@ -423,7 +425,23 @@ fk5\
         print radec
         print radec_std
         print cand['rate']
-        print "\n".join(cand['formatted'])
+        # print "\n".join(cand['formatted'])
+        numpy.savetxt(sys.stdout, cand['sex'][:,0:4])
+        
+        # Sort the source-data by time (MJD)
+        si = numpy.argsort(cand['mjd'])
+        mjd_sorted = cand['mjd'][si]
+        sex_sorted = cand['sex'][si]
+        #print cand['mjd']
+        #print mjd_sorted
+        #print sex_sorted
+
+        # Now output the results in the MPC format
+        for i_src in range(mjd_sorted.shape[0]):
+            fs = format_source(sex_sorted[i_src], mjd_sorted[i_src], '3.0', discovery=new_discovery)
+            new_discovery = False
+            print fs
+
         print "\n\n"
 
 
