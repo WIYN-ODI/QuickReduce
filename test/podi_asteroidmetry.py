@@ -11,6 +11,7 @@ from podi_definitions import *
 import podi_logging
 import logging
 import astropy.io.votable
+import astropy.time
 import math
 import numpy
 import ephem
@@ -66,6 +67,46 @@ def make_catalogs(inputlist):
 #
 #
 
+
+def format_source(src_entry, mjd, magname, filter_name='r', discovery=False):
+
+    mag_name = "mag_aper_%s" % magname
+    err_name = "mag_err_%s" % magname
+    
+    merr = src_entry[SXcolumn[err_name]]
+    mag_digits = 2 if (merr < 0.02) else 1
+
+    format_string = "%(id)5s%(designation)7s%(discovery)1s%(note1)1s%(note2)1s%(date)17s%(ra)12s%(dec)12s%(empty)9s%(mag).1f %(filter)1s%(empty)5s%(obscode)03d"
+
+    j2k = ephem.Equatorial(math.radians(src_entry[SXcolumn['ra']]), 
+                           math.radians(src_entry[SXcolumn['dec']]), 
+                           epoch=ephem.J2000)
+
+    t = astropy.time.Time([mjd], format='mjd', scale='utc')
+    dt = t.datetime[0]
+    formatted_date = "%04d %02d %09.6f" % (
+        dt.year, dt.month, 
+        dt.day + dt.hour/24. + dt.minute/1440. + (dt.second + dt.microsecond*1e-6)/86400.
+    )
+    
+    str_ra = str(j2k.ra).replace(":", " ")[:12]
+    str_dec = str(j2k.dec).replace(":", " ")[:12]
+    ret = format_string % {
+        'empty': "",
+        'id': "",
+        'designation': '',
+        'discovery': '*' if discovery else '',
+        'note1': '?',
+        'note2': "C",
+        'date': formatted_date,
+        'ra': str_ra,
+        'dec': str_dec,
+        'mag': src_entry[SXcolumn[mag_name]],
+        'filter': filter_name,
+        'obscode': 695,
+    }
+    return ret
+
 if __name__ == "__main__":
 
     
@@ -85,6 +126,8 @@ if __name__ == "__main__":
     mjd_hours = []
     source_id = []
 
+    phot_ZP = 25.
+
     # Now open all files, get time-stams etc
     for fitsfile in inputlist:
 
@@ -99,6 +142,11 @@ if __name__ == "__main__":
         # Do some preparing of the catalog
         good_photometry = cat_data[:, SXcolumn['mag_aper_2.0']] < 0
         cat_data = cat_data[good_photometry]
+
+        # Apply photometric zeropoint to all magnitudes
+        for key in SXcolumn_names:
+            if (key.startswith("mag_aper")):
+                cat_data[:, SXcolumn[key]] += phot_ZP
 
         catalog_filelist.append(catalog_filename)
         catalog.append(cat_data)
@@ -142,7 +190,11 @@ if __name__ == "__main__":
                 d_dec = catalog[second_cat][:,SXcolumn['dec']] - catalog[ref_cat][obj1,SXcolumn['dec']]
                 d_total = numpy.hypot(d_ra, d_dec) 
                 
-                possible_match = (d_total < math.fabs(max_rate/diff_to_rate)) & (d_total > min_distance)
+                # Only use sources with positive flags - we'll mask stars that 
+                # are already matched to another tracklet by setting flags to -1 
+                possible_match = (d_total < math.fabs(max_rate/diff_to_rate)) & \
+                                 (d_total > min_distance) & \
+                                 (catalog[ref_cat][obj1,SXcolumn['flags']] >= 0)
                 # require a minimum distance of 2 arcsec
                 
                 matches = numpy.ones(shape=(numpy.sum(possible_match),7))
@@ -183,6 +235,7 @@ if __name__ == "__main__":
 
             source_data = []
             mjd_data = []
+            formatted_data = []
 
             if (ratecount_max > 4):
                 # We have 4 consistent data points, this might be something
@@ -212,6 +265,9 @@ if __name__ == "__main__":
                     ref_cat,
                     obj1,
                 )
+                formatted_data.append(
+                    format_source(catalog[ref_cat][obj1], mjd_hours[ref_cat]/24., '3.0')
+                )
                 source_data.append(catalog[ref_cat][obj1])
                 mjd_data.append(mjd_hours[ref_cat])
 
@@ -233,6 +289,12 @@ if __name__ == "__main__":
                         motion_rates[p_idx, 4],
                         motion_rates[p_idx, 5]
                     )
+                    formatted_data.append(
+                        format_source(catalog[c2][o2], mjd_hours[c2]/24., '3.0')
+                    )
+                    # Mark this star as used so we don;t try to re-use it for another tracklet
+                    # This hopefully gets rid of duplicates.
+                    catalog[c2][o2,SXcolumn['flags']] = -1.
                     source_data.append(catalog[c2][o2])
                     mjd_data.append(mjd_hours[c2])
 
@@ -248,13 +310,14 @@ if __name__ == "__main__":
                     "mjd": mjd_data,
                     'rate': avg_rate,
                     'positions': source_data.shape[0],
+                    'formatted': formatted_data,
                 }
                 candidates.append(source_entry)
 
         #numpy.savetxt("motion_rates_%d" % (ref_cat), motion_rates)
     logger.info("all search-related work done, associating with known objects !")
 
-    print candidates
+    # print candidates
 
     # Query MPC for all objects nearby
     logger.info("Getting list of known objects from MPC")
@@ -315,10 +378,7 @@ fk5\
         radec = numpy.median(ra_dec_corrected, axis=0)
         radec_std = numpy.std(ra_dec_corrected, axis=0)*3600.
 
-        print "\n\n"
         # print ra_dec_corrected
-        print radec
-        print radec_std
         print >>ds9_reg, 'circle(%f,%f,%f")' % (radec[0], radec[1], 10.) #13:22:17.482,-15:33:16.91,11.9449")
         # With this information, search for asteroids that are both 
         # nearby in Ra/Dec and in proper motion
@@ -335,7 +395,8 @@ fk5\
         d_dtotal = numpy.hypot(d_dra, d_ddec) # this already is in arcsec/hr
         # print d_dtotal
 
-        likely_id = (d_total < 5.) & (d_dtotal < 1.5)
+        likely_id = (d_total < 5.) & (numpy.fabs(d_dra) < 1.5) & (numpy.fabs(d_ddec) < 1.5)
+
         # numpy.savetxt(sys.stdout, likely_id)
 
         n_likelies = numpy.sum(likely_id)
@@ -359,6 +420,12 @@ fk5\
             print >>ds9_reg, '# text(%f,%f) text={%s}' % (radec[0], radec[1], "-?-?-")
 
         time.sleep(0.01)
+        print radec
+        print radec_std
+        print cand['rate']
+        print "\n".join(cand['formatted'])
+        print "\n\n"
+
 
     ds9_reg.close()
 
