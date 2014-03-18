@@ -91,8 +91,8 @@ if __name__ == "__main__":
 
 #        good_photometry = (cat_data[:, SXcolumn['x']] > 6100) & (cat_data[:, SXcolumn['x']] < 6300)
 #                          (cat_data[:, SXcolumn['y']] > 5100) & (cat_data[:, SXcolumn['y']] < 5350)
-        print numpy.sum(good_photometry)
-        # if (numpy.sum(good_photometry) <= 0):
+#        print numpy.sum(good_photometry)
+       # if (numpy.sum(good_photometry) <= 0):
         cat_data = cat_data[good_photometry]
 
         catalog_filelist.append(catalog_filename)
@@ -107,34 +107,38 @@ if __name__ == "__main__":
     min_distance = 2. / 3600. # arcsec
     motion_rates = numpy.zeros((0,6))
 
+    # Now select all neighbors within the search radius
+    radius = 1.
+
+    results = open("results", "w")
+    moving_object_id = 0
+
     for ref_cat in range(len(catalog)-1):
-        #motion_rates = numpy.zeros((0,6))
-        for second_cat in range(ref_cat+1, len(catalog)):
+        logger.debug("Checking out catalog %d" % (ref_cat))
+
+        for obj1 in range(catalog[ref_cat].shape[0]):
+            # Take one source in first catalog; 
+            # compute difference and rate from each source in the second 
+            # catalog to the source in the first catalog.
+
+            motion_rates = numpy.zeros((0,7))
+            cos_declination = math.cos(math.radians(catalog[ref_cat][obj1, SXcolumn['dec']]))
+            for second_cat in range(ref_cat+1, len(catalog)):
             
-            _motion_rates = numpy.zeros((0,6))
-            print catalog_filelist[ref_cat], catalog_filelist[second_cat]
+                # print catalog_filelist[ref_cat], catalog_filelist[second_cat]
 
-            d_hours = mjd_hours[second_cat] - mjd_hours[ref_cat]
-            diff_to_rate = 3600 / d_hours
+                d_hours = mjd_hours[second_cat] - mjd_hours[ref_cat]
+                diff_to_rate = 3600 / d_hours
 
-            for obj1 in range(catalog[ref_cat].shape[0]):
-                # Take one source in first catalog; 
-                # compute difference and rate from each source in the second 
-                # catalog to the source in the first catalog.
-
-                cos_declination = math.cos(math.radians(catalog[ref_cat][obj1, SXcolumn['dec']]))
-                
                 d_ra = catalog[second_cat][:,SXcolumn['ra']] - catalog[ref_cat][obj1,SXcolumn['ra']]
                 d_ra *= cos_declination
-
                 d_dec = catalog[second_cat][:,SXcolumn['dec']] - catalog[ref_cat][obj1,SXcolumn['dec']]
-
                 d_total = numpy.hypot(d_ra, d_dec) 
                 
                 possible_match = (d_total < math.fabs(max_rate/diff_to_rate)) & (d_total > min_distance)
                 # require a minimum distance of 2 arcsec
                 
-                matches = numpy.ones(shape=(numpy.sum(possible_match),6))
+                matches = numpy.ones(shape=(numpy.sum(possible_match),7))
                 matches[:,0] = ref_cat
                 matches[:,1] = second_cat
                 matches[:,2] = obj1
@@ -142,73 +146,89 @@ if __name__ == "__main__":
                 matches[:,4] = d_ra[possible_match] * diff_to_rate
                 matches[:,5] = d_dec[possible_match] * diff_to_rate
 
-                _motion_rates = numpy.append(_motion_rates, matches, axis=0)
+                motion_rates = numpy.append(motion_rates, matches, axis=0)
 
-            motion_rates = numpy.append(motion_rates, _motion_rates, axis=0)
+
+            # Now we have a whole set of potential counterparts for one star in the source catalog
+            # Try to find significant matches
+            if (motion_rates.shape[0] < 5):
+                # not enough nearby stars found
+                continue
+            
+            src_tree = scipy.spatial.cKDTree(motion_rates[:,4:6])
+            match_tree = scipy.spatial.cKDTree(motion_rates[:,4:6])
+            matches = match_tree.query_ball_tree(src_tree, radius, p=2)
+
+            for i in range(len(matches)):
+                motion_rates[i,6] = len(matches[i])
+
+            filename = "motion_rates_%02d_%04d.dump" % (ref_cat, obj1)
+            numpy.savetxt(filename, motion_rates)
+
+            # numpy.savetxt(sys.stdout, motion_rates)
+
+            #
+            # Now we know how often each star appears
+            #
+
+            # check often the most frequent rate appears
+            ratecount_max = numpy.max(motion_rates[:,6])
+
+            if (ratecount_max > 4):
+                # We have 4 consistent data points, this might be something
+
+                # Find the rate that has the most matches
+                frequent = (motion_rates[:,6] == ratecount_max)
+
+                frequent_rates = motion_rates[:, 4:6][frequent]
+                numpy.savetxt(sys.stdout, frequent_rates)
+
+                # compute average rate as the average of all frequent rates
+                avg_rate = numpy.median(frequent_rates, axis=0)
+                print ratecount_max, avg_rate
+
+                # Now identify all points with rates close to the average rate
+                counterparts = src_tree.query_ball_point(avg_rate, r=1, p=2)
+
+
+                position_in_sequence = 1
+                moving_object_id += 1
+                print >>results, "\n\n\n\n"
+                print >>results, "%.7f %.7f %3d %3d %3d %4d " % (
+                    catalog[ref_cat][obj1, SXcolumn['ra']],
+                    catalog[ref_cat][obj1, SXcolumn['dec']],
+                    moving_object_id,
+                    position_in_sequence,
+                    ref_cat,
+                    obj1,
+                )
+
+                for p in range(len(counterparts)):
+                    p_idx = counterparts[p]
+                        
+                    c2 = int(motion_rates[p_idx, 1])
+                    o2 = int(motion_rates[p_idx, 3])
+                    position_in_sequence += 1
+                    print >>results, "%.7f %.7f %3d %3d %9.4f %9.4f %8.2f %8.2f %9.4f %9.4f" % (
+                        catalog[c2][o2, SXcolumn['ra']],
+                        catalog[c2][o2, SXcolumn['dec']],
+                        moving_object_id,
+                        position_in_sequence,
+                        catalog[c2][o2, SXcolumn['ra']]-catalog[ref_cat][obj1, SXcolumn['ra']],
+                        catalog[c2][o2, SXcolumn['dec']]-catalog[ref_cat][obj1, SXcolumn['dec']],
+                        (catalog[c2][o2, SXcolumn['ra']]-catalog[ref_cat][obj1, SXcolumn['ra']])*3600./(mjd_hours[c2]-mjd_hours[ref_cat]),
+                        (catalog[c2][o2, SXcolumn['dec']]-catalog[ref_cat][obj1, SXcolumn['dec']])*3600./(mjd_hours[c2]-mjd_hours[ref_cat]),
+                        motion_rates[p_idx, 4],
+                        motion_rates[p_idx, 5]
+                    )
 
         #numpy.savetxt("motion_rates_%d" % (ref_cat), motion_rates)
 
     numpy.savetxt("motion_rates", motion_rates)
 
-    
-    logger.debug("Finding density")
-    # Now that we have all potential rates, find density enhancements
-    src_tree = scipy.spatial.cKDTree(motion_rates[:,4:6])
-    match_tree = scipy.spatial.cKDTree(motion_rates[:,4:6])
+    logger.info("all work done!")
 
-    # Now select all neighbors within the search radius
-    radius = 1.
-    matches = match_tree.query_ball_tree(src_tree, radius, p=2)
-
-    counts = numpy.zeros(shape=(motion_rates.shape[0], motion_rates.shape[1]+1))
-    counts[:, :motion_rates.shape[1]] = motion_rates
-
-    for i in range(len(matches)):
-        counts[i,6] = len(matches[i])
-
-    numpy.savetxt("motion_rates2", counts)
-
-    median_count = numpy.median(counts[:,6])
-    std_count = numpy.std(counts[:,6])
-    print median_count, std_count
-
-    logger.info("Filtering only significant matches")
-    filtered, mask = three_sigma_clip(counts[:,6], return_mask=True)
-
-    significant = counts[counts[:,6] > median_count+std_count]
-    numpy.savetxt("motion_rates3", significant)
-
-    #
-    # Now we have some motion groups, look fro groups of at least 3 stars
-    #
-    candidate_tree = scipy.spatial.cKDTree(significant[:,4:6])
-    full_tree = scipy.spatial.cKDTree(motion_rates[:,4:6])
-
-    results = open("results", "w")
-    chains = candidate_tree.query_ball_tree(full_tree, radius, p=2)
-    for i in range(significant.shape[0]):
-        for j in range(len(chains[i])):
-            idx = chains[i][j]
-            c1 = int(motion_rates[idx, 0])
-            c2 = int(motion_rates[idx, 1])
-            o1 = int(motion_rates[idx, 2])
-            o2 = int(motion_rates[idx, 3])
-            
-            print i,j,idx, "   ", c1, c2, o1, o2
-
-            ra1 = catalog[c1][o1, SXcolumn['ra']]
-            dec1 = catalog[c1][o1, SXcolumn['dec']]
-            ra2 = catalog[c2][o2, SXcolumn['ra']]
-            dec2 = catalog[c2][o2, SXcolumn['dec']]
-           
-            mjd1 = mjd_hours[c1]
-            mjd2 = mjd_hours[c2]
-            print >>results, ra1, dec1, ra2, dec2, mjd1, mjd2
-        print >>results, "\n\n\n\n\n"
-
-    results.close()
-
-            
     podi_logging.shutdown_logging(options)
 
 
+    sys.exit(0)
