@@ -68,7 +68,7 @@ def make_catalogs(inputlist):
 #
 
 
-def format_source(src_entry, mjd, magname, filter_name='r', discovery=False):
+def format_source(src_entry, mjd, magname, filter_name='V', discovery=False):
 
     mag_name = "mag_aper_%s" % magname
     err_name = "mag_err_%s" % magname
@@ -76,7 +76,7 @@ def format_source(src_entry, mjd, magname, filter_name='r', discovery=False):
     merr = src_entry[SXcolumn[err_name]]
     mag_digits = 2 if (merr < 0.02) else 1
 
-    format_string = "%(id)5s%(designation)7s%(discovery)1s%(note1)1s%(note2)1s%(date)17s%(ra)12s%(dec)12s%(empty)9s%(mag).1f %(filter)1s%(empty)5s%(obscode)03d"
+    format_string = "%(id)5s%(designation)7s%(discovery)1s%(note1)1s%(note2)1s%(date)16s%(ra)12s%(dec)12s%(empty)10s%(mag).1f %(filter)1s%(empty)6s%(obscode)03d"
 
     j2k = ephem.Equatorial(math.radians(src_entry[SXcolumn['ra']]), 
                            math.radians(src_entry[SXcolumn['dec']]), 
@@ -84,7 +84,7 @@ def format_source(src_entry, mjd, magname, filter_name='r', discovery=False):
 
     t = astropy.time.Time([mjd], format='mjd', scale='utc')
     dt = t.datetime[0]
-    formatted_date = "%04d %02d %09.6f" % (
+    formatted_date = "%04d %02d %08.5f" % (
         dt.year, dt.month, 
         dt.day + dt.hour/24. + dt.minute/1440. + (dt.second + dt.microsecond*1e-6)/86400.
     )
@@ -94,7 +94,7 @@ def format_source(src_entry, mjd, magname, filter_name='r', discovery=False):
     ret = format_string % {
         'empty': "",
         'id': "",
-        'designation': '',
+        'designation': 'wiyn1',
         'discovery': '*' if discovery else '',
         'note1': '?',
         'note2': "C",
@@ -114,10 +114,14 @@ if __name__ == "__main__":
     podi_logging.setup_logging(options)
     options = read_options_from_commandline(options)
 
-    logger = logging.getLogger("Astro(id)metry")
+    min_count = int(cmdline_arg_set_or_default('-mincount', 5))
+    min_rate = float(cmdline_arg_set_or_default('-minrate', 2))
 
     sidereal_reference = get_clean_cmdline()[1]
     inputlist = get_clean_cmdline()[2:]
+
+
+    logger = logging.getLogger("Astro(id)metry")
 
     make_catalogs(inputlist)
     
@@ -168,13 +172,19 @@ if __name__ == "__main__":
 
     candidates = []
 
-    for ref_cat in range(len(catalog)-1):
+    for ref_cat in range(len(catalog)-1-min_count):
         logger.debug("Checking out catalog %d" % (ref_cat))
 
         for obj1 in range(catalog[ref_cat].shape[0]):
             # Take one source in first catalog; 
             # compute difference and rate from each source in the second 
             # catalog to the source in the first catalog.
+
+            if (len(candidates) > 75):
+                break
+
+            if (catalog[ref_cat][obj1,SXcolumn['flags']] < 0):
+                continue
 
             motion_rates = numpy.zeros((0,7))
             cos_declination = math.cos(math.radians(catalog[ref_cat][obj1, SXcolumn['dec']]))
@@ -194,7 +204,7 @@ if __name__ == "__main__":
                 # are already matched to another tracklet by setting flags to -1 
                 possible_match = (d_total < math.fabs(max_rate/diff_to_rate)) & \
                                  (d_total > min_distance) & \
-                                 (catalog[ref_cat][obj1,SXcolumn['flags']] >= 0)
+                                 (catalog[second_cat][:,SXcolumn['flags']] >= 0)
                 # require a minimum distance of 2 arcsec
                 
                 matches = numpy.ones(shape=(numpy.sum(possible_match),7))
@@ -221,8 +231,8 @@ if __name__ == "__main__":
             for i in range(len(matches)):
                 motion_rates[i,6] = len(matches[i])
 
-            filename = "motion_rates_%02d_%04d.dump" % (ref_cat, obj1)
-            numpy.savetxt(filename, motion_rates)
+            # filename = "motion_rates_%02d_%04d.dump" % (ref_cat, obj1)
+            # numpy.savetxt(filename, motion_rates)
 
             # numpy.savetxt(sys.stdout, motion_rates)
 
@@ -237,8 +247,12 @@ if __name__ == "__main__":
             mjd_data = []
             formatted_data = []
 
-            if (ratecount_max > 4):
+            if (ratecount_max > min_count):
                 # We have 4 consistent data points, this might be something
+
+                # Save the motion rates and counts for later
+                fn = "motion_rates_cand%d" % (len(candidates)+1)
+                numpy.savetxt(fn, motion_rates)
 
                 # Find the rate that has the most matches
                 frequent = (motion_rates[:,6] == ratecount_max)
@@ -248,11 +262,32 @@ if __name__ == "__main__":
 
                 # compute average rate as the average of all frequent rates
                 avg_rate = numpy.median(frequent_rates, axis=0)
-                print ratecount_max, avg_rate
+                logger.info("Found new candidate % 3d (#src=%d [% 2d/% 2d]): %.3f %.3f" % (
+                    len(candidates)+1, ref_cat+1, len(catalog), ratecount_max+1, avg_rate[0], avg_rate[1])
+                )
 
                 # Now identify all points with rates close to the average rate
                 counterparts = src_tree.query_ball_point(avg_rate, r=1, p=2)
 
+                # Determine all source catalogs that contribute to this tracklets
+                tracklet = motion_rates[counterparts]
+                source_catid = tracklet[:, 1]
+                source_cat_set = set(source_catid)
+                tracklet_valid = source_catid > 0
+                # Now make sure to exclude all sources in the tracklet that appear multiple times
+                for srccat in source_cat_set:
+                    from_this_cat = (source_catid == srccat)
+                    if (numpy.sum(from_this_cat) > 1):
+                        # multiple sources are a no-no
+                        # logger.warning("Found multiple sources (%d) from the same catalog" % (numpy.sum(from_this_cat)))
+                        tracklet_valid = tracklet_valid & (from_this_cat == False)
+
+                # Now check again if we still have more sources than we require
+                if (numpy.sum(tracklet_valid) < min_count):
+                    logger.warning("Excluding tracklet with too many same-catalog sources (%d --> %d)" % (tracklet.shape[0], numpy.sum(tracklet_valid)))
+                    continue
+
+                tracklet = tracklet[tracklet_valid]
 
                 position_in_sequence = 1
                 moving_object_id += 1
@@ -271,13 +306,17 @@ if __name__ == "__main__":
                 source_data.append(catalog[ref_cat][obj1])
                 mjd_data.append(mjd_hours[ref_cat])
 
-                for p in range(len(counterparts)):
-                    p_idx = counterparts[p]
-                        
-                    c2 = int(motion_rates[p_idx, 1])
-                    o2 = int(motion_rates[p_idx, 3])
+                # for p in range(len(counterparts)):
+                #     p_idx = counterparts[p]
+                #     c2 = int(motion_rates[p_idx, 1])
+                #     o2 = int(motion_rates[p_idx, 3])
+
+                for p in range(tracklet.shape[0]): 
+                    c2 = int(tracklet[p, 1])
+                    o2 = int(tracklet[p, 3])
+
                     position_in_sequence += 1
-                    print >>results, "%.7f %.7f %3d %3d %9.4f %9.4f %8.2f %8.2f %9.4f %9.4f" % (
+                    print >>results, "%.7f %.7f %3d %3d %9.4f %9.4f %8.2f %8.2f %9.4f %9.4f %.5f %.5f" % (
                         catalog[c2][o2, SXcolumn['ra']],
                         catalog[c2][o2, SXcolumn['dec']],
                         moving_object_id,
@@ -286,8 +325,9 @@ if __name__ == "__main__":
                         catalog[c2][o2, SXcolumn['dec']]-catalog[ref_cat][obj1, SXcolumn['dec']],
                         (catalog[c2][o2, SXcolumn['ra']]-catalog[ref_cat][obj1, SXcolumn['ra']])*3600./(mjd_hours[c2]-mjd_hours[ref_cat]),
                         (catalog[c2][o2, SXcolumn['dec']]-catalog[ref_cat][obj1, SXcolumn['dec']])*3600./(mjd_hours[c2]-mjd_hours[ref_cat]),
-                        motion_rates[p_idx, 4],
-                        motion_rates[p_idx, 5]
+                        tracklet[p, 4],
+                        tracklet[p, 5],
+                        mjd_hours[c2], mjd_hours[ref_cat]
                     )
                     formatted_data.append(
                         format_source(catalog[c2][o2], mjd_hours[c2]/24., '3.0')
@@ -297,6 +337,31 @@ if __name__ == "__main__":
                     catalog[c2][o2,SXcolumn['flags']] = -1.
                     source_data.append(catalog[c2][o2])
                     mjd_data.append(mjd_hours[c2])
+
+                # Collect additional information for the stars in the most frequent pattern
+                dum = numpy.zeros(shape=(tracklet.shape[0], tracklet.shape[1]+6))
+                dum[:,:tracklet.shape[1]] = tracklet
+                for i in range(dum.shape[0]):
+                    c1, o1 = int(dum[i, 0]), int(dum[i,2])
+                    c2, o2 = int(dum[i, 1]), int(dum[i,3])
+                    dum[i,7:9] = catalog[c1][o1,0:2]
+                    dum[i,9:11] = catalog[c2][o2,0:2]
+                    dum[i,11] = mjd_hours[c1]
+                    dum[i,12] = mjd_hours[c2]
+                fn += ".frequent"
+                numpy.savetxt(fn, dum)
+
+                # dump all source information for all sources in this tracklet
+                fn = "motion_rates_cand%d.source" % (len(candidates)+1)
+                dfn = open(fn, "w")
+                print >>dfn, mjd_hours[ref_cat]," ",
+                numpy.savetxt(dfn, [catalog[ref_cat][obj1]])
+                cp = motion_rates[counterparts]
+                for i in range(tracklet.shape[0]): #len(counterparts)):
+                    c2, o2 = int(tracklet[i, 1]), int(tracklet[i,3])
+                    print >>dfn, mjd_hours[c2]," ",
+                    numpy.savetxt(dfn, [catalog[c2][o2]])
+                dfn.close()
 
                 source_data = numpy.array(source_data)
                 mjd_data = numpy.array(mjd_data) / 24.
@@ -360,7 +425,35 @@ fk5\
 global color=green dashlist=8 3 width=1 font="helvetica 10 normal roman" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1
 fk5\
 """
-    for cand in candidates:
+
+    for cand_id in range(len(candidates)):
+
+        cand = candidates[cand_id]
+        logger = logging.getLogger("Candidate(%d)" % (cand_id+1))
+
+        # Check if the average rate is larger than the minimum rate
+        combined_rate = numpy.hypot(cand['rate'][0], cand['rate'][1])
+        if (combined_rate < min_rate):
+            logger.info("Ignoring candidate that does not meet the minimum rate requirement")
+            continue
+
+        # Sort the source-data by time (MJD)
+        si = numpy.argsort(cand['mjd'])
+        mjd_sorted = cand['mjd'][si]
+        sex_sorted = cand['sex'][si]
+        #print cand['mjd']
+        #print mjd_sorted
+        #print sex_sorted
+
+        radec_start = sex_sorted[0, 0:2]
+        radec_end = sex_sorted[-1, 0:2]
+        radec_total = (radec_end - radec_start) * 3600.
+        radec_total[0] *= math.cos(math.radians(numpy.median(sex_sorted[:,1])))
+        rate_total = radec_total / ((mjd_sorted[-1]-mjd_sorted[0])/24.0) 
+        if (numpy.hypot(rate_total[0], rate_total[1]) < min_rate):
+            logger.debug("Ignoring candidate that does not meet the global minimum rate requirement (%.3f %.3f)" % (rate_total[0], rate_total[1]))
+            continue
+
         # Correct all coordinates to match the MJD of the reference frame
 
         # Get time difference in hours
@@ -401,48 +494,47 @@ fk5\
 
         new_discovery = False
         n_likelies = numpy.sum(likely_id)
+        logger.info("This is candidate # %d ..." % (cand_id+1))
+
         if (n_likelies == 0):
             logger.info("This is a new object")
-            print >>ds9_reg, '# text(%f,%f) text={NEW: %.1f, %.1f}' % (radec[0], radec[1], cand['rate'][0], cand['rate'][1])
+            print >>ds9_reg, '# text(%f,%f) text={NEW (%d): %.1f, %.1f}' % (radec[0], radec[1], cand_id+1, cand['rate'][0], cand['rate'][1])
 
             # If this object is not known, draw markers at all detected positions
             for i in range(cand['sex'].shape[0]):
                 print >>ds9_reg, 'point(%f,%f) # point=circle' % (cand['sex'][i,0], cand['sex'][i,1])
 
-            print d_total
-            print d_dtotal
+            logger.info(d_total)
+            logger.info(d_dtotal)
             new_discovery = True
 
         elif (n_likelies == 1):
             counterpart_name = (numpy.array(mpc_data['Name'])[likely_id])[0]
+            comment = (numpy.array(mpc_data['comment'])[likely_id])[0] if 'comment' in mpc_data else None
             logger.info("Found unique counterpart: %s" % (counterpart_name))
+            if (not comment == None):
+                logger.info("MPC Comment: %s" % (comment))
             print >>ds9_reg, '# text(%f,%f) text={%s (%.1f %.1f)}' % (radec[0], radec[1], counterpart_name, cand['rate'][0], cand['rate'][1])
         else:
             logger.info("Found more than one likely counterpart")
             print >>ds9_reg, '# text(%f,%f) text={%s}' % (radec[0], radec[1], "-?-?-")
 
         time.sleep(0.01)
-        print radec
-        print radec_std
-        print cand['rate']
-        # print "\n".join(cand['formatted'])
-        numpy.savetxt(sys.stdout, cand['sex'][:,0:4])
+        logger.info("ra/dec: %s" % (str(radec)))
+        logger.info("ra/dec corrected scatter: %s" % (str(radec_std)))
+        logger.info("rate: %s" % (str(cand['rate'])))
+        logger.info("global rate: %.3f %.3f" % (rate_total[0], rate_total[1]))
         
-        # Sort the source-data by time (MJD)
-        si = numpy.argsort(cand['mjd'])
-        mjd_sorted = cand['mjd'][si]
-        sex_sorted = cand['sex'][si]
-        #print cand['mjd']
-        #print mjd_sorted
-        #print sex_sorted
-
+        # print "\n".join(cand['formatted'])
+        # numpy.savetxt(sys.stdout, cand['sex'][:,0:4])
+        
         # Now output the results in the MPC format
+        all_fs = []
         for i_src in range(mjd_sorted.shape[0]):
             fs = format_source(sex_sorted[i_src], mjd_sorted[i_src], '3.0', discovery=new_discovery)
             new_discovery = False
-            print fs
-
-        print "\n\n"
+            all_fs.append(fs)
+        logger.info("for MPC:\n------\n%s\n------\n\n" % ("\n".join(all_fs)))
 
 
     ds9_reg.close()
