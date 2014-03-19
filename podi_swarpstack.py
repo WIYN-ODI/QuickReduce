@@ -203,7 +203,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
 
 
         if (options['skip_otas'] != []):
-
+            logger.info("Skipping some OTAs")
             ota_list = []
             for ext in hdulist:
                 ota = -1
@@ -226,6 +226,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
                 }
 
         if (not options['bpm_dir'] == None):
+            logger.info("Applying bad-pixel masks")
             for ext in range(len(hdulist)):
                 if (not is_image_extension(hdulist[ext])):
                     continue
@@ -453,6 +454,20 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
                     logger.warning("swarp stderr:\n"+swarp_stderr)
                 else:
                     logger.debug("swarp stderr:\n"+swarp_stderr)
+                
+                # Add some basic headers from input file to the single file
+                # this is important for the differencing etc.
+                hdu_single = pyfits.open(single_file,  mode='update')
+                for hdrkey in [
+                        'TARGRA', 'TARGDEC',
+                        'FILTER', 'FILTERID', 'FILTDSCR', 
+                        'OBSID', 'OBJECT', 
+                        'EXPTIME',
+                        'DATE-OBS', 'TIME-OBS', 'MJD-OBS']:
+                    if (hdrkey in hdulist[0].header):
+                        key, val, com = hdulist[0].header.cards[hdrkey]
+                        hdu_single[0].header[key] = (val, com)
+                hdu_single.flush()
                 
                 #print "\n".join(swarp_stderr)
                 single_prepared_files.append(single_file)
