@@ -7,7 +7,24 @@ import ephem
 import math
 import numpy
 
+bn, _ = os.path.split(os.path.abspath(sys.argv[0]))
+sys.path.append("%s/../" % (bn))
+from podi_commandline import *
 
+verbose = True
+
+def rad2sex(r, print_sign=True, second_digits=2):
+    sign = "-" if r < 0 else ("+" if print_sign else "")
+    r = math.fabs(r)
+    degrees = int(math.floor(r))
+    rest = (r - degrees) * 60.
+    minutes = int(math.floor(rest))
+    seconds = (rest - minutes) * 60.
+
+    formatstring = "%%s%%02d %%02d %%0%d.%df" % (second_digits+3, second_digits)
+    fmtd = formatstring % (sign,
+                           degrees, minutes, seconds)
+    return fmtd
 
 
 def get_mpc_catalog(fitsfile):
@@ -53,13 +70,14 @@ def get_mpc_catalog(fitsfile):
     print str(j2k.ra).replace(":", " ")
     print str(j2k.dec).replace(":", " ")
 
+ # str(j2k.ra).replace(":", " ")},
     data2 = [
         {'year': date_obs.year},
         {'month': date_obs.month},
         {'day': ut_day},
         {'which': 'pos'},
-        {'ra': str(j2k.ra).replace(":", " ")},
-        {'decl': str(j2k.dec).replace(":", " ")},
+        {'ra': rad2sex(math.degrees(j2k.ra/15.), False, 2)},
+        {'decl': rad2sex(math.degrees(j2k.dec), True, 2)},
         {'TextArea': ''},
         {'radius': 40},
         {'limit': 23.0},
@@ -72,6 +90,11 @@ def get_mpc_catalog(fitsfile):
         {'ps': 'n'},
         {'type': 'p'},
     ]
+
+    if (verbose):
+        print data2
+        # for key in data2:
+        #     print key, "-->", data2[key]
 
     url2 = ''
     for i in data2:
@@ -184,30 +207,77 @@ def get_mpc_catalog(fitsfile):
     return results
 
 
+def mpc_name2id(name):
+
+    # first remove the potential space and/or underscore
+    name = name.replace(" ", "")
+    name = name.replace("_", "")
+
+    century = int(name[0:2])
+    # print century
+    
+    century_id = {18: 'I', 19: 'J', 20: 'K'}
+    if (not century in century_id):
+        return None
+    # print century_id[century]
+
+    year = int(name[2:4])
+    # print "%02d" % year
+
+
+    letter1 = name[4]
+    letter2 = name[5]
+    # print letter1,letter2
+
+    if (name[6:] == ""):
+        number = 0
+    else:
+        number = int(name[6:])
+        number1 = int(name[6:8])
+        number2 = int(name[-1])
+        # print number1, number2
+    if (number <= 99):
+        number_str = "%02d" % (number)
+    else:
+        # 3 digits, so we need to look at number 1 which is the first 2 digits
+        number_str_lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+        lookup = number1 - 10
+        number_str = "%s%d" % (number_str_lookup[lookup], number2)
+        
+    designation = "%s%02d%s%s%s" % (century_id[century], year, letter1, number_str, letter2)
+    # print designation
+
+    return designation
+
+
 if __name__ == "__main__":
 
     
-    fitsfile = sys.argv[1]
-    if (not os.path.isfile(fitsfile)):
-        pass
-        sys.exit(0)
+    if (cmdline_arg_isset("-name2id")):
+        name = get_clean_cmdline()[1]
+        id_from_name = mpc_name2id(name)
+        print "%10s --> %s" % (name, id_from_name)
+
+    else:
+        fitsfile = sys.argv[1]
+        if (not os.path.isfile(fitsfile)):
+            pass
+            sys.exit(0)
         
 
+        hdulist = astropy.io.fits.open(fitsfile)
 
-        
-    hdulist = astropy.io.fits.open(fitsfile)
+        ra = hdulist[0].header['CRVAL1']
+        dec = hdulist[0].header['CRVAL2']
+        print ra, dec, ra/15.
+        j2k = ephem.Equatorial(math.radians(ra), math.radians(dec), epoch=ephem.J2000)
 
-    ra = hdulist[0].header['CRVAL1']
-    dec = hdulist[0].header['CRVAL2']
-    print ra, dec, ra/15.
-    j2k = ephem.Equatorial(math.radians(ra), math.radians(dec), epoch=ephem.J2000)
+        print j2k.ra, j2k.dec
 
-    print j2k.ra, j2k.dec
+        print str(j2k.ra)
+        print str(j2k.ra).replace(":", " ")
+        print str(j2k.dec).replace(":", " ")
 
-    print str(j2k.ra)
-    print str(j2k.ra).replace(":", " ")
-    print str(j2k.dec).replace(":", " ")
+        # print hdulist[0].header
 
-    # print hdulist[0].header
-
-    name, ra, dec, d_ra, d_dec = get_mpc_catalog(fitsfile)
+        name, ra, dec, d_ra, d_dec = get_mpc_catalog(fitsfile)
