@@ -68,7 +68,7 @@ def make_catalogs(inputlist):
 #
 
 
-def format_source(src_entry, mjd, magname, filter_name='V', discovery=False):
+def format_source(src_entry, mjd, magname, filter_name='V', discovery=False, designation='ODI1'):
 
     mag_name = "mag_aper_%s" % magname
     err_name = "mag_err_%s" % magname
@@ -94,7 +94,7 @@ def format_source(src_entry, mjd, magname, filter_name='V', discovery=False):
     ret = format_string % {
         'empty': "",
         'id': "",
-        'designation': 'wiyn1',
+        'designation': designation,
         'discovery': '*' if discovery else '',
         'note1': '?',
         'note2': "C",
@@ -107,19 +107,25 @@ def format_source(src_entry, mjd, magname, filter_name='V', discovery=False):
     }
     return ret
 
-if __name__ == "__main__":
 
-    
-    options = set_default_options()
-    podi_logging.setup_logging(options)
-    options = read_options_from_commandline(options)
+def write_mpc_header(mpc):
 
-    min_count = int(cmdline_arg_set_or_default('-mincount', 5))
-    min_rate = float(cmdline_arg_set_or_default('-minrate', 2))
+    print >>mpc, "COD 695" # Kitt Peak
+    print >>mpc, "CON R S. McMillan, Univ. of Arizona, 1629 E. Univ. Blvd, Tucson AZ 85721"
+    print >>mpc, "CON [bob@lpl.arizona.edu]"
+    print >>mpc, "OBS --- add info here ---"
+    print >>mpc, "MEA --- add names here ---"
+    print >>mpc, "TEL WIYN 3.5-m f/6.3 reflector + CCDs"
+    print >>mpc, "NET 2MASS"
+    print >>mpc, "COM Astrometric errors are generally 0.6-0.8 arcsec including WCS fitting"
+    print >>mpc, "COM and centroiding."
+    print >>mpc, "BND r"
+    print >>mpc, "ACK WIYN 3.5-m followup"
+    print >>mpc, "AC2 bob@lpl.arizona.edu"
 
-    sidereal_reference = get_clean_cmdline()[1]
-    inputlist = get_clean_cmdline()[2:]
 
+
+def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcfile=None):
 
     logger = logging.getLogger("Astro(id)metry")
 
@@ -129,6 +135,7 @@ if __name__ == "__main__":
     catalog = []
     mjd_hours = []
     source_id = []
+    filters = []
 
     phot_ZP = 25.
 
@@ -142,6 +149,7 @@ if __name__ == "__main__":
         obs_mjd = hdulist[0].header['MJD-OBS']
         exptime = hdulist[0].header['EXPTIME']
         mjd_middle = (obs_mjd * 24.) + (exptime / 3600.)
+        filter_name = hdulist[0].header['FILTER']
 
         # Do some preparing of the catalog
         good_photometry = cat_data[:, SXcolumn['mag_aper_2.0']] < 0
@@ -156,6 +164,7 @@ if __name__ == "__main__":
         catalog.append(cat_data)
         mjd_hours.append(mjd_middle)
         source_id.append(numpy.arange(cat_data.shape[0]))
+        filters.append(filter_name)
 
         print catalog_filename, cat_data.shape
 
@@ -180,8 +189,8 @@ if __name__ == "__main__":
             # compute difference and rate from each source in the second 
             # catalog to the source in the first catalog.
 
-            if (len(candidates) > 75):
-                break
+#            if (len(candidates) > 75):
+#                break
 
             if (catalog[ref_cat][obj1,SXcolumn['flags']] < 0):
                 continue
@@ -284,7 +293,7 @@ if __name__ == "__main__":
 
                 # Now check again if we still have more sources than we require
                 if (numpy.sum(tracklet_valid) < min_count):
-                    logger.warning("Excluding tracklet with too many same-catalog sources (%d --> %d)" % (tracklet.shape[0], numpy.sum(tracklet_valid)))
+                    logger.debug("Excluding tracklet with too many same-catalog sources (%d --> %d)" % (tracklet.shape[0], numpy.sum(tracklet_valid)))
                     continue
 
                 tracklet = tracklet[tracklet_valid]
@@ -376,6 +385,7 @@ if __name__ == "__main__":
                     'rate': avg_rate,
                     'positions': source_data.shape[0],
                     'formatted': formatted_data,
+                    'tracklet': tracklet,
                 }
                 candidates.append(source_entry)
 
@@ -426,6 +436,15 @@ global color=green dashlist=8 3 width=1 font="helvetica 10 normal roman" select=
 fk5\
 """
 
+    # If requested, also write the information in the MPC-style into a separate MPC file
+    mpc = None
+    if (not mpcfile == None):
+        mpc = open(mpcfile, "w")
+        
+        # Write some basic info into MPC file
+        write_mpc_header(mpc)
+
+    new_discovery_number = 0
     for cand_id in range(len(candidates)):
 
         cand = candidates[cand_id]
@@ -496,6 +515,10 @@ fk5\
         n_likelies = numpy.sum(likely_id)
         logger.info("This is candidate # %d ..." % (cand_id+1))
 
+        counterpart_name = 'new'
+        comment = "none"
+        designation = ""
+        comment = ""
         if (n_likelies == 0):
             logger.info("This is a new object")
             print >>ds9_reg, '# text(%f,%f) text={NEW (%d): %.1f, %.1f}' % (radec[0], radec[1], cand_id+1, cand['rate'][0], cand['rate'][1])
@@ -507,17 +530,28 @@ fk5\
             logger.info(d_total)
             logger.info(d_dtotal)
             new_discovery = True
-
+            new_discovery_number += 1
+            counterpart_name = "new_%d" % (cand_id+1)
+            designation = "ODI%d" % (new_discovery_number)
+            comment = "This is a new discovery"
         elif (n_likelies == 1):
             counterpart_name = (numpy.array(mpc_data['Name'])[likely_id])[0]
-            comment = (numpy.array(mpc_data['comment'])[likely_id])[0] if 'comment' in mpc_data else None
+            comment = (numpy.array(mpc_data['comment'])[likely_id])[0] if 'comment' in mpc_data else "none"
             logger.info("Found unique counterpart: %s" % (counterpart_name))
             if (not comment == None):
                 logger.info("MPC Comment: %s" % (comment))
             print >>ds9_reg, '# text(%f,%f) text={%s (%.1f %.1f)}' % (radec[0], radec[1], counterpart_name, cand['rate'][0], cand['rate'][1])
+            designation = podi_mpchecker.mpc_name2id(counterpart_name)
+            comment = "Incidental astrometry for %s" % (counterpart_name)
         else:
+            counterpart_name = 'multiple'
             logger.info("Found more than one likely counterpart")
             print >>ds9_reg, '# text(%f,%f) text={%s}' % (radec[0], radec[1], "-?-?-")
+            comment = "More than one plausible counterpart identified"
+
+        candidates[cand_id]['new_discovery'] = new_discovery
+        candidates[cand_id]['name'] = counterpart_name
+        candidates[cand_id]['comment'] = comment if (not comment == "") else "none"
 
         time.sleep(0.01)
         logger.info("ra/dec: %s" % (str(radec)))
@@ -530,14 +564,119 @@ fk5\
         
         # Now output the results in the MPC format
         all_fs = []
+        all_fs.append("COM %s" % (comment))
+        average_mag_error = numpy.median(sex_sorted[:, SXcolumn['mag_err_3.0']])
+        all_fs.append("COM average photometric uncertainty: %.2f mag" % (average_mag_error))
         for i_src in range(mjd_sorted.shape[0]):
-            fs = format_source(sex_sorted[i_src], mjd_sorted[i_src], '3.0', discovery=new_discovery)
+            
+            fs = format_source(sex_sorted[i_src], mjd_sorted[i_src], '3.0', 
+                               discovery=new_discovery, 
+                               designation=designation, 
+                               filter_name='r')
             new_discovery = False
             all_fs.append(fs)
         logger.info("for MPC:\n------\n%s\n------\n\n" % ("\n".join(all_fs)))
-
+        if (not mpc == None):
+            mpc.write(os.linesep.join(all_fs)+os.linesep)
 
     ds9_reg.close()
+    if (not mpc == None):
+        mpc.close()
+
+    return candidates
+
+
+
+if __name__ == "__main__":
+
+    
+    options = set_default_options()
+    podi_logging.setup_logging(options)
+    options = read_options_from_commandline(options)
+    logger = logging.getLogger("Asteroidmetry: Main")
+
+    min_count = int(cmdline_arg_set_or_default('-mincount', 5))
+    min_rate = float(cmdline_arg_set_or_default('-minrate', 2))
+    mpc_file = cmdline_arg_set_or_default('-mpc', None)
+
+    try:
+        import cPickle as pickle
+    except ImportError:
+        import pickle
+
+    if (cmdline_arg_isset("-writeregion")):
+
+        ref_file = get_clean_cmdline()[1]
+        region_file = get_clean_cmdline()[2]
+
+        with open("asteroidmetry.pickle", "rb") as pf:
+            candidates = pickle.load(pf)
+
+        for cand in candidates:
+            print cand['rate']
+
+        ds9_reg = open(region_file, "w")
+        print >>ds9_reg, """\
+        # Region file format: DS9 version 4.1
+        global color=green dashlist=8 3 width=1 font="helvetica 10 normal roman" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1
+        fk5\
+        """
+        
+        hdulist = astropy.io.fits.open(ref_file)
+        rel_ra = rel_dec = rel_mjd = 0
+        rel_ra = hdulist[0].header['_NSID_RA'] if ('_NSID_RA' in hdulist[0].header) else 0.0
+        rel_dec = hdulist[0].header['_NSID_DE'] if ('_NSID_DE' in hdulist[0].header) else 0.0
+        rel_mjd = hdulist[0].header['_NSID_RT'] if ('_NSID_RT' in hdulist[0].header) else \
+                  hdulist[0].header['MJD-OBS'] if ('MJD-OBS' in hdulist[0].header) else 0.0
+
+        for cand in candidates:
+            
+            d_mjd_hours = (cand['mjd'] - rel_mjd) * 24.
+            
+            dra = (rel_ra * d_mjd_hours) 
+            ddec = (rel_dec * d_mjd_hours)
+            if (not 'name' in cand):
+                continue
+
+            if ('name' in cand): print cand['name']
+            #print d_mjd_hours
+            #print dra
+            #print ddec
+
+            dec_fixed = cand['sex'][:,1] - ddec / 3600.
+            ra_fixed = cand['sex'][:,0] - (dra / numpy.cos(numpy.radians(dec_fixed))) / 3600.
+            
+            # Draw a circle for each detection
+            for i in range(cand['sex'].shape[0]):
+                print >>ds9_reg, 'point(%f,%f) # point=circle' % (ra_fixed[i], dec_fixed[i])
+            
+            # Add some label with the name
+            # Use the coordinates of the first recorded point, and correct 
+            # it to the MJD reference of the reference frame
+            dmjd0 = (cand['mjd'][0] - rel_mjd) * 24.
+            dra0 = (rel_ra - cand['rate'][0]) * dmjd0 / 3600.
+            ddec0 = (rel_dec - cand['rate'][1]) * dmjd0 / 3600.
+            dec0 = cand['sex'][0,1] - ddec0
+            ra0 = cand['sex'][0,0] - dra0 / math.cos(math.radians(dec0))
+
+            try:
+                print >>ds9_reg, '# text(%f,%f) text={%s}' % (ra0, dec0, cand['name'])
+            except:
+                pass
+        ds9_reg.close()
+
+                
+    else:
+        sidereal_reference = get_clean_cmdline()[1]
+        inputlist = get_clean_cmdline()[2:]
+
+        candidates = find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpc_file)
+
+        with open("asteroidmetry.pickle", "wb") as pf:
+            pickle.dump(candidates, pf)
+            
+        # print candidates[0]
+
 
     logger.info("Done, shutting down")
     podi_logging.shutdown_logging(options)
