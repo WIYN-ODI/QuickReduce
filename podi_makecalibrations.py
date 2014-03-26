@@ -740,7 +740,7 @@ if __name__ == "__main__":
         logger.info("   %s --> %s BIN=%d" % (directory, obstype, binning))
 
         filter = hdulist[0].header['FILTER']
-        if (obstype == "DFLAT"):
+        if (obstype in ["DFLAT", "TFLAT"]):
             filter_list.append(filter)
             if (not filter in calib_flat_list[binning]):
                 calib_flat_list[binning][filter] = []
