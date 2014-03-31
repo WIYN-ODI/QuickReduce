@@ -1048,10 +1048,12 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     detailed_return['n_raw'] = zp.shape[0]
 
     # Make plots
+    logger.debug("Creating phot-ZP diagnostic plots? %s" % (str(diagplots)))
     if (diagplots):
         import podi_diagnosticplots
 
         # zp_calib_plot = output_filename[:-5]+".photZP"
+        logger.debug("Preparing the photZP plots")
         zp_calib_plot = create_qa_filename(output_filename, "photZP", options)
         podi_diagnosticplots.photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr,
                                                   zp_calib_plot,
@@ -1074,6 +1076,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         if (otalist != None):
             ota_outlines = derive_ota_outlines(otalist)
 
+        logger.debug("Preparing the photZP_map plots")
         podi_diagnosticplots.photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec,
                                                       output_filename=plotfilename,
                                                       sdss_filtername=sdss_filter, odi_filtername=filtername,
