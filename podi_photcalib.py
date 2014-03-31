@@ -950,7 +950,6 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     zp_median = 99
     zp_std = 1
     zp_exptime = 99
-    diagplots = False
     zp_stderrofmean = 0.0
     zp_upper1sigma = 99.
     zp_lower1sigma = 99.
