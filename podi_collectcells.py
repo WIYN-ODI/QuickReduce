@@ -2717,7 +2717,7 @@ def collectcells(input, outputfile,
     logger.debug("Next up: photcalib & seeingplots")
     logger.debug("fixwcs: %s, create_qaplots: %s, photcalib: %s, enough_stars_for_fixwcs: %s" % (
         str(options['fixwcs']), str(options['create_qaplots']), str(options['photcalib']), str(enough_stars_for_fixwcs)
-    )
+    ))
     if (options['fixwcs'] and 
         options['create_qaplots'] and 
         options['photcalib'] and
