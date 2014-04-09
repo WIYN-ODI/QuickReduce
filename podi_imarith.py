@@ -75,14 +75,14 @@ if __name__ == "__main__":
     rebin_fac = int(cmdline_arg_set_or_default("-bin", 1))
     
     # Now go though each extension and perform the operation
-    for idx_img1 in range(1, len(hdu_1)):
+    for idx_img1 in range(0, len(hdu_1)):
         if (not is_image_extension(hdu_1[idx_img1])):
             continue
 
         img1 = hdu_1[idx_img1]
         
-        fppos1 = img1.header['EXTNAME']
-        stdout_write("\rComputing extension %s (%2d of %2d) ..." % (img1.header['EXTNAME'], idx_img1, len(hdu_1)-1))
+        fppos1 = img1.header['EXTNAME'] if 'EXTNAME' in img1.header else idx_img1
+        stdout_write("\rComputing extension %s (%2d of %2d) ..." % (str(fppos1), idx_img1, len(hdu_1)-1))
         if (numeric_2 != None):
             if (op == "+"):
                 img1.data += numeric_2
@@ -98,8 +98,9 @@ if __name__ == "__main__":
                 stdout_write("Unknown operation %s\n" % (op))
 
         else:
-            for img2 in hdu_2[1:]:
-                fppos2 = img2.header['EXTNAME']
+            for img2_idx in range(len(hdu_2)): #[0:]:
+                fppos2 = hdu_2[img2_idx].header['EXTNAME'] if 'EXTNAME' in hdu_2[img2_idx].header else img2_idx
+                img2 = hdu_2[fppos2]
                 if (fppos2 == fppos1):
                     # This is the one
 
