@@ -514,7 +514,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     #
     # Now all single files are prepared, go ahead and produce the actual stack
     #
-    dic['combine_type'] = "AVERAGE"
+    dic['combine_type'] = swarp_params['combine-type'] #"AVERAGE"
     dic['imageout'] = outputfile+".fits"
     dic['weightout'] = outputfile+".weight.fits"
     dic['prepared_files'] = " ".join(single_prepared_files)
@@ -696,6 +696,13 @@ def read_swarp_params():
     params['add'] = cmdline_arg_isset("-add")
     params['reference_file'] = cmdline_arg_set_or_default("-reference", None)
     params['no-fluxscale'] = cmdline_arg_isset('-nofluxscale')
+
+    combine_method = cmdline_arg_set_or_default('-combine', 'average')
+    if (not combine_method in ['average', 'median', 'sum', 'min', 'max', 'weighted', 'chi2']):
+        logger = logging.getLogger("Setup")
+        logger.error("The specified combine method (%s) is not supported, using average instead" % (combine_method))
+        combine_method = 'average'
+    params['combine-type'] = combine_method.upper()
 
     return params
 
