@@ -519,6 +519,8 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     dic['weightout'] = outputfile+".weight.fits"
     dic['prepared_files'] = " ".join(single_prepared_files)
     dic['bgsub'] = "Y" if swarp_params['subtract_back'] else "N"
+    dic['clip-sigma'] = swarp_params['clip-sigma']
+    dic['clip-ampfrac'] = swarp_params['clip-ampfrac']
 
     swarp_opts = """\
                  -c %(swarp_default)s \
@@ -529,6 +531,8 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
                  -PIXELSCALE_TYPE %(pixelscale_type)s \
                  -COMBINE Y \
                  -COMBINE_TYPE %(combine_type)s \
+                 -CLIP_AMPFRAC %(clip-ampfrac)f \
+                 -CLIP_SIGMA %(clip-sigma)f \
                  -CENTER_TYPE MANUAL \
                  -CENTER %(center_ra)f,%(center_dec)f \
                  -IMAGE_SIZE %(imgsizex)d,%(imgsizey)d \
@@ -698,12 +702,25 @@ def read_swarp_params():
     params['no-fluxscale'] = cmdline_arg_isset('-nofluxscale')
 
     combine_method = cmdline_arg_set_or_default('-combine', 'average')
-    if (not combine_method in ['average', 'median', 'sum', 'min', 'max', 'weighted', 'chi2']):
+    if (not combine_method.lower() in ['average', 'median', 'sum', 'min', 'max', 'weighted', 'chi2',
+                                       'chi-old', 'chi-mode', 'chi-mean', 'clipped',
+                                       'weighted_weight', 'median_weight', 'and', 'nand', 'or', 'nor']):
         logger = logging.getLogger("Setup")
         logger.error("The specified combine method (%s) is not supported, using average instead" % (combine_method))
         combine_method = 'average'
     params['combine-type'] = combine_method.upper()
 
+    params['clip-ampfrac'] = 0.3
+    params['clip-sigma'] = 4.0
+    if (cmdline_arg_isset('-clip')):
+        vals = get_cmdline_arg('-clip')
+        if (len(vals)>0):
+            items = vals.split(',')
+            if (len(items) > 0):
+                params['clip-sigma'] = float(items[0])
+            if (len(items) >= 2):
+                params['clip-ampfrac'] = float(items[1])
+            
     return params
 
 if __name__ == "__main__":
