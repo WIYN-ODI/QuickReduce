@@ -143,6 +143,7 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
     for fitsfile in inputlist:
 
         catalog_filename = fitsfile[:-5]+".cat"
+        
         cat_data = numpy.loadtxt(catalog_filename)
         
         hdulist = astropy.io.fits.open(fitsfile)
@@ -152,8 +153,14 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
         filter_name = hdulist[0].header['FILTER']
 
         # Do some preparing of the catalog
-        good_photometry = cat_data[:, SXcolumn['mag_aper_2.0']] < 0
-        cat_data = cat_data[good_photometry]
+        try:
+            good_photometry = cat_data[:, SXcolumn['mag_aper_2.0']] < 0
+            cat_data = cat_data[good_photometry]
+        except:
+            # anything might have gone wrong.
+            # do not use this catalog
+            continue
+
 
         # Apply photometric zeropoint to all magnitudes
         for key in SXcolumn_names:
@@ -550,7 +557,7 @@ fk5\
             comment = "More than one plausible counterpart identified"
 
         candidates[cand_id]['new_discovery'] = new_discovery
-        candidates[cand_id]['name'] = counterpart_name
+        candidates[cand_id]['name'] = counterpart_name if (not new_discovery) else "NEW: %s" % (designation)
         candidates[cand_id]['comment'] = comment if (not comment == "") else "none"
 
         time.sleep(0.01)
