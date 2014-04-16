@@ -121,7 +121,7 @@ import podi_logging
 import logging
 
 
-def mp_preparesingles(input_queue, output_queue, swarp_params, options):
+def mp_prepareinput(input_queue, output_queue, swarp_params, options):
 
     while (True):
 
@@ -269,7 +269,7 @@ def mp_preparesingles(input_queue, output_queue, swarp_params, options):
 
 
 
-def prepare_singles(inputlist, swarp_params, options):
+def prepare_input(inputlist, swarp_params, options):
 
     logger = logging.getLogger("PrepFiles")
 
@@ -304,7 +304,7 @@ def prepare_singles(inputlist, swarp_params, options):
     worker_args = (in_queue, out_queue, swarp_params, options)
     processes = []
     for i in range(sitesetup.number_cpus):
-        p = multiprocessing.Process(target=mp_preparesingles, args=worker_args)
+        p = multiprocessing.Process(target=mp_prepareinput, args=worker_args)
         p.start()
         processes.append(p)
 
@@ -399,7 +399,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
 #    modified_files = inputlist
     modified_files, stack_total_exptime, stack_framecount, \
         stack_start_time, stack_end_time, master_reduction_files_used = \
-                                prepare_singles(inputlist, swarp_params, options)
+                                prepare_input(inputlist, swarp_params, options)
 
     add_only = swarp_params['add'] and os.path.isfile(outputfile)
     if (add_only):
