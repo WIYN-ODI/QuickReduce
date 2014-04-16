@@ -246,7 +246,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
                     "obsid": hdulist[0].header['OBSID'],
                 }
 
-        if (not corrected_filename == None):
+        if (not corrected_filename == None and (not swarp_params['reuse_singles'] and os.path.isfile(corrected_filename))):
             # This means we made some modifications, either non-sidereal or 
             # skip-ota or both
  
