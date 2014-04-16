@@ -132,7 +132,7 @@ def create_nonlinearity_data(inputfiles):
             continue
 
         for ext in range(1, len(hdulist)):
-            if (not type(hdulist[ext]) == pyfits.hdu.image.ImageHDU):
+            if (not is_image_extension(hdulist[ext])):
                 continue
 
             extname = hdulist[ext].header['EXTNAME']
