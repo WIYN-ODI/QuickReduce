@@ -369,6 +369,54 @@ def prepare_input(inputlist, swarp_params, options):
     return corrected_file_list, stack_total_exptime, stack_framecount, stack_start_time, stack_end_time, master_reduction_files_used 
 
 
+def mp_swarp_single(sgl_queue, dum):
+
+    while(True):
+        cmd = sgl_queue.get()
+        if (cmd == None):
+            sgl_queue.task_done()
+            break
+
+        swarp_cmd, prepared_file, single_file = cmd
+        logger = logging.getLogger("MPSwarpSgl(%s)" % (os.path.basename(single_file)))
+
+        hdulist = pyfits.open(prepared_file)
+        obsid = hdulist[0].header['OBSID']
+
+        try:
+            ret = subprocess.Popen(swarp_cmd.split(), 
+                                   stdout=subprocess.PIPE, 
+                                   stderr=subprocess.PIPE)
+            (swarp_stdout, swarp_stderr) = ret.communicate()
+            logger.debug("swarp stdout:\n"+swarp_stdout)
+            if (len(swarp_stderr) > 0 and ret.returncode != 0):
+                logger.warning("swarp stderr:\n"+swarp_stderr)
+            else:
+                logger.debug("swarp stderr:\n"+swarp_stderr)
+
+            # Add some basic headers from input file to the single file
+            # this is important for the differencing etc.
+            hdu_single = pyfits.open(single_file,  mode='update')
+            for hdrkey in [
+                    'TARGRA', 'TARGDEC',
+                    'FILTER', 'FILTERID', 'FILTDSCR', 
+                    'OBSID', 'OBJECT', 
+                    'EXPTIME',
+                    'DATE-OBS', 'TIME-OBS', 'MJD-OBS']:
+                if (hdrkey in hdulist[0].header):
+                    key, val, com = hdulist[0].header.cards[hdrkey]
+                    hdu_single[0].header[key] = (val, com)
+            hdu_single.flush()
+
+            #print "\n".join(swarp_stderr)
+            # single_prepared_files.append(single_file)
+        except OSError as e:
+            podi_logging.log_exception()
+            print >>sys.stderr, "Execution failed:", e
+
+        sgl_queue.task_done()
+
+
 def swarpstack(outputfile, inputlist, swarp_params, options):
 
     logger = logging.getLogger("SwarpStack - Prepare")
@@ -393,10 +441,6 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     print "input=",inputlist
     print "output=",outputfile
 
-    modified_files = []
-
-
-#    modified_files = inputlist
     modified_files, stack_total_exptime, stack_framecount, \
         stack_start_time, stack_end_time, master_reduction_files_used = \
                                 prepare_input(inputlist, swarp_params, options)
@@ -527,8 +571,12 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     #
     logger = logging.getLogger("SwarpStack - Singles")
     single_prepared_files = []
-    for singlefile in inputlist:
-        hdulist = pyfits.open(singlefile)
+
+    # Prepare the worker queue
+    sgl_queue = multiprocessing.JoinableQueue()
+
+    for prepared_file in inputlist:
+        hdulist = pyfits.open(prepared_file)
         obsid = hdulist[0].header['OBSID']
 
         # assemble all swarp options for that run
@@ -541,7 +589,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
                'imgsizex': out_naxis1,
                'imgsizey': out_naxis2,
                'resample_dir': sitesetup.scratch_dir,
-               'inputfile': singlefile,
+               'inputfile': prepared_file,
                'swarp_default': swarp_default,
            }
 
@@ -572,39 +620,32 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
             logger.info("This single-swarped file (%s) exist, re-using it" % (single_file))
             single_prepared_files.append(single_file)
         else:
-            logger.info("Preparing file %s, please wait ..." % (singlefile))
+            logger.info("Preparing file %s, please wait ..." % (prepared_file))
             logger.debug(" ".join(swarp_cmd.split()))
-            try:
-                ret = subprocess.Popen(swarp_cmd.split(), 
-                                       stdout=subprocess.PIPE, 
-                                       stderr=subprocess.PIPE)
-                (swarp_stdout, swarp_stderr) = ret.communicate()
-                logger.debug("swarp stdout:\n"+swarp_stdout)
-                if (len(swarp_stderr) > 0 and ret.returncode != 0):
-                    logger.warning("swarp stderr:\n"+swarp_stderr)
-                else:
-                    logger.debug("swarp stderr:\n"+swarp_stderr)
-                
-                # Add some basic headers from input file to the single file
-                # this is important for the differencing etc.
-                hdu_single = pyfits.open(single_file,  mode='update')
-                for hdrkey in [
-                        'TARGRA', 'TARGDEC',
-                        'FILTER', 'FILTERID', 'FILTDSCR', 
-                        'OBSID', 'OBJECT', 
-                        'EXPTIME',
-                        'DATE-OBS', 'TIME-OBS', 'MJD-OBS']:
-                    if (hdrkey in hdulist[0].header):
-                        key, val, com = hdulist[0].header.cards[hdrkey]
-                        hdu_single[0].header[key] = (val, com)
-                hdu_single.flush()
-                
-                #print "\n".join(swarp_stderr)
-                single_prepared_files.append(single_file)
-            except OSError as e:
-                podi_logging.log_exception()
-                print >>sys.stderr, "Execution failed:", e
 
+            sgl_queue.put( (swarp_cmd, prepared_file, single_file) )
+            single_prepared_files.append(single_file)
+
+    #
+    # Execute all swarps to create the single files
+    #
+
+    # Now with all swarp-runs queued, start a number of processes
+    worker_args = (sgl_queue, "")
+    processes = []
+    for i in range(sitesetup.number_cpus):
+        p = multiprocessing.Process(target=mp_swarp_single, args=worker_args)
+        p.start()
+        processes.append(p)
+
+        # also add a quit-command for each process
+        sgl_queue.put(None)
+        
+    # wait until all work is done
+    sgl_queue.join()
+    # join/terminate all processes
+    for p in processes:
+        p.join()
 
     #
     # If in "add" mode, rename the previous output file and add it to the list of input files
