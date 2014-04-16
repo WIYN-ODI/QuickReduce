@@ -115,10 +115,258 @@ from podi_commandline import *
 from podi_definitions import *
 #from podi_collectcells import *
 import podi_sitesetup as sitesetup
+import multiprocessing
 
 import podi_logging
 import logging
 
+
+def mp_preparesingles(input_queue, output_queue, swarp_params, options):
+
+    while (True):
+
+        cmd = input_queue.get()
+        if (cmd == None):
+            input_queue.task_done()
+            break
+
+        input_file = cmd
+        logger = logging.getLogger("MP-Prep(%s)" % (os.path.basename(input_file)))
+
+
+        ret = {
+            "master_reduction_files": {},
+            "corrected_file": None,
+            'exptime': 0,
+            'mjd_obs_start': 0,
+            'mjd_obs_end': 0,
+        }
+            
+
+        try:
+            hdulist = pyfits.open(input_file)
+        except IOError:
+            logger.error("Can't open file %s" % (inputlist[i]))
+            output_queue.put(None)
+            input_queue.task_done()
+            continue
+
+        mjd_obs_start = hdulist[0].header['MJD-OBS']
+        exptime = hdulist[0].header['EXPMEAS'] if 'EXPMEAS' in hdulist[0].header else \
+                  hdulist[0].header['EXPTIME']
+        mjd_obs_end = hdulist[0].header['MJD-OBS'] + (exptime/86400.)
+
+        # Save these values for the return queue
+        ret['exptime'] = exptime
+        ret['mjd_obs_start'] = mjd_obs_start
+        ret['mjd_obs_end'] = mjd_obs_end
+
+        corrected_filename = None
+
+        # Keep track of what files are being used for this stack
+        master_reduction_files_used = collect_reduction_files_used(
+            {}, {"calibrated": ret['corrected_file']})
+
+        # Now construct the output filename
+        if (corrected_filename and swarp_params['use_nonsidereal']):
+            # Assemble the temporary filename for the corrected frame
+            corrected_filename = "%(single_dir)s/%(obsid)s.nonsidereal.fits" % {
+                "single_dir": sitesetup.swarp_singledir,
+                "obsid": hdulist[0].header['OBSID'],
+            }
+        if (corrected_filename == None and options['skip_otas'] != []):
+            corrected_filename = "%(single_dir)s/%(obsid)s.otaselect.fits" % {
+                "single_dir": sitesetup.swarp_singledir,
+                "obsid": hdulist[0].header['OBSID'],
+            }
+        if (corrected_filename == None and not options['bpm_dir'] == None):
+            corrected_filename = "%(single_dir)s/%(obsid)s.bpmfixed.fits" % {
+                "single_dir": sitesetup.swarp_singledir,
+                "obsid": hdulist[0].header['OBSID'],
+            }
+            
+        #
+        # Check if we need to apply any corrections
+        #
+        if (corrected_filename == None or 
+            (os.path.isfile(corrected_filename) and swarp_params['reuse_singles'])
+        ):
+            # Either we don't need to apply any corrections or we can re-use an 
+            # older file with these corrections already applied
+
+            ret['corrected_file'] = input_file
+        else:
+
+            if (swarp_params['use_nonsidereal']):
+                logger.info("Applying the non-sidereal motion correction")
+
+                # First apply the non-sidereal correction to all input frames
+                # Keep frames that are already modified
+                from podi_collectcells import apply_nonsidereal_correction
+                # print options['nonsidereal']
+                apply_nonsidereal_correction(hdulist, options, logger)
+
+                try:
+                    if (os.path.isfile(options['nonsidereal']['ref'])):
+                        master_reduction_files_used = collect_reduction_files_used(
+                            master_reduction_files_used, 
+                            {"nonsidereal-reference": options['nonsidereal']['ref']})
+                except:
+                    pass
+
+            if (options['skip_otas'] != []):
+                logger.info("Skipping some OTAs")
+                ota_list = []
+                for ext in hdulist:
+                    ota = -1
+                    try:
+                        ota = int(ext.header['EXTNAME'][3:5])
+                    except:
+                        pass
+                    if (ota in options['skip_otas']):
+                        logger.debug("skipping ota %s as requested" % (ext.header['EXTNAME']))
+                        continue
+                    ota_list.append(ext)
+
+                # Save the modified OTA list for later
+                hdulist = pyfits.HDUList(ota_list)
+
+            if (not options['bpm_dir'] == None):
+                logger.info("Applying bad-pixel masks")
+                for ext in range(len(hdulist)):
+                    if (not is_image_extension(hdulist[ext])):
+                        continue
+
+                    fppos = None
+                    if ('FPPOS' in hdulist[ext].header):
+                        fppos = hdulist[ext].header['FPPOS']
+                    if (not fppos == None):
+                        region_file = "%s/bpm_%s.reg" % (options['bpm_dir'], fppos)
+                        if (os.path.isfile(region_file)):
+                            mask_broken_regions(hdulist[ext].data, region_file)
+
+
+            # Check if the corrected file already exists - if not create it
+            #if (not os.path.isfile(corrected_filename)):
+            logger.info("Writing correctly prepared file--> %s" % (corrected_filename))
+
+            clobberfile(corrected_filename)
+            hdulist.writeto(corrected_filename, clobber=True)
+
+            # Now change the filename of the input list to reflect 
+            # the corrected file
+            ret['corrected_file'] = corrected_filename
+    
+        #
+        # Now we have the filename of the file to be used for the swarp-input
+        #
+        ret["master_reduction_files"] = master_reduction_files_used
+        logger.debug("Sending return value to master process")
+        output_queue.put(ret)
+        input_queue.task_done()
+
+    # end of routine
+
+
+
+def prepare_singles(inputlist, swarp_params, options):
+
+    logger = logging.getLogger("PrepFiles")
+
+    #
+    # initialize queues for commands and return-values
+    #
+    in_queue = multiprocessing.JoinableQueue()
+    out_queue = multiprocessing.Queue()
+
+    #
+    # fill queue with files to be processed
+    #
+    n_jobs = 0
+    for i in range(len(inputlist)):
+        if (not os.path.isfile(inputlist[i])):
+            continue
+        try:
+            hdulist = pyfits.open(inputlist[i])
+        except IOError:
+            logger.error("Can't open file %s" % (inputlist[i]))
+            inputlist[i] = None
+            continue
+
+        in_queue.put(inputlist[i])
+        n_jobs += 1
+
+    logger.info("Queued %d jobs ..." % (n_jobs))
+
+    #
+    # Start worker processes
+    #
+    worker_args = (in_queue, out_queue, swarp_params, options)
+    processes = []
+    for i in range(sitesetup.number_cpus):
+        p = multiprocessing.Process(target=mp_preparesingles, args=worker_args)
+        p.start()
+        processes.append(p)
+
+        # also add a quit-command for each process
+        in_queue.put(None)
+        
+    #
+    # wait until all work is done
+    #
+    in_queue.join()
+
+    #
+    # return the list of corrected files.
+    #
+
+    # Keep track of what files are being used for this stack
+    master_reduction_files_used = {}
+    corrected_file_list = []
+
+    stack_start_time = 1e9
+    stack_end_time = -1e9
+    stack_total_exptime = 0
+    stack_framecount = 0
+
+
+    for i in range(n_jobs):
+        ret = out_queue.get()
+        logger.debug("Received results from job %d" % (i+1))
+
+
+        # Also set some global stack-related parameters that we will add to the 
+        # final stack at the end
+        # mjd_obs_start = hdulist[0].header['MJD-OBS']
+        # exptime = hdulist[0].header['EXPMEAS'] if 'EXPMEAS' in hdulist[0].header else \
+        #           hdulist[0].header['EXPTIME']
+        # mjd_obs_end = hdulist[0].header['MJD-OBS'] + (exptime/86400.)
+
+        # logger.debug("Exposure time: %f, MJD=%f" % (exptime, mjd_obs_start))
+
+        stack_total_exptime += ret['exptime']
+        stack_framecount += 1
+
+        stack_start_time = numpy.min([stack_start_time, ret['mjd_obs_start']])
+        stack_end_time = numpy.max([stack_end_time, ret['mjd_obs_end']])
+
+        master_reduction_files_used = collect_reduction_files_used(master_reduction_files_used, 
+                                                                   ret['master_reduction_files'])
+
+        corrected_file_list.append(ret['corrected_file'])
+
+    #
+    # By now all frames have all corrections applied,
+    # so we can go ahead and stack them as usual
+    #
+    
+    # Make sure to join/terminate all processes
+    for p in processes:
+        p.join()
+        
+    logger.info("All files prepared!")
+
+    return corrected_file_list, stack_total_exptime, stack_framecount, stack_start_time, stack_end_time, master_reduction_files_used 
 
 
 def swarpstack(outputfile, inputlist, swarp_params, options):
@@ -147,129 +395,11 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
 
     modified_files = []
 
-    for i in range(len(inputlist)):
-        if (not os.path.isfile(inputlist[i])):
-            continue
-        try:
-            hdulist = pyfits.open(inputlist[i])
-        except IOError:
-            logger.error("Can't open file %s" % (inputlist[i]))
-            inputlist[i] = None
-            continue
 
-        # Also set some global stack-related parameters that we will add to the 
-        # final stack at the end
-        mjd_obs_start = hdulist[0].header['MJD-OBS']
-        exptime = hdulist[0].header['EXPMEAS'] if 'EXPMEAS' in hdulist[0].header else \
-                  hdulist[0].header['EXPTIME']
-        mjd_obs_end = hdulist[0].header['MJD-OBS'] + (exptime/86400.)
-
-        logger.debug("Exposure time: %f, MJD=%f" % (exptime, mjd_obs_start))
-
-        stack_total_exptime += exptime
-        stack_framecount += 1
-
-        stack_start_time = numpy.min([stack_start_time, mjd_obs_start])
-        stack_end_time = numpy.max([stack_end_time, mjd_obs_end])
-
-        master_reduction_files_used = collect_reduction_files_used(master_reduction_files_used, 
-                                                                   {"calibrated": inputlist[i]})
-        
-        corrected_filename = None
-
-        if (swarp_params['use_nonsidereal']):
-            logger.info("Applying the non-sidereal motion correction")
-
-            # First apply the non-sidereal correction to all input frames
-            # Keep frames that are already modified
-            from podi_collectcells import apply_nonsidereal_correction
-            # print options['nonsidereal']
-            apply_nonsidereal_correction(hdulist, options, logger)
-
-            try:
-                if (os.path.isfile(options['nonsidereal']['ref'])):
-                    master_reduction_files_used = collect_reduction_files_used(
-                        master_reduction_files_used, 
-                        {"nonsidereal-reference": options['nonsidereal']['ref']})
-            except:
-                pass
-
-
-            # Assemble the temporary filename for the corrected frame
-            corrected_filename = "%(single_dir)s/%(obsid)s.nonsidereal.fits" % {
-                "single_dir": sitesetup.swarp_singledir,
-                "obsid": hdulist[0].header['OBSID'],
-            }
-
-
-        if (options['skip_otas'] != []):
-            logger.info("Skipping some OTAs")
-            ota_list = []
-            for ext in hdulist:
-                ota = -1
-                try:
-                    ota = int(ext.header['EXTNAME'][3:5])
-                except:
-                    pass
-                if (ota in options['skip_otas']):
-                    logger.debug("skipping ota %s as requested" % (ext.header['EXTNAME']))
-                    continue
-                ota_list.append(ext)
-
-            # Save the modified OTA list for later
-            hdulist = pyfits.HDUList(ota_list)
-
-            if (corrected_filename == None):
-                corrected_filename = "%(single_dir)s/%(obsid)s.otaselect.fits" % {
-                    "single_dir": sitesetup.swarp_singledir,
-                    "obsid": hdulist[0].header['OBSID'],
-                }
-
-        if (not options['bpm_dir'] == None):
-            logger.info("Applying bad-pixel masks")
-            for ext in range(len(hdulist)):
-                if (not is_image_extension(hdulist[ext])):
-                    continue
-                    
-                fppos = None
-                if ('FPPOS' in hdulist[ext].header):
-                    fppos = hdulist[ext].header['FPPOS']
-                if (not fppos == None):
-                    region_file = "%s/bpm_%s.reg" % (options['bpm_dir'], fppos)
-                    if (os.path.isfile(region_file)):
-                        mask_broken_regions(hdulist[ext].data, region_file)
-
-
-            if (corrected_filename == None):
-                corrected_filename = "%(single_dir)s/%(obsid)s.bpmfixed.fits" % {
-                    "single_dir": sitesetup.swarp_singledir,
-                    "obsid": hdulist[0].header['OBSID'],
-                }
-
-        if (not corrected_filename == None and (not swarp_params['reuse_singles'] and os.path.isfile(corrected_filename))):
-            # This means we made some modifications, either non-sidereal or 
-            # skip-ota or both
- 
-            # Check if the corrected file already exists - if not create it
-            #if (not os.path.isfile(corrected_filename)):
-            logger.info("Correcting input frame %s --> %s" % (
-                inputlist[i], corrected_filename))
-            
-            clobberfile(corrected_filename)
-            hdulist.writeto(corrected_filename, clobber=True)
-
-            # Now change the filename of the input list to reflect 
-            # the corrected file
-            inputlist[i] = corrected_filename
-            
-
-    #
-    # By now all frames have all corrections applied,
-    # so we can go ahead and stack them as usual
-    #
-
-    modified_files = inputlist
-
+#    modified_files = inputlist
+    modified_files, stack_total_exptime, stack_framecount, \
+        stack_start_time, stack_end_time, master_reduction_files_used = \
+                                prepare_singles(inputlist, swarp_params, options)
 
     add_only = swarp_params['add'] and os.path.isfile(outputfile)
     if (add_only):
