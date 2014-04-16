@@ -879,7 +879,7 @@ if __name__ == "__main__":
             darks_to_stack = []
             if (not os.path.isfile(dark_frame) or cmdline_arg_isset("-redo")):
                 for cur_dark in dark_list:
-                    logger.debug("Running collectcells for bias-frame %s" % (cur_bias))
+                    logger.debug("Running collectcells for dark-frame %s" % (cur_dark))
                     # if (verbose): print "Collecting cells for dark",cur_dark
                     # First run collectcells
                     dummy, basename = os.path.split(cur_dark)
