@@ -1023,7 +1023,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
  
     logger.info("All done!")
 
-    return modified_files, single_prepared_files, final_prepared_files
+    return modified_files, single_prepared_files, final_prepared_files, unique_singledir
 
 
 
