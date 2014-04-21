@@ -166,6 +166,7 @@ otas_to_normalize_ff = {
     "Us_solid": central_2x2,
     "windowGlass": all_otas,
     "WRC3": central_2x2,
+    "Harris_B": central_2x2,
     }	
 
 #
@@ -202,6 +203,7 @@ otas_for_photometry = {
     "Us_solid": central_3x3,
     "windowGlass": all_otas,
     "WRC3": central_3x3,
+    "Harris_B": central_3x3,
     }	
 
 
@@ -240,6 +242,7 @@ sdss_equivalents = {
     "Us_solid": 'u',
     "windowGlass": None,
     "WRC3": "g",
+    "Harris_B": "g",
     }	
 
 
@@ -268,6 +271,7 @@ filter_bandpass = {
                  "KPNO_815": (        "k1026_815_815_v1.txt", 8151.56, 8152.00,    70.5,  8116.5,  8187.1, 0.2561, 0.1163,   18.24, 8098.74, 8206.36),
               "CTIO_Ha_8nm": (    "c6011_ha8_Halpha+8nm.txt", 6652.38, 6652.25,    73.8,  6615.7,  6689.6, 0.3457, 0.1267,   26.28, 6589.44, 6716.45),
                  "Us_solid": (        "k1044_Us_solid_U.txt", 3698.69, 3642.00,   487.6,  3468.4,  3956.1, 0.2467, 0.1271,  114.21, 3264.72, 4015.57),
+                 "Harris_B": (  	"c6002_B_Harris.txt", 4358.13, 4650.00,  1014.7,  3814.3,  4829.1, 0.1890, 0.0849,  191.36, 3605.61, 5211.97),
 
 
     #
@@ -275,7 +279,6 @@ filter_bandpass = {
     #
                    "quotaU": (  		"quotaU.dat", 3691.79, 3630.00,   482.8,  3455.6,  3938.4, 0.2443, 0.1257,  112.13, 3253.70, 3997.21),
                   "c6001_U": (  	       "c6001_U.txt", 3655.95, 3656.02,   528.5,  3388.9,  3917.4, 0.1910, 0.0980,   97.41, 3225.31, 4057.35),
-           "c6002_B_Harris": (  	"c6002_B_Harris.txt", 4358.13, 4650.00,  1014.7,  3814.3,  4829.1, 0.1890, 0.0849,  191.36, 3605.61, 5211.97),
            "c6004_R_Harris": (  	"c6004_R_Harris.txt", 6575.37, 7377.36,  1450.9,  5695.2,  7146.2, 0.3203, 0.1275,  474.31, 5588.92, 8331.47),
        "c6007_M_Washington": (      "c6007_M_Washington.txt", 5350.75, 5665.93,  1449.9,  4565.3,  6015.3, 0.2832, 0.1641,  393.86, 4500.81, 6526.56),
          "c6008_D51_DDO_51": (        "c6008_D51_DDO_51.txt", 5140.39, 5137.00,   164.3,  5054.3,  5218.6, 0.2490, 0.1113,   41.65, 5010.35, 5266.26),
@@ -1666,7 +1669,7 @@ def cell2ota__get_target_region(x, y, binning=1):
 
 
 
-def three_sigma_clip(input, ranges=[-1e9,1e9], nrep=3, return_mask=False):
+def three_sigma_clip(input, ranges=[-1e9,1e9], nrep=3, return_mask=False, nsigma=3):
     """
 
     Perfom an iterative 3-sigma clipping on the passed data array. 
@@ -1686,8 +1689,8 @@ def three_sigma_clip(input, ranges=[-1e9,1e9], nrep=3, return_mask=False):
         median = numpy.median(input[valid])
         sigma = 0.5 * (hsig - lsig)
 
-        mingood = numpy.max([median - 3*sigma, ranges[0]])
-        maxgood = numpy.min([median + 3*sigma, ranges[1]])
+        mingood = numpy.max([median - nsigma*sigma, ranges[0]])
+        maxgood = numpy.min([median + nsigma*sigma, ranges[1]])
 
             #print median, sigma
         old_valid = valid
