@@ -34,7 +34,7 @@ reference stack.
 
 The general procedure is to create a single rectified image for each of the
 input frames first. In a second step, swarp combines all these rectified images
-into the filnal step. While this is overkill for stellar fields, this approach
+into the final step. While this is overkill for stellar fields, this approach
 ensures better sky background subtraction across OTAs in the case of large
 galaxies or objects. 
 
@@ -119,6 +119,9 @@ import multiprocessing
 
 import podi_logging
 import logging
+import socket
+import tempfile
+import shutil
 
 
 def mp_prepareinput(input_queue, output_queue, swarp_params, options):
@@ -165,26 +168,25 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
 
         # Keep track of what files are being used for this stack
         master_reduction_files_used = collect_reduction_files_used(
-            {}, {"calibrated": ret['corrected_file']})
+            {}, {"calibrated": input_file} ) #ret['corrected_file']})
 
+
+        # Assemble the temporary filename for the corrected frame
+        suffix = "fits"
         # Now construct the output filename
         if (corrected_filename and swarp_params['use_nonsidereal']):
-            # Assemble the temporary filename for the corrected frame
-            corrected_filename = "%(single_dir)s/%(obsid)s.nonsidereal.fits" % {
-                "single_dir": sitesetup.swarp_singledir,
-                "obsid": hdulist[0].header['OBSID'],
-            }
+            suffix = "nonsidereal.fits"
         if (corrected_filename == None and options['skip_otas'] != []):
-            corrected_filename = "%(single_dir)s/%(obsid)s.otaselect.fits" % {
-                "single_dir": sitesetup.swarp_singledir,
-                "obsid": hdulist[0].header['OBSID'],
-            }
+            suffix = "otaselect.fits"
         if (corrected_filename == None and not options['bpm_dir'] == None):
-            corrected_filename = "%(single_dir)s/%(obsid)s.bpmfixed.fits" % {
-                "single_dir": sitesetup.swarp_singledir,
-                "obsid": hdulist[0].header['OBSID'],
+            suffix = "bpmfixed.fits"
+
+        corrected_filename = "%(single_dir)s/%(obsid)s.%(suffix)s" % {
+            "single_dir": swarp_params['unique_singledir'],
+            "obsid": hdulist[0].header['OBSID'],
+            "suffix": suffix,
             }
-            
+
         #
         # Check if we need to apply any corrections
         #
@@ -244,7 +246,8 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                         region_file = "%s/bpm_%s.reg" % (options['bpm_dir'], fppos)
                         if (os.path.isfile(region_file)):
                             mask_broken_regions(hdulist[ext].data, region_file)
-
+                            master_reduction_files_used = collect_reduction_files_used(
+                                master_reduction_files_used, {"bpm": region_file})
 
             # Check if the corrected file already exists - if not create it
             #if (not os.path.isfile(corrected_filename)):
@@ -264,6 +267,8 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
         logger.debug("Sending return value to master process")
         output_queue.put(ret)
         input_queue.task_done()
+
+        print input_file, "\n", ret["master_reduction_files"]
 
     # end of routine
 
@@ -384,6 +389,7 @@ def mp_swarp_single(sgl_queue, dum):
         obsid = hdulist[0].header['OBSID']
 
         try:
+            logger.debug(" ".join(swarp_cmd.split()))
             ret = subprocess.Popen(swarp_cmd.split(), 
                                    stdout=subprocess.PIPE, 
                                    stderr=subprocess.PIPE)
@@ -417,6 +423,7 @@ def mp_swarp_single(sgl_queue, dum):
         sgl_queue.task_done()
 
 
+
 def swarpstack(outputfile, inputlist, swarp_params, options):
 
     logger = logging.getLogger("SwarpStack - Prepare")
@@ -433,6 +440,27 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     
     logger.info("Removing some OTAs from input: %s" % (str(options['skip_otas'])))
 
+    #
+    # Construct a unique name to hold intermediate files
+    #
+    process_id = os.getpid()
+    hostname = socket.gethostname()
+    # Create a temporary directory
+    unique_singledir = tempfile.mkdtemp(dir=sitesetup.swarp_singledir,
+                                        prefix="%s-%05d----" % (hostname, process_id))
+    # XXX for now to make debugging easier
+    # unique_singledir = sitesetup.swarp_singledir
+
+
+    ############################################################################
+    #
+    # Prepare all QR'ed input files, applying additional corrections where needed
+    #
+    ############################################################################
+
+    logger.info("Storing intermediate files in %s ..." % (unique_singledir))
+    swarp_params['unique_singledir'] = unique_singledir
+
     stack_start_time = 1e9
     stack_end_time = -1e9
     stack_total_exptime = 0
@@ -444,6 +472,9 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     modified_files, stack_total_exptime, stack_framecount, \
         stack_start_time, stack_end_time, master_reduction_files_used = \
                                 prepare_input(inputlist, swarp_params, options)
+    print modified_files
+    inputlist = modified_files
+
 
     add_only = swarp_params['add'] and os.path.isfile(outputfile)
     if (add_only):
@@ -452,7 +483,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     if (outputfile.endswith(".fits")):
         outputfile = outputfile[:-5]
 
-    header_only_file = "%s/preswarp.fits" % (sitesetup.scratch_dir)
+    header_only_file = "%s/preswarp.fits" % (unique_singledir)
     logger.debug("Using header-only-file: %s" % (header_only_file))
 
     # Make sure the reference file is a valid file
@@ -461,6 +492,13 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     else:
         swarp_params['reference_file'] = None
 
+    logging.info("Using modified input list: %s" % (str(inputlist)))
+
+    ############################################################################
+    #
+    # Figure out the pixel-grid and sky-coverage of the final stack 
+    #
+    ############################################################################
     if (add_only or not swarp_params['reference_file'] == None):
         #
         # This is the simpler add-only mode
@@ -495,7 +533,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
                -COMBINE_TYPE %(combine_type)s \
               """ % {
                   'imageout': header_only_file,
-                  'weightout': "%s/preswarp.weight.fits" % (sitesetup.scratch_dir),
+                  'weightout': "%s/preswarp.weight.fits" % (unique_singledir),
                   'combine_type': 'AVERAGE',
               }
 
@@ -521,6 +559,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
 
 
         try:
+            logger.info("computing preswarp:\n%s" % (" ".join(swarp_cmd.split())))
             ret = subprocess.Popen(swarp_cmd.split(), 
                                    stdout=subprocess.PIPE, 
                                    stderr=subprocess.PIPE) #, shell=True)
@@ -565,22 +604,27 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
             #             - output_info[0].header['CD1_2'] * output_info[0].header['CD2_1']) * 3600.
             logger.info("Computing pixelscale from data: %.4f arcsec/pixel" % (swarp_params['pixelscale']))
     
+    #############################################################################
     #
     # Prepare the individual frames, rectified and re-projected 
     # to the final grid
     #
+    #############################################################################
     logger = logging.getLogger("SwarpStack - Singles")
     single_prepared_files = []
 
     # Prepare the worker queue
     sgl_queue = multiprocessing.JoinableQueue()
 
+    print inputlist
+    # sys.exit(0)
+
     for prepared_file in inputlist:
         hdulist = pyfits.open(prepared_file)
         obsid = hdulist[0].header['OBSID']
 
         # assemble all swarp options for that run
-        dic = {'singledir': sitesetup.swarp_singledir,
+        dic = {'singledir': unique_singledir, #sitesetup.swarp_singledir,
                'obsid': obsid,
                'pixelscale': swarp_params['pixelscale'],
                'pixelscale_type': "MANUAL" if swarp_params['pixelscale'] > 0 else "MEDIAN",
@@ -588,7 +632,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
                'center_dec': out_crval2,
                'imgsizex': out_naxis1,
                'imgsizey': out_naxis2,
-               'resample_dir': sitesetup.scratch_dir,
+               'resample_dir': unique_singledir,
                'inputfile': prepared_file,
                'swarp_default': swarp_default,
            }
@@ -681,10 +725,122 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     # Done re-naming the old file
     #
 
+    #############################################################################
+    #
+    # Now perform the background subtraction on each of the prepared single files
+    # The resulting output files can then be used for the final stack without
+    # additional resampling
+    #
+    #############################################################################
 
+    if (swarp_params['subtract_back']):
+        logger = logging.getLogger("SwarpStack - SkySub")
+        logger.info("Performing sky-subtraction on all frames")
+
+        final_prepared_files = []
+
+        # Prepare the worker queue
+        sgl_queue = multiprocessing.JoinableQueue()
+
+        for prepared_file in single_prepared_files:
+            hdulist = pyfits.open(prepared_file)
+            obsid = hdulist[0].header['OBSID']
+
+            
+            # assemble all swarp options for that run
+            bgsub_file = "%(singledir)s/%(obsid)s.bgsub.fits" % {
+                'singledir': unique_singledir,
+                'obsid': obsid,}
+            bgsub_weight_file = "%(singledir)s/%(obsid)s.bgsub.weight.fits" % {
+                'singledir': unique_singledir,
+                'obsid': obsid,}
+
+            dic = {'singledir': unique_singledir,
+                   'obsid': obsid,
+                   'pixelscale': swarp_params['pixelscale'],
+                   'pixelscale_type': "MANUAL" if swarp_params['pixelscale'] > 0 else "MEDIAN",
+                   'center_ra': out_crval1,
+                   'center_dec': out_crval2,
+                   'imgsizex': out_naxis1,
+                   'imgsizey': out_naxis2,
+                   'resample_dir': unique_singledir,
+                   'inputfile': prepared_file,
+                   'swarp_default': swarp_default,
+                   'bgsub': "Y" if swarp_params['subtract_back'] else "N",
+                   'bgsub_file': bgsub_file,
+                   'bgsub_weight_file': bgsub_weight_file,
+               }
+
+            swarp_opts = """\
+                     -c %(swarp_default)s \
+                     -IMAGEOUT_NAME %(singledir)s/%(obsid)s.bgsub.fits \
+                     -WEIGHTOUT_NAME %(singledir)s/%(obsid)s.bgsub.weight.fits \
+                     -PIXEL_SCALE %(pixelscale)f \
+                     -PIXELSCALE_TYPE %(pixelscale_type)s \
+                     -COMBINE Y \
+                     -COMBINE_TYPE AVERAGE \
+                     -CENTER_TYPE MANUAL \
+                     -CENTER %(center_ra)f,%(center_dec)f \
+                     -IMAGE_SIZE %(imgsizex)d,%(imgsizey)d \
+                     -RESAMPLE_DIR %(resample_dir)s \
+                     -RESAMPLE Y \
+                     -SUBTRACT_BACK %(bgsub)s \
+                     -WEIGHT_TYPE MAP_WEIGHT \
+                     -DELETE_TMPFILES Y \
+                     -WRITE_FILEINFO Y
+                     %(inputfile)s \
+                     """ % dic
+
+            
+            # print swarp_opts
+            swarp_cmd = "%s %s" % (sitesetup.swarp_exec, swarp_opts)
+
+            if (add_only and os.path.isfile(bgsub_file)):
+                logger.info("This single-swarped file (%s) exist, skipping it" % (bgsub_file))
+            elif (swarp_params['reuse_singles'] and os.path.isfile(bgsub_file)):
+                logger.info("This single-swarped file (%s) exist, re-using it" % (bgsub_file))
+                final_prepared_files.append(bgsub_file)
+            else:
+                logger.info("Preparing file %s, please wait ..." % (prepared_file))
+                logger.debug(" ".join(swarp_cmd.split()))
+
+                sgl_queue.put( (swarp_cmd, prepared_file, bgsub_file) )
+                final_prepared_files.append(bgsub_file)
+
+        #
+        # Execute all swarps to create the single files
+        #
+
+        # Now with all swarp-runs queued, start a number of processes
+        worker_args = (sgl_queue, "")
+        processes = []
+        for i in range(sitesetup.number_cpus):
+            p = multiprocessing.Process(target=mp_swarp_single, args=worker_args)
+            p.start()
+            processes.append(p)
+
+            # also add a quit-command for each process
+            sgl_queue.put(None)
+
+        # wait until all work is done
+        sgl_queue.join()
+        # join/terminate all processes
+        for p in processes:
+            p.join()
+
+    else:
+        # No background subtraction was requested
+        final_prepared_files = single_prepared_files
+
+    logging.info("files to stack: %s" % (str(final_prepared_files)))
+
+    #############################################################################
     #
     # Now all single files are prepared, go ahead and produce the actual stack
+    # Use the background-subtracted or single files from above as direct input, 
+    # i.e. do not resample these files as they are already on the right pixel grid.
     #
+    #############################################################################
     dic['combine_type'] = swarp_params['combine-type'] #"AVERAGE"
     dic['imageout'] = outputfile+".fits"
     dic['weightout'] = outputfile+".weight.fits"
@@ -707,12 +863,13 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
                  -CENTER_TYPE MANUAL \
                  -CENTER %(center_ra)f,%(center_dec)f \
                  -IMAGE_SIZE %(imgsizex)d,%(imgsizey)d \
+                 -RESAMPLE N \
                  -RESAMPLE_DIR %(singledir)s \
                  -SUBTRACT_BACK %(bgsub)s \
                  -WEIGHT_TYPE MAP_WEIGHT \
+                 -DELETE_TMPFILES N \
+                 -WRITE_FILEINFO Y
                  """ % dic
-
-#                 -RESAMPLE N
 
     #
     # Now use some brains to figure out the best way of setting the background 
@@ -761,7 +918,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     logger.info("Starting final stacking...")
     # print swarp_opts
 
-    swarp_cmd = "%s %s %s" % (sitesetup.swarp_exec, swarp_opts, " ".join(single_prepared_files))
+    swarp_cmd = "%s %s %s" % (sitesetup.swarp_exec, swarp_opts, " ".join(final_prepared_files))
     logger.debug(" ".join(swarp_cmd.split()))
     try:
         ret = subprocess.Popen(swarp_cmd.split(), 
@@ -845,12 +1002,24 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     #
     # Create an association table from the master reduction files used.
     # 
+    print master_reduction_files_used
     assoc_table = create_association_table(master_reduction_files_used)
     hdustack.append(assoc_table)
 
     hdustack.flush()
     hdustack.close()
     
+    # 
+    # Delete all temporary files and the temp-directory
+    # 
+    logger.info("Deleting all intermediate files")
+    try:
+        shutil.rmtree(unique_singledir)
+    except:
+        logger.error("There was a problem with recursively deleting the temp directory")
+        podi_logging.log_exception()
+        pass
+
     logger.info("All done!")
 
     return modified_files, single_prepared_files
