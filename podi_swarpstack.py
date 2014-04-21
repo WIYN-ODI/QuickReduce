@@ -268,7 +268,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
         output_queue.put(ret)
         input_queue.task_done()
 
-        print input_file, "\n", ret["master_reduction_files"]
+        # print input_file, "\n", ret["master_reduction_files"]
 
     # end of routine
 
@@ -424,7 +424,7 @@ def mp_swarp_single(sgl_queue, dum):
 
 
 
-def swarpstack(outputfile, inputlist, swarp_params, options):
+def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=False):
 
     logger = logging.getLogger("SwarpStack - Prepare")
 
@@ -466,13 +466,13 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     stack_total_exptime = 0
     stack_framecount = 0
 
-    print "input=",inputlist
-    print "output=",outputfile
+    # print "input=",inputlist
+    # print "output=",outputfile
 
     modified_files, stack_total_exptime, stack_framecount, \
         stack_start_time, stack_end_time, master_reduction_files_used = \
                                 prepare_input(inputlist, swarp_params, options)
-    print modified_files
+    # print modified_files
     inputlist = modified_files
 
 
@@ -590,8 +590,8 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
             logger.error("Couldn't open the pre-swarp file, aborting")
             return
             
-        print "Stack information..."
-        print "   Output-dimensions: %(NAXIS1)5d x %(NAXIS2)5d" % (output_info[0].header)
+        logger.info("Stack information...")
+        logger.info("   Output-dimensions: %(NAXIS1)5d x %(NAXIS2)5d" % (output_info[0].header))
 
         out_crval1 = output_info[0].header['CRVAL1']
         out_crval2 = output_info[0].header['CRVAL2']
@@ -616,7 +616,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     # Prepare the worker queue
     sgl_queue = multiprocessing.JoinableQueue()
 
-    print inputlist
+    # print inputlist
     # sys.exit(0)
 
     for prepared_file in inputlist:
@@ -1002,7 +1002,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     #
     # Create an association table from the master reduction files used.
     # 
-    print master_reduction_files_used
+    # print master_reduction_files_used
     assoc_table = create_association_table(master_reduction_files_used)
     hdustack.append(assoc_table)
 
@@ -1012,17 +1012,18 @@ def swarpstack(outputfile, inputlist, swarp_params, options):
     # 
     # Delete all temporary files and the temp-directory
     # 
-    logger.info("Deleting all intermediate files")
-    try:
-        shutil.rmtree(unique_singledir)
-    except:
-        logger.error("There was a problem with recursively deleting the temp directory")
-        podi_logging.log_exception()
-        pass
-
+    if (not keep_intermediates):
+        logger.info("Deleting all intermediate files")
+        try:
+            shutil.rmtree(unique_singledir)
+        except:
+            logger.error("There was a problem with recursively deleting the temp directory")
+            podi_logging.log_exception()
+            pass
+ 
     logger.info("All done!")
 
-    return modified_files, single_prepared_files
+    return modified_files, single_prepared_files, final_prepared_files
 
 
 
@@ -1093,7 +1094,9 @@ if __name__ == "__main__":
     logger.debug("Reading options from command line")
     options = read_options_from_commandline(options)
 
-    print "non-sid",options['nonsidereal']
+    keep_intermediates = cmdline_arg_isset('-keep')
+
+    # print "non-sid",options['nonsidereal']
     try:
 
         # Read command line and store all results in params dictionary
@@ -1109,7 +1112,8 @@ if __name__ == "__main__":
         swarpstack(outputfile=outputfile, 
                    inputlist=inputlist, 
                    swarp_params=params, 
-                   options=options)
+                   options=options,
+                   keep_intermediates=keep_intermediates)
 
     except KeyboardInterrupt, SystemExit:
         pass
