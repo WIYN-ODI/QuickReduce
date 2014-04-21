@@ -27,7 +27,19 @@ if __name__ == "__main__":
     logger = logging.getLogger("AstroidField")
 
     params = podi_swarpstack.read_swarp_params()
-    inputlist = get_clean_cmdline()[2:]
+
+    if (cmdline_arg_isset('-filelist')):
+        fl = open(get_cmdline_arg('-filelist'), 'r')
+        lines = fl.readlines()
+        inputlist = []
+        for line in lines:
+            filename = line.split()[0]
+            if (os.path.isfile(filename)):
+                inputlist.append(filename)
+        print "filelist read from input file:"
+        print "\n".join(inputlist)
+    else:
+        inputlist = get_clean_cmdline()[2:]
 
     target_name = get_clean_cmdline()[1]
 
@@ -40,13 +52,13 @@ if __name__ == "__main__":
     outputfile = "%s__reference.fits" % (target_name)
 
     logger.info("Creating the averaged reference stack")
-    returned = podi_swarpstack.swarpstack(outputfile, inputlist, params, options)
+    returned = podi_swarpstack.swarpstack(outputfile, inputlist, params, options, keep_intermediates=True)
     if (returned == None):
         logger.error("something went wrong while creating the reference stack")
         
     else:
 
-        modified_files, single_prepared_files = returned
+        modified_files, single_prepared_files, bgsub_files, unique_singledir = returned
         print single_prepared_files
 
         # Open the reference frame
@@ -66,10 +78,21 @@ if __name__ == "__main__":
             _, base = os.path.split(sglfile)
             sgl_diff_filename = "%s___%s.diff.fits" % (target_name, base)
 
+            logger.debug("Also copying the weight image")
+            sgl_weight = sglfile[:-5]+".weight.fits"
+            hdu_weight = astropy.io.fits.open(sgl_weight)
+
+            # Mask out the entire region that has 0 weight
+            hdu_sgl[0].data[hdu_weight[0].data <= 0] = numpy.NaN
+
             logger.debug("Writing difference image to %s" % (sgl_diff_filename))
             clobberfile(sgl_diff_filename)
             hdu_sgl.writeto(sgl_diff_filename)
             
+            diff_weight = "%s___%s.diff.weight.fits" % (target_name, base)
+            clobberfile(diff_weight)
+            hdu_weight.writeto(diff_weight, clobber=True)
+
         logger.info("all done!")
 
 
