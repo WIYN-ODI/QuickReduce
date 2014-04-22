@@ -424,7 +424,7 @@ def mp_swarp_single(sgl_queue, dum):
 
 
 
-def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=False):
+def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=False, unique_dir=None):
 
     logger = logging.getLogger("SwarpStack - Prepare")
 
@@ -443,13 +443,15 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
     #
     # Construct a unique name to hold intermediate files
     #
-    process_id = os.getpid()
-    hostname = socket.gethostname()
-    # Create a temporary directory
-    unique_singledir = tempfile.mkdtemp(dir=sitesetup.swarp_singledir,
-                                        prefix="%s-%05d----" % (hostname, process_id))
-    # XXX for now to make debugging easier
-    # unique_singledir = sitesetup.swarp_singledir
+    if (not unique_dir == None and os.path.isdir(unique_dir)):
+        unique_singledir = unique_dir
+        keep_intermediates = True
+    else:
+        process_id = os.getpid()
+        hostname = socket.gethostname()
+        # Create a temporary directory
+        unique_singledir = tempfile.mkdtemp(dir=sitesetup.swarp_singledir,
+                                            prefix="%s-%05d----" % (hostname, process_id))
 
 
     ############################################################################
@@ -733,6 +735,50 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
     #
     #############################################################################
 
+    #
+    # Now use some brains to figure out the best way of setting the background 
+    # subtraction to get s nice smooth background that does not over-subtract 
+    # the target.
+    #
+    bg_opts = ""
+    if (swarp_params['target_dimension'] > 0 and swarp_params['subtract_back']):
+        dic['BACK_TYPE'] = "AUTO"
+        dic['BACK_SIZE'] = 128
+        dic['BACK_FILTERSIZE'] = 3
+
+        # Rule of thum: larger objects: make both filtersize and back_size 
+        # larger
+        # first compute a reference size for the default settings
+        ref_size = dic['BACK_SIZE'] * dic['BACK_FILTERSIZE'] \
+                   * swarp_params['pixelscale'] / 60. \
+                   * 0.1  # the last factor is a fudge-factor
+        logger.debug("Reference size: %f" % (ref_size))
+        # Now scale up the filtersize, making sure it stays between 3 and 7
+        filtersize = int(math.floor(math.sqrt(swarp_params['target_dimension'] / ref_size) * dic['BACK_FILTERSIZE']))
+        logger.debug("Simple filter size: %d" % (filtersize))
+        if (filtersize < 3): filtersize = 3
+        if (filtersize > 7): filtersize = 7
+
+        # in a next step, modify the backsize parameter. Make sure it does not
+        # become too large or too small
+        backsize = (swarp_params['target_dimension'] * 60. / swarp_params['pixelscale']) / filtersize
+
+        logger.debug("BACK-SIZE: %f" % (backsize))
+        if (backsize < 64): backsize = 64
+        if (backsize > 600): backsize = 600
+
+        dic['BACK_SIZE'] = backsize
+        dic['BACK_FILTERSIZE'] = filtersize
+
+        bg_opts = """  
+               -BACK_TYPE %(BACK_TYPE)s
+               -BACK_SIZE %(BACK_SIZE)d
+               -BACK_FILTERSIZE %(BACK_FILTERSIZE)d
+        """ % dic
+        logger.debug("Adding background parameters:\n\n"+bg_opts+"\n\n")
+        # swarp_opts += bg_opts
+
+
     if (swarp_params['subtract_back']):
         logger = logging.getLogger("SwarpStack - SkySub")
         logger.info("Performing sky-subtraction on all frames")
@@ -769,8 +815,10 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
                    'bgsub': "Y" if swarp_params['subtract_back'] else "N",
                    'bgsub_file': bgsub_file,
                    'bgsub_weight_file': bgsub_weight_file,
+                   'bgopts': bg_opts,
+                   'inputfile': prepared_file,
                }
-
+            
             swarp_opts = """\
                      -c %(swarp_default)s \
                      -IMAGEOUT_NAME %(singledir)s/%(obsid)s.bgsub.fits \
@@ -788,12 +836,14 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
                      -WEIGHT_TYPE MAP_WEIGHT \
                      -DELETE_TMPFILES Y \
                      -WRITE_FILEINFO Y
+                     %(bgopts)s \
                      %(inputfile)s \
                      """ % dic
 
             
             # print swarp_opts
             swarp_cmd = "%s %s" % (sitesetup.swarp_exec, swarp_opts)
+            # print swarp_cmd
 
             if (add_only and os.path.isfile(bgsub_file)):
                 logger.info("This single-swarped file (%s) exist, skipping it" % (bgsub_file))
@@ -845,7 +895,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
     dic['imageout'] = outputfile+".fits"
     dic['weightout'] = outputfile+".weight.fits"
     dic['prepared_files'] = " ".join(single_prepared_files)
-    dic['bgsub'] = "Y" if swarp_params['subtract_back'] else "N"
+    dic['bgsub'] = "N" # as this was done before if swarp_params['subtract_back'] else "N"
     dic['clip-sigma'] = swarp_params['clip-sigma']
     dic['clip-ampfrac'] = swarp_params['clip-ampfrac']
 
@@ -870,48 +920,6 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
                  -DELETE_TMPFILES N \
                  -WRITE_FILEINFO Y
                  """ % dic
-
-    #
-    # Now use some brains to figure out the best way of setting the background 
-    # subtraction to get s nice smooth background that does not over-subtract 
-    # the target.
-    #
-    if (swarp_params['target_dimension'] > 0 and swarp_params['subtract_back']):
-        dic['BACK_TYPE'] = "AUTO"
-        dic['BACK_SIZE'] = 128
-        dic['BACK_FILTERSIZE'] = 3
-
-        # Rule of thum: larger objects: make both filtersize and back_size 
-        # larger
-        # first compute a reference size for the default settings
-        ref_size = dic['BACK_SIZE'] * dic['BACK_FILTERSIZE'] \
-                   * swarp_params['pixelscale'] / 60. \
-                   * 0.1  # the last factor is a fudge-factor
-        logger.debug("Reference size: %f" % (ref_size))
-        # Now scale up the filtersize, making sure it stays between 3 and 7
-        filtersize = int(math.floor(math.sqrt(swarp_params['target_dimension'] / ref_size) * dic['BACK_FILTERSIZE']))
-        logger.debug("Simple filter size: %d" % (filtersize))
-        if (filtersize < 3): filtersize = 3
-        if (filtersize > 7): filtersize = 7
-
-        # in a next step, modify the backsize parameter. Make sure it does not
-        # become too large or too small
-        backsize = (swarp_params['target_dimension'] * 60. / swarp_params['pixelscale']) / filtersize
-
-        logger.debug("BACK-SIZE: %f" % (backsize))
-        if (backsize < 64): backsize = 64
-        if (backsize > 600): backsize = 600
-
-        dic['BACK_SIZE'] = backsize
-        dic['BACK_FILTERSIZE'] = filtersize
-
-        bg_opts = """  
-               -BACK_TYPE %(BACK_TYPE)s
-               -BACK_SIZE %(BACK_SIZE)d
-               -BACK_FILTERSIZE %(BACK_FILTERSIZE)d
-        """ % dic
-        logger.debug("Adding background parameters:\n\n"+bg_opts+"\n\n")
-        swarp_opts += bg_opts
 
 
     logger = logging.getLogger("SwarpStack - FinalStack")
@@ -1095,6 +1103,9 @@ if __name__ == "__main__":
     options = read_options_from_commandline(options)
 
     keep_intermediates = cmdline_arg_isset('-keep')
+    unique_dir = None
+    if (cmdline_arg_isset("-uniquedir")):
+        unique_dir = get_cmdline_arg("-uniquedir")
 
     # print "non-sid",options['nonsidereal']
     try:
@@ -1113,7 +1124,8 @@ if __name__ == "__main__":
                    inputlist=inputlist, 
                    swarp_params=params, 
                    options=options,
-                   keep_intermediates=keep_intermediates)
+                   keep_intermediates=keep_intermediates,
+                   unique_dir=unique_dir)
 
     except KeyboardInterrupt, SystemExit:
         pass
