@@ -131,7 +131,7 @@ def differential_photometry(inputlist, source_coords):
         magzero = hdu[0].header['MAGZERO']
         magzero = hdu[0].header['PHOTZP_X']
 
-        cat_data[:, aperture_column] += (magzero - 25.0)
+        cat_data[:, SXcolumn['mag_aper_2.0']:SXcolumn['mag_aper_12.0']+1] += (magzero - 25.0)
 
         # Account for cos(dec) distortion
         cat_data[:, SXcolumn['ra']] *= cos_declination
@@ -185,13 +185,16 @@ def differential_photometry(inputlist, source_coords):
     match_radius = 2./3600. # 2 arcsec
 
     all_cats = []
+    target_source = []
+    target_mjd = []
 
     #
     # Create source catalogs for the source and n reference sources from each catalog
     #
-
+    
     for i_cat in range(len(catalog)):
-        
+        print "\n"*5
+
         src_cat = catalog[i_cat]
 
         # turn the catalog coordinates into a KDTree
@@ -201,20 +204,77 @@ def differential_photometry(inputlist, source_coords):
         # Search for the actual source
         # add here: fudge with coordinates to account for motion
         src_radec = numpy.array([[src_ra, src_dec]]) + (mjd_hours[i_cat] - src_mjd*24.) * numpy.array([src_dra, src_ddec]) / 3600.
-        print src_radec * numpy.array([1./cos_declination, 1.])
+        # print src_radec * numpy.array([1./cos_declination, 1.])
         
         # print src_radec.shape, phot_refs.shape
 
-        all_sources = numpy.append(src_radec, phot_refs, axis=0)
-        # print all_sources.shape, match_radius
-        src_tree = scipy.spatial.cKDTree(all_sources) #catalog[i_cat][:,0:2])
+        #########################################################################
+        #
+        # Determine the magnitude of the source
+        #
+        #########################################################################
 
         # Search for the source we are interested in
+        src_counterpart = cat_tree.query_ball_point(src_radec, r=match_radius, p=2)
+        src_data = None
+        if (len(src_counterpart) <= 0):
+            # We couldn't find any source counterpart
+            continue
+        elif (len(src_counterpart) > 1):
+            # Found multiple counterparts
+            # add some brain to pick the most likely one
+            continue
+        else:
+            # 
+            try:
+                src_data = (catalog[i_cat][src_counterpart[0]])[0]
+            except:
+                podi_logging.log_exception()
+                continue
+            print 'src-data=',src_data.shape
 
+        #########################################################################
+        #
+        # Determine the aperture correction from the source magnitude 
+        # to the 12'' aperture we consider for "total intensity"
+        #
+        #########################################################################
+
+        # Find the aperture magnitude that is valid
+        numpy.savetxt(sys.stdout, [src_data[SXcolumn['mag_aper_2.0']:SXcolumn['mag_err_12.0']+1]], " %8.4f")
+        good_source_aperture = '4.0'
+        src_aper_mag = "mag_aper_%s" % (good_source_aperture)
+        src_aper_err = "mag_err_%s" % (good_source_aperture)
+
+        # By default, use the 4.0'' aperture, but aperture-correct it to 12.0 arcsec
+        # Use the weighted difference between the 4 and 12'' magnitude 
+        valid_photometry = (catalog[i_cat][:,SXcolumn[src_aper_err]] < 0.1) & \
+                           (catalog[i_cat][:,SXcolumn['mag_err_12.0']] < 0.1) & \
+                           (catalog[i_cat][:, SXcolumn['flags']] == 0)
+        aperture_diffs = (catalog[i_cat][:,SXcolumn['mag_aper_12.0']] 
+                          - catalog[i_cat][:, SXcolumn[src_aper_mag]])[valid_photometry]
+        aperture_diff_filtered = three_sigma_clip(aperture_diffs)
+        aperture_correction = numpy.median(aperture_diff_filtered)
+        aperture_correction_std = numpy.std(aperture_diff_filtered)
+
+        numpy.savetxt("apcorr%d.raw" % (i_cat), aperture_diffs)
+        numpy.savetxt("apcorr%d.filter" % (i_cat), aperture_diff_filtered)
+        print aperture_correction, aperture_correction_std
+
+
+        #########################################################################
+        #
+        # Now determine all magnitudes for all the reference sources
+        #
+        #########################################################################
+
+        # all_sources = numpy.append(src_radec, phot_refs, axis=0)
+        # print all_sources.shape, match_radius
+        src_tree = scipy.spatial.cKDTree(phot_refs) 
         counterparts = src_tree.query_ball_tree(cat_tree, r=match_radius, p=2)
-        # print counterparts
 
-        phot_data = numpy.ones((all_sources.shape[0], 2)) 
+        phot_data = numpy.ones((phot_refs.shape[0], catalog[i_cat].shape[1])) 
+        print phot_data.shape
         phot_data[:] = numpy.NaN
 
         print >>output_file, mjd_hours[i_cat], mjd_hours[i_cat]/24., \
@@ -225,8 +285,7 @@ def differential_photometry(inputlist, source_coords):
             if (len(src) == 1):
                 # Found a unique counterpart
                 # remember the magnitude and error
-                phot_data[i_src,0] = src_cat[src[0], aperture_column]
-                phot_data[i_src,1] = src_cat[src[0], aperture_error_column]
+                phot_data[i_src,:] = src_cat[src[0], :]
             if (len(src) == 1):
                 print >>output_file, \
                     src_cat[src[0], aperture_column],\
@@ -239,99 +298,122 @@ def differential_photometry(inputlist, source_coords):
 
         print >>output_file
 
+        #
+        # Use the mag_auto data column to hold the aperture-corrected magnitude
+        #
+        phot_data[:, SXcolumn['mag_auto']] = phot_data[:, SXcolumn[src_aper_mag]] + aperture_correction
+        phot_data[:, SXcolumn['mag_err_auto']] = phot_data[:, SXcolumn[src_aper_err]]
+        numpy.savetxt("photcat%d" % (i_cat), phot_data)
+        #
+        # also apply aperture correction to target source
+        #
+        src_data[SXcolumn['mag_auto']] = src_data[SXcolumn[src_aper_mag]] + aperture_correction
+        src_data[SXcolumn['mag_err_auto']] = src_data[SXcolumn[src_aper_err]]
+
+
+        #
+        # Combine all catalogs for later
+        #
         all_cats.append(phot_data)
+        target_source.append(src_data)
+        print "Added target source", len(target_source)
+        target_mjd.append(mjd_hours[i_cat])
 
+
+    print "\n"*10
+
+    # print target_source
+    # print "shapes:",[i.shape for i in target_source]
+
+    #
+    # Convert catalogs into proper numpy catalog
+    #
     all_cats = numpy.array(all_cats)
-    #print all_cats
-    #print all_cats.shape
-    # numpy.savetxt('all_cats.dat', all_cats, "%6.3f")
+    target_source = numpy.array(target_source)
+    target_mjd = numpy.array(target_mjd)
 
+    print target_source.shape
+    print all_cats.shape
 
+    #############################################################################
     #
-    # Compute the average magnitude of each star to isolate just the variance
+    # Now compute the median and filtered magnitude of each reference star
     #
-    weights = 1./all_cats[:,:,1]
-    weighted = all_cats[:,:,0] / all_cats[:,:,1]
-    avg_mags = bottleneck.nansum(weighted, axis=0) / bottleneck.nansum(weights, axis=0)
-    # avg_mags = numpy.average(all_cats[:,:,0], weights=1./all_cats[:,:,1], axis=1)
-#    print avg_mags
-#    print all_cats.shape
+    #############################################################################
 
+
+    # Iteratively eliminate outliers
+    for i in range(3):
+        median_mags = bottleneck.nanmedian(all_cats[:,:, SXcolumn['mag_auto']], axis=0)
+        std_mags = bottleneck.nanstd(all_cats[:,:, SXcolumn['mag_auto']], axis=0)
+        numpy.savetxt("photcat_median_%d" % i, median_mags)
+        numpy.savetxt("photcat_std_%d" % i, std_mags)
+        outlier = (all_cats[:,:, SXcolumn['mag_auto']] > median_mags + 0.25) | \
+                  (all_cats[:,:, SXcolumn['mag_auto']] < median_mags - 0.25)
+        #print outlier
+
+        if (numpy.sum(outlier) <= 0):
+            break
+
+        all_cats[outlier, :] = numpy.NaN
+
+    
+    #############################################################################
+    #
+    # Compute the differential photometry correction
     # 
-    # Add some filtering to eliminate outliers in the reference star magnitudes
-    # These can be due to edge-effects, cosmics, or ...
+    #############################################################################
+
+    # Now we have the median magnitudes of each reference star.
+    # Additionally, all outliers have already been flagged as NaNs
+    print median_mags
+
+    # Compute the deviation of each source from its median magnitude
+    mag_deviation = all_cats[:,:, SXcolumn['mag_auto']] - median_mags
+    print mag_deviation
+
+    # Compute the median deviation across all stars for each of the source catalogs
+    diffphot_correction = numpy.median(mag_deviation, axis=1)
+    print diffphot_correction
+    print diffphot_correction.shape
+
+    numpy.save("correction", diffphot_correction)
+    numpy.save("all_cats", all_cats)
+
+    # As verification, apply the correction to each of the reference star catalogs
+    print all_cats.shape
+    all_cats[:,:, SXcolumn['mag_auto']] -= diffphot_correction.reshape((diffphot_correction.shape[0],1))
+    for i in range(all_cats.shape[0]):
+        numpy.savetxt("photcat%d.corr2" % (i), all_cats[i,:,SXcolumn['mag_auto']])
+
+    #############################################################################
     #
-    median = numpy.zeros(all_cats.shape[1])
-    std = numpy.ones(all_cats.shape[1]) * 50
-
-    # Extract only the reference stars
-    ref_cat = all_cats[:,1:,:]
-    print all_cats.shape, ref_cat.shape
-
-    for loop in range(3):
-        median_mags = numpy.median(ref_cat[:,:,0], axis=0)
-        print median_mags
-        sigmas = numpy.array(scipy.stats.scoreatpercentile(ref_cat[:,:,0], [16,50,84], axis=0))
-
-        upper_limit = sigmas[1,:] + 3*(sigmas[2,:]-sigmas[1,:])
-        lower_limit = sigmas[1,:] - 3*(sigmas[2,:]-sigmas[1,:])
-
-        outlier = (ref_cat[:,:,0] > upper_limit) | (ref_cat[:,:,0] < lower_limit)
-        ref_cat[outlier] = numpy.NaN
-
-    # Re-insert the reference stars in the full catalog
-    all_cats[:,1:,:] = ref_cat
-
-    # subtract the average magnitude of each star to only derive the 
-    # deviation from the average
-    # don't subtract anything from source 0 as this is what we are interested in
-    avg_mags[0] = 0.
-
-    corr_cats = all_cats.copy()
-    corr_cats[:,:,0] -= avg_mags
-
-    print >>output_file, "\n"*10
-    numpy.savetxt(output_file, all_cats[:,:,0])
-    print >>output_file, "\n"*10
-
+    # Now apply the differential photometry correction to the actual source photometry
     #
-    # compute the average deviation of all reference stars
-    #
-    weights = 1/corr_cats[:,1:,1]
-    weighted = corr_cats[:,1:, 0] * weights
-#    print weighted
-    correction = bottleneck.nansum(weighted, axis=1) / bottleneck.nansum(weights, axis=1)
-    d_corr = bottleneck.nanstd(corr_cats[:,1:, 0], axis=1)
-    print correction.shape
+    #############################################################################
 
-    raw_mags = corr_cats[:,0,:]
-    corr_mags = raw_mags[:,0] - correction
-
-#    print raw_mags
-#    print corr_mags
-
-    print >>output_file, "\n"*10
-    numpy.savetxt(output_file, avg_mags)
-
-    print >>output_file, "\n"*10
-    for i in range(len(mjd_hours)):
-        print >>output_file, i, raw_mags[i,0], raw_mags[i,1], corr_mags[i], correction[i], d_corr[i]
+    numpy.savetxt("mjd", target_mjd)
+    numpy.savetxt("target_source.raw", target_source)
+    print target_source.shape
+    print target_source
+    target_source[:, SXcolumn['mag_auto']] -= diffphot_correction
+    numpy.savetxt("target_source.fixed", target_source)
 
     fig = matplotlib.pyplot.figure()
     ax = fig.add_subplot(111)
-    print corr_cats.shape
-    for i in range(corr_cats.shape[1]):
-        ax.plot((numpy.array(mjd_hours)-mjd_hours[0])*60, all_cats[:,i,0])
+    time = target_mjd  /24.
+    ax.errorbar(time, target_source[:, SXcolumn['mag_auto']], 
+                yerr=target_source[:, SXcolumn['mag_err_auto']], 
+                fmt='o', c='blue')
+    ax.scatter(time, target_source[:, SXcolumn['mag_auto']],
+               c='blue')
+    ax.set_xlabel("MJD")
+    ax.set_ylabel("apparent magnitude [12'' aperture']")
     # ax.set_ylim((-0.5, 0.5))
     matplotlib.pyplot.show()
     fig.show()
     fig.savefig('test.png')
 
-    for i in range(len(mjd_hours)):
-        print >>output_file, "\n"*10
-        numpy.savetxt(output_file, all_cats[i])
-        
-#     print all_cats
 
 
     return
