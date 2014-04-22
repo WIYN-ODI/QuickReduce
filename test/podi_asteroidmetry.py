@@ -124,6 +124,83 @@ def write_mpc_header(mpc):
     print >>mpc, "AC2 bob@lpl.arizona.edu"
 
 
+def is_valid_tracklet(tracklet_sources, min_rate, logger):
+
+    #
+    # Now add some filtering to only find "real" tracks
+    #
+    mjd_filtered, mjd_filter = three_sigma_clip(tracklet_sources[:,0], return_mask=True, nsigma=2)
+    ra_filtered, ra_filter = three_sigma_clip(tracklet_sources[:,1], return_mask=True, nsigma=2)
+    dec_filtered, dec_filter = three_sigma_clip(tracklet_sources[:,2], return_mask=True, nsigma=2)
+    #
+    # For a valid tracklet where Ra/Dec depend linearly on MJD, 
+    # these three filters should be identical
+    #
+    tracklet_filtered = tracklet_sources[mjd_filter & ra_filter & dec_filter]
+    if (tracklet_filtered.shape[0] <= 0):
+        # empty tracklet, wasn't a good one to begin with
+        return False
+
+    # print tracklet_sources.shape, tracklet_filtered.shape
+    # Now re-compute rates for the MJD-filtered sample
+    min_mjd_index = numpy.argmin(tracklet_filtered[:,0])
+    rate_ra = (tracklet_filtered[:,1] - tracklet_filtered[min_mjd_index,1]) / \
+              (tracklet_filtered[:,0] - tracklet_filtered[min_mjd_index,0])
+    rate_dec = (tracklet_filtered[:,2] - tracklet_filtered[min_mjd_index,2]) / \
+               (tracklet_filtered[:,0] - tracklet_filtered[min_mjd_index,0])
+    average_rate_ra = numpy.average(rate_ra)
+    average_rate_dec = numpy.average(rate_dec)
+    if (numpy.sqrt(average_rate_ra**2 + average_rate_dec**2) < min_rate):
+        # This does not appear to be a valid tracklet
+        # do not continue any other work on it
+        logger.info("deleting tracklet 1")
+        return False
+
+    # Also check if the max-min distance and time-difference is 
+    # larger than the minimum rate
+    minmax_mjd = numpy.max(tracklet_filtered[:,0]) - numpy.min(tracklet_filtered[:,0])
+    rate_ra_maxmin = (numpy.max(tracklet_filtered[:,1]) - numpy.min(tracklet_filtered[:,1])) / minmax_mjd * 3600.
+    rate_dec_maxmin = (numpy.max(tracklet_filtered[:,2]) - numpy.min(tracklet_filtered[:,2])) / minmax_mjd * 3600.
+    # print rate_ra_maxmin, rate_dec_maxmin, minmax_mjd
+    if (numpy.sqrt(rate_ra_maxmin**2 + rate_dec_maxmin**2) < min_rate):
+        # This does not appear to be a valid tracklet
+        # do not continue any other work on it
+        logger.info("deleting tracklet 2")
+        return False
+
+    # Also check if the max-min distance and time-difference is 
+    # larger than the minimum rate
+    minmax_mjd = numpy.max(tracklet_sources[:,0]) - numpy.min(tracklet_sources[:,0])
+    rate_ra_maxmin = (numpy.max(tracklet_sources[:,1]) - numpy.min(tracklet_sources[:,1])) / minmax_mjd * 3600.
+    rate_dec_maxmin = (numpy.max(tracklet_sources[:,2]) - numpy.min(tracklet_sources[:,2])) / minmax_mjd * 3600.
+    # print rate_ra_maxmin, rate_dec_maxmin, minmax_mjd
+    if (numpy.sqrt(rate_ra_maxmin**2 + rate_dec_maxmin**2) < min_rate):
+        # This does not appear to be a valid tracklet
+        # do not continue any other work on it
+        logger.info("deleting tracklet 3")
+        return False
+
+    #
+    # Now only consider the first/middle/last 50% of all points
+    # sort by MJD first
+    #
+    mjd_sort = numpy.argsort(tracklet_sources[:,0])
+    tracklet_sorted = tracklet_sources[mjd_sort]
+
+    # print tracklet_sorted.shape[0]
+    start_percentile = [0,25,50]
+    for sp in start_percentile:
+        i0 = int(math.floor((sp/100.)*tracklet_sorted.shape[0]))
+        i1 = int(math.ceil(((sp+50)/100.)*tracklet_sorted.shape[0]))-1
+        d_mjd = tracklet_sorted[i1,0] - tracklet_sorted[i0,0]
+        d_ra = (tracklet_sorted[i1,1] - tracklet_sorted[i0,1]) / d_mjd * 3600.
+        d_dec = (tracklet_sorted[i1,2] - tracklet_sorted[i0,2]) / d_mjd * 3600.
+        # print sp, sp+50, i0, i1, math.sqrt(d_ra**2 + d_dec**2)
+        if (math.sqrt(d_ra**2 + d_dec**2) < min_rate):
+            return False
+
+    return True
+
 
 def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcfile=None):
 
@@ -176,7 +253,7 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
         print catalog_filename, cat_data.shape
 
 
-    max_rate = 100 # arcsec / hour
+    max_rate = 200 # arcsec / hour
     min_distance = 2. / 3600. # arcsec
     motion_rates = numpy.zeros((0,6))
 
@@ -187,6 +264,7 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
     moving_object_id = 0
 
     candidates = []
+    n_cat_columns = catalog[0].shape[1]
 
     for ref_cat in range(len(catalog)-1-min_count):
         logger.debug("Checking out catalog %d" % (ref_cat))
@@ -300,10 +378,41 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
 
                 # Now check again if we still have more sources than we require
                 if (numpy.sum(tracklet_valid) < min_count):
-                    logger.debug("Excluding tracklet with too many same-catalog sources (%d --> %d)" % (tracklet.shape[0], numpy.sum(tracklet_valid)))
+                    logger.info("Excluding tracklet with too many same-catalog sources (%d --> %d)" % (tracklet.shape[0], numpy.sum(tracklet_valid)))
                     continue
 
                 tracklet = tracklet[tracklet_valid]
+
+                #
+                # Content in tracklet variable
+                #
+                # Column  0: catalog id 1
+                # Column  1: catalog id 2
+                # Column  2: source id 1
+                # Column  3: source id 2
+                # Column  4: rate Ra
+                # Column  5: rate dec
+                #
+                
+                # collect all source information for the stars in this tracklet
+                tracklet_sources = numpy.zeros((tracklet.shape[0]+1, n_cat_columns+1))
+                tracklet_sources[0, 0] = mjd_hours[ref_cat]
+                tracklet_sources[0, 1:] = catalog[ref_cat][obj1,:]
+                for ts in range(tracklet.shape[0]):
+                    t = tracklet[ts]
+                    tracklet_sources[ts+1, 0] = mjd_hours[int(t[1])]
+                    tracklet_sources[ts+1, 1:] = catalog[int(t[1])][int(t[3]),:]
+                # print tracklet_sources
+
+                # 
+                # Perform a number of tests to check if this tracklet seems valid
+                # 
+                fn = "motion_rates_cand%d.tracklet" % (len(candidates)+1)
+                numpy.savetxt(fn, tracklet_sources)
+                if (not is_valid_tracklet(tracklet_sources, min_rate, logger)):
+                    logger.info("Found a invalid tracklet (%d), skipping"  % (len(candidates)+1))
+                    continue
+
 
                 position_in_sequence = 1
                 moving_object_id += 1
@@ -452,10 +561,11 @@ fk5\
         write_mpc_header(mpc)
 
     new_discovery_number = 0
+    n_multiples = 0
     for cand_id in range(len(candidates)):
 
         cand = candidates[cand_id]
-        logger = logging.getLogger("Candidate(%d)" % (cand_id+1))
+        logger = logging.getLogger("Candidate(% 3d)" % (cand_id+1))
 
         # Check if the average rate is larger than the minimum rate
         combined_rate = numpy.hypot(cand['rate'][0], cand['rate'][1])
@@ -534,8 +644,8 @@ fk5\
             for i in range(cand['sex'].shape[0]):
                 print >>ds9_reg, 'point(%f,%f) # point=circle' % (cand['sex'][i,0], cand['sex'][i,1])
 
-            logger.info(d_total)
-            logger.info(d_dtotal)
+            logger.debug(d_total)
+            logger.debug(d_dtotal)
             new_discovery = True
             new_discovery_number += 1
             counterpart_name = "new_%d" % (cand_id+1)
@@ -553,7 +663,13 @@ fk5\
         else:
             counterpart_name = 'multiple'
             logger.info("Found more than one likely counterpart")
-            print >>ds9_reg, '# text(%f,%f) text={%s}' % (radec[0], radec[1], "-?-?-")
+            n_multiples += 1
+            likely_ids = numpy.arange(likely_id.shape[0])[likely_id] #
+            ds9_candidate_names = numpy.array(mpc_data['Name'])[likely_id]
+            for cand_name in ds9_candidate_names:
+                logger.info("  Candidate: %s" % (cand_name))
+            ds9_label = "-?-?-: " + " / ".join(ds9_candidate_names)
+            print >>ds9_reg, '# text(%f,%f) text={%s}' % (radec[0], radec[1], ds9_label)
             comment = "More than one plausible counterpart identified"
 
         candidates[cand_id]['new_discovery'] = new_discovery
@@ -582,7 +698,7 @@ fk5\
                                filter_name='r')
             new_discovery = False
             all_fs.append(fs)
-        logger.info("for MPC:\n------\n%s\n------\n\n" % ("\n".join(all_fs)))
+        # logger.info("for MPC:\n------\n%s\n------\n\n" % ("\n".join(all_fs)))
         if (not mpc == None):
             mpc.write(os.linesep.join(all_fs)+os.linesep)
 
@@ -673,6 +789,13 @@ if __name__ == "__main__":
         ds9_reg.close()
 
                 
+    elif (cmdline_arg_isset("-check")):
+
+        tracklet_sources = numpy.loadtxt(get_clean_cmdline()[1])
+        logger = logging.getLogger("Check")
+        valid = is_valid_tracklet(tracklet_sources, min_rate, logger)
+        print valid
+
     else:
         sidereal_reference = get_clean_cmdline()[1]
         inputlist = get_clean_cmdline()[2:]
