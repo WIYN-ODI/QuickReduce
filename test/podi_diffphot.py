@@ -21,27 +21,24 @@ import scipy.stats
 import scipy.spatial
 import bottleneck
 import matplotlib.pyplot
+import multiprocessing
 
 import podi_sitesetup as sitesetup
 
 
-def make_catalogs(inputlist):
+def parallel_sourceextractor(queue, dummy):
 
+    logger = logging.getLogger("ParSEx")
 
-    for fitsfile in inputlist:
+    while (True):
+
+        cmd = queue.get()
+        if (cmd == None):
+            queue.task_done()
+            break
+
+        sexcmd, fitsfile = cmd
         logger.info("Creating source catalog for %s" % (fitsfile))
-        catfile = "%s.cat" % (fitsfile[:-5])
-
-        if (os.path.isfile(catfile)):
-            # Don't do anything if the catalog already exists
-            continue
-
-        sex_config_file = "%s/.config/diffphot.sex" % (sitesetup.exec_dir)
-        parameters_file = "%s/.config/diffphot.sexparam" % (sitesetup.exec_dir)
-        sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s" % (
-            sitesetup.sextractor, sex_config_file, parameters_file, catfile, 
-            fitsfile)
-        
         start_time = time.time()
         try:
             ret = subprocess.Popen(sexcmd.split(), 
@@ -59,7 +56,52 @@ def make_catalogs(inputlist):
         end_time = time.time()
         logger.debug("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
 
-    
+        queue.task_done()
+
+def make_catalogs(inputlist):
+
+    jobqueue = multiprocessing.JoinableQueue()
+
+    number_sex_runs = 0
+    for fitsfile in inputlist:
+        catfile = "%s.cat" % (fitsfile[:-5])
+
+        if (os.path.isfile(catfile)):
+            # Don't do anything if the catalog already exists
+            continue
+
+        logger.debug("Ordering source catalog for %s" % (fitsfile))
+        sex_config_file = "%s/.config/diffphot.sex" % (sitesetup.exec_dir)
+        parameters_file = "%s/.config/diffphot.sexparam" % (sitesetup.exec_dir)
+        sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s" % (
+            sitesetup.sextractor, sex_config_file, parameters_file, catfile, 
+            fitsfile)
+        
+        jobqueue.put((sexcmd, fitsfile))
+        number_sex_runs += 1
+
+    logger.info("Ordered %d new source catalogs, please wait" % (number_sex_runs))
+
+    #
+    # Start worker processes
+    #
+    worker_args = (jobqueue, "")
+    processes = []
+    for i in range(sitesetup.number_cpus):
+        p = multiprocessing.Process(target=parallel_sourceextractor, args=worker_args)
+        p.start()
+        processes.append(p)
+
+        # also add a quit-command for each process
+        jobqueue.put(None)
+        
+    #
+    # wait until all work is done
+    #
+    jobqueue.join()
+    logger.info("All source catalogs have been created!")
+
+    return
 
 
 #
@@ -73,7 +115,8 @@ def make_catalogs(inputlist):
 
 
 
-def differential_photometry(inputlist, source_coords):
+def differential_photometry(inputlist, source_coords, 
+                            plot_title=None, plot_filename=None):
 
     logger = logging.getLogger("DiffPhot")
 
@@ -93,7 +136,7 @@ def differential_photometry(inputlist, source_coords):
         else:
             src_mjd = float(sc_items[4])
 
-    print src_ra, src_dec, src_dra, src_ddec, src_mjd
+    # print src_ra, src_dec, src_dra, src_ddec, src_mjd
 
     # Internally, all coordinates are corrected for cos(dec)
     cos_declination = math.cos(math.radians(src_dec))
@@ -378,6 +421,7 @@ def differential_photometry(inputlist, source_coords):
     print diffphot_correction.shape
 
     numpy.save("correction", diffphot_correction)
+    numpy.savetxt("correction.dat", diffphot_correction)
     numpy.save("all_cats", all_cats)
 
     # As verification, apply the correction to each of the reference star catalogs
@@ -396,25 +440,82 @@ def differential_photometry(inputlist, source_coords):
     numpy.savetxt("target_source.raw", target_source)
     print target_source.shape
     print target_source
-    target_source[:, SXcolumn['mag_auto']] -= diffphot_correction
-    numpy.savetxt("target_source.fixed", target_source)
 
+    target_corrected = target_source.copy()
+    target_corrected[:, SXcolumn['mag_auto']] -= diffphot_correction
+    numpy.savetxt("target_source.fixed", target_corrected)
+
+
+    #############################################################################
+    #
+    # Create some plots for the light curve before & after correction
+    #
+    #############################################################################
     fig = matplotlib.pyplot.figure()
-    ax = fig.add_subplot(111)
+    #ax_final = fig.add_subplot(311)
+    #ax_raw = fig.add_subplot(312)
+    #ax_corr = fig.add_subplot(313)
+
     time = target_mjd  /24.
-    ax.errorbar(time, target_source[:, SXcolumn['mag_auto']], 
-                yerr=target_source[:, SXcolumn['mag_err_auto']], 
+
+    width = 0.83
+    ax_final = fig.add_axes([0.15,0.3,width,0.65])
+    ax_corr = fig.add_axes([0.15,0.1,width,0.2])
+
+    if (not plot_title == None):
+        ax_final.set_title(plot_title)
+
+    from matplotlib.ticker import NullFormatter
+    nullfmt   = NullFormatter()         # no labels
+    # no labels
+    ax_final.xaxis.set_major_formatter(nullfmt)
+    ax_corr.set_xlabel("modified julian date")
+
+    #
+    # Also plot the uncorrected light curve as crossed connected with a thin line
+    #
+    c = '#A75858'
+    ax_final.scatter(time, target_source[:, SXcolumn['mag_auto']],
+                     color=c, marker='x', label='aperture-corr.')
+    ax_final.plot(time, target_source[:, SXcolumn['mag_auto']],
+                     color=c, linestyle='-')
+
+    #
+    # Also show the actual 4'' aperture data
+    #
+    c = '#4AA2A5'
+    ax_final.scatter(time, target_source[:, SXcolumn['mag_aper_4.0']],
+                     color=c, marker='x', label='raw 4"')
+    ax_final.plot(time, target_source[:, SXcolumn['mag_aper_4.0']],
+                     color=c, linestyle='-')
+
+    #
+    # Plot the light curve as data points with uncertainties
+    # 
+    ax_final.errorbar(time, target_corrected[:, SXcolumn['mag_auto']], 
+                yerr=target_corrected[:, SXcolumn['mag_err_auto']], 
                 fmt='o', c='blue')
-    ax.scatter(time, target_source[:, SXcolumn['mag_auto']],
-               c='blue')
-    ax.set_xlabel("MJD")
-    ax.set_ylabel("apparent magnitude [12'' aperture']")
-    # ax.set_ylim((-0.5, 0.5))
-    matplotlib.pyplot.show()
-    fig.show()
-    fig.savefig('test.png')
+    ax_final.scatter(time, target_corrected[:, SXcolumn['mag_auto']],
+                     c='blue', label='final')
+    ax_final.set_ylabel("app. mag.\n[mag (12'')]")
+    ax_final.legend(loc='best', borderaxespad=0.5, prop={'size':9})
 
+    #
+    # As bottom plot show correction amplitude
+    #
+    # Determine the plotting range
+    max_corr = numpy.nanmax(numpy.fabs(diffphot_correction)) * 1.35
+    ax_corr.plot(time, diffphot_correction, marker='o')
+    # ax_corr.set_ylim((-0.09,+0.09))
+    ax_corr.set_ylim((-1*max_corr,+1*max_corr))
+    ax_corr.axhline(y=0, linewidth=1, color='grey')
+    ax_corr.set_ylabel("correction\n[mag]")
 
+    if (plot_filename == None):
+        matplotlib.pyplot.show()
+        fig.show()
+    else:
+        fig.savefig(plot_filename)
 
     return
 
@@ -432,10 +533,16 @@ if __name__ == "__main__":
     catalog_dir = None #get_clean_cmdline()[2]
     inputlist = get_clean_cmdline()[2:]
 
-    print "source data", source_data
-    print "filelist",inputlist
+    # print "source data", source_data
+    # print "filelist",inputlist
 
-    data = differential_photometry(inputlist, source_coords=source_data)
+    title = None
+    if (cmdline_arg_isset('-title')):
+        title=get_cmdline_arg('-title')
+    plot_filename = cmdline_arg_set_or_default('-plotfile', None)
+
+    data = differential_photometry(inputlist, source_coords=source_data,
+                                   plot_title=title, plot_filename=plot_filename)
 
     logger.info("Done, shutting down")
     podi_logging.shutdown_logging(options)
