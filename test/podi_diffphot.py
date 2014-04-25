@@ -104,43 +104,49 @@ def make_catalogs(inputlist):
     return
 
 
-#
-#
-# To-do list
-#
-# - make sure every star is only part of a single tracklet
-#
-#
-
-
-
+RA = 0
+DEC = 1
+MJD = 2
+DRA = 3
+DDEC = 4
 
 def differential_photometry(inputlist, source_coords, 
                             plot_title=None, plot_filename=None):
 
     logger = logging.getLogger("DiffPhot")
 
-    # interpret source_coords
-    sc_items = source_coords.split(",")
-    src_ra = float(sc_items[0])
-    src_dec = float(sc_items[1])
+    src_params = []
+    # print source_coords
+    for src_coord in source_coords:
+        # interpret source_coords
+        sc_items = src_coord.split(",")
+        src_ra = float(sc_items[0])
+        src_dec = float(sc_items[1])
 
-    src_dra, src_ddec, src_mjd, src_dra, src_ddec = 0., 0., 0., 0., 0.
+        src_dra, src_ddec, src_mjd = 0., 0., 0.
 
-    if (len(sc_items) == 5):
-        src_dra = float(sc_items[2])
-        src_ddec = float(sc_items[3])
-        if (os.path.isfile(sc_items[4])):
-            hdu = astropy.io.fits.open(sc_items[4])
-            src_mjd = hdu[0].header['MJD-OBS']
-        else:
-            src_mjd = float(sc_items[4])
+        if (len(sc_items) == 5):
+            src_dra = float(sc_items[2])
+            src_ddec = float(sc_items[3])
+            if (os.path.isfile(sc_items[4])):
+                hdu = astropy.io.fits.open(sc_items[4])
+                src_mjd = hdu[0].header['MJD-OBS']
+            else:
+                src_mjd = float(sc_items[4])
+
+        src_params.append( [src_ra, src_dec, src_mjd, src_dra, src_ddec] )
+
+    src_params = numpy.array(src_params)
+
+    print "source coordinate data:"
+    numpy.savetxt(sys.stdout, src_params, "%14.6f")
 
     # print src_ra, src_dec, src_dra, src_ddec, src_mjd
 
     # Internally, all coordinates are corrected for cos(dec)
     cos_declination = math.cos(math.radians(src_dec))
-    src_ra *= cos_declination
+    src_params[:,RA] *= cos_declination
+    # src_ra *= cos_declination 
 
     make_catalogs(inputlist)
     
@@ -234,7 +240,7 @@ def differential_photometry(inputlist, source_coords,
     #
     # Create source catalogs for the source and n reference sources from each catalog
     #
-    
+    numpy.savetxt("src_params", src_params)
     for i_cat in range(len(catalog)):
         print "\n"*5
 
@@ -246,7 +252,11 @@ def differential_photometry(inputlist, source_coords,
 
         # Search for the actual source
         # add here: fudge with coordinates to account for motion
-        src_radec = numpy.array([[src_ra, src_dec]]) + (mjd_hours[i_cat] - src_mjd*24.) * numpy.array([src_dra, src_ddec]) / 3600.
+        src_radec = src_params[:, RA:DEC+1] + (mjd_hours[i_cat]-src_params[:,MJD:MJD+1]*24.)*src_params[:, DRA:DDEC+1]/3600.
+        print "source coordinates in frame %d" % (i_cat+1)
+        numpy.savetxt(sys.stdout, src_radec)
+
+        # src_radec = numpy.array([[src_ra, src_dec]]) + (mjd_hours[i_cat] - src_mjd*24.) * numpy.array([src_dra, src_ddec]) / 3600.
         # print src_radec * numpy.array([1./cos_declination, 1.])
         
         # print src_radec.shape, phot_refs.shape
@@ -257,24 +267,36 @@ def differential_photometry(inputlist, source_coords,
         #
         #########################################################################
 
+        src_tree = scipy.spatial.cKDTree(src_radec)
         # Search for the source we are interested in
-        src_counterpart = cat_tree.query_ball_point(src_radec, r=match_radius, p=2)
-        src_data = None
-        if (len(src_counterpart) <= 0):
-            # We couldn't find any source counterpart
-            continue
-        elif (len(src_counterpart) > 1):
-            # Found multiple counterparts
-            # add some brain to pick the most likely one
-            continue
-        else:
-            # 
-            try:
-                src_data = (catalog[i_cat][src_counterpart[0]])[0]
-            except:
-                podi_logging.log_exception()
+        # src_counterpart = cat_tree.query_ball_point(src_radec, r=match_radius, p=2)
+#        src_counterpart = cat_tree.query_ball_tree(src_tree, r=match_radius, p=2)
+        src_counterpart = src_tree.query_ball_tree(cat_tree, r=match_radius, p=2)
+
+        src_data = numpy.empty((src_radec.shape[0], catalog[i_cat].shape[1]))
+        src_data.fill(numpy.NaN)
+        # print src_data
+
+        print src_counterpart
+
+        for obj in range(src_radec.shape[0]):
+            if (len(src_counterpart[obj]) <= 0):
+                # We couldn't find any source counterpart
                 continue
-            print 'src-data=',src_data.shape
+            elif (len(src_counterpart[obj]) > 1):
+                # Found multiple counterparts
+                # add some brain to pick the most likely one
+                continue
+            else:
+                # 
+                try:
+                    src_data[obj,:] = (catalog[i_cat][src_counterpart[obj][0]])
+                except:
+                    podi_logging.log_exception()
+                    continue
+                #print 'src-data=',src_data.shape
+
+        # print src_data
 
         #########################################################################
         #
@@ -350,8 +372,8 @@ def differential_photometry(inputlist, source_coords,
         #
         # also apply aperture correction to target source
         #
-        src_data[SXcolumn['mag_auto']] = src_data[SXcolumn[src_aper_mag]] + aperture_correction
-        src_data[SXcolumn['mag_err_auto']] = src_data[SXcolumn[src_aper_err]]
+        src_data[:,SXcolumn['mag_auto']] = src_data[:,SXcolumn[src_aper_mag]] + aperture_correction
+        src_data[:,SXcolumn['mag_err_auto']] = src_data[:,SXcolumn[src_aper_err]]
 
 
         #
@@ -359,7 +381,7 @@ def differential_photometry(inputlist, source_coords,
         #
         all_cats.append(phot_data)
         target_source.append(src_data)
-        print "Added target source", len(target_source)
+        logger.debug("Added target sources from frame #%d" % (len(target_source)))
         target_mjd.append(mjd_hours[i_cat])
 
 
@@ -416,7 +438,7 @@ def differential_photometry(inputlist, source_coords,
     print mag_deviation
 
     # Compute the median deviation across all stars for each of the source catalogs
-    diffphot_correction = numpy.median(mag_deviation, axis=1)
+    diffphot_correction = numpy.median(mag_deviation, axis=1).reshape((mag_deviation.shape[0],1))
     print diffphot_correction
     print diffphot_correction.shape
 
@@ -426,7 +448,7 @@ def differential_photometry(inputlist, source_coords,
 
     # As verification, apply the correction to each of the reference star catalogs
     print all_cats.shape
-    all_cats[:,:, SXcolumn['mag_auto']] -= diffphot_correction.reshape((diffphot_correction.shape[0],1))
+    all_cats[:,:, SXcolumn['mag_auto']] -= diffphot_correction
     for i in range(all_cats.shape[0]):
         numpy.savetxt("photcat%d.corr2" % (i), all_cats[i,:,SXcolumn['mag_auto']])
 
@@ -437,85 +459,100 @@ def differential_photometry(inputlist, source_coords,
     #############################################################################
 
     numpy.savetxt("mjd", target_mjd)
-    numpy.savetxt("target_source.raw", target_source)
+    #numpy.savetxt("target_source.raw", target_source)
     print target_source.shape
     print target_source
 
-    target_corrected = target_source.copy()
-    target_corrected[:, SXcolumn['mag_auto']] -= diffphot_correction
-    numpy.savetxt("target_source.fixed", target_corrected)
+    # Come up with a better way of storing the data in ascii files for 
+    # post-processing with external files
 
+    print target_source.shape
+    print diffphot_correction.shape
+
+    target_corrected = target_source.copy()
+    target_corrected[:, :, SXcolumn['mag_auto']] -= diffphot_correction
+    # numpy.savetxt("target_source.fixed", target_corrected)
 
     #############################################################################
     #
     # Create some plots for the light curve before & after correction
     #
     #############################################################################
-    fig = matplotlib.pyplot.figure()
-    #ax_final = fig.add_subplot(311)
-    #ax_raw = fig.add_subplot(312)
-    #ax_corr = fig.add_subplot(313)
 
-    time = target_mjd  /24.
+    for i_source in range(src_params.shape[0]):
 
-    width = 0.83
-    ax_final = fig.add_axes([0.15,0.3,width,0.65])
-    ax_corr = fig.add_axes([0.15,0.1,width,0.2])
+        fig = matplotlib.pyplot.figure()
+        #ax_final = fig.add_subplot(311)
+        #ax_raw = fig.add_subplot(312)
+        #ax_corr = fig.add_subplot(313)
 
-    if (not plot_title == None):
-        ax_final.set_title(plot_title)
+        time = target_mjd  /24.
+        #print time.shape
+        #print target_source.shape
+        #print target_source[0,:,0].shape
+        # break
 
-    from matplotlib.ticker import NullFormatter
-    nullfmt   = NullFormatter()         # no labels
-    # no labels
-    ax_final.xaxis.set_major_formatter(nullfmt)
-    ax_corr.set_xlabel("modified julian date")
+        width = 0.83
+        ax_final = fig.add_axes([0.15,0.3,width,0.65])
+        ax_corr = fig.add_axes([0.15,0.1,width,0.2])
 
-    #
-    # Also plot the uncorrected light curve as crossed connected with a thin line
-    #
-    c = '#A75858'
-    ax_final.scatter(time, target_source[:, SXcolumn['mag_auto']],
-                     color=c, marker='x', label='aperture-corr.')
-    ax_final.plot(time, target_source[:, SXcolumn['mag_auto']],
-                     color=c, linestyle='-')
+        if (not plot_title == None):
+            ax_final.set_title(plot_title)
 
-    #
-    # Also show the actual 4'' aperture data
-    #
-    c = '#4AA2A5'
-    ax_final.scatter(time, target_source[:, SXcolumn['mag_aper_4.0']],
-                     color=c, marker='x', label='raw 4"')
-    ax_final.plot(time, target_source[:, SXcolumn['mag_aper_4.0']],
-                     color=c, linestyle='-')
+        from matplotlib.ticker import NullFormatter
+        nullfmt   = NullFormatter()         # no labels
+        # no labels
+        ax_final.xaxis.set_major_formatter(nullfmt)
+        ax_corr.set_xlabel("modified julian date")
 
-    #
-    # Plot the light curve as data points with uncertainties
-    # 
-    ax_final.errorbar(time, target_corrected[:, SXcolumn['mag_auto']], 
-                yerr=target_corrected[:, SXcolumn['mag_err_auto']], 
-                fmt='o', c='blue')
-    ax_final.scatter(time, target_corrected[:, SXcolumn['mag_auto']],
-                     c='blue', label='final')
-    ax_final.set_ylabel("app. mag.\n[mag (12'')]")
-    ax_final.legend(loc='best', borderaxespad=0.5, prop={'size':9})
+        #
+        # Also plot the uncorrected light curve as crossed connected with a thin line
+        #
+        c = '#A75858'
+        ax_final.scatter(time, target_source[:, i_source, SXcolumn['mag_auto']],
+                         color=c, marker='x', label='aperture-corr.')
+        ax_final.plot(time, target_source[:, i_source, SXcolumn['mag_auto']],
+                         color=c, linestyle='-')
 
-    #
-    # As bottom plot show correction amplitude
-    #
-    # Determine the plotting range
-    max_corr = numpy.nanmax(numpy.fabs(diffphot_correction)) * 1.35
-    ax_corr.plot(time, diffphot_correction, marker='o')
-    # ax_corr.set_ylim((-0.09,+0.09))
-    ax_corr.set_ylim((-1*max_corr,+1*max_corr))
-    ax_corr.axhline(y=0, linewidth=1, color='grey')
-    ax_corr.set_ylabel("correction\n[mag]")
+        #
+        # Also show the actual 4'' aperture data
+        #
+        c = '#4AA2A5'
+        ax_final.scatter(time, target_source[:, i_source, SXcolumn['mag_aper_4.0']],
+                         color=c, marker='x', label='raw 4"')
+        ax_final.plot(time, target_source[:, i_source, SXcolumn['mag_aper_4.0']],
+                         color=c, linestyle='-')
 
-    if (plot_filename == None):
-        matplotlib.pyplot.show()
-        fig.show()
-    else:
-        fig.savefig(plot_filename)
+        #
+        # Plot the light curve as data points with uncertainties
+        # 
+        ax_final.errorbar(time, target_corrected[:, i_source, SXcolumn['mag_auto']], 
+                    yerr=target_corrected[:, i_source, SXcolumn['mag_err_auto']], 
+                    fmt='o', c='blue')
+        ax_final.scatter(time, target_corrected[:, i_source, SXcolumn['mag_auto']],
+                         c='blue', label='final')
+        ax_final.set_ylabel("app. mag.\n[mag (12'')]")
+        ax_final.legend(loc='best', borderaxespad=0.5, prop={'size':9})
+
+        #
+        # As bottom plot show correction amplitude
+        #
+        # Determine the plotting range
+        max_corr = numpy.nanmax(numpy.fabs(diffphot_correction)) * 1.35
+        ax_corr.plot(time, diffphot_correction, marker='o')
+        # ax_corr.set_ylim((-0.09,+0.09))
+        ax_corr.set_ylim((-1*max_corr,+1*max_corr))
+        ax_corr.axhline(y=0, linewidth=1, color='grey')
+        ax_corr.set_ylabel("correction\n[mag]")
+
+        if (plot_filename == None):
+            matplotlib.pyplot.show()
+            fig.show()
+        else:
+            this_plot = "%s.%d.%s" % (plot_filename[:-4], i_source+1, plot_filename[-3:])
+#            fig.savefig(plot_filename)
+            fig.savefig(this_plot)
+            logger.info("Writing plot: %s"  % (this_plot))
 
     return
 
@@ -527,11 +564,27 @@ if __name__ == "__main__":
     options = set_default_options()
     podi_logging.setup_logging(options)
     options = read_options_from_commandline(options)
-    logger = logging.getLogger("Asteroidmetry: Main")
+    logger = logging.getLogger("DiffPhot: Main")
 
-    source_data = get_clean_cmdline()[1]
-    catalog_dir = None #get_clean_cmdline()[2]
-    inputlist = get_clean_cmdline()[2:]
+
+    clean_cmdline = get_clean_cmdline()[1:]
+    coord_end = 0
+    for i in range(len(clean_cmdline)):
+        if (clean_cmdline[i] == ":"):
+            coord_end = i
+            break
+
+    source_data = clean_cmdline[:coord_end]
+    inputlist = clean_cmdline[coord_end+1:]
+
+    # source_data = get_clean_cmdline()[1]
+    # catalog_dir = None #get_clean_cmdline()[2]
+    # inputlist = get_clean_cmdline()[2:]
+
+    print "source_data:"
+    print "\n".join(source_data)
+    print "\n\ninput-list:"
+    print "\n".join(inputlist)
 
     # print "source data", source_data
     # print "filelist",inputlist
