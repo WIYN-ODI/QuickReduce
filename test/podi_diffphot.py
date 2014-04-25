@@ -22,6 +22,7 @@ import scipy.spatial
 import bottleneck
 import matplotlib.pyplot
 import multiprocessing
+import copy
 
 import podi_sitesetup as sitesetup
 
@@ -111,7 +112,8 @@ DRA = 3
 DDEC = 4
 
 def differential_photometry(inputlist, source_coords, 
-                            plot_title=None, plot_filename=None):
+                            plot_title=None, plot_filename=None,
+                            reference_star_frame=None):
 
     logger = logging.getLogger("DiffPhot")
 
@@ -167,8 +169,19 @@ def differential_photometry(inputlist, source_coords,
     src_params[:,RA] *= cos_declination
     # src_ra *= cos_declination 
 
-    make_catalogs(inputlist)
+    # Make sure to add the reference frame to the list of frames for 
+    # which we need source catalogs
+    logger.info("Using reference frame: %s" % (reference_star_frame))
+    if (not reference_star_frame == None and
+        not reference_star_frame in inputlist):
+        full_filelist = copy.copy(inputlist)
+        full_filelist.append(reference_star_frame)
+        make_catalogs(full_filelist)
+    else:
+        make_catalogs(inputlist)
     
+#    return
+
     catalog_filelist = []
     catalog = []
     mjd_hours = []
@@ -229,11 +242,26 @@ def differential_photometry(inputlist, source_coords,
         print catalog_filename, cat_data.shape
 
 
+    #############################################################################
+    #
+    # Open the reference star catalog and select a number of stars for 
+    # the differential photometry reference
+    #
+    #############################################################################
+    if (not reference_star_frame == None):
+        ref_star_cat_file = reference_star_frame[:-5]+".cat"
+        ref_stars = numpy.loadtxt(ref_star_cat_file)
+        ref_stars[:, SXcolumn['ra']] *= cos_declination
+        ref_stars[:, SXcolumn['mag_aper_2.0']:SXcolumn['mag_aper_12.0']+1] += 25. #(magzero - 25.0)
+    else:
+        ref_stars = catalog[0]
+
+    print ref_stars[:25,:2]
+
     # Now find sources that have good photometry in all frames that 
     # we can use as reference stars
-    ref_stars = catalog[0]
     small_errors = (ref_stars[:, aperture_error_column] < 0.05) & \
-                   (ref_stars[:, aperture_column] > 16)
+                   (ref_stars[:, aperture_column] > 14)
     no_flags = ref_stars[:, SXcolumn['flags']] == 0
     ref_stars = ref_stars[(small_errors & no_flags)]
 
@@ -248,6 +276,8 @@ def differential_photometry(inputlist, source_coords,
 
     # Now go through all catalogs and find the source and the reference 
     # magnitudes
+
+    # return
 
     output_file = open('output.test', 'w')
     match_radius = 2./3600. # 2 arcsec
@@ -425,6 +455,8 @@ def differential_photometry(inputlist, source_coords,
     #
     #############################################################################
 
+    for i in range(all_cats.shape[1]):
+        numpy.savetxt("allcats_%d.cat" % (i+1), all_cats[:,i,:])
 
     # Iteratively eliminate outliers
     for i in range(3):
@@ -640,8 +672,12 @@ if __name__ == "__main__":
         title=get_cmdline_arg('-title')
     plot_filename = cmdline_arg_set_or_default('-plotfile', None)
 
+    reference_frame = cmdline_arg_set_or_default('-refframe', None)
+
     data = differential_photometry(inputlist, source_coords=source_data,
-                                   plot_title=title, plot_filename=plot_filename)
+                                   plot_title=title, plot_filename=plot_filename,
+                                   reference_star_frame=reference_frame
+    )
 
     logger.info("Done, shutting down")
     podi_logging.shutdown_logging(options)
