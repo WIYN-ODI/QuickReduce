@@ -125,7 +125,7 @@ def differential_photometry(inputlist, source_coords,
     src_ra = float(sc_items[0])
     src_dec = float(sc_items[1])
 
-    src_dra, src_ddec, src_dmjd = 0., 0., 0.
+    src_dra, src_ddec, src_mjd, src_dra, src_ddec = 0., 0., 0., 0., 0.
 
     if (len(sc_items) == 5):
         src_dra = float(sc_items[2])
