@@ -116,27 +116,46 @@ def differential_photometry(inputlist, source_coords,
     logger = logging.getLogger("DiffPhot")
 
     src_params = []
+    src_names = []
     # print source_coords
     for src_coord in source_coords:
         # interpret source_coords
-        sc_items = src_coord.split(",")
-        src_ra = float(sc_items[0])
-        src_dec = float(sc_items[1])
+        try:
+            sc_items = src_coord.split(",")
+            src_ra = float(sc_items[0])
+            src_dec = float(sc_items[1])
 
-        src_dra, src_ddec, src_mjd = 0., 0., 0.
+            src_dra, src_ddec, src_mjd = 0., 0., 0.
 
-        if (len(sc_items) == 5):
-            src_dra = float(sc_items[2])
-            src_ddec = float(sc_items[3])
-            if (os.path.isfile(sc_items[4])):
-                hdu = astropy.io.fits.open(sc_items[4])
-                src_mjd = hdu[0].header['MJD-OBS']
-            else:
-                src_mjd = float(sc_items[4])
+            src_name = None
+            if (len(sc_items) >= 5):
+                src_dra = float(sc_items[2])
+                src_ddec = float(sc_items[3])
+                if (os.path.isfile(sc_items[4])):
+                    hdu = astropy.io.fits.open(sc_items[4])
+                    src_mjd = hdu[0].header['MJD-OBS']
+                else:
+                    src_mjd = float(sc_items[4])
+            if (len(sc_items) >= 6):
+                src_name = sc_items[5]
+            elif (len(sc_items) == 3):
+                src_name = sc_items[2].strip()
+
+            if (not src_name == None):
+                logger.info("Found source identifier: %s" % (src_name))
+
+
+        except:
+            logger.error("ERROR: Problem with interpreting coordinate string: %s" % (src_coord))
+            logger.warning("Ignoring this source")
+            continue
+            pass
 
         src_params.append( [src_ra, src_dec, src_mjd, src_dra, src_ddec] )
+        src_names.append(src_name)
 
     src_params = numpy.array(src_params)
+    print "\n"*10,src_names,"\n"*10
 
     print "source coordinate data:"
     numpy.savetxt(sys.stdout, src_params, "%14.6f")
@@ -223,7 +242,7 @@ def differential_photometry(inputlist, source_coords,
     ref_sorted = ref_stars[si]
     print ref_sorted[:, aperture_column]
 
-    n_ref = 25
+    n_ref = 50
     phot_refs = ref_sorted[0:n_ref,0:2]
     print phot_refs[:,0:2]
 
@@ -253,8 +272,8 @@ def differential_photometry(inputlist, source_coords,
         # Search for the actual source
         # add here: fudge with coordinates to account for motion
         src_radec = src_params[:, RA:DEC+1] + (mjd_hours[i_cat]-src_params[:,MJD:MJD+1]*24.)*src_params[:, DRA:DDEC+1]/3600.
-        print "source coordinates in frame %d" % (i_cat+1)
-        numpy.savetxt(sys.stdout, src_radec)
+        # print "source coordinates in frame %d" % (i_cat+1)
+        # numpy.savetxt(sys.stdout, src_radec)
 
         # src_radec = numpy.array([[src_ra, src_dec]]) + (mjd_hours[i_cat] - src_mjd*24.) * numpy.array([src_dra, src_ddec]) / 3600.
         # print src_radec * numpy.array([1./cos_declination, 1.])
@@ -479,6 +498,15 @@ def differential_photometry(inputlist, source_coords,
     #
     #############################################################################
 
+    def my_replace(inp, key, insert):
+        out = ""+inp
+        while (out.find(key) >= 0):
+            begin_pos = out.find(key)
+            end_pos = begin_pos + len(key)
+            out = "%s%s%s" % (out[:begin_pos], insert, out[end_pos:])
+        return out
+
+    print src_names
     for i_source in range(src_params.shape[0]):
 
         fig = matplotlib.pyplot.figure()
@@ -497,7 +525,17 @@ def differential_photometry(inputlist, source_coords,
         ax_corr = fig.add_axes([0.15,0.1,width,0.2])
 
         if (not plot_title == None):
-            ax_final.set_title(plot_title)
+            this_plot_title = plot_title
+
+            name_tag = "%name"
+            if (not src_names[i_source] == None):
+                print src_names[i_source] 
+                this_plot_title = my_replace(plot_title, name_tag, src_names[i_source])
+                # begin_pos = plot_title.find(name_tag)
+                # end_pos = begin_pos + len(name_tag)
+                # this_plot_title = "%s%s%s" % (plot_title[:begin_pos], src_names[i_source], plot_title[end_pos+1:])
+
+            ax_final.set_title(this_plot_title)
 
         from matplotlib.ticker import NullFormatter
         nullfmt   = NullFormatter()         # no labels
@@ -549,7 +587,15 @@ def differential_photometry(inputlist, source_coords,
             matplotlib.pyplot.show()
             fig.show()
         else:
-            this_plot = "%s.%d.%s" % (plot_filename[:-4], i_source+1, plot_filename[-3:])
+            if (not src_names[i_source] == None and plot_filename.find('%name') >= 0):
+                names_underscore = my_replace(src_names[i_source], " ", "_")
+                this_plot = my_replace(plot_filename, "%name", names_underscore)
+            elif (plot_filename.find('%name') >= 0):
+                name_id = "src_%d" % (i_source+1)
+                this_plot = my_replace(plot_filename, "%name", name_id)
+            else:
+                this_plot = "%s.%d.%s" % (plot_filename[:-4], i_source+1, plot_filename[-3:])
+
 #            fig.savefig(plot_filename)
             fig.savefig(this_plot)
             logger.info("Writing plot: %s"  % (this_plot))
