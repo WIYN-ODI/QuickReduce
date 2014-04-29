@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 
+#
+# Copyright (C) 2014, Ralf Kotulla
+#                     kotulla@uwm.edu
+#
+# All rights reserved
+#
+
 import os, sys, urllib2, urllib
 import astropy.io.fits
 import datetime

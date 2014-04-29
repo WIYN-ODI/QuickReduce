@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 
+#
+# Copyright (C) 2014, Ralf Kotulla
+#                     kotulla@uwm.edu
+#
+# All rights reserved
+#
+
 import os, sys
 d,_=os.path.split(os.path.abspath(sys.argv[0]))
 sys.path.append("%s/../"%d)

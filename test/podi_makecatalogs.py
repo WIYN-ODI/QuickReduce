@@ -1,4 +1,9 @@
-
+#
+# Copyright (C) 2014, Ralf Kotulla
+#                     kotulla@uwm.edu
+#
+# All rights reserved
+#
 
 import numpy
 import logging
