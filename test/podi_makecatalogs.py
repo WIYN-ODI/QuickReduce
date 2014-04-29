@@ -42,7 +42,7 @@ def parallel_sourceextractor(queue, dummy):
 
         queue.task_done()
 
-def make_catalogs(inputlist, sex_config, sex_param):
+def make_catalogs(inputlist, sex_config, sex_param, use_weight=True):
 
     jobqueue = multiprocessing.JoinableQueue()
 
@@ -56,12 +56,23 @@ def make_catalogs(inputlist, sex_config, sex_param):
             # Don't do anything if the catalog already exists
             continue
 
+        # check if there is a weight image available; if so, use it
+        weight_params = ""
+        weightfile = fitsfile[:-5]+".weight.fits"
+        if (os.path.isfile(weightfile) and use_weight):
+            weight_params = "-WEIGHT_TYPE MAP_WEIGHT -WEIGHT_IMAGE %s" % (weightfile)
+
         logger.debug("Ordering source catalog for %s" % (fitsfile))
         sex_config_file = "%s/.config/%s" % (sitesetup.exec_dir, sex_config)
         parameters_file = "%s/.config/%s" % (sitesetup.exec_dir, sex_param)
-        sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s" % (
-            sitesetup.sextractor, sex_config_file, parameters_file, catfile, 
-            fitsfile)
+        sexcmd = "%(sex)s -c %(config)s -PARAMETERS_NAME %(param)s -CATALOG_NAME %(catname)s %(weight)s %(inputfile)s" % {
+            'sex': sitesetup.sextractor,
+            'config': sex_config_file,
+            'param': parameters_file, 
+            'catname': catfile, 
+            'weight': weight_params,
+            'inputfile': fitsfile,
+        }
         
         jobqueue.put((sexcmd, fitsfile))
         number_sex_runs += 1
