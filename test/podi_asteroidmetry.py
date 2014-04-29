@@ -144,7 +144,7 @@ def is_valid_tracklet(tracklet_sources, min_rate, logger):
     if (numpy.sqrt(rate_ra_maxmin**2 + rate_dec_maxmin**2) < min_rate):
         # This does not appear to be a valid tracklet
         # do not continue any other work on it
-        logger.deleting("deleting tracklet 3")
+        logger.debug("deleting tracklet 3")
         return False
 
     #
@@ -167,6 +167,286 @@ def is_valid_tracklet(tracklet_sources, min_rate, logger):
             return False
 
     return True
+
+
+
+
+
+
+
+def check_for_valid_tracklet(catalog, 
+                             mjd_hours,
+                             source_id, 
+                             ref_cat, obj1,
+                             min_distance, min_rate, max_rate,
+                             rate_radius=1):
+
+
+    motion_rates = numpy.zeros((0,7))
+    cos_declination = math.cos(math.radians(catalog[ref_cat][obj1, SXcolumn['dec']]))
+    n_cat_columns = catalog[0].shape[1]
+
+    #############################################################################
+    #
+    # Create a catalog of nearby objects, convert distances into motion rates
+    #
+    #############################################################################
+    for second_cat in range(ref_cat+1, len(catalog)):
+
+        # print catalog_filelist[ref_cat], catalog_filelist[second_cat]
+
+        d_hours = mjd_hours[second_cat] - mjd_hours[ref_cat]
+        diff_to_rate = 3600 / d_hours
+
+        d_ra = catalog[second_cat][:,SXcolumn['ra']] - catalog[ref_cat][obj1,SXcolumn['ra']]
+        d_ra *= cos_declination
+        d_dec = catalog[second_cat][:,SXcolumn['dec']] - catalog[ref_cat][obj1,SXcolumn['dec']]
+        d_total = numpy.hypot(d_ra, d_dec) 
+
+        # Only use sources with positive flags - we'll mask stars that 
+        # are already matched to another tracklet by setting flags to -1 
+        possible_match = (d_total < math.fabs(max_rate/diff_to_rate)) & \
+                         (d_total > min_distance) & \
+                         (catalog[second_cat][:,SXcolumn['flags']] >= 0)
+        # require a minimum distance of 2 arcsec
+
+        matches = numpy.ones(shape=(numpy.sum(possible_match),7))
+        matches[:,0] = ref_cat
+        matches[:,1] = second_cat
+        matches[:,2] = obj1
+        matches[:,3] = source_id[second_cat][possible_match]
+        matches[:,4] = d_ra[possible_match] * diff_to_rate
+        matches[:,5] = d_dec[possible_match] * diff_to_rate
+
+        motion_rates = numpy.append(motion_rates, matches, axis=0)
+
+    # numpy.savetxt("rawrates_%d_%d" % (ref_cat+1, obj1+1), motion_rates)
+
+    # Now we have a whole set of potential counterparts for one star in the source catalog
+    # Try to find significant matches
+    if (motion_rates.shape[0] < 5):
+        # not enough nearby stars found
+        return None
+
+    #############################################################################
+    #
+    # Count how many matches we have in each motion rate cluster
+    #
+    #############################################################################
+    src_tree = scipy.spatial.cKDTree(motion_rates[:,4:6])
+    match_tree = scipy.spatial.cKDTree(motion_rates[:,4:6])
+    matches = match_tree.query_ball_tree(src_tree, rate_radius, p=2)
+
+    for i in range(len(matches)):
+        motion_rates[i,6] = len(matches[i])
+
+    # filename = "motion_rates_%02d_%04d.dump" % (ref_cat, obj1)
+    # numpy.savetxt(filename, motion_rates)
+
+    # numpy.savetxt(sys.stdout, motion_rates)
+
+    #
+    # Now we know how often each star appears
+    #
+
+    # check often the most frequent rate appears
+    ratecount_max = numpy.max(motion_rates[:,6])
+    # print "rate-count-max:", ratecount_max
+
+    source_data = []
+    mjd_data = []
+    formatted_data = []
+
+
+    #############################################################################
+    #
+    # Return if we haven't found enough sources in this tracklet
+    #
+    #############################################################################
+    if (ratecount_max < min_count):
+        return None
+
+    #############################################################################
+    #
+    # If we make it to here this might be something
+    # 
+    #############################################################################
+
+    # Save the motion rates and counts for later
+    # fn = "motion_rates_cand%d" % (len(candidates)+1)
+    # numpy.savetxt(fn, motion_rates)
+
+    # Find the rate that has the most matches
+    frequent = (motion_rates[:,6] == ratecount_max)
+
+    frequent_rates = motion_rates[:, 4:6][frequent]
+    # numpy.savetxt(sys.stdout, frequent_rates)
+
+    # compute average rate as the average of all frequent rates
+    avg_rate = numpy.median(frequent_rates, axis=0)
+    logger.debug("Found new candidate (#src=%d [% 2d/% 2d]): %.3f %.3f" % (
+        ref_cat+1, len(catalog), ratecount_max+1, avg_rate[0], avg_rate[1])
+    )
+
+    # Now identify all points with rates close to the average rate
+    counterparts = src_tree.query_ball_point(avg_rate, r=1, p=2)
+
+    # Determine all source catalogs that contribute to this tracklets
+    tracklet = motion_rates[counterparts]
+    source_catid = tracklet[:, 1]
+    source_cat_set = set(source_catid)
+    tracklet_valid = source_catid > 0
+    # Now make sure to exclude all sources in the tracklet that appear multiple times
+    for srccat in source_cat_set:
+        from_this_cat = (source_catid == srccat)
+        if (numpy.sum(from_this_cat) > 1):
+            # multiple sources are a no-no
+            # logger.warning("Found multiple sources (%d) from the same catalog" % (numpy.sum(from_this_cat)))
+            tracklet_valid = tracklet_valid & (from_this_cat == False)
+
+    # Now check again if we still have more sources than we require
+    if (numpy.sum(tracklet_valid) < min_count):
+        logger.debug("Excluding tracklet with too many same-catalog sources (%d --> %d)" % (
+            tracklet.shape[0], numpy.sum(tracklet_valid)))
+        return None
+
+    tracklet = tracklet[tracklet_valid]
+
+    #
+    # Content in tracklet variable
+    #
+    # Column  0: catalog id 1
+    # Column  1: catalog id 2
+    # Column  2: source id 1
+    # Column  3: source id 2
+    # Column  4: rate Ra
+    # Column  5: rate dec
+    #
+
+    # collect all source information for the stars in this tracklet
+    tracklet_sources = numpy.zeros((tracklet.shape[0]+1, n_cat_columns+1))
+    tracklet_sources[0, 0] = mjd_hours[ref_cat]
+    tracklet_sources[0, 1:] = catalog[ref_cat][obj1,:]
+    for ts in range(tracklet.shape[0]):
+        t = tracklet[ts]
+        tracklet_sources[ts+1, 0] = mjd_hours[int(t[1])]
+        tracklet_sources[ts+1, 1:] = catalog[int(t[1])][int(t[3]),:]
+    # print tracklet_sources
+
+    #############################################################################
+    # 
+    # Perform a number of tests to check if this tracklet seems valid
+    # 
+    #############################################################################
+    #fn = "motion_rates_cand%d.tracklet" % (len(candidates)+1)
+    #numpy.savetxt(fn, tracklet_sources)
+    if (not is_valid_tracklet(tracklet_sources, min_rate, logger)):
+        logger.debug("Found a invalid tracklet, skipping") #  % (len(candidates)+1))
+        return None
+
+    # logger.info("found new tracklet that looks good so far")
+    logger.info("Found new candidate (#src=%d [% 2d/% 2d]): %.3f %.3f" % (
+        ref_cat+1, len(catalog), ratecount_max+1, avg_rate[0], avg_rate[1])
+    )
+
+    # position_in_sequence = 1
+    # moving_object_id += 1
+    # print >>results, "\n\n\n\n"
+    # print >>results, "%.7f %.7f %3d %3d %3d %4d " % (
+    #     catalog[ref_cat][obj1, SXcolumn['ra']],
+    #     catalog[ref_cat][obj1, SXcolumn['dec']],
+    #     moving_object_id,
+    #     position_in_sequence,
+    #     ref_cat,
+    #     obj1,
+    # )
+    formatted_data.append(
+        format_source(catalog[ref_cat][obj1], mjd_hours[ref_cat]/24., '3.0')
+    )
+    source_data.append(catalog[ref_cat][obj1])
+    mjd_data.append(mjd_hours[ref_cat])
+
+    # for p in range(len(counterparts)):
+    #     p_idx = counterparts[p]
+    #     c2 = int(motion_rates[p_idx, 1])
+    #     o2 = int(motion_rates[p_idx, 3])
+
+    for p in range(tracklet.shape[0]): 
+        c2 = int(tracklet[p, 1])
+        o2 = int(tracklet[p, 3])
+
+        # position_in_sequence += 1
+        # print >>results, "%.7f %.7f %3d %3d %9.4f %9.4f %8.2f %8.2f %9.4f %9.4f %.5f %.5f" % (
+        #     catalog[c2][o2, SXcolumn['ra']],
+        #     catalog[c2][o2, SXcolumn['dec']],
+        #     moving_object_id,
+        #     position_in_sequence,
+        #     catalog[c2][o2, SXcolumn['ra']]-catalog[ref_cat][obj1, SXcolumn['ra']],
+        #     catalog[c2][o2, SXcolumn['dec']]-catalog[ref_cat][obj1, SXcolumn['dec']],
+        #     (catalog[c2][o2, SXcolumn['ra']]-catalog[ref_cat][obj1, SXcolumn['ra']])*3600./(mjd_hours[c2]-mjd_hours[ref_cat]),
+        #     (catalog[c2][o2, SXcolumn['dec']]-catalog[ref_cat][obj1, SXcolumn['dec']])*3600./(mjd_hours[c2]-mjd_hours[ref_cat]),
+        #     tracklet[p, 4],
+        #     tracklet[p, 5],
+        #     mjd_hours[c2], mjd_hours[ref_cat]
+        # )
+        formatted_data.append(
+            format_source(catalog[c2][o2], mjd_hours[c2]/24., '3.0')
+        )
+        # Mark this star as used so we don;t try to re-use it for another tracklet
+        # This hopefully gets rid of duplicates.
+        catalog[c2][o2,SXcolumn['flags']] = -1.
+        source_data.append(catalog[c2][o2])
+        mjd_data.append(mjd_hours[c2])
+
+    # Collect additional information for the stars in the most frequent pattern
+    # dum = numpy.zeros(shape=(tracklet.shape[0], tracklet.shape[1]+6))
+    # dum[:,:tracklet.shape[1]] = tracklet
+    # for i in range(dum.shape[0]):
+    #     c1, o1 = int(dum[i, 0]), int(dum[i,2])
+    #     c2, o2 = int(dum[i, 1]), int(dum[i,3])
+    #     dum[i,7:9] = catalog[c1][o1,0:2]
+    #     dum[i,9:11] = catalog[c2][o2,0:2]
+    #     dum[i,11] = mjd_hours[c1]
+    #     dum[i,12] = mjd_hours[c2]
+    # fn += ".frequent"
+    # numpy.savetxt(fn, dum)
+
+    # dump all source information for all sources in this tracklet
+    # fn = "motion_rates_cand%d.source" % (len(candidates)+1)
+    # dfn = open(fn, "w")
+    # print >>dfn, mjd_hours[ref_cat]," ",
+    # numpy.savetxt(dfn, [catalog[ref_cat][obj1]])
+    # cp = motion_rates[counterparts]
+    # for i in range(tracklet.shape[0]): #len(counterparts)):
+    #     c2, o2 = int(tracklet[i, 1]), int(tracklet[i,3])
+    #     print >>dfn, mjd_hours[c2]," ",
+    #     numpy.savetxt(dfn, [catalog[c2][o2]])
+    # dfn.close()
+
+    source_data = numpy.array(source_data)
+    mjd_data = numpy.array(mjd_data) / 24.
+
+    #numpy.savetxt(sys.stdout, source_data)
+    #numpy.savetxt(sys.stdout, mjd_data)
+    #print "\n\n\n\n"
+
+    source_entry = {
+        "sex": source_data,
+        "mjd": mjd_data,
+        'rate': avg_rate,
+        'positions': source_data.shape[0],
+        'formatted': formatted_data,
+        'tracklet': tracklet,
+    }
+
+    return source_entry
+
+
+
+
+
+
+
 
 
 def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcfile=None):
@@ -239,7 +519,6 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
     moving_object_id = 0
 
     candidates = []
-    n_cat_columns = catalog[0].shape[1]
 
     for ref_cat in range(len(catalog)-1-min_count):
         logger.info("Checking out catalog %d" % (ref_cat))
@@ -259,236 +538,18 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
             if (catalog[ref_cat][obj1,SXcolumn['flags']] < 0):
                 continue
 
-            motion_rates = numpy.zeros((0,7))
-            cos_declination = math.cos(math.radians(catalog[ref_cat][obj1, SXcolumn['dec']]))
-
-            for second_cat in range(ref_cat+1, len(catalog)):
-            
-                # print catalog_filelist[ref_cat], catalog_filelist[second_cat]
-
-                d_hours = mjd_hours[second_cat] - mjd_hours[ref_cat]
-                diff_to_rate = 3600 / d_hours
-
-                d_ra = catalog[second_cat][:,SXcolumn['ra']] - catalog[ref_cat][obj1,SXcolumn['ra']]
-                d_ra *= cos_declination
-                d_dec = catalog[second_cat][:,SXcolumn['dec']] - catalog[ref_cat][obj1,SXcolumn['dec']]
-                d_total = numpy.hypot(d_ra, d_dec) 
-                
-                # Only use sources with positive flags - we'll mask stars that 
-                # are already matched to another tracklet by setting flags to -1 
-                possible_match = (d_total < math.fabs(max_rate/diff_to_rate)) & \
-                                 (d_total > min_distance) & \
-                                 (catalog[second_cat][:,SXcolumn['flags']] >= 0)
-                # require a minimum distance of 2 arcsec
-                
-                matches = numpy.ones(shape=(numpy.sum(possible_match),7))
-                matches[:,0] = ref_cat
-                matches[:,1] = second_cat
-                matches[:,2] = obj1
-                matches[:,3] = source_id[second_cat][possible_match]
-                matches[:,4] = d_ra[possible_match] * diff_to_rate
-                matches[:,5] = d_dec[possible_match] * diff_to_rate
-
-                motion_rates = numpy.append(motion_rates, matches, axis=0)
-
-            # numpy.savetxt("rawrates_%d_%d" % (ref_cat+1, obj1+1), motion_rates)
-
-            # Now we have a whole set of potential counterparts for one star in the source catalog
-            # Try to find significant matches
-            if (motion_rates.shape[0] < 5):
-                # not enough nearby stars found
-                continue
-            
-            src_tree = scipy.spatial.cKDTree(motion_rates[:,4:6])
-            match_tree = scipy.spatial.cKDTree(motion_rates[:,4:6])
-            matches = match_tree.query_ball_tree(src_tree, radius, p=2)
-
-            for i in range(len(matches)):
-                motion_rates[i,6] = len(matches[i])
-
-            # filename = "motion_rates_%02d_%04d.dump" % (ref_cat, obj1)
-            # numpy.savetxt(filename, motion_rates)
-
-            # numpy.savetxt(sys.stdout, motion_rates)
-
             #
-            # Now we know how often each star appears
             #
-
-            # check often the most frequent rate appears
-            ratecount_max = numpy.max(motion_rates[:,6])
-            # print "rate-count-max:", ratecount_max
-
-            source_data = []
-            mjd_data = []
-            formatted_data = []
-
-            if (ratecount_max >= min_count):
-                # We have 4 consistent data points, this might be something
-
-                # Save the motion rates and counts for later
-                fn = "motion_rates_cand%d" % (len(candidates)+1)
-                numpy.savetxt(fn, motion_rates)
-
-                # Find the rate that has the most matches
-                frequent = (motion_rates[:,6] == ratecount_max)
-
-                frequent_rates = motion_rates[:, 4:6][frequent]
-                # numpy.savetxt(sys.stdout, frequent_rates)
-
-                # compute average rate as the average of all frequent rates
-                avg_rate = numpy.median(frequent_rates, axis=0)
-                logger.debug("Found new candidate % 3d (#src=%d [% 2d/% 2d]): %.3f %.3f" % (
-                    len(candidates)+1, ref_cat+1, len(catalog), ratecount_max+1, avg_rate[0], avg_rate[1])
-                )
-
-                # Now identify all points with rates close to the average rate
-                counterparts = src_tree.query_ball_point(avg_rate, r=1, p=2)
-
-                # Determine all source catalogs that contribute to this tracklets
-                tracklet = motion_rates[counterparts]
-                source_catid = tracklet[:, 1]
-                source_cat_set = set(source_catid)
-                tracklet_valid = source_catid > 0
-                # Now make sure to exclude all sources in the tracklet that appear multiple times
-                for srccat in source_cat_set:
-                    from_this_cat = (source_catid == srccat)
-                    if (numpy.sum(from_this_cat) > 1):
-                        # multiple sources are a no-no
-                        # logger.warning("Found multiple sources (%d) from the same catalog" % (numpy.sum(from_this_cat)))
-                        tracklet_valid = tracklet_valid & (from_this_cat == False)
-
-                # Now check again if we still have more sources than we require
-                if (numpy.sum(tracklet_valid) < min_count):
-                    logger.debug("Excluding tracklet with too many same-catalog sources (%d --> %d)" % (tracklet.shape[0], numpy.sum(tracklet_valid)))
-                    continue
-
-                tracklet = tracklet[tracklet_valid]
-
-                #
-                # Content in tracklet variable
-                #
-                # Column  0: catalog id 1
-                # Column  1: catalog id 2
-                # Column  2: source id 1
-                # Column  3: source id 2
-                # Column  4: rate Ra
-                # Column  5: rate dec
-                #
-                
-                # collect all source information for the stars in this tracklet
-                tracklet_sources = numpy.zeros((tracklet.shape[0]+1, n_cat_columns+1))
-                tracklet_sources[0, 0] = mjd_hours[ref_cat]
-                tracklet_sources[0, 1:] = catalog[ref_cat][obj1,:]
-                for ts in range(tracklet.shape[0]):
-                    t = tracklet[ts]
-                    tracklet_sources[ts+1, 0] = mjd_hours[int(t[1])]
-                    tracklet_sources[ts+1, 1:] = catalog[int(t[1])][int(t[3]),:]
-                # print tracklet_sources
-
-                # 
-                # Perform a number of tests to check if this tracklet seems valid
-                # 
-                fn = "motion_rates_cand%d.tracklet" % (len(candidates)+1)
-                numpy.savetxt(fn, tracklet_sources)
-                if (not is_valid_tracklet(tracklet_sources, min_rate, logger)):
-                    logger.debug("Found a invalid tracklet (%d), skipping"  % (len(candidates)+1))
-                    continue
-
-                # logger.info("found new tracklet that looks good so far")
-                logger.info("Found new candidate % 3d (#src=%d [% 2d/% 2d]): %.3f %.3f" % (
-                    len(candidates)+1, ref_cat+1, len(catalog), ratecount_max+1, avg_rate[0], avg_rate[1])
-                )
-
-                position_in_sequence = 1
-                moving_object_id += 1
-                print >>results, "\n\n\n\n"
-                print >>results, "%.7f %.7f %3d %3d %3d %4d " % (
-                    catalog[ref_cat][obj1, SXcolumn['ra']],
-                    catalog[ref_cat][obj1, SXcolumn['dec']],
-                    moving_object_id,
-                    position_in_sequence,
-                    ref_cat,
-                    obj1,
-                )
-                formatted_data.append(
-                    format_source(catalog[ref_cat][obj1], mjd_hours[ref_cat]/24., '3.0')
-                )
-                source_data.append(catalog[ref_cat][obj1])
-                mjd_data.append(mjd_hours[ref_cat])
-
-                # for p in range(len(counterparts)):
-                #     p_idx = counterparts[p]
-                #     c2 = int(motion_rates[p_idx, 1])
-                #     o2 = int(motion_rates[p_idx, 3])
-
-                for p in range(tracklet.shape[0]): 
-                    c2 = int(tracklet[p, 1])
-                    o2 = int(tracklet[p, 3])
-
-                    position_in_sequence += 1
-                    print >>results, "%.7f %.7f %3d %3d %9.4f %9.4f %8.2f %8.2f %9.4f %9.4f %.5f %.5f" % (
-                        catalog[c2][o2, SXcolumn['ra']],
-                        catalog[c2][o2, SXcolumn['dec']],
-                        moving_object_id,
-                        position_in_sequence,
-                        catalog[c2][o2, SXcolumn['ra']]-catalog[ref_cat][obj1, SXcolumn['ra']],
-                        catalog[c2][o2, SXcolumn['dec']]-catalog[ref_cat][obj1, SXcolumn['dec']],
-                        (catalog[c2][o2, SXcolumn['ra']]-catalog[ref_cat][obj1, SXcolumn['ra']])*3600./(mjd_hours[c2]-mjd_hours[ref_cat]),
-                        (catalog[c2][o2, SXcolumn['dec']]-catalog[ref_cat][obj1, SXcolumn['dec']])*3600./(mjd_hours[c2]-mjd_hours[ref_cat]),
-                        tracklet[p, 4],
-                        tracklet[p, 5],
-                        mjd_hours[c2], mjd_hours[ref_cat]
-                    )
-                    formatted_data.append(
-                        format_source(catalog[c2][o2], mjd_hours[c2]/24., '3.0')
-                    )
-                    # Mark this star as used so we don;t try to re-use it for another tracklet
-                    # This hopefully gets rid of duplicates.
-                    catalog[c2][o2,SXcolumn['flags']] = -1.
-                    source_data.append(catalog[c2][o2])
-                    mjd_data.append(mjd_hours[c2])
-
-                # Collect additional information for the stars in the most frequent pattern
-                dum = numpy.zeros(shape=(tracklet.shape[0], tracklet.shape[1]+6))
-                dum[:,:tracklet.shape[1]] = tracklet
-                for i in range(dum.shape[0]):
-                    c1, o1 = int(dum[i, 0]), int(dum[i,2])
-                    c2, o2 = int(dum[i, 1]), int(dum[i,3])
-                    dum[i,7:9] = catalog[c1][o1,0:2]
-                    dum[i,9:11] = catalog[c2][o2,0:2]
-                    dum[i,11] = mjd_hours[c1]
-                    dum[i,12] = mjd_hours[c2]
-                fn += ".frequent"
-                numpy.savetxt(fn, dum)
-
-                # dump all source information for all sources in this tracklet
-                fn = "motion_rates_cand%d.source" % (len(candidates)+1)
-                dfn = open(fn, "w")
-                print >>dfn, mjd_hours[ref_cat]," ",
-                numpy.savetxt(dfn, [catalog[ref_cat][obj1]])
-                cp = motion_rates[counterparts]
-                for i in range(tracklet.shape[0]): #len(counterparts)):
-                    c2, o2 = int(tracklet[i, 1]), int(tracklet[i,3])
-                    print >>dfn, mjd_hours[c2]," ",
-                    numpy.savetxt(dfn, [catalog[c2][o2]])
-                dfn.close()
-
-                source_data = numpy.array(source_data)
-                mjd_data = numpy.array(mjd_data) / 24.
-
-                #numpy.savetxt(sys.stdout, source_data)
-                #numpy.savetxt(sys.stdout, mjd_data)
-                #print "\n\n\n\n"
-
-                source_entry = {
-                    "sex": source_data,
-                    "mjd": mjd_data,
-                    'rate': avg_rate,
-                    'positions': source_data.shape[0],
-                    'formatted': formatted_data,
-                    'tracklet': tracklet,
-                }
+            # Check if this is the start of a valid tracklet
+            #
+            #
+            source_entry = check_for_valid_tracklet(catalog, 
+                                                    mjd_hours,
+                                                    source_id,
+                                                    ref_cat, obj1,
+                                                    min_distance, min_rate, max_rate,
+                                                    rate_radius=radius)
+            if (not source_entry == None):
                 candidates.append(source_entry)
 
         #numpy.savetxt("motion_rates_%d" % (ref_cat), motion_rates)
