@@ -51,7 +51,7 @@ if __name__ == "__main__":
     src_ra = float(sc_items[0])
     src_dec = float(sc_items[1])
 
-    src_dra, src_ddec, src_dmjd = 0., 0., 0.
+    src_dra, src_ddec, src_mjd = 0., 0., 0.
 
     if (len(sc_items) == 5):
         src_dra = float(sc_items[2])
@@ -140,7 +140,7 @@ if __name__ == "__main__":
             logger.warning("We couldn't locate the extension with the source")
             continue
 
-        print src_radec,"found at position",coord,"in extension",extname, source_extension.header['EXTNAME']
+        # print src_radec,"found at position",coord,"in extension",extname, source_extension.header['EXTNAME']
 
         #
         # Now determine the pixel-coordinates of the four corners 
