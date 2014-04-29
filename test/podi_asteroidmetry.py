@@ -196,10 +196,18 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
         mjd_middle = (obs_mjd * 24.) + (exptime / 3600.)
         filter_name = hdulist[0].header['FILTER']
 
+        print "total catalog", cat_data.shape
+
+        # in_box = (cat_data[:, SXcolumn['ra']] > 215.22568) & \
+        #          (cat_data[:, SXcolumn['ra']] < 215.2346 ) & \
+        #          (cat_data[:, SXcolumn['dec']] < -15.198908) & \
+        #          (cat_data[:, SXcolumn['dec']] > -15.206894 )
+        # cat_data = cat_data[in_box]
+        print "in-box:", cat_data.shape
         # Do some preparing of the catalog
         try:
             good_photometry = cat_data[:, SXcolumn['mag_aper_2.0']] < 0
-            cat_data = cat_data[good_photometry]
+            cat_data = cat_data #[good_photometry]
         except:
             # anything might have gone wrong.
             # do not use this catalog
@@ -234,7 +242,7 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
     n_cat_columns = catalog[0].shape[1]
 
     for ref_cat in range(len(catalog)-1-min_count):
-        logger.debug("Checking out catalog %d" % (ref_cat))
+        logger.info("Checking out catalog %d" % (ref_cat))
 
         for obj1 in range(catalog[ref_cat].shape[0]):
             # Take one source in first catalog; 
@@ -243,6 +251,10 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
 
 #            if (len(candidates) > 75):
 #                break
+
+            if ((obj1 % 10) == 0):
+                sys.stdout.write("Working on cat %d, obj %d\r" % (ref_cat+1, obj1+1))
+                sys.stdout.flush()
 
             if (catalog[ref_cat][obj1,SXcolumn['flags']] < 0):
                 continue
@@ -278,6 +290,9 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
 
                 motion_rates = numpy.append(motion_rates, matches, axis=0)
 
+            # print "motion-rates:", motion_rates.shape
+
+            # numpy.savetxt("rawrates_%d_%d" % (ref_cat+1, obj1+1), motion_rates)
 
             # Now we have a whole set of potential counterparts for one star in the source catalog
             # Try to find significant matches
@@ -303,12 +318,13 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
 
             # check often the most frequent rate appears
             ratecount_max = numpy.max(motion_rates[:,6])
+            # print "rate-count-max:", ratecount_max
 
             source_data = []
             mjd_data = []
             formatted_data = []
 
-            if (ratecount_max > min_count):
+            if (ratecount_max >= min_count):
                 # We have 4 consistent data points, this might be something
 
                 # Save the motion rates and counts for later
@@ -323,7 +339,7 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
 
                 # compute average rate as the average of all frequent rates
                 avg_rate = numpy.median(frequent_rates, axis=0)
-                logger.info("Found new candidate % 3d (#src=%d [% 2d/% 2d]): %.3f %.3f" % (
+                logger.debug("Found new candidate % 3d (#src=%d [% 2d/% 2d]): %.3f %.3f" % (
                     len(candidates)+1, ref_cat+1, len(catalog), ratecount_max+1, avg_rate[0], avg_rate[1])
                 )
 
@@ -345,7 +361,7 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
 
                 # Now check again if we still have more sources than we require
                 if (numpy.sum(tracklet_valid) < min_count):
-                    logger.info("Excluding tracklet with too many same-catalog sources (%d --> %d)" % (tracklet.shape[0], numpy.sum(tracklet_valid)))
+                    logger.debug("Excluding tracklet with too many same-catalog sources (%d --> %d)" % (tracklet.shape[0], numpy.sum(tracklet_valid)))
                     continue
 
                 tracklet = tracklet[tracklet_valid]
@@ -380,6 +396,10 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
                     logger.info("Found a invalid tracklet (%d), skipping"  % (len(candidates)+1))
                     continue
 
+                # logger.info("found new tracklet that looks good so far")
+                logger.info("Found new candidate % 3d (#src=%d [% 2d/% 2d]): %.3f %.3f" % (
+                    len(candidates)+1, ref_cat+1, len(catalog), ratecount_max+1, avg_rate[0], avg_rate[1])
+                )
 
                 position_in_sequence = 1
                 moving_object_id += 1
