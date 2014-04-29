@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 
+#
+# Copyright (C) 2014, Ralf Kotulla
+#                     kotulla@uwm.edu
+#
+# All rights reserved
+#
+
 import os, sys
 d,_=os.path.split(os.path.abspath(sys.argv[0]))
 sys.path.append("%s/../"%d)
@@ -22,8 +29,10 @@ import scipy.spatial
 import podi_sitesetup as sitesetup
 
 import podi_makecatalogs
+import multiprocessing
 
-    
+numpy.seterr(divide='ignore', invalid='ignore')
+
 
 
 #
@@ -170,7 +179,47 @@ def is_valid_tracklet(tracklet_sources, min_rate, logger):
 
 
 
+def parallel_wrapper(jobqueue,
+                     shmem_catalogs,
+                     catalog_sizes,
+                     combined_catalog_size,
+                     result_queue,
+                     #
+                     mjd_hours,
+                     source_id,
+                     min_distance,
+                     min_rate, max_rate,
+                     rate_radius
+):
 
+    # Reconstruct the catalog structure from shared memory
+    buffer = shmem_as_ndarray(shmem_catalogs).reshape(combined_catalog_size)
+    combined_size = 0
+    catalog = []
+    for size in catalog_sizes:
+        catalog.append(buffer[combined_size:combined_size+size])
+        combined_size += size
+        # print size
+    
+    while (True):
+        job = jobqueue.get()
+        if (job == None):
+            jobqueue.task_done()
+            return
+
+        ref_cat, obj1 = job
+        source_entry = check_for_valid_tracklet(catalog, 
+                                                mjd_hours,
+                                                source_id,
+                                                ref_cat, obj1,
+                                                min_distance, min_rate, max_rate,
+                                                rate_radius=rate_radius)
+
+        # Add the results to the result_queue and say we are done
+        result_queue.put(source_entry)
+        jobqueue.task_done()
+    
+    return
 
 
 
@@ -180,7 +229,6 @@ def check_for_valid_tracklet(catalog,
                              ref_cat, obj1,
                              min_distance, min_rate, max_rate,
                              rate_radius=1):
-
 
     motion_rates = numpy.zeros((0,7))
     cos_declination = math.cos(math.radians(catalog[ref_cat][obj1, SXcolumn['dec']]))
@@ -520,37 +568,131 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
 
     candidates = []
 
-    for ref_cat in range(len(catalog)-1-min_count):
-        logger.info("Checking out catalog %d" % (ref_cat))
+    execute_in_parallel = True
 
-        for obj1 in range(catalog[ref_cat].shape[0]):
-            # Take one source in first catalog; 
-            # compute difference and rate from each source in the second 
-            # catalog to the source in the first catalog.
+    if (execute_in_parallel):
+    #############################################################################
+    #
+    # Prepare the actual search for parallel execution. 
+    #
+    # Use shared memory to avoid synchronization issues when we flag some 
+    # sources as already assigned to a given tracklet.
+    #
+    #############################################################################
 
-#            if (len(candidates) > 75):
-#                break
+        # Prepare a single master-catalog and keep track of the number of 
+        # objects from each frame
+        catalog_sizes = []
+        joined_catalog = None
+        for i in range(len(catalog)):
+            joined_catalog = catalog[i] if joined_catalog == None else \
+                             numpy.append(joined_catalog, catalog[i], axis=0)
+            catalog_sizes.append(catalog[i].shape[0])
 
-            if ((obj1 % 10) == 0):
-                sys.stdout.write("Working on cat %d, obj %d\r" % (ref_cat+1, obj1+1))
-                sys.stdout.flush()
+        print joined_catalog.shape
+        print catalog_sizes
 
-            if (catalog[ref_cat][obj1,SXcolumn['flags']] < 0):
-                continue
+        # Allocate shared memory to hold all catalogs
+        shmem_buffer = multiprocessing.RawArray(ctypes.c_float, 
+                                                joined_catalog.shape[0]*joined_catalog.shape[1])
+        # Extract the shared memory buffer as numpy array to make things easier
+        buffer = shmem_as_ndarray(shmem_buffer).reshape(joined_catalog.shape)
+        buffer[:] = joined_catalog[:]
 
-            #
-            #
-            # Check if this is the start of a valid tracklet
-            #
-            #
-            source_entry = check_for_valid_tracklet(catalog, 
-                                                    mjd_hours,
-                                                    source_id,
-                                                    ref_cat, obj1,
-                                                    min_distance, min_rate, max_rate,
-                                                    rate_radius=radius)
-            if (not source_entry == None):
-                candidates.append(source_entry)
+        # Prepare the Queue that will direct the work of all worker processes
+        jobqueue = multiprocessing.JoinableQueue()
+        # and another queue via which we will read the results
+        result_queue = multiprocessing.Queue()
+
+        # Start the worker processes
+        logger.info("Starting worker processes ...")
+        processes = []
+        for i in range(sitesetup.number_cpus):
+            worker_kwargs = {'jobqueue': jobqueue, 
+                             'shmem_catalogs': shmem_buffer, 
+                             'catalog_sizes': catalog_sizes,
+                             'combined_catalog_size': joined_catalog.shape,
+                             'result_queue': result_queue,
+                             'mjd_hours': mjd_hours,
+                             'source_id': source_id,
+                             'min_distance': min_distance,
+                             'min_rate': min_rate, 
+                             'max_rate': max_rate,
+                             'rate_radius': radius}
+            p = multiprocessing.Process(target=parallel_wrapper, kwargs=worker_kwargs)
+            p.start()
+            processes.append(p)
+
+        # Now queue all work, one source catalog at a time
+        for ref_cat in range(len(catalog)-1-min_count):
+            logger.info("Checking out catalog %d" % (ref_cat))
+
+            jobs_queued = 0
+            for obj1 in range(catalog[ref_cat].shape[0]):
+                # Take one source in first catalog; 
+                # compute difference and rate from each source in the second 
+                # catalog to the source in the first catalog.
+
+                if (catalog[ref_cat][obj1,SXcolumn['flags']] < 0):
+                    continue
+
+                jobqueue.put((ref_cat, obj1))
+                jobs_queued += 1
+
+            logger.info("Waiting for results from source catalog %d ..." % (ref_cat))
+            for i in range(jobs_queued):
+                source_entry = result_queue.get()
+                if (not source_entry == None):
+                    candidates.append(source_entry)
+
+        # Now we are done with all catalogs, send the termination signal
+        logger.info("Sending workers home")
+        for p in processes:
+            jobqueue.put(None)
+
+        # And wait until all jobs are terminated
+        logger.info("Making sure all worker processes are terminated")
+        for p in processes:
+            p.join()
+        logger.info("done!")
+
+        #return
+
+
+    else:
+    #############################################################################
+    #
+    # Run the tracklet detection on a single core - no need for parallel shenanigans
+    #
+    #############################################################################
+        for ref_cat in range(len(catalog)-1-min_count):
+            logger.info("Checking out catalog %d" % (ref_cat))
+
+            for obj1 in range(catalog[ref_cat].shape[0]):
+                # Take one source in first catalog; 
+                # compute difference and rate from each source in the second 
+                # catalog to the source in the first catalog.
+
+                if ((obj1 % 10) == 0):
+                    sys.stdout.write("Working on cat %d, obj %d\r" % (ref_cat+1, obj1+1))
+                    sys.stdout.flush()
+
+                if (catalog[ref_cat][obj1,SXcolumn['flags']] < 0):
+                    continue
+
+                #
+                #
+                # Check if this is the start of a valid tracklet
+                #
+                #
+                source_entry = check_for_valid_tracklet(catalog, 
+                                                        mjd_hours,
+                                                        source_id,
+                                                        ref_cat, obj1,
+                                                        min_distance, min_rate, max_rate,
+                                                        rate_radius=radius)
+                if (not source_entry == None):
+                    candidates.append(source_entry)
 
         #numpy.savetxt("motion_rates_%d" % (ref_cat), motion_rates)
     logger.info("all search-related work done, associating with known objects !")
