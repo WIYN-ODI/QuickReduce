@@ -120,7 +120,7 @@ def is_valid_tracklet(tracklet_sources, min_rate, logger):
     if (numpy.sqrt(average_rate_ra**2 + average_rate_dec**2) < min_rate):
         # This does not appear to be a valid tracklet
         # do not continue any other work on it
-        logger.info("deleting tracklet 1")
+        logger.debug("deleting tracklet 1")
         return False
 
     # Also check if the max-min distance and time-difference is 
@@ -132,7 +132,7 @@ def is_valid_tracklet(tracklet_sources, min_rate, logger):
     if (numpy.sqrt(rate_ra_maxmin**2 + rate_dec_maxmin**2) < min_rate):
         # This does not appear to be a valid tracklet
         # do not continue any other work on it
-        logger.info("deleting tracklet 2")
+        logger.debug("deleting tracklet 2")
         return False
 
     # Also check if the max-min distance and time-difference is 
@@ -144,7 +144,7 @@ def is_valid_tracklet(tracklet_sources, min_rate, logger):
     if (numpy.sqrt(rate_ra_maxmin**2 + rate_dec_maxmin**2) < min_rate):
         # This does not appear to be a valid tracklet
         # do not continue any other work on it
-        logger.info("deleting tracklet 3")
+        logger.deleting("deleting tracklet 3")
         return False
 
     #
@@ -261,6 +261,17 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
 
             motion_rates = numpy.zeros((0,7))
             cos_declination = math.cos(math.radians(catalog[ref_cat][obj1, SXcolumn['dec']]))
+
+            # #
+            # # Create the density map
+            # #
+            # precision = 0.5
+            # xy_flat = numpy.linspace(-max_rate, max_rate, (2*max_rate)/precision+1)
+            # X,Y = numpy.meshgrid(xy_flat,xy_flat)
+            # grid_coords = numpy.append(X.reshape(-1,1),Y.reshape(-1,1),axis=1)
+
+            # density_map = numpy.zeros(shape=grid_coords.shape)
+
             for second_cat in range(ref_cat+1, len(catalog)):
             
                 # print catalog_filelist[ref_cat], catalog_filelist[second_cat]
@@ -290,6 +301,25 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
 
                 motion_rates = numpy.append(motion_rates, matches, axis=0)
 
+            #     d_radec = numpy.append(d_ra.reshape(-1,1), d_dec.reshape(-1,1), axis=1)
+            #     print d_radec[:10]
+
+            #     print "\n"*5,d_radec.shape,"\n"*5
+            #     uncert = math.sqrt((1./d_hours)**2 + 1.)
+                
+            #     kernel = scipy.stats.gaussian_kde(d_radec.T, uncert)
+                
+            #     density_map += kernel(grid_coords.T)
+
+            # # Now convert the 1-d map to 2-d
+            # density_map_2d = density_map.reshape(xy_flat.shape[0], xy_flat.shape[0])
+
+            # fig = matplotlib.pyplot.figure()
+            # ax = fig.add_subplot(111)
+            # ax.imshow(density_map_2d, aspect=1.0)
+            # fig.show()
+            # break
+                                                  
             # print "motion-rates:", motion_rates.shape
 
             # numpy.savetxt("rawrates_%d_%d" % (ref_cat+1, obj1+1), motion_rates)
@@ -393,7 +423,7 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
                 fn = "motion_rates_cand%d.tracklet" % (len(candidates)+1)
                 numpy.savetxt(fn, tracklet_sources)
                 if (not is_valid_tracklet(tracklet_sources, min_rate, logger)):
-                    logger.info("Found a invalid tracklet (%d), skipping"  % (len(candidates)+1))
+                    logger.debug("Found a invalid tracklet (%d), skipping"  % (len(candidates)+1))
                     continue
 
                 # logger.info("found new tracklet that looks good so far")
