@@ -829,8 +829,8 @@ fk5\
         n_likelies = numpy.sum(likely_id)
         logger.info("This is candidate # %d ..." % (cand_id+1))
 
-        ds9_colors = {'new': '{lawn green}',
-                      'known': '{dodger blue}', #'cyan',
+        ds9_colors = {'new': '#7cfc00', #{lawn green}',
+                      'known': '#1e90ff', #{dodger blue}'
                       'multiple': 'magenta',
                       '?': 'white',
                       'very-desirable': 'red',
