@@ -774,7 +774,8 @@ fk5\
         # Save the catalogs with all sources in this tracklet
         #
         if (True):
-            numpy.savetxt("tracklet_%03d.cat" % (cand_id+1), sex_sorted)
+            track_full = numpy.append(mjd_sorted.reshape((-1,1)), sex_sorted, axis=1)
+            numpy.savetxt("tracklet_%03d.cat" % (cand_id+1), track_full)
 
         radec_start = sex_sorted[0, 0:2]
         radec_end = sex_sorted[-1, 0:2]
@@ -793,33 +794,15 @@ fk5\
         # total motion
         delta_radec = numpy.array(cand['rate']).reshape((1,2)).repeat(delta_mjd_hours.shape[0], axis=0) \
                       * delta_mjd_hours.reshape((delta_mjd_hours.shape[0],1)).repeat(2, axis=1)
-        # print delta_radec
-
         # Account for the cos(dec) factor
         cos_dec = numpy.cos(numpy.radians(cand['sex'][:,SXcolumn['dec']]))
         delta_radec[:,0] /= cos_dec
-
         ra_dec_corrected = cand['sex'][:,0:2] - delta_radec/3600.
-
         radec = numpy.median(ra_dec_corrected, axis=0)
         radec_std = numpy.std(ra_dec_corrected, axis=0)*3600.
 
-        # print ra_dec_corrected
 
-        #
-        # Draw a circle at the starting position of this tracklet, i.e. at the 
-        # computed position of the source at the start-MJD of the reference frame
-        #
-        print >>ds9_reg, 'circle(%f,%f,%f")' % (radec[0], radec[1], 10.) #13:22:17.482,-15:33:16.91,11.9449")
-        #
-        # Draw an arror from the first to the last position of this source
-        #
-        print >>ds9_reg, 'line(%(ra0)f,%(dec0)f,%(ra1)f,%(dec1)f) # line=0 1 color=green' % {
-            'ra0': radec_start[0], 
-            'dec0': radec_start[1],
-            'ra1': radec_end[0], 
-            'dec1': radec_end[1],
-        }
+
             
 
 
@@ -846,17 +829,37 @@ fk5\
         n_likelies = numpy.sum(likely_id)
         logger.info("This is candidate # %d ..." % (cand_id+1))
 
+        ds9_colors = {'new': '{lawn green}',
+                      'known': '{dodger blue}', #'cyan',
+                      'multiple': 'magenta',
+                      '?': 'white',
+                      'very-desirable': 'red',
+                      'desirable': 'orange',
+                      'impractical': 'yellow',
+                      'leave_for_survey': 'orchid',
+                  }
+
         counterpart_name = 'new'
         comment = "none"
         designation = ""
         comment = ""
+        detection_class = '?'
         if (n_likelies == 0):
             logger.info("This is a new object")
-            print >>ds9_reg, '# text(%f,%f) text={NEW (%d): %.1f, %.1f}' % (radec[0], radec[1], cand_id+1, cand['rate'][0], cand['rate'][1])
+            detection_class  = 'new'
+            print >>ds9_reg, '# text(%(ra)f,%(dec)f) color=%(color)s text={NEW %(id)d: %(dra).1f %(ddec).1f} ' % {
+                'ra': radec[0],
+                'dec': radec[1],
+                'color': ds9_colors[detection_class],
+                'id': cand_id+1,
+                'dra': cand['rate'][0],
+                'ddec': cand['rate'][1],
+            }
+            # print >>ds9_reg, '# text(%f,%f) text={NEW (%d): %.1f, %.1f}' % (radec[0], radec[1], cand_id+1, cand['rate'][0], cand['rate'][1])
 
             # If this object is not known, draw markers at all detected positions
             for i in range(cand['sex'].shape[0]):
-                print >>ds9_reg, 'point(%f,%f) # point=circle' % (cand['sex'][i,0], cand['sex'][i,1])
+                print >>ds9_reg, 'point(%f,%f) # point=circle color=%s' % (cand['sex'][i,0], cand['sex'][i,1], ds9_colors[detection_class])
 
             logger.debug(d_total)
             logger.debug(d_dtotal)
@@ -866,16 +869,47 @@ fk5\
             designation = "ODI%d" % (new_discovery_number)
             comment = "This is a new discovery"
         elif (n_likelies == 1):
+
+            detection_class = 'known'
             counterpart_name = (numpy.array(mpc_data['Name'])[likely_id])[0]
             comment = (numpy.array(mpc_data['comment'])[likely_id])[0] if 'comment' in mpc_data else "none"
             logger.info("Found unique counterpart: %s" % (counterpart_name))
             if (not comment == None):
                 logger.info("MPC Comment: %s" % (comment))
-            print >>ds9_reg, '# text(%f,%f) text={%s (%.1f %.1f)}' % (radec[0], radec[1], counterpart_name, cand['rate'][0], cand['rate'][1])
+                # 
+                # Also check if this is an object of interest. 
+                # If so, mark it in a different color
+                # 
+                if (comment.find("Direct recovery using small-field telescope probably impractical") >= 0):
+                    detection_class = 'impractical'
+                elif (comment.find("Desirable between") >= 0):
+                    detection_class = 'desirable'
+                elif (comment.find("Very desirable") >= 0):
+                    detection_class = 'very-desirable'
+                elif (comment.find("Leave for survey recovery") >= 0):
+                    detection_class = 'leave-for-survey'
+                else:
+                    detection_class = 'known'
+
+                if (not detection_class == 'known'):
+                    for i in range(cand['sex'].shape[0]):
+                        print >>ds9_reg, 'point(%f,%f) # point=circle color=%s' % (
+                            cand['sex'][i,0], cand['sex'][i,1], ds9_colors[detection_class])
+
+            print >>ds9_reg, '# text(%(ra)f,%(dec)f) color=%(color)s text={%(name)s (%(dra).1f %(ddec).1f)} ' % {
+                'ra': radec[0],
+                'dec': radec[1],
+                'color': ds9_colors[detection_class],
+                'name': counterpart_name,
+                'dra': cand['rate'][0],
+                'ddec': cand['rate'][1],
+            }
             designation = podi_mpchecker.mpc_name2id(counterpart_name)
             comment = "Incidental astrometry for %s" % (counterpart_name)
         else:
+
             counterpart_name = 'multiple'
+            detection_class = 'multiple'
             logger.info("Found more than one likely counterpart")
             n_multiples += 1
             likely_ids = numpy.arange(likely_id.shape[0])[likely_id] #
@@ -883,7 +917,14 @@ fk5\
             for cand_name in ds9_candidate_names:
                 logger.info("  Candidate: %s" % (cand_name))
             ds9_label = "-?-?-: " + " / ".join(ds9_candidate_names)
-            print >>ds9_reg, '# text(%f,%f) text={%s}' % (radec[0], radec[1], ds9_label)
+            print >>ds9_reg, '# text(%(ra)f,%(dec)f) color=%(color)s text={%(name)s)} ' % {
+                'ra': radec[0],
+                'dec': radec[1],
+                'color': ds9_colors[detection_class],
+                'name': ds9_label,
+            }
+            # print >>ds9_reg, '# text(%f,%f) text={%s} color=%s' % (
+            #     radec[0], radec[1], ds9_label, ds9_color[detection_class])
             comment = "More than one plausible counterpart identified"
 
         candidates[cand_id]['new_discovery'] = new_discovery
@@ -896,11 +937,30 @@ fk5\
         logger.info("rate: %s" % (str(cand['rate'])))
         logger.info("global rate: %.3f %.3f" % (rate_total[0], rate_total[1]))
         
+
+        #
+        # Draw a circle at the starting position of this tracklet, i.e. at the 
+        # computed position of the source at the start-MJD of the reference frame
+        #
+        print >>ds9_reg, 'circle(%f,%f,%f") # color=%s' % (
+            radec[0], radec[1], 5., ds9_colors[detection_class]) #13:22:17.482,-15:33:16.91,11.9449")
+        #
+        # Draw an arror from the first to the last position of this source
+        #
+        print >>ds9_reg, 'line(%(ra0)f,%(dec0)f,%(ra1)f,%(dec1)f) # line=0 1 color=%(color)s' % {
+            'ra0': radec_start[0], 
+            'dec0': radec_start[1],
+            'ra1': radec_end[0], 
+            'dec1': radec_end[1],
+            'color': ds9_colors[detection_class],
+        }
+
         # print "\n".join(cand['formatted'])
         # numpy.savetxt(sys.stdout, cand['sex'][:,0:4])
         
         # Now output the results in the MPC format
         all_fs = []
+        all_fs.append("COM This is %s" % (candidates[cand_id]['name']))
         all_fs.append("COM %s" % (comment))
         average_mag_error = numpy.median(sex_sorted[:, SXcolumn['mag_err_3.0']])
         all_fs.append("COM average photometric uncertainty: %.2f mag" % (average_mag_error))
