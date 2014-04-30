@@ -770,6 +770,12 @@ fk5\
         #print mjd_sorted
         #print sex_sorted
 
+        #
+        # Save the catalogs with all sources in this tracklet
+        #
+        if (True):
+            numpy.savetxt("tracklet_%03d.cat" % (cand_id+1), sex_sorted)
+
         radec_start = sex_sorted[0, 0:2]
         radec_end = sex_sorted[-1, 0:2]
         radec_total = (radec_end - radec_start) * 3600.
@@ -779,12 +785,14 @@ fk5\
             logger.debug("Ignoring candidate that does not meet the global minimum rate requirement (%.3f %.3f)" % (rate_total[0], rate_total[1]))
             continue
 
+        #
         # Correct all coordinates to match the MJD of the reference frame
-
+        #
         # Get time difference in hours
         delta_mjd_hours = (cand['mjd'] - mjd_reference) * 24.
         # total motion
-        delta_radec = numpy.array(cand['rate']).reshape((1,2)).repeat(delta_mjd_hours.shape[0], axis=0) * delta_mjd_hours.reshape((delta_mjd_hours.shape[0],1)).repeat(2, axis=1)
+        delta_radec = numpy.array(cand['rate']).reshape((1,2)).repeat(delta_mjd_hours.shape[0], axis=0) \
+                      * delta_mjd_hours.reshape((delta_mjd_hours.shape[0],1)).repeat(2, axis=1)
         # print delta_radec
 
         # Account for the cos(dec) factor
@@ -797,7 +805,24 @@ fk5\
         radec_std = numpy.std(ra_dec_corrected, axis=0)*3600.
 
         # print ra_dec_corrected
+
+        #
+        # Draw a circle at the starting position of this tracklet, i.e. at the 
+        # computed position of the source at the start-MJD of the reference frame
+        #
         print >>ds9_reg, 'circle(%f,%f,%f")' % (radec[0], radec[1], 10.) #13:22:17.482,-15:33:16.91,11.9449")
+        #
+        # Draw an arror from the first to the last position of this source
+        #
+        print >>ds9_reg, 'line(%(ra0)f,%(dec0)f,%(ra1)f,%(dec1)f) # line=0 1 color=green' % {
+            'ra0': radec_start[0], 
+            'dec0': radec_start[1],
+            'ra1': radec_end[0], 
+            'dec1': radec_end[1],
+        }
+            
+
+
         # With this information, search for asteroids that are both 
         # nearby in Ra/Dec and in proper motion
         #
