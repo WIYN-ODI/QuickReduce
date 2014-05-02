@@ -1070,6 +1070,53 @@ if __name__ == "__main__":
         valid = is_valid_tracklet(tracklet_sources, min_rate, logger)
         print valid
 
+    elif (cmdline_arg_isset("-check2")):
+        
+        filename = get_clean_cmdline()[1]
+        tracklet = numpy.loadtxt(filename)
+
+        # Now verify if this tracklet is ok
+        mjds = tracklet[:,0]
+        cat = tracklet[:,1:]
+        track_time = mjds[-1] - mjds[0]
+        
+        valid_rate = numpy.zeros((mjds.shape[0]))
+        chi2s = numpy.zeros((mjds.shape[0]))
+
+        d_radec = (cat[-1,SXcolumn['ra']:SXcolumn['dec']+1] - cat[0, SXcolumn['ra']:SXcolumn['dec']+1]) * 3600
+        avg_rate = d_radec / (track_time * 24)
+
+        # Now compute the rate between every point in this tracklet and every other point
+        print d_radec
+        print avg_rate
+
+        for p1 in range(tracklet.shape[0]):
+            
+            d_radec = (cat[p1,SXcolumn['ra']:SXcolumn['dec']+1] - cat[:, SXcolumn['ra']:SXcolumn['dec']+1]) * 3600
+            rate = d_radec / ((mjds[p1] - mjds) * 24.).reshape((-1,1))
+            d_rate = 1. / ((mjds[p1] - mjds) * 24.).reshape((-1,1)) # assume the relative position uncertainty is 1''
+            
+            # print rate, d_rate
+
+            rate_error = rate - avg_rate
+            # print rate_error / d_rate
+
+            rate_ok = rate_error[0] < d_rate
+            rate_ok1 = numpy.sum(rate_ok, axis=1)
+            print rate_ok
+            print rate_ok1
+
+            chi2 = numpy.nansum((rate_error / d_rate)**2)
+            print chi2
+            chi2s[p1] = chi2
+
+            valid_rate += rate_ok1
+
+        print valid_rate.reshape((-1,1))
+        
+        fixed = numpy.append(valid_rate.reshape((-1,1)), tracklet, axis=1)
+        numpy.savetxt(filename+".matchcount", fixed)
+
     else:
         sidereal_reference = get_clean_cmdline()[1]
         inputlist = get_clean_cmdline()[2:]
