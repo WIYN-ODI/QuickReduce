@@ -249,6 +249,21 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                             master_reduction_files_used = collect_reduction_files_used(
                                 master_reduction_files_used, {"bpm": region_file})
 
+
+            # Loop over all extensions and only select those that are not marked as guide chips
+            if (True): #options['skip_otas'] != []):
+                logger.info("Sorting out guide-OTAs")
+                ota_list = []
+                for ext in hdulist:
+                    if ('CELLMODE' in ext.header and
+                        ext.header['CELLMODE'].find("V") >= 0):
+                        logger.debug("skipping ota %s as requested" % (ext.header['EXTNAME']))
+                        continue
+                    ota_list.append(ext)
+
+                # Save the modified OTA list for later
+                hdulist = pyfits.HDUList(ota_list)
+
             # Check if the corrected file already exists - if not create it
             #if (not os.path.isfile(corrected_filename)):
             logger.info("Writing correctly prepared file--> %s" % (corrected_filename))
