@@ -503,8 +503,8 @@ def remove_static_sources(catalog):
     # Exclude all stars from all the catalogs
     #
     #############################################################################
-    for i in range(len(catalog)):
-        numpy.savetxt("cat_starclean_%d.raw" % (i), catalog[i])
+    #for i in range(len(catalog)):
+    #    numpy.savetxt("cat_starclean_%d.raw" % (i), catalog[i])
 
     print "catalog entries start:", [len(i) for i in catalog]
     for c1 in range(len(catalog)-1):
@@ -557,7 +557,7 @@ def remove_static_sources(catalog):
             # print stars
 
         for i in range(len(catalog)):
-            numpy.savetxt("cat_starclean_%d__%d" % (c1, i), catalog[i])
+            # numpy.savetxt("cat_starclean_%d__%d" % (c1, i), catalog[i])
             catalog[i] = catalog[i][numpy.isfinite(catalog[i][:,0])]
 
         # print catalog[c1][:15,0:2]
@@ -1197,6 +1197,23 @@ if __name__ == "__main__":
         
         fixed = numpy.append(valid_rate.reshape((-1,1)), tracklet, axis=1)
         numpy.savetxt(filename+".matchcount", fixed)
+    elif (cmdline_arg_isset('-clearstars')):
+        inputlist = get_clean_cmdline()[1:]
+     
+        catalog = []
+        for fitsfile in inputlist:
+            catalog_filename = fitsfile[:-5]+".cat"
+            cat_data = numpy.loadtxt(catalog_filename)
+            catalog.append(cat_data)
+            
+        import cProfile, pstats
+        cProfile.run("""catalog = remove_static_sources(catalog)""", "profiler")
+        
+        p = pstats.Stats("profiler")
+        p.strip_dirs().sort_stats('time').print_stats()
+        p.sort_stats('time').print_stats()
+
+        # catalog = remove_static_sources(catalog)
 
     else:
         sidereal_reference = get_clean_cmdline()[1]
