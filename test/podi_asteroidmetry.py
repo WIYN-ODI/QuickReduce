@@ -494,71 +494,9 @@ def check_for_valid_tracklet(catalog,
 
 
 
+def remove_static_sources(catalog):
 
-
-
-def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcfile=None):
-
-    logger = logging.getLogger("Astro(id)metry")
-
-    podi_makecatalogs.make_catalogs(inputlist, "moving.sex", "moving.sexparam")
-    
-    catalog_filelist = []
-    catalog = []
-    mjd_hours = []
-    source_id = []
-    filters = []
-
-    phot_ZP = 25.
-
-    #############################################################################
-    #
-    # Now open all files, get time-stams etc
-    #
-    #############################################################################
-    for fitsfile in inputlist:
-
-        catalog_filename = fitsfile[:-5]+".cat"
-        
-        cat_data = numpy.loadtxt(catalog_filename)
-        
-        hdulist = astropy.io.fits.open(fitsfile)
-        obs_mjd = hdulist[0].header['MJD-OBS']
-        exptime = hdulist[0].header['EXPTIME']
-        mjd_middle = (obs_mjd * 24.) + (exptime / 3600.)
-        filter_name = hdulist[0].header['FILTER']
-
-        # print "total catalog", cat_data.shape
-        # in_box = (cat_data[:, SXcolumn['ra']] > 215.22568) & \
-        #          (cat_data[:, SXcolumn['ra']] < 215.2346 ) & \
-        #          (cat_data[:, SXcolumn['dec']] < -15.198908) & \
-        #          (cat_data[:, SXcolumn['dec']] > -15.206894 )
-        # cat_data = cat_data[in_box]
-        # print "in-box:", cat_data.shape
-
-        # Do some preparing of the catalog
-        try:
-            good_photometry = cat_data[:, SXcolumn['mag_aper_2.0']] < 0
-            cat_data = cat_data #[good_photometry]
-        except:
-            # anything might have gone wrong.
-            # do not use this catalog
-            continue
-
-
-        # Apply photometric zeropoint to all magnitudes
-        for key in SXcolumn_names:
-            if (key.startswith("mag_aper")):
-                cat_data[:, SXcolumn[key]] += phot_ZP
-
-        catalog_filelist.append(catalog_filename)
-        catalog.append(cat_data)
-        mjd_hours.append(mjd_middle)
-        source_id.append(numpy.arange(cat_data.shape[0]))
-        filters.append(filter_name)
-
-        print catalog_filename, cat_data.shape
-
+    logger = logging.getLogger("ClearStars")
 
     #############################################################################
     #
@@ -629,6 +567,75 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
 
     print "catalog entries end:", [len(i) for i in catalog]
     # return
+    
+    return catalog
+
+
+
+def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcfile=None):
+
+    logger = logging.getLogger("Astro(id)metry")
+
+    podi_makecatalogs.make_catalogs(inputlist, "moving.sex", "moving.sexparam")
+    
+    catalog_filelist = []
+    catalog = []
+    mjd_hours = []
+    source_id = []
+    filters = []
+
+    phot_ZP = 25.
+
+    #############################################################################
+    #
+    # Now open all files, get time-stamps etc
+    #
+    #############################################################################
+    for fitsfile in inputlist:
+
+        catalog_filename = fitsfile[:-5]+".cat"
+        
+        cat_data = numpy.loadtxt(catalog_filename)
+        
+        hdulist = astropy.io.fits.open(fitsfile)
+        obs_mjd = hdulist[0].header['MJD-OBS']
+        exptime = hdulist[0].header['EXPTIME']
+        mjd_middle = (obs_mjd * 24.) + (exptime / 3600.)
+        filter_name = hdulist[0].header['FILTER']
+
+        # print "total catalog", cat_data.shape
+        # in_box = (cat_data[:, SXcolumn['ra']] > 215.22568) & \
+        #          (cat_data[:, SXcolumn['ra']] < 215.2346 ) & \
+        #          (cat_data[:, SXcolumn['dec']] < -15.198908) & \
+        #          (cat_data[:, SXcolumn['dec']] > -15.206894 )
+        # cat_data = cat_data[in_box]
+        # print "in-box:", cat_data.shape
+
+        # Do some preparing of the catalog
+        try:
+            good_photometry = cat_data[:, SXcolumn['mag_aper_2.0']] < 0
+            cat_data = cat_data #[good_photometry]
+        except:
+            # anything might have gone wrong.
+            # do not use this catalog
+            continue
+
+
+        # Apply photometric zeropoint to all magnitudes
+        for key in SXcolumn_names:
+            if (key.startswith("mag_aper")):
+                cat_data[:, SXcolumn[key]] += phot_ZP
+
+        catalog_filelist.append(catalog_filename)
+        catalog.append(cat_data)
+        mjd_hours.append(mjd_middle)
+        source_id.append(numpy.arange(cat_data.shape[0]))
+        filters.append(filter_name)
+
+        print catalog_filename, cat_data.shape
+
+
+    catalog = remove_static_sources(catalog)
 
     max_rate = 500 # arcsec / hour
     min_distance = 2. / 3600. # arcsec
@@ -1194,6 +1201,21 @@ if __name__ == "__main__":
     else:
         sidereal_reference = get_clean_cmdline()[1]
         inputlist = get_clean_cmdline()[2:]
+
+        print "files from commandline\n", "\n".join(inputlist)
+        if (cmdline_arg_isset('-fromfile')):
+            filelist = cmdline_arg_set_or_default('-fromfile', None)
+            print filelist
+            if (os.path.isfile(filelist)):
+                f = open(filelist)
+                files = f.readlines()
+                print files
+
+                for filename in files:
+                    filename = filename.strip()
+                    if (os.path.isfile(filename)):
+                        inputlist.append(filename)
+        print "After adding -fromfile:\n","\n".join(inputlist)
 
         candidates = find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpc_file)
 
