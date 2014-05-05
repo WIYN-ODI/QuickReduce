@@ -511,7 +511,11 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
 
     phot_ZP = 25.
 
+    #############################################################################
+    #
     # Now open all files, get time-stams etc
+    #
+    #############################################################################
     for fitsfile in inputlist:
 
         catalog_filename = fitsfile[:-5]+".cat"
@@ -524,14 +528,14 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
         mjd_middle = (obs_mjd * 24.) + (exptime / 3600.)
         filter_name = hdulist[0].header['FILTER']
 
-        print "total catalog", cat_data.shape
-
+        # print "total catalog", cat_data.shape
         # in_box = (cat_data[:, SXcolumn['ra']] > 215.22568) & \
         #          (cat_data[:, SXcolumn['ra']] < 215.2346 ) & \
         #          (cat_data[:, SXcolumn['dec']] < -15.198908) & \
         #          (cat_data[:, SXcolumn['dec']] > -15.206894 )
         # cat_data = cat_data[in_box]
-        print "in-box:", cat_data.shape
+        # print "in-box:", cat_data.shape
+
         # Do some preparing of the catalog
         try:
             good_photometry = cat_data[:, SXcolumn['mag_aper_2.0']] < 0
@@ -555,6 +559,76 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
 
         print catalog_filename, cat_data.shape
 
+
+    #############################################################################
+    #
+    # Exclude all stars from all the catalogs
+    #
+    #############################################################################
+    for i in range(len(catalog)):
+        numpy.savetxt("cat_starclean_%d.raw" % (i), catalog[i])
+
+    print "catalog entries start:", [len(i) for i in catalog]
+    for c1 in range(len(catalog)-1):
+        logger.info("Removing all stationary sources from catalog %d" % (c1+1))
+        kdcat1 = scipy.spatial.cKDTree(catalog[c1][:,0:2])
+
+        total_matches = numpy.zeros((catalog[c1].shape[0]))
+        # print total_matches.shape
+
+        all_matches = [None] * len(catalog)
+
+        for c2 in range(c1+1, len(catalog)):
+            kdcat2 = scipy.spatial.cKDTree(catalog[c2][:,0:2])
+
+            # Now search for a close counterpart in catalog #2 for 
+            # each source in catalog 1 
+            matches = kdcat1.query_ball_tree(kdcat2, r=1./3600, p=2)
+            all_matches[c2] = matches
+
+            found_match = numpy.array([i!=[] for i in matches])
+            #print matches[:15]
+            #print numpy.sum(found_match[:15].reshape((-1,1)), axis=1)
+            #print len(matches), len(found_match)
+
+            new_matches = numpy.sum(found_match.reshape((-1,1)), axis=1)
+            #print new_matches.shape
+
+            #print type(total_matches), type(new_matches)
+            total_matches += new_matches
+
+            # break
+
+        # print total_matches[:15]
+
+        # Now select all objects with more than the minimum number of counterparts
+        is_a_star = total_matches >= 4
+        # print is_a_star[:15]
+
+        # Go and delete all stars from this and the following catalogs
+        catalog[c1][:, 0:2][is_a_star] = numpy.NaN
+        for c2 in range(c1+1, len(catalog)):
+            matches = all_matches[c2]
+
+            for i in range(is_a_star.shape[0]):
+                if (is_a_star[i]):
+                    entries = matches[i]
+                    catalog[c2][:,0:2][entries] = numpy.NaN
+
+            # stars = matches[is_a_star]
+            # print stars
+
+        for i in range(len(catalog)):
+            numpy.savetxt("cat_starclean_%d__%d" % (c1, i), catalog[i])
+            catalog[i] = catalog[i][numpy.isfinite(catalog[i][:,0])]
+
+        # print catalog[c1][:15,0:2]
+
+
+        # break
+
+    print "catalog entries end:", [len(i) for i in catalog]
+    # return
 
     max_rate = 500 # arcsec / hour
     min_distance = 2. / 3600. # arcsec
@@ -625,7 +699,7 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
 
         # Now queue all work, one source catalog at a time
         for ref_cat in range(len(catalog)-1-min_count):
-            logger.info("Checking out catalog %d" % (ref_cat))
+            logger.info("Checking out catalog %d" % (ref_cat+1))
 
             jobs_queued = 0
             for obj1 in range(catalog[ref_cat].shape[0]):
@@ -639,7 +713,7 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
                 jobqueue.put((ref_cat, obj1))
                 jobs_queued += 1
 
-            logger.info("Waiting for results from source catalog %d ..." % (ref_cat))
+            logger.info("Waiting for results from source catalog %d ..." % (ref_cat+1))
             for i in range(jobs_queued):
                 source_entry = result_queue.get()
                 if (not source_entry == None):
