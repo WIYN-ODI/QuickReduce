@@ -584,7 +584,6 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
     source_id = []
     filters = []
 
-    phot_ZP = 25.
 
     #############################################################################
     #
@@ -594,7 +593,8 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
     for fitsfile in inputlist:
 
         catalog_filename = fitsfile[:-5]+".cat"
-        
+        phot_ZP = 25.
+
         cat_data = numpy.loadtxt(catalog_filename)
         
         hdulist = astropy.io.fits.open(fitsfile)
@@ -620,7 +620,15 @@ def find_moving_objects(sidereal_reference, inputlist, min_count, min_rate, mpcf
             # do not use this catalog
             continue
 
-
+        # Check if there is  photometric ZP keyword
+        # if there is, this frame likely is a QR'ed frame, so use the PHOTZP_X keyword instead
+        if ('PHOTZP_X' in hdulist[0].header):
+            phot_ZP = hdulist[0].header['PHOTZP_X']
+        elif ('MAGZERO' in hdulist[0].header):
+            phot_ZP = hdulist[0].header['MAGZERO']
+        else:
+            phot_ZP = 25.
+            
         # Apply photometric zeropoint to all magnitudes
         for key in SXcolumn_names:
             if (key.startswith("mag_aper")):
