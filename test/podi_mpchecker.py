@@ -70,8 +70,19 @@ def get_mpc_catalog(fitsfile):
 
     ut_day = date_obs.day + date_obs.hour/24. + date_obs.minute/1440.
 
-    ra = hdulist[0].header['CRVAL1']
-    dec = hdulist[0].header['CRVAL2']
+    found_radec = False
+    for i in range(len(hdulist)):
+        if ('CRVAL1' in hdulist[i].header and
+            'CRVAL2' in hdulist[i].header):
+
+            ra = hdulist[i].header['CRVAL1']
+            dec = hdulist[i].header['CRVAL2']
+            found_radec = True
+    if (not found_radec):
+        print "This does not seem to be a valid FITS file."
+        print "Couldn't find an extension containing both CRVAL1 and CRVAL2 !!!"
+        return None
+
     j2k = ephem.Equatorial(math.radians(ra), math.radians(dec), epoch=ephem.J2000)
     print j2k.ra, j2k.dec
     print str(j2k.ra).replace(":", " ")
