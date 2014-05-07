@@ -210,7 +210,11 @@ def differential_photometry(inputlist, source_coords,
         if (os.path.isfile(dumpfile)):
             cat_data = numpy.load(dumpfile)
         else:
-            cat_data = numpy.loadtxt(catalog_filename)
+            try:
+                cat_data = numpy.loadtxt(catalog_filename)
+            except:
+                pass
+                continue
             cat_data.dump(dumpfile)
 
         # Correct for the absolute zeropoint
@@ -362,7 +366,10 @@ def differential_photometry(inputlist, source_coords,
         #########################################################################
 
         # Find the aperture magnitude that is valid
-        numpy.savetxt(sys.stdout, [src_data[SXcolumn['mag_aper_2.0']:SXcolumn['mag_err_12.0']+1]], " %8.4f")
+        try:
+            numpy.savetxt(sys.stdout, [src_data[SXcolumn['mag_aper_2.0']:SXcolumn['mag_err_12.0']+1]], " %8.4f")
+        except:
+            pass
         good_source_aperture = '4.0'
         src_aper_mag = "mag_aper_%s" % (good_source_aperture)
         src_aper_err = "mag_err_%s" % (good_source_aperture)
