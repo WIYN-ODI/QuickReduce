@@ -122,7 +122,14 @@ import logging
 import socket
 import tempfile
 import shutil
+import warnings
 
+try:
+    dir, _ = os.path.split(os.path.abspath(sys.argv[0]))
+    sys.path.append(dir+"/test")
+    import ephemerides
+except:
+    pass
 
 def mp_prepareinput(input_queue, output_queue, swarp_params, options):
 
@@ -134,7 +141,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
             break
 
         input_file = cmd
-        logger = logging.getLogger("MP-Prep(%s)" % (os.path.basename(input_file)))
+        logger = logging.getLogger("MP-Prep( %s )" % (os.path.basename(input_file)))
 
 
         ret = {
@@ -176,6 +183,8 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
         # Now construct the output filename
         if (corrected_filename and swarp_params['use_nonsidereal']):
             suffix = "nonsidereal.fits"
+        if (corrected_filename == None and swarp_params['use_ephemerides'] != []):
+            suffix = "ephemerides.fits"
         if (corrected_filename == None and options['skip_otas'] != []):
             suffix = "otaselect.fits"
         if (corrected_filename == None and not options['bpm_dir'] == None):
@@ -215,6 +224,55 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                             {"nonsidereal-reference": options['nonsidereal']['ref']})
                 except:
                     pass
+
+            if (swarp_params['use_ephemerides']):
+                # get MJD of current frame
+                mjd_thisframe = hdulist[0].header['MJD-OBS']
+                mjd_ref = swarp_params['ephemerides']['ref-mjd']
+
+                # print "\n"*10
+                # print "ref-mjd",mjd_ref
+                # print "this mjd",mjd_thisframe
+                # print "min mjd", numpy.min(swarp_params['ephemerides']['data'][:,0])
+                # print "max mjd", numpy.max(swarp_params['ephemerides']['data'][:,0])
+                # print "\n"*10
+
+                # now compute the Ra/Dec of the target in both the reference 
+                # frame and in this frame
+                ra_ref = swarp_params['ephemerides']['ra'](mjd_ref)
+                ra_this = swarp_params['ephemerides']['ra'](mjd_thisframe)
+
+                dec_ref = swarp_params['ephemerides']['dec'](mjd_ref)
+                dec_this = swarp_params['ephemerides']['dec'](mjd_thisframe)
+
+                # print "\n"*5, "ra//dec = ", ra_ref, dec_ref, "\n"*5
+                # The Ra/Dec correction is how much the object has moved 
+                # (as derived from the ephemerides) between the reference MJD 
+                # and the timestamp of this frame
+                d_ra = ra_ref - ra_this
+                d_dec = dec_ref - dec_this
+                # print d_ra, d_dec
+                d_days = mjd_thisframe - mjd_ref
+                logger.info("Applying ephemerid correction (%+.6f deg, %+.6f deg, dT=%.3f days)" % (
+                    d_ra, d_dec, d_days))
+
+                # Now apply these corrections to all extensions with an
+                # apparently valid WCS system
+                orig_ra, orig_dec = None, None
+                for ext in hdulist:
+                    if ('CRVAL1' in ext.header and
+                        'CRVAL2' in ext.header):
+                        # print ext.header['CRVAL1'], ext.header['CRVAL2'], (ext.header['EXTNAME'] if 'EXTNAME' in ext.header else "??")
+                        orig_ra = ext.header['CRVAL1'] if orig_ra == None else orig_ra
+                        orig_dec = ext.header['CRVAL2'] if orig_dec == None else orig_dec
+                        ext.header['CRVAL1'] += d_ra
+                        ext.header['CRVAL2'] += d_dec
+                        # print ext.header['CRVAL1'], ext.header['CRVAL2'], (ext.header['EXTNAME'] if 'EXTNAME' in ext.header else "??")
+
+                logger.debug("Pre-correction Ra/Dec was: %12.7f  %+12.7f" % (orig_ra, orig_dec))
+                logger.debug("Post-corrected Ra/Dec is: %12.7f %+12.7f" % (orig_ra + d_ra, orig_dec + d_dec))
+
+
 
             if (options['skip_otas'] != []):
                 logger.info("Skipping some OTAs")
@@ -509,7 +567,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
     else:
         swarp_params['reference_file'] = None
 
-    logging.info("Using modified input list: %s" % (str(inputlist)))
+    logging.debug("Using modified input list: %s" % (str(inputlist)))
 
     ############################################################################
     #
@@ -576,7 +634,8 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
 
 
         try:
-            logger.info("computing preswarp:\n%s" % (" ".join(swarp_cmd.split())))
+            logger.info("Computing sky-coverage ...")
+            logger.debug("Computing preswarp:\n%s" % (" ".join(swarp_cmd.split())))
             ret = subprocess.Popen(swarp_cmd.split(), 
                                    stdout=subprocess.PIPE, 
                                    stderr=subprocess.PIPE) #, shell=True)
@@ -601,7 +660,9 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
         #
 
         try:
-            output_info = pyfits.open(header_only_file)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                output_info = pyfits.open(header_only_file)
         except IOError:
             podi_logging.log_exception()
             logger.error("Couldn't open the pre-swarp file, aborting")
@@ -897,7 +958,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
         # No background subtraction was requested
         final_prepared_files = single_prepared_files
 
-    logging.info("files to stack: %s" % (str(final_prepared_files)))
+    logging.debug("files to stack: %s" % (str(final_prepared_files)))
 
     #############################################################################
     #
@@ -1055,6 +1116,7 @@ def read_swarp_params():
 
     params = {}
 
+    logger = logging.getLogger("SwarpStack - Config")
 
     params['pixelscale'] = float(cmdline_arg_set_or_default("-pixelscale", 0))
     params['subtract_back'] = cmdline_arg_isset("-bgsub")
@@ -1073,6 +1135,44 @@ def read_swarp_params():
         logger.error("The specified combine method (%s) is not supported, using average instead" % (combine_method))
         combine_method = 'average'
     params['combine-type'] = combine_method.upper()
+
+    params['use_ephemerides'] = cmdline_arg_isset("-ephemerides")
+    if (params['use_ephemerides']):
+        opts = cmdline_arg_set_or_default('-ephemerides', None)
+        # print opts
+        if (opts == None):
+            params['use_ephemerides'] = False
+        else:
+            items = opts.split(',')
+            # print items
+
+            # See if the first parameter is a number, if so it's the reference MJD,
+            # if not, assume it's a FITS file and we are to read MJD-OBS from the header
+            ref_mjd = None
+            try:
+                ref_mjd = float(items[0])
+            except:
+                hdulist = pyfits.open(items[0])
+                for ext in hdulist:
+                    if ('MJD-OBS' in ext.header):
+                        ref_mjd = ext.header['MJD-OBS']
+                        break
+            if (ref_mjd == None):
+                params['use_ephemerides'] = False
+            else:
+                # Now read and process the datafile
+                import ephemerides
+                ra, dec, data = ephemerides.load_ephemerides(items[1], plot=False)
+
+                params['ephemerides'] = {
+                    'ref': items[0],
+                    'ref-mjd': ref_mjd,
+                    'datafile': os.path.abspath(items[1]),
+                    'data': data,
+                    'ra': ra,
+                    'dec': dec,
+                }
+                logger.info("Using ephemerides from file %s" % (items[1]))
 
     params['clip-ampfrac'] = 0.3
     params['clip-sigma'] = 4.0
@@ -1129,6 +1229,9 @@ if __name__ == "__main__":
         params = read_swarp_params()
         outputfile = get_clean_cmdline()[1]
         inputlist = get_clean_cmdline()[2:]
+        
+        # print params
+        # print inputlist
 
         logger.debug("Commanding output: %s" % (outputfile))
         for i in inputlist:        
