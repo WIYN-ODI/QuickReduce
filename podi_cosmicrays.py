@@ -116,6 +116,36 @@ if __name__ == "__main__":
         print __doc__
         print cosmics.__doc__
 
+    elif (cmdline_arg_isset("-simple")):
+
+        options = podi_collectcells.read_options_from_commandline()
+        podi_logging.setup_logging(options)
+
+        inputfile = get_clean_cmdline()[1]
+        hdulist = pyfits.open(inputfile)
+
+        bglevel = float(cmdline_arg_set_or_default('-bg', 0.0))
+
+        for i in range(len(hdulist)):
+            if (not is_image_extension(hdulist[i])):
+                continue
+
+            hdulist[i].data += bglevel
+            crj = podi_cython.lacosmics(hdulist[i].data.astype(numpy.float64), 
+                                        gain=3.3, readnoise=20, 
+                                        niter=4,
+                                        sigclip=5.0, sigfrac=0.5, objlim=5.0,
+                                        saturation_limit=25000,
+                                        verbose=False)
+            cell_cleaned, cell_mask, cell_saturated = crj
+
+            hdulist[i].data = cell_cleaned - bglevel
+
+
+        outputfile = get_clean_cmdline()[2]
+        hdulist.writeto(outputfile, clobber=True)
+        podi_logging.shutdown_logging(options)
+
     else:
 
         options = podi_collectcells.read_options_from_commandline()
