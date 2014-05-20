@@ -17,7 +17,7 @@ def load_ephemerides(filename, plot=False):
     # Load file
     dat = open(filename, "r")
     lines = dat.readlines()
-    print lines[:2]
+    # print lines[:2]
 
     ref_date_str = "2014-Jan-01 00:00"
     date_format = "%Y-%b-%d %H:%M"
@@ -31,19 +31,25 @@ def load_ephemerides(filename, plot=False):
         items = line.split()
 
         date_time = items[0:2]
-        ra = items[2:5]
-        dec = items[5:8]
-        rate_ra = float(items[8])
-        rate_dec = float(items[9])
 
-#        print ra, rate_ra
-
-        coord = ephem.Equatorial(" ".join(ra), " ".join(dec), epoch=ephem.J2000)
-#        print coord
+        coords = 'deg'
+        if (coords == 'deg'):
+            ra = float(items[2])
+            dec = float(items[3])
+            rate_ra = float(items[4])
+            rate_dec = float(items[5])
+        else:
+            str_ra = items[2:5]
+            str_dec = items[5:8]
+            coord = ephem.Equatorial(" ".join(str_ra), " ".join(str_dec), epoch=ephem.J2000)
+            ra = math.degrees(coord.ra)
+            dec = math.degrees(coord.dec)
+            rate_ra = float(items[8])
+            rate_dec = float(items[9])
 
         mjd = 0
 
-        print date_time
+        # print date_time
         date_obs = datetime.datetime.strptime(" ".join(date_time), 
                                               date_format)
 
@@ -51,8 +57,8 @@ def load_ephemerides(filename, plot=False):
         mjd = (delta_t.total_seconds()/86400.) + ref_mjd
 
         data.append( [mjd, 
-                      math.degrees(coord.ra), 
-                      math.degrees(coord.dec),
+                      ra,
+                      dec,
                       rate_ra, 
                       rate_dec]
                      )
@@ -60,7 +66,7 @@ def load_ephemerides(filename, plot=False):
     data = numpy.array(data)
 
     ra_vs_mjd = scipy.interpolate.interp1d( data[:,0], data[:,1], kind='linear' )
-    dec_vs_mjd = scipy.interpolate.interp1d( data[:,0], data[:,1], kind='linear' )
+    dec_vs_mjd = scipy.interpolate.interp1d( data[:,0], data[:,2], kind='linear' )
 
     if (plot):
         fig = matplotlib.pyplot.figure()
@@ -81,7 +87,7 @@ def load_ephemerides(filename, plot=False):
 
 if __name__ == "__main__":
     filename = sys.argv[1]
-    
+    load_ephemerides(filename, plot=True)
 
 
 
