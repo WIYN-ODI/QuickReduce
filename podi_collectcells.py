@@ -1324,9 +1324,15 @@ def parallel_collect_reduce_ota(queue, return_queue,
             raise
 
         return_hdu = data_products['hdu']
-        logger.debug("Received OTA pre-processed data for OTA %s" % (return_hdu.header['FPPOS']))
+        if (return_hdu == None):
+            # queue.task_done()
+            # continue
+            logger.warning("Received invalid result")
 
-        logger = logging.getLogger("OTAPostProc:%s" % (return_hdu.header['FPPOS']))
+        extname = return_hdu.header['FPPOS'] if (not return_hdu == None and 'FPPOS' in return_hdu.header) else "???"
+        logger.debug("Received OTA pre-processed data for OTA %s" % (extname))
+
+        logger = logging.getLogger("OTAPostProc:%s" % (extname))
         logger.debug("Trimming off pupilghost template and fringe template")
 
         # Trim the data section of the return data to keep transfer delays low
