@@ -154,7 +154,7 @@ R.M.S. %(RMS-RA)0.3f'' / %(RMS-DEC)0.3f''
     ax.set_title(title)
     ax.set_xlabel("error RA * cos(DEC) [arcsec]")
     ax.set_ylabel("error DEC [arcsec]")
-    ax.set_xlim((-3,3))
+    ax.set_xlim((3,-3))
     ax.set_ylim((-3,3))
     ax.grid(True)
     ax.set_aspect('equal')
