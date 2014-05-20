@@ -496,7 +496,7 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
     delta_fit_y = compute_cell_nonlinearity_correction(fit_x, cellx, celly, fittable)
     fit_y = fit_x + delta_fit_y
 
-    intensity_range = [0, 63000]
+    intensity_range = [0, 60000]
     exptime_range = [0, 1e9]
     args = (medlevel, exptimes, None, intensity_range, exptime_range)
     #print args
@@ -519,7 +519,18 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
     hline_y = numpy.zeros_like(hline_x)
     ax2.plot(hline_x, hline_y, "-", color="#808080")
 
-
+    # Correct all observed brightnesses with the non-linearity correction from the best fit
+    # print subset
+    # print exptimes
+    # print medlevel
+    med_correction = compute_cell_nonlinearity_correction(medlevel, cellx, celly, fittable)
+    flux_corrected = medlevel+med_correction
+    # print flux_corrected
+    ax1.plot(flux_corrected/fluxscaling, exptimes, c='grey', marker='x')
+    slope = numpy.median((flux_corrected/exptimes)[medlevel<intensity_range[1]])
+    std_slope = numpy.std((flux_corrected/exptimes)[medlevel<intensity_range[1]])
+    # print slope, std_slope, numpy.std((medlevel/exptimes)[medlevel<intensity_range[1]])
+    ax1.plot(slope*numpy.linspace(0,70,1000), numpy.linspace(0,70,1000), "g-")
 
     ax1.set_title("OTA %02d, cell %1d,%1d" % (ota, cellx, celly))
     for i in range(len(poly_fits)):
