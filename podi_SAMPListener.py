@@ -345,7 +345,6 @@ def workerprocess___qr_stack(queue):
         try:
             # print "\n\nWaiting for stuff to do\n\n"
             task = queue.get()
-            print "**\n"*10;
         except KeyboardInterrupt, SystemExit:
             # print "worker received termination notice"
             # Ignore the shut-down command here, and wait for the official 
@@ -359,12 +358,12 @@ def workerprocess___qr_stack(queue):
 
         
         params = task
-        print "\n================"*3,params,"\n================"*3
+        # print "\n================"*3,params,"\n================"*3
 
         str_filelist = params['filelist']
         tracking_rate = params['trackrate']
 
-        print "starting work on file",str_filelist
+        # print "starting work on file",str_filelist
 
         #
         # Get rid of all files that do not exist
@@ -374,16 +373,16 @@ def workerprocess___qr_stack(queue):
             if (os.path.isfile(fitsfile)):
                 filelist.append(fitsfile)
 
-        print "filelist = ",filelist
+        # print "filelist = ",filelist
 
         # We need at least one file to work on
         if (len(filelist) <= 0):
             queue.task_done()
             continue
 
-        print datetime.datetime.now().strftime("%H:%M:%S.%f")
-        print filelist
-        print tracking_rate
+        # print datetime.datetime.now().strftime("%H:%M:%S.%f")
+        # print filelist
+        # print tracking_rate
         # print extra
 
 
@@ -408,15 +407,79 @@ def workerprocess___qr_stack(queue):
         output_filename = "stack%s.%d__%s__%s.fits" % (
             formatted_timestamp, number_of_frames, object_name, filter_name
             )
+        remote_output_filename = "%(outputdir)s/%(output_filename)s" % {
+            "outputdir": setup.output_dir,
+            "output_filename": output_filename,
+            }
+        remote_output_filename = "/work/podi/test/wcs_calib.out.fits"
+        logger.debug("Setting output filename: %s" % (output_filename))
+        
+
+        #
+        # Re-format the input filelist to point to valid files 
+        # on the remote filesystem
+        #
+        remote_filelist = []
+        for fn in filelist:
+            remote_filelist.append(setup.translate_filename_local2remote(fn))
 
         #
         # Now we have the list of input files, and the output filename, 
         # lets go and initate the ssh request and get to work
         #
 
-        print output_filename
+        # Run the swarpstack command nice'd to give higher priorities 
+        # to concurrent data reduction jobs
+        swarp_nicelevel = "nice -n +10"
 
+        # Set options (bgsub, pixelscale) etc.
+        options = ""
 
+        logger.info("Stacking %d frames, output in %s" % (len(filelist), output_filename))
+
+        ssh_command = "ssh %(username)s@%(host)s %(swarpnice)s \
+                          %(podidir)s/podi_swarpstack.py \
+                          %(remote_output_filename)s %(options)s %(remote_inputlist)s" % {
+            'username': setup.ssh_user,
+            'host': setup.ssh_host,
+            'swarpnice': swarp_nicelevel,
+            'podidir': setup.remote_podi_dir,
+            'remote_output_filename': remote_output_filename,
+            'outputdir': setup.output_dir,
+            'output_filename': output_filename,
+            'options': options,
+            'remote_inputlist': " ".join(remote_filelist)
+            }
+
+        print " ".join(ssh_command.split())
+
+        #
+        # Now execute the actual swarpstack command
+        #
+        if (not cmdline_arg_isset("-dryrun")):
+            process = subprocess.Popen(ssh_command.split(), 
+                                       stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE)
+            _stdout, _stderr = process.communicate()
+
+        # 
+        # Once we are here, we have the output file created
+        # If requested, send it to ds9 to display
+        #
+        if (cmdline_arg_isset("-forward2ds9")):
+            local_filename = setup.translate_filename_remote2local(None, remote_output_filename)
+            cmd = "fits %s" % (local_filename)
+            try:
+                cli_ds9 = sampy.SAMPIntegratedClient(metadata = metadata)
+                cli_ds9.connect()
+                cli_ds9.enotifyAll(mtype='ds9.set', cmd=cmd)
+                cli_ds9.disconnect()
+            except:
+                print "Problems sending message to ds9"
+                pass
+        
+
+        # Mark this task as done, this means we are ready for the next one.
         queue.task_done()
         continue
 
@@ -427,34 +490,33 @@ def workerprocess___qr_stack(queue):
 def handle_qr_stack_request(private_key, sender_id, msg_id, mtype, params, extra):
     """
     
-    This function is a callbakc handler that is called everytime a message
+    This function is a callback handler that is called everytime a message
     is received from the SAMP hub.
 
     """
 
     logger = logging.getLogger("QRStackHandler")
 
-    print "\n"*5
-    print params
+    # print "\n"*5
+    # print params
     str_filelist = params['filelist']
     tracking_rate = params['trackrate']
 
-    print "adding timestamp"
+    # print "adding timestamp"
     params['timestamp'] = datetime.datetime.now()
 
-    print "copying extras"
+    # print "copying extras"
     for key, value in extra.iteritems():
         params[key] = value
 
-    print "adding to queue"
-    logger.info("Received a msg, putting it in the queue")
+    # print "adding to queue"
+    logger.info("Adding new stack-request to work queue")
     stacking_queue.put(params)
-    logger.info("Msg handed off to queue")
 
-    print "added msg to queue"
+    # print "added msg to queue"
 
     print "Done with this one, hungry for more!"
-    print "\n"*5
+    # print "\n"*5
     return
 
 
