@@ -3,13 +3,20 @@
 print "importing sampy"
 import sys
 sys.path.append("./../")
+
+sys.path.append("/work/podi_devel/")
+# try:
+#     import astropy.vo.samp as sampy
+# except:
 try:
     import xsampy as sampy
 except:
     import sampy
+
 import os
 import time
 import datetime
+from podi_commandline import *
 
 message_queue = "odi.image.load"
 
@@ -69,6 +76,27 @@ if __name__ == "__main__":
 
         print out
 
+    elif (target == 'stack'):
+        trackrate = get_clean_cmdline()[2]
+        filelist = get_clean_cmdline()[3:]
+
+        print trackrate
+        print filelist
+
+        cli1.enotifyAll("qr.stack", 
+                        filelist=",".join(filelist),
+                        trackrate=trackrate,
+                        extra_kws = {"pixelscale": "0.4",
+                                     "bgsub": "yes",
+                                     })
+        # cli1.enotifyAll("qr.stack", 
+        #                 params={"filelist": filelist,
+        #                         "trackrate": trackrate,
+        #                         },
+        #                 extra_kws = {"pixelscale": "0.4",
+        #                              "bgsub": "yes",
+        #                              }
+        #                 )
     else:
         # This is not understood
         print "I don't understand this target: only qr and ds9 are known"
