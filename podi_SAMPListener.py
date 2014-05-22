@@ -321,6 +321,94 @@ I was told to ignore these kind of frames.
     return
 
 
+
+#################################################################################
+#
+#
+# QR swarp-stack functionality
+#
+# this uses the qr.stack message
+#
+#
+#################################################################################
+
+# define a message queue to handle remote executions
+stacking_queue = multiprocessing.JoinableQueue()
+
+def workerprocess___qr_stack(queue):
+    print "QR stacking worker process started, ready for action..."
+
+    logger = logging.getLogger("QRStacker")
+
+    while (True):
+        try:
+            # print "\n\nWaiting for stuff to do\n\n"
+            task = queue.get()
+        except KeyboardInterrupt, SystemExit:
+            # print "worker received termination notice"
+            # Ignore the shut-down command here, and wait for the official 
+            # shutdown command from main task
+            continue
+
+        if (task == None):
+            print "Shutting down worker"
+            queue.task_done()
+            break
+
+        params = task
+
+        filelist = params['filelist']
+        tracking_rate = params['tracking_rate']
+
+        print "starting work on file",filelist
+
+        
+
+        queue.task_done()
+        continue
+
+    return
+
+ 
+
+def handle_qr_stack_request(private_key, sender_id, msg_id, mtype, params, extra):
+    """
+    
+    This function is a callbakc handler that is called everytime a message
+    is received from the SAMP hub.
+
+    """
+    print "\n"*5
+    print params
+    str_filelist = params['filelist']
+    tracking_rate = params['trackrate']
+
+    filelist = str_filelist.split(",")
+    print datetime.datetime.now().strftime("%H:%M:%S.%f")
+    print filelist
+    print tracking_rate
+
+    print extra
+
+    print "Done with this one, hungry for more!"
+    print "\n"*5
+    return
+
+
+#################################################################################
+#
+# end of swarpstack
+#
+#################################################################################
+
+
+
+
+
+
+
+
+
 def create_client(metadata, wait=0):
 
     # Create client, connect to Hub, and install message listener
@@ -336,7 +424,12 @@ def create_client(metadata, wait=0):
         raise
 
     try:
+        # Listen to all odi.image.file messages
         cli1.bindReceiveMessage(setup.message_queue, receive_msg)
+
+        # Also define a new listener to listen to incoming qr.stack commands
+        cli1.bindReceiveMessage("qr.stack", handle_qr_stack_request)
+
     except:
         print "Problem with bindReceiveMessage"
 
@@ -375,6 +468,20 @@ def SAMPListener():
                                       }
     )
     worker_process.start()
+
+
+    #
+    # Also setup the QR stacking worker process
+    # 
+    print "Starting execution process..."
+    qr_stacking_process = multiprocessing.Process(
+        target=workerprocess___qr_stack,
+        kwargs={
+            'queue': stacking_queue,
+            }
+    )
+    qr_stacking_process.start()
+
 
     print "Setup complete, waiting for messages..."
     quiet = cmdline_arg_isset("-quiet")
@@ -438,6 +545,14 @@ def SAMPListener():
         print "Finishing up work, please wait ..."
     worker_queue.put(None)
     worker_process.join()
+
+    # Also shut down the QR stacking process
+    try:
+        print "Finishing up %d stacking jobs, please wait ..." % (stacking_queue.qsize())
+    except:
+        print "Finishing up stacking jobs, please wait ..."
+    stacking_queue.put(None)
+    qr_stacking_process.join()
 
     print "All done, goodbye!"
 
