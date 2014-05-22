@@ -391,7 +391,31 @@ def workerprocess___qr_stack(queue):
         # Open the first file in the list, get the object name
         #
         firsthdu = pyfits.open(filelist[0])
-        
+        object_name = firsthdu[0].header['OBJECT']  \
+            if 'OBJECT' in firsthdu[0].header else "unknown"
+        filter_name = firsthdu[0].header['FILTER']  \
+            if 'FILTER' in firsthdu[0].header else"unknown"
+        firsthdu.close()
+
+        # Create a ODI-like timestamp
+        formatted_timestamp = params['timestamp'].strftime("%Y%m%dT%H%M%S")
+
+        # instead of the number in the dither sequence, 
+        # use the number of frames in this stack
+        number_of_frames = len(filelist)
+
+        # Assemble the entire filename
+        output_filename = "stack%s.%d__%s__%s.fits" % (
+            formatted_timestamp, number_of_frames, object_name, filter_name
+            )
+
+        #
+        # Now we have the list of input files, and the output filename, 
+        # lets go and initate the ssh request and get to work
+        #
+
+        print output_filename
+
 
         queue.task_done()
         continue
