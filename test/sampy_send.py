@@ -80,11 +80,15 @@ if __name__ == "__main__":
         trackrate = get_clean_cmdline()[2]
         filelist = get_clean_cmdline()[3:]
 
+        abspath_filelist = []
+        for fn in filelist:
+            abspath_filelist.append(os.path.abspath(fn))
+
         print trackrate
         print filelist
 
         cli1.enotifyAll("qr.stack", 
-                        filelist=",".join(filelist),
+                        filelist=",".join(abspath_filelist),
                         trackrate=trackrate,
                         extra_kws = {"pixelscale": "0.4",
                                      "bgsub": "yes",

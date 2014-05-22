@@ -339,11 +339,13 @@ def workerprocess___qr_stack(queue):
     print "QR stacking worker process started, ready for action..."
 
     logger = logging.getLogger("QRStacker")
+    logger.info("Listener started")
 
     while (True):
         try:
             # print "\n\nWaiting for stuff to do\n\n"
             task = queue.get()
+            print "**\n"*10;
         except KeyboardInterrupt, SystemExit:
             # print "worker received termination notice"
             # Ignore the shut-down command here, and wait for the official 
@@ -355,13 +357,40 @@ def workerprocess___qr_stack(queue):
             queue.task_done()
             break
 
+        
         params = task
+        print "\n================"*3,params,"\n================"*3
 
-        filelist = params['filelist']
-        tracking_rate = params['tracking_rate']
+        str_filelist = params['filelist']
+        tracking_rate = params['trackrate']
 
-        print "starting work on file",filelist
+        print "starting work on file",str_filelist
 
+        #
+        # Get rid of all files that do not exist
+        #
+        filelist = []
+        for fitsfile in str_filelist.split(","):
+            if (os.path.isfile(fitsfile)):
+                filelist.append(fitsfile)
+
+        print "filelist = ",filelist
+
+        # We need at least one file to work on
+        if (len(filelist) <= 0):
+            queue.task_done()
+            continue
+
+        print datetime.datetime.now().strftime("%H:%M:%S.%f")
+        print filelist
+        print tracking_rate
+        # print extra
+
+
+        #
+        # Open the first file in the list, get the object name
+        #
+        firsthdu = pyfits.open(filelist[0])
         
 
         queue.task_done()
@@ -378,17 +407,27 @@ def handle_qr_stack_request(private_key, sender_id, msg_id, mtype, params, extra
     is received from the SAMP hub.
 
     """
+
+    logger = logging.getLogger("QRStackHandler")
+
     print "\n"*5
     print params
     str_filelist = params['filelist']
     tracking_rate = params['trackrate']
 
-    filelist = str_filelist.split(",")
-    print datetime.datetime.now().strftime("%H:%M:%S.%f")
-    print filelist
-    print tracking_rate
+    print "adding timestamp"
+    params['timestamp'] = datetime.datetime.now()
 
-    print extra
+    print "copying extras"
+    for key, value in extra.iteritems():
+        params[key] = value
+
+    print "adding to queue"
+    logger.info("Received a msg, putting it in the queue")
+    stacking_queue.put(params)
+    logger.info("Msg handed off to queue")
+
+    print "added msg to queue"
 
     print "Done with this one, hungry for more!"
     print "\n"*5
