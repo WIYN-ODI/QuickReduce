@@ -21,6 +21,7 @@ import sys
 import time
 import multiprocessing
 import datetime
+import time
 
 from podi_definitions import *
 from podi_commandline import *
@@ -495,27 +496,29 @@ def workerprocess___qr_stack(queue):
             'options': options,
             'remote_inputlist': " ".join(remote_filelist)
             }
-
-        print "\n"*3," ".join(ssh_command.split()),"\n"*3
+        logger.debug("SSH command:\n%s" % (" ".join(ssh_command.split())))
 
         #
         # Now execute the actual swarpstack command
         #
         if (not cmdline_arg_isset("-dryrun")):
             logger.info("Running swarpstack remotely on %s" % (setup.ssh_host))
+            start_time = time.time()
             process = subprocess.Popen(ssh_command.split(), 
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.PIPE)
             _stdout, _stderr = process.communicate()
-            dt = 0.2
-            logger.info("swarpstack has completed successfully (%.2f seconds)" % (dt))
-
+            end_time = time.time()
+            logger.info("swarpstack has completed successfully (%.2f seconds)" % (end_time - start_time))
+            
         # 
         # Once we are here, we have the output file created
         # If requested, send it to ds9 to display
         #
-        if (cmdline_arg_isset("-forward2ds9")):
+        if (not cmdline_arg_isset("-dryrun") and
+            cmdline_arg_isset("-forward2ds9")):
             local_filename = setup.translate_filename_remote2local(None, remote_output_filename)
+            logger.debug("Commanding ds9 to display %s ..." % (local_filename))
             cmd = "fits %s" % (local_filename)
             try:
                 cli_ds9 = sampy.SAMPIntegratedClient(metadata = metadata)
@@ -523,7 +526,7 @@ def workerprocess___qr_stack(queue):
                 cli_ds9.enotifyAll(mtype='ds9.set', cmd=cmd)
                 cli_ds9.disconnect()
             except:
-                print "Problems sending message to ds9"
+                logger.warning("Problems sending message to ds9")
                 pass
         
 
