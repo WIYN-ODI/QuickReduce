@@ -128,6 +128,7 @@ try:
     dir, _ = os.path.split(os.path.abspath(sys.argv[0]))
     sys.path.append(dir+"/test")
     import ephemerides
+    import podi_ephemerides
 except:
     pass
 
@@ -1112,7 +1113,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
 
 
 
-def read_swarp_params():
+def read_swarp_params(filelist):
 
     params = {}
 
@@ -1160,19 +1161,40 @@ def read_swarp_params():
             if (ref_mjd == None):
                 params['use_ephemerides'] = False
             else:
-                # Now read and process the datafile
-                import ephemerides
-                ra, dec, data = ephemerides.load_ephemerides(items[1], plot=False)
 
-                params['ephemerides'] = {
-                    'ref': items[0],
-                    'ref-mjd': ref_mjd,
-                    'datafile': os.path.abspath(items[1]),
-                    'data': data,
-                    'ra': ra,
-                    'dec': dec,
-                }
-                logger.info("Using ephemerides from file %s" % (items[1]))
+                if (items[1] == "NASA"):
+                    object_name = items[2]
+                    results = podi_ephemerides.get_ephemerides_for_object_from_filelist(
+                        object_name=object_name, 
+                        filelist=filelist,
+                        session_log_file="swarpstack_horizon.session",
+                        verbose=False
+                    )
+
+                    params['ephemerides'] = {
+                        'ref': items[0],
+                        'ref-mjd': ref_mjd,
+                        'datafile': "NASA-TELNET",
+                        'data': results['data'],
+                        'ra': results['ra'],
+                        'dec': results['dec'],
+                    }
+                else:
+                    # Now read and process the datafile
+                    import ephemerides
+                    ra, dec, data = ephemerides.load_ephemerides(
+                        items[1], plot=False
+                    )
+                    logger.info("Using ephemerides from file %s" % (items[1]))
+
+                    params['ephemerides'] = {
+                        'ref': items[0],
+                        'ref-mjd': ref_mjd,
+                        'datafile': os.path.abspath(items[1]),
+                        'data': data,
+                        'ra': ra,
+                        'dec': dec,
+                    }
 
     params['clip-ampfrac'] = 0.3
     params['clip-sigma'] = 4.0
@@ -1226,9 +1248,9 @@ if __name__ == "__main__":
     try:
 
         # Read command line and store all results in params dictionary
-        params = read_swarp_params()
         outputfile = get_clean_cmdline()[1]
         inputlist = get_clean_cmdline()[2:]
+        params = read_swarp_params(inputlist)
         
         # print params
         # print inputlist
