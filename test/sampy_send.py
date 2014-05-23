@@ -99,6 +99,8 @@ if __name__ == "__main__":
             trackrate = get_cmdline_arg("-nonsidereal")
         if (cmdline_arg_isset("-combine")):
             extra_kws['combine'] = get_cmdline_arg("-combine")
+        if (cmdline_arg_isset("-skipota")):
+            extra_kws['skipota'] = get_cmdline_arg("-skipota")
 
         cli1.enotifyAll("qr.stack", 
                         filelist=",".join(abspath_filelist),
