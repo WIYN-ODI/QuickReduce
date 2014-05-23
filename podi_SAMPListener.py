@@ -411,7 +411,6 @@ def workerprocess___qr_stack(queue):
             "outputdir": setup.output_dir,
             "output_filename": output_filename,
             }
-        remote_output_filename = "/work/podi/test/wcs_calib.out.fits"
         logger.debug("Setting output filename: %s" % (output_filename))
         
 
@@ -448,24 +447,24 @@ def workerprocess___qr_stack(queue):
 
         # Run the swarpstack command nice'd to give higher priorities 
         # to concurrent data reduction jobs
-        swarp_nicelevel = "nice -n +10"
+        swarp_nicelevel = "nice +10"
 
         # Set options (bgsub, pixelscale) etc.
         options = "%s" % (nonsidereal_option)
 
-        if ("bgsub" in extra and extra['bgsub'] == 'yes'):
+        if ("bgsub" in params and params['bgsub'] == 'yes'):
             options += " -bgsub"
 
-        if ('pixelscale' in extra):
+        if ('pixelscale' in params):
             try:
-                pixelscale = float(extra['pixelscale'])
+                pixelscale = float(params['pixelscale'])
                 if (pixelscale >= 0.1):
-                    options += " -pixelscale=%s" % extra['pixelscale']
+                    options += " -pixelscale=%s" % params['pixelscale']
             except:
                 pass
 
-        if ('skipota' in extra):
-            otas = extra['skipota'].split(",")
+        if ('skipota' in params):
+            otas = params['skipota'].split(",")
             ota_list = []
             for ota in otas:
                 try:
@@ -476,8 +475,8 @@ def workerprocess___qr_stack(queue):
             if (len(ota_list) > 0):
                 options += " -skipota=%s" % (",".join(ota_list))
 
-        if ('combine' in extra):
-            combine_mode = extra['combine']
+        if ('combine' in params):
+            combine_mode = params['combine']
             options += " -combine=%s" % (combine_mode.split(",")[0])
 
 
@@ -497,16 +496,19 @@ def workerprocess___qr_stack(queue):
             'remote_inputlist': " ".join(remote_filelist)
             }
 
-        print " ".join(ssh_command.split())
+        print "\n"*3," ".join(ssh_command.split()),"\n"*3
 
         #
         # Now execute the actual swarpstack command
         #
         if (not cmdline_arg_isset("-dryrun")):
+            logger.info("Running swarpstack remotely on %s" % (setup.ssh_host))
             process = subprocess.Popen(ssh_command.split(), 
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.PIPE)
             _stdout, _stderr = process.communicate()
+            dt = 0.2
+            logger.info("swarpstack has completed successfully (%.2f seconds)" % (dt))
 
         # 
         # Once we are here, we have the output file created
