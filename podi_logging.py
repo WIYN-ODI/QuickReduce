@@ -220,17 +220,27 @@ def log_master(queue, options):
         except:
             pass
 
+    #
+    # Create a handler for all output that also goes into the display
+    #
     info = logging.getLogger('info')
+    
+    # set format for the terminal output
     try:
         h = logging.StreamHandler(stream=sys.stdout)
     except TypeError:
         h = logging.StreamHandler(strm=sys.stdout)
     except:
         raise
-    f = logging.Formatter('%(name)s: %(message)s')
+    # Add some specials to make sure we are always writing to a clean line
+    f = logging.Formatter('\r\x1b[2K%(name)s: %(message)s')
+    # f = logging.Formatter('%(name)s: %(message)s')
     h.setFormatter(f)
     info.addHandler(h)
     
+    # 
+    # Also write all info/warning/error messages to the logfile
+    #
     infolog_file = open("quickreduce.log", "w")
     try:
         h = logging.StreamHandler(stream=infolog_file)
