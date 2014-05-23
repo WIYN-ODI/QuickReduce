@@ -184,7 +184,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
         # Now construct the output filename
         if (corrected_filename and swarp_params['use_nonsidereal']):
             suffix = "nonsidereal.fits"
-        if (corrected_filename == None and swarp_params['use_ephemerides'] != []):
+        if (corrected_filename == None and swarp_params['use_ephemerides']):
             suffix = "ephemerides.fits"
         if (corrected_filename == None and options['skip_otas'] != []):
             suffix = "otaselect.fits"
