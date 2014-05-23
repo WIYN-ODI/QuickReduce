@@ -2,9 +2,10 @@
 
 print "importing sampy"
 import sys
-sys.path.append("./../")
+import os
+bd, _ = os.path.split(os.path.abspath(sys.argv[0]))
+sys.path.append(bd+"/../")
 
-sys.path.append("/work/podi_devel/")
 # try:
 #     import astropy.vo.samp as sampy
 # except:
@@ -13,7 +14,6 @@ try:
 except:
     import sampy
 
-import os
 import time
 import datetime
 from podi_commandline import *
