@@ -13,7 +13,8 @@ import datetime
 sys.path.append("/work/podi_devel/")
 from podi_commandline import *
 from podi_definitions import *
-
+import podi_logging
+import logging
 
 def get_ephemerides_for_object(object_name, 
                                start_datetime="2012-01-01",
@@ -22,6 +23,9 @@ def get_ephemerides_for_object(object_name,
                                session_log_file=None,
                                verbose=True):
 
+    logger = logging.getLogger("HorizonInterface")
+
+    logger.info("Connecting to NASA Horizon Telnet server, searching for %s" % (object_name))
     tn = telnetlib.Telnet('horizons.jpl.nasa.gov', 6775)
     tn.write("vt100\n")
 
@@ -29,6 +33,7 @@ def get_ephemerides_for_object(object_name,
 
     return_string = tn.read_until("Horizons> ")
     session_log += return_string
+    logger.debug(return_string)
 
     # NASA should return:
     # ---
@@ -53,6 +58,7 @@ def get_ephemerides_for_object(object_name,
 
     session_log += return_string
     if (verbose): print return_string
+    logger.debug(return_string)
 
     if (return_string.find(">EXACT< designation search [CASE & SPACE sensitive]:") >= 0):
         # This was a search for the exact designation
@@ -75,8 +81,10 @@ def get_ephemerides_for_object(object_name,
 
     search_result = tn.read_until("<cr>:")
     session_log += search_result
-    print session_log
+    # print session_log
     if (verbose): print search_result
+    logger.debug(search_result)
+
     # For numbered objects, and for un-numbered objects after confirmation, we
     # should received something like this:
     # ---
@@ -121,141 +129,170 @@ def get_ephemerides_for_object(object_name,
         # *******************************************************************************
         # ---
 
+        logger.error("Selected object (%s) not found" % (object_name))
         tn.close()
         print "\n"*5,"No matches found","\n"*5
         return None
 
-
+    logger.info("Obtaining ephemeris for times %s ... %s (%s)" % (
+        start_datetime, end_datetime, time_interval)
+    )
     # No request [E]phemeris
     tn.write("E\n")
 
     horizon_return = tn.read_until("Observe, Elements, Vectors  [o,e,v,?] :")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("o\n")
 
     horizon_return = tn.read_until(" Coordinate center [ <id>,coord,geo  ] :")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("695@399\n")
 
     horizon_return = tn.read_until(" Confirm selected station    [ y/n ] --> ")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("y\n")
 
     horizon_return = tn.read_until(" Starting UT  [>=   1599-Dec-11 23:59] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
-    tn.write("2012-01-01\n")
+    logger.debug(horizon_return)
+    tn.write("%s\n" % (start_datetime))
 
     horizon_return = tn.read_until(" Ending   UT  [<=   2500-Dec-30 23:58] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
-    tn.write("2015-01-05\n")
+    logger.debug(horizon_return)
+    tn.write("%s\n" % (end_datetime))
 
     horizon_return = tn.read_until(" Output interval [ex: 10m, 1h, 1d, ? ] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
-    tn.write("1d\n")
+    logger.debug(horizon_return)
+    tn.write("%s\n" % (time_interval))
 
     horizon_return = tn.read_until(" Accept default output [ cr=(y), n, ?] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("n\n")
 
     horizon_return = tn.read_until(" Select table quantities [ <#,#..>, ?] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("1,3,7,9\n")
 
     horizon_return = tn.read_until(" Output reference frame [J2000, B1950] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("J2000\n")
 
     horizon_return = tn.read_until(" Time-zone correction   [ UT=00:00,? ] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("\n")
 
     horizon_return = tn.read_until(" Output UT time format   [JD,CAL,BOTH] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("JD\n")
 
     horizon_return = tn.read_until(" Output time digits  [MIN,SEC,FRACSEC] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("MIN\n")
 
     horizon_return = tn.read_until(" Output R.A. format       [ HMS, DEG ] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("DEG\n")
 
     horizon_return = tn.read_until(" Output high precision RA/DEC [YES,NO] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("YES\n")
 
     horizon_return = tn.read_until(" Output APPARENT [ Airless,Refracted ] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("Airless\n")
 
     horizon_return = tn.read_until(" Set units for RANGE output [ KM, AU ] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("AU\n")
 
     horizon_return = tn.read_until(" Suppress RANGE_RATE output [ YES,NO ] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("YES\n")
 
     horizon_return = tn.read_until(" Minimum elevation [ -90 <= elv <= 90] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("\n")
 
     horizon_return = tn.read_until(" Maximum air-mass  [ 1 <=   a  <= 38 ] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("\n")
 
     horizon_return = tn.read_until(" Print rise-transit-set only [N,T,G,R] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("N\n")
 
     horizon_return = tn.read_until(" Skip printout during daylight [ Y,N ] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("N\n")
 
     horizon_return = tn.read_until(" Solar elongation cut-off   [ 0, 180 ] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("\n")
 
     horizon_return = tn.read_until(" Local Hour Angle cut-off       [0-12] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("\n")
 
     horizon_return = tn.read_until(" Spreadsheet CSV format        [ Y,N ] : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
     tn.write("Y\n")
 
     horizon_return = tn.read_until("$$SOE\r\n")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
 
     ephemdata = tn.read_until("$$EOE")
     session_log += ephemdata
-    print ephemdata
+    if (verbose): print ephemdata
+    logger.debug(ephemdata)
 
     datafile = open("telnet.csv", "w")
     print >>datafile, ephemdata
@@ -264,6 +301,7 @@ def get_ephemerides_for_object(object_name,
     horizon_return = tn.read_until(" >>> Select... [A]gain, [N]ew-case, [F]tp, [K]ermit, [M]ail, [R]edisplay, ? : ")
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
 
     # send the quit command
     tn.write("q\n")
@@ -271,14 +309,18 @@ def get_ephemerides_for_object(object_name,
     horizon_return = tn.read_all()
     session_log += horizon_return 
     if (verbose): print horizon_return
+    logger.debug(horizon_return)
 
+    logger.debug("Closing connection")
     tn.close()
 
     if (not session_log_file == None):
+        logger.debug("Saving session to file %s" % (session_log_file))
         logfile = open(session_log_file, "w")
         print >>logfile, session_log
         logfile.close()
 
+    logger.info("Interpreting results")
     #
     # Analyse the output 
     #
@@ -311,6 +353,7 @@ def get_ephemerides_for_object(object_name,
     #
     #
 
+    logger.info("successfully obtained ephemeris (%d datapoints)" % (data.shape[0]))
     return results
 
 
@@ -366,8 +409,13 @@ def get_ephemerides_for_object_from_filelist(object_name,
                                              session_log_file=None,
                                              verbose=True):
 
-    print object_name
-    print "\n".join(filelist)+"\n"
+    
+    if (verbose):
+        print object_name
+        print "\n".join(filelist)+"\n"
+
+    logger = logging.getLogger("HorizonInterface")
+    logger.info("Determining MJD time-frame from %d files" % (len(filelist)))
 
     mjd_min, mjd_max = find_timescale(filelist)
 
@@ -391,12 +439,14 @@ def get_ephemerides_for_object_from_filelist(object_name,
     start_mjd = math.floor((mjd_min-timebuffer)/timebuffer) * timebuffer
     end_mjd   =  math.ceil((mjd_max+timebuffer)/timebuffer) * timebuffer
 
-    print start_mjd, end_mjd
-
     start_datetime = mjd_to_datetime(start_mjd, "%Y-%m-%d %H:%M")
     end_datetime = mjd_to_datetime(end_mjd, "%Y-%m-%d %H:%M")
 
-    print start_datetime, end_datetime
+    logger.info("Found time-range: %.2f days between %s to %s" % (
+        delta_mjd, start_datetime, end_datetime)
+    )
+
+    # print start_datetime, end_datetime
 
     results =  get_ephemerides_for_object(object_name, 
                                           start_datetime=start_datetime,
