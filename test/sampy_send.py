@@ -77,8 +77,8 @@ if __name__ == "__main__":
         print out
 
     elif (target == 'stack'):
-        trackrate = get_clean_cmdline()[2]
-        filelist = get_clean_cmdline()[3:]
+        trackrate = 'none'
+        filelist = get_clean_cmdline()[2:]
 
         abspath_filelist = []
         for fn in filelist:
@@ -87,20 +87,24 @@ if __name__ == "__main__":
         print trackrate
         print filelist
 
+        # Create the extra_kws
+        extra_kws = {"pixelscale": "0.4",
+                     "bgsub": "no",
+                     }
+        if (cmdline_arg_isset("-pixelscale")):
+            extra_kws['pixelscale'] = get_cmdline_arg("-pixelscale")
+        if (cmdline_arg_isset("-bgsub")):
+            extra_kws['bgsub'] = "yes"
+        if (cmdline_arg_isset("-nonsidereal")):
+            trackrate = get_cmdline_arg("-nonsidereal")
+        if (cmdline_arg_isset("-combine")):
+            extra_kws['combine'] = get_cmdline_arg("-combine")
+
         cli1.enotifyAll("qr.stack", 
                         filelist=",".join(abspath_filelist),
                         trackrate=trackrate,
-                        extra_kws = {"pixelscale": "0.4",
-                                     "bgsub": "yes",
-                                     })
-        # cli1.enotifyAll("qr.stack", 
-        #                 params={"filelist": filelist,
-        #                         "trackrate": trackrate,
-        #                         },
-        #                 extra_kws = {"pixelscale": "0.4",
-        #                              "bgsub": "yes",
-        #                              }
-        #                 )
+                        extra_kws = extra_kws,
+                        )
     else:
         # This is not understood
         print "I don't understand this target: only qr and ds9 are known"
