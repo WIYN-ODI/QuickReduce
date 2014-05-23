@@ -423,6 +423,24 @@ def workerprocess___qr_stack(queue):
         for fn in filelist:
             remote_filelist.append(setup.translate_filename_local2remote(fn))
 
+        # If the non-sidereal option is set, use the tracking rate and 
+        # configure the additional command-line flag for swarpstack
+        nonsidereal_option = ""
+        if (not tracking_rate == 'none'):
+            items = tracking_rate.split(",")
+            if (len(items) == 2):
+                track_ra = float(items[0])
+                track_dec = float(items[1])
+                if (track_ra != 0 or track_dec != 0):
+                    # This fulfills all criteria for a valid non-sidereal command
+                    # Use first frame as MJD reference frame
+                    mjd_ref_frame = remote_filelist[0]
+                    nonsidereal_option = "-nonsidereal=%(ra)s,%(dec)s,%(refframe)s" % {
+                        'ra': items[0],
+                        'dec': items[1],
+                        'refframe': mjd_ref_frame,
+                        }
+
         #
         # Now we have the list of input files, and the output filename, 
         # lets go and initate the ssh request and get to work
@@ -433,7 +451,35 @@ def workerprocess___qr_stack(queue):
         swarp_nicelevel = "nice -n +10"
 
         # Set options (bgsub, pixelscale) etc.
-        options = ""
+        options = "%s" % (nonsidereal_option)
+
+        if ("bgsub" in extra and extra['bgsub'] == 'yes'):
+            options += " -bgsub"
+
+        if ('pixelscale' in extra):
+            try:
+                pixelscale = float(extra['pixelscale'])
+                if (pixelscale >= 0.1):
+                    options += " -pixelscale=%s" % extra['pixelscale']
+            except:
+                pass
+
+        if ('skipota' in extra):
+            otas = extra['skipota'].split(",")
+            ota_list = []
+            for ota in otas:
+                try:
+                    ota_d = int(ota)
+                    ota_list.append("%02d" % ota_d)
+                except:
+                    pass
+            if (len(ota_list) > 0):
+                options += " -skipota=%s" % (",".join(ota_list))
+
+        if ('combine' in extra):
+            combine_mode = extra['combine']
+            options += " -combine=%s" % (combine_mode.split(",")[0])
+
 
         logger.info("Stacking %d frames, output in %s" % (len(filelist), output_filename))
 
