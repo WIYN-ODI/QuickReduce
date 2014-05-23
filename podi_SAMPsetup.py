@@ -20,6 +20,8 @@ ssh_executable = "/work/podi_devel/podi_collectcells.py"
 # Some additional settings for the focus sequence
 focus_display = "display"
 
+swarp_nicelevel = "nice +10"
+
 def translate_filename_local2remote(filename):
     """
 

@@ -487,7 +487,7 @@ def workerprocess___qr_stack(queue):
                           %(remote_output_filename)s %(options)s %(remote_inputlist)s" % {
             'username': setup.ssh_user,
             'host': setup.ssh_host,
-            'swarpnice': swarp_nicelevel,
+            'swarpnice': setup.swarp_nicelevel,
             'podidir': setup.remote_podi_dir,
             'remote_output_filename': remote_output_filename,
             'outputdir': setup.output_dir,
