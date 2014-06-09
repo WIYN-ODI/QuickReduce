@@ -353,7 +353,7 @@ def workerprocess___qr_stack(queue):
             continue
 
         if (task == None):
-            print "Shutting down worker"
+            logger.info("Shutting down worker")
             queue.task_done()
             break
 
@@ -363,6 +363,8 @@ def workerprocess___qr_stack(queue):
 
         str_filelist = params['filelist']
         tracking_rate = params['trackrate']
+        logger.debug("Received 'filelist': %s" % (str_filelist))
+        logger.debug("Received 'trackrate': %s" % (tracking_rate))
 
         # print "starting work on file",str_filelist
 
@@ -372,6 +374,7 @@ def workerprocess___qr_stack(queue):
         filelist = []
         for fitsfile in str_filelist.split(","):
             if (os.path.isfile(fitsfile)):
+                logger.debug("Found valid input file: %s" % (fitsfile))
                 filelist.append(fitsfile)
 
         # print "filelist = ",filelist
@@ -379,6 +382,7 @@ def workerprocess___qr_stack(queue):
         # We need at least one file to work on
         if (len(filelist) <= 0):
             queue.task_done()
+            logger.info("No valid files for stacking found!")
             continue
 
         # print datetime.datetime.now().strftime("%H:%M:%S.%f")
@@ -396,9 +400,12 @@ def workerprocess___qr_stack(queue):
         filter_name = firsthdu[0].header['FILTER']  \
             if 'FILTER' in firsthdu[0].header else"unknown"
         firsthdu.close()
+        logger.debug("Reference data: object:%s, filter:%s" % (
+            object_name, filter_name))
 
         # Create a ODI-like timestamp
         formatted_timestamp = params['timestamp'].strftime("%Y%m%dT%H%M%S")
+        logger.debug("Formatted timestamp for output file: %s" % (formatted_timestamp))
 
         # instead of the number in the dither sequence, 
         # use the number of frames in this stack
@@ -422,6 +429,7 @@ def workerprocess___qr_stack(queue):
         remote_filelist = []
         for fn in filelist:
             remote_filelist.append(setup.translate_filename_local2remote(fn))
+        logger.debug("Filelist on remote filesystem:\n%s" % ("\n".join(remote_filelist)))
 
         # If the non-sidereal option is set, use the tracking rate and 
         # configure the additional command-line flag for swarpstack
@@ -440,15 +448,12 @@ def workerprocess___qr_stack(queue):
                         'dec': items[1],
                         'refframe': mjd_ref_frame,
                         }
+        logger.debug("Non-sidereal setup: %s" % (nonsidereal_option))
 
         #
         # Now we have the list of input files, and the output filename, 
         # lets go and initate the ssh request and get to work
         #
-
-        # Run the swarpstack command nice'd to give higher priorities 
-        # to concurrent data reduction jobs
-        swarp_nicelevel = "nice +10"
 
         # Set options (bgsub, pixelscale) etc.
         options = "%s" % (nonsidereal_option)
