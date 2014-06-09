@@ -60,6 +60,25 @@ metadata = {"samp.name":
 }
 
 
+character_escape = {
+    " ": "_",
+    "\\": "",
+    "/": "",
+    "|": "",
+    "&": "",
+    ";": "",
+    ">": "",
+    "<": "",
+    "$": "",
+}
+
+def escape_characters(filename):
+    for bad_character in character_escape:
+        filename = filename.replace(bad_character, character_escape[bad_character])
+    return filename
+
+    
+
 def worker_slave(queue):
     """
 
@@ -414,7 +433,8 @@ def workerprocess___qr_stack(queue):
         # Assemble the entire filename
         output_filename = "stack%s.%d__%s__%s.fits" % (
             formatted_timestamp, number_of_frames, object_name, filter_name
-            )
+        )
+        output_filename = escape_characters(output_filename)
         remote_output_filename = "%(outputdir)s/%(output_filename)s" % {
             "outputdir": setup.output_dir,
             "output_filename": output_filename,
