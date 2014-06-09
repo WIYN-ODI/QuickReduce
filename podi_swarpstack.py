@@ -180,21 +180,22 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
 
 
         # Assemble the temporary filename for the corrected frame
-        suffix = "fits"
+        suffix = None
         # Now construct the output filename
         if (corrected_filename and swarp_params['use_nonsidereal']):
-            suffix = "nonsidereal.fits"
+            suffix = "nonsidereal"
         if (corrected_filename == None and swarp_params['use_ephemerides']):
-            suffix = "ephemerides.fits"
+            suffix = "ephemerides"
         if (corrected_filename == None and options['skip_otas'] != []):
-            suffix = "otaselect.fits"
+            suffix = "otaselect"
         if (corrected_filename == None and not options['bpm_dir'] == None):
-            suffix = "bpmfixed.fits"
+            suffix = "bpmfixed"
 
-        corrected_filename = "%(single_dir)s/%(obsid)s.%(suffix)s" % {
-            "single_dir": swarp_params['unique_singledir'],
-            "obsid": hdulist[0].header['OBSID'],
-            "suffix": suffix,
+        if (not suffix == None):
+            corrected_filename = "%(single_dir)s/%(obsid)s.%(suffix)s.fits" % {
+                "single_dir": swarp_params['unique_singledir'],
+                "obsid": hdulist[0].header['OBSID'],
+                "suffix": suffix,
             }
 
         #
@@ -714,6 +715,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
                'resample_dir': unique_singledir,
                'inputfile': prepared_file,
                'swarp_default': swarp_default,
+               'fluxscale': 'none' if swarp_params['no-fluxscale'] else 'FLXSCALE'
            }
 
         swarp_opts = """\
@@ -729,6 +731,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
                  -IMAGE_SIZE %(imgsizex)d,%(imgsizey)d \
                  -RESAMPLE_DIR %(resample_dir)s \
                  -SUBTRACT_BACK N \
+                 -FSCALE_KEYWORD %(fluxscale)s \
                  %(inputfile)s \
                  """ % dic
 
