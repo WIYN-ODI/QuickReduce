@@ -395,6 +395,14 @@ def workerprocess___qr_stack(queue):
             if (os.path.isfile(fitsfile)):
                 logger.debug("Found valid input file: %s" % (fitsfile))
                 filelist.append(fitsfile)
+            elif (os.path.ispath(fitsfile)):
+                logger.debug("Found directory name")
+                if (fitsfile[-1] == "/"):
+                    fitsfile = fitsfile[:-1]
+                basedir, filebase = os.path.split(fitsfile)
+                fitsfile = "%s/%s.33.fits" % (fitsfile, filebase)
+                filelist.append(fitsfile)
+
 
         # print "filelist = ",filelist
 
