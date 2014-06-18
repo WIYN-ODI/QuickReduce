@@ -970,132 +970,141 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
     # Use the background-subtracted or single files from above as direct input, 
     # i.e. do not resample these files as they are already on the right pixel grid.
     #
+    # This procedure is done for each of the combine methods specified on the 
+    # command line
+    # 
     #############################################################################
-    dic['combine_type'] = swarp_params['combine-type'] #"AVERAGE"
-    dic['imageout'] = outputfile+".fits"
-    dic['weightout'] = outputfile+".weight.fits"
-    dic['prepared_files'] = " ".join(single_prepared_files)
-    dic['bgsub'] = "N" # as this was done before if swarp_params['subtract_back'] else "N"
-    dic['clip-sigma'] = swarp_params['clip-sigma']
-    dic['clip-ampfrac'] = swarp_params['clip-ampfrac']
-
-    swarp_opts = """\
-                 -c %(swarp_default)s \
-                 -IMAGEOUT_NAME %(imageout)s \
-                 -WEIGHTOUT_NAME %(weightout)s \
-                 -COMBINE_TYPE %(combine_type)s \
-                 -PIXEL_SCALE %(pixelscale)f \
-                 -PIXELSCALE_TYPE %(pixelscale_type)s \
-                 -COMBINE Y \
-                 -COMBINE_TYPE %(combine_type)s \
-                 -CLIP_AMPFRAC %(clip-ampfrac)f \
-                 -CLIP_SIGMA %(clip-sigma)f \
-                 -CENTER_TYPE MANUAL \
-                 -CENTER %(center_ra)f,%(center_dec)f \
-                 -IMAGE_SIZE %(imgsizex)d,%(imgsizey)d \
-                 -RESAMPLE N \
-                 -RESAMPLE_DIR %(singledir)s \
-                 -SUBTRACT_BACK %(bgsub)s \
-                 -WEIGHT_TYPE MAP_WEIGHT \
-                 -DELETE_TMPFILES N \
-                 -WRITE_FILEINFO Y
-                 """ % dic
-
-
-    logger = logging.getLogger("SwarpStack - FinalStack")
-    logger.info("Starting final stacking...")
-    # print swarp_opts
-
-    swarp_cmd = "%s %s %s" % (sitesetup.swarp_exec, swarp_opts, " ".join(final_prepared_files))
-    logger.debug(" ".join(swarp_cmd.split()))
-    try:
-        ret = subprocess.Popen(swarp_cmd.split(), 
-                                   stdout=subprocess.PIPE, 
-                                   stderr=subprocess.PIPE)
-        (swarp_stdout, swarp_stderr) = ret.communicate()
-
-        logger.debug("swarp stdout:\n"+swarp_stdout)
-        if (len(swarp_stderr) > 0 and ret.returncode != 0):
-            logger.warning("swarp stderr:\n"+swarp_stderr)
+    for combine_type in swarp_params['combine-type']:
+        dic['combine_type'] = combine_type #swarp_params['combine-type'] #"AVERAGE"
+        if (len(swarp_params['combine-type']) > 1):
+            dic['imageout'] = "%s.%s.fits" % (outputfile, combine_type)
+            dic['weightout'] = "%s.%s.weight.fits" % (outputfile, combine_type) #outputfile+".weight.fits"
         else:
-            logger.debug("swarp stderr:\n"+swarp_stderr)
-        #print "\n".join(swarp_stderr)
-        logger.info("done, swarp returned (ret-code: %d)!" % ret.returncode)
-    except OSError as e:
-        podi_logging.log_exception()
-        print >>sys.stderr, "Execution failed:", e
+            dic['imageout'] = "%s.fits" % (outputfile)
+            dic['weightout'] = "%s.weight.fits" % (outputfile)
 
-    logger.info("Stack (%s) complete, adding headers" % (dic['imageout']))
+        dic['prepared_files'] = " ".join(single_prepared_files)
+        dic['bgsub'] = "N" # as this was done before if swarp_params['subtract_back'] else "N"
+        dic['clip-sigma'] = swarp_params['clip-sigma']
+        dic['clip-ampfrac'] = swarp_params['clip-ampfrac']
 
-    # Finally, open the output file and copy a bunch of headers into it
-    hdustack = pyfits.open(dic['imageout'], mode='update')
-    # Also open the first frame in the stack to be used as data source
-    firsthdu = pyfits.open(inputlist[0])
+        swarp_opts = """\
+                     -c %(swarp_default)s \
+                     -IMAGEOUT_NAME %(imageout)s \
+                     -WEIGHTOUT_NAME %(weightout)s \
+                     -COMBINE_TYPE %(combine_type)s \
+                     -PIXEL_SCALE %(pixelscale)f \
+                     -PIXELSCALE_TYPE %(pixelscale_type)s \
+                     -COMBINE Y \
+                     -COMBINE_TYPE %(combine_type)s \
+                     -CLIP_AMPFRAC %(clip-ampfrac)f \
+                     -CLIP_SIGMA %(clip-sigma)f \
+                     -CENTER_TYPE MANUAL \
+                     -CENTER %(center_ra)f,%(center_dec)f \
+                     -IMAGE_SIZE %(imgsizex)d,%(imgsizey)d \
+                     -RESAMPLE N \
+                     -RESAMPLE_DIR %(singledir)s \
+                     -SUBTRACT_BACK %(bgsub)s \
+                     -WEIGHT_TYPE MAP_WEIGHT \
+                     -DELETE_TMPFILES N \
+                     -WRITE_FILEINFO Y
+                     """ % dic
 
-    for hdrkey in [
-            'TARGRA', 'TARGDEC',
-            'FILTER', 'FILTERID', 'FILTDSCR', 
-            'OBSID', 'OBJECT', 
-            'DATE-OBS', 'TIME-OBS', 'MJD-OBS']:
-        if (hdrkey in firsthdu[0].header):
-            key, val, com = firsthdu[0].header.cards[hdrkey]
-            hdustack[0].header[key] = (val, com)
 
-    hdustack[0].header['EXPTIME'] = (stack_total_exptime, "total exposure time in stack")
-    hdustack[0].header['MJD-STRT'] = (stack_start_time, "MJD at start of earliest exposure")
-    hdustack[0].header['MJD-END'] = (stack_end_time, "MJD at end of last exposure")
-    hdustack[0].header['NCOMBINE'] = (stack_framecount, "number of exposures in stack")
+        logger = logging.getLogger("SwarpStack - FinalStack")
+        logger.info("Starting final stacking...")
+        # print swarp_opts
 
-    # Add some additional headers
-    hdustack[0].header['MAGZERO'] = 25.
-    hdustack[0].header['_BGSUB'] = "yes" if swarp_params['subtract_back'] else "no"
-    hdustack[0].header['_PXLSCLE'] = swarp_params['pixelscale']
-    hdustack[0].header['_RESGL'] = ("yes" if swarp_params['reuse_singles'] else "no", "reuse singles?")
-    hdustack[0].header['_NONSDRL'] = ("yes" if swarp_params['use_nonsidereal'] else "no", "using non-sidereal correction?")
-    valid_nonsidereal_reference = False
-    try:
-        hdustack[0].header['_NSID_RA'] = options['nonsidereal']['dra']
-        hdustack[0].header['_NSID_DE'] = options['nonsidereal']['ddec']
-        hdustack[0].header['_NSID_RT'] = options['nonsidereal']['ref_mjd']
-        hdustack[0].header['_NSID_RF'] = options['nonsidereal']['ref']
-        if (os.path.isfile(options['nonsidereal']['ref'])):
-            valid_nonsidereal_reference = True
-    except:
-        pass
-    firsthdu.close()
-
-    if (valid_nonsidereal_reference):
-        firsthdu = pyfits.open(options['nonsidereal']['ref'])
+        swarp_cmd = "%s %s %s" % (sitesetup.swarp_exec, swarp_opts, " ".join(final_prepared_files))
+        logger.debug(" ".join(swarp_cmd.split()))
         try:
-            hdustack[0].header['NSR-OBST'] = firsthdu[0].header['TIME-OBS']
-            hdustack[0].header['NSR-OBSD'] = firsthdu[0].header['DATE-OBS']
-            hdustack[0].header['NSR-OBSM'] = firsthdu[0].header['MJD-OBS']
+            ret = subprocess.Popen(swarp_cmd.split(), 
+                                       stdout=subprocess.PIPE, 
+                                       stderr=subprocess.PIPE)
+            (swarp_stdout, swarp_stderr) = ret.communicate()
 
-            hdustack[0].header['NSR-MIDT'] = firsthdu[0].header['TIME-MID']
-            hdustack[0].header['NSR-MIDD'] = firsthdu[0].header['DATE-MID']
-            hdustack[0].header['NSR-MIDM'] = firsthdu[0].header['MJD-MID']
+            logger.debug("swarp stdout:\n"+swarp_stdout)
+            if (len(swarp_stderr) > 0 and ret.returncode != 0):
+                logger.warning("swarp stderr:\n"+swarp_stderr)
+            else:
+                logger.debug("swarp stderr:\n"+swarp_stderr)
+            #print "\n".join(swarp_stderr)
+            logger.info("done, swarp returned (ret-code: %d)!" % ret.returncode)
+        except OSError as e:
+            podi_logging.log_exception()
+            print >>sys.stderr, "Execution failed:", e
 
-            hdustack[0].header['NSR-ENDT'] = firsthdu[0].header['TIME-END']
-            hdustack[0].header['NSR-ENDD'] = firsthdu[0].header['DATE-END']
-            hdustack[0].header['NSR-ENDM'] = firsthdu[0].header['MJD-END']
+        logger.info("Stack (%s) complete, adding headers" % (dic['imageout']))
+
+        # Finally, open the output file and copy a bunch of headers into it
+        hdustack = pyfits.open(dic['imageout'], mode='update')
+        # Also open the first frame in the stack to be used as data source
+        firsthdu = pyfits.open(inputlist[0])
+
+        for hdrkey in [
+                'TARGRA', 'TARGDEC',
+                'FILTER', 'FILTERID', 'FILTDSCR', 
+                'OBSID', 'OBJECT', 
+                'DATE-OBS', 'TIME-OBS', 'MJD-OBS']:
+            if (hdrkey in firsthdu[0].header):
+                key, val, com = firsthdu[0].header.cards[hdrkey]
+                hdustack[0].header[key] = (val, com)
+
+        hdustack[0].header['EXPTIME'] = (stack_total_exptime, "total exposure time in stack")
+        hdustack[0].header['MJD-STRT'] = (stack_start_time, "MJD at start of earliest exposure")
+        hdustack[0].header['MJD-END'] = (stack_end_time, "MJD at end of last exposure")
+        hdustack[0].header['NCOMBINE'] = (stack_framecount, "number of exposures in stack")
+
+        # Add some additional headers
+        hdustack[0].header['MAGZERO'] = 25.
+        hdustack[0].header['_BGSUB'] = "yes" if swarp_params['subtract_back'] else "no"
+        hdustack[0].header['_PXLSCLE'] = swarp_params['pixelscale']
+        hdustack[0].header['_RESGL'] = ("yes" if swarp_params['reuse_singles'] else "no", "reuse singles?")
+        hdustack[0].header['_NONSDRL'] = ("yes" if swarp_params['use_nonsidereal'] else "no", "using non-sidereal correction?")
+        valid_nonsidereal_reference = False
+        try:
+            hdustack[0].header['_NSID_RA'] = options['nonsidereal']['dra']
+            hdustack[0].header['_NSID_DE'] = options['nonsidereal']['ddec']
+            hdustack[0].header['_NSID_RT'] = options['nonsidereal']['ref_mjd']
+            hdustack[0].header['_NSID_RF'] = options['nonsidereal']['ref']
+            if (os.path.isfile(options['nonsidereal']['ref'])):
+                valid_nonsidereal_reference = True
         except:
             pass
+        firsthdu.close()
 
-    # Add the user-defined keywords to the stacked file. This is required for
-    # proper integration with the PPA framework.
-    # print options['additional_fits_headers']
-    for key, value in options['additional_fits_headers'].iteritems():
-        hdustack[0].header[key] = (value, "user-added keyword")
+        if (valid_nonsidereal_reference):
+            firsthdu = pyfits.open(options['nonsidereal']['ref'])
+            try:
+                hdustack[0].header['NSR-OBST'] = firsthdu[0].header['TIME-OBS']
+                hdustack[0].header['NSR-OBSD'] = firsthdu[0].header['DATE-OBS']
+                hdustack[0].header['NSR-OBSM'] = firsthdu[0].header['MJD-OBS']
 
-    #
-    # Create an association table from the master reduction files used.
-    # 
-    # print master_reduction_files_used
-    assoc_table = create_association_table(master_reduction_files_used)
-    hdustack.append(assoc_table)
+                hdustack[0].header['NSR-MIDT'] = firsthdu[0].header['TIME-MID']
+                hdustack[0].header['NSR-MIDD'] = firsthdu[0].header['DATE-MID']
+                hdustack[0].header['NSR-MIDM'] = firsthdu[0].header['MJD-MID']
 
-    hdustack.flush()
-    hdustack.close()
+                hdustack[0].header['NSR-ENDT'] = firsthdu[0].header['TIME-END']
+                hdustack[0].header['NSR-ENDD'] = firsthdu[0].header['DATE-END']
+                hdustack[0].header['NSR-ENDM'] = firsthdu[0].header['MJD-END']
+            except:
+                pass
+
+        # Add the user-defined keywords to the stacked file. This is required for
+        # proper integration with the PPA framework.
+        # print options['additional_fits_headers']
+        for key, value in options['additional_fits_headers'].iteritems():
+            hdustack[0].header[key] = (value, "user-added keyword")
+
+        #
+        # Create an association table from the master reduction files used.
+        # 
+        # print master_reduction_files_used
+        assoc_table = create_association_table(master_reduction_files_used)
+        hdustack.append(assoc_table)
+
+        hdustack.flush()
+        hdustack.close()
     
     # 
     # Delete all temporary files and the temp-directory
@@ -1131,14 +1140,20 @@ def read_swarp_params(filelist):
     params['reference_file'] = cmdline_arg_set_or_default("-reference", None)
     params['no-fluxscale'] = cmdline_arg_isset('-nofluxscale')
 
-    combine_method = cmdline_arg_set_or_default('-combine', 'average')
-    if (not combine_method.lower() in ['average', 'median', 'sum', 'min', 'max', 'weighted', 'chi2',
-                                       'chi-old', 'chi-mode', 'chi-mean', 'clipped',
-                                       'weighted_weight', 'median_weight', 'and', 'nand', 'or', 'nor']):
-        logger = logging.getLogger("Setup")
-        logger.error("The specified combine method (%s) is not supported, using average instead" % (combine_method))
-        combine_method = 'average'
-    params['combine-type'] = combine_method.upper()
+    combine_methods = cmdline_arg_set_or_default('-combine', 'average')
+    params['combine-type'] = []
+    for combine_method in combine_methods.split(","):
+        if (not combine_method.lower() in ['average', 'median', 'sum', 'min', 'max', 'weighted', 'chi2',
+                                           'chi-old', 'chi-mode', 'chi-mean', 'clipped',
+                                           'weighted_weight', 'median_weight', 'and', 'nand', 'or', 'nor']):
+            logger = logging.getLogger("Setup")
+            logger.error("The specified combine method (%s) is not supported, using average instead" % (combine_method))
+            continue
+        else:
+            params['combine-type'].append(combine_method.upper())
+    if (params['combine-type'] == []):
+        params['combine-type'].append('average'.upper())
+    
 
     params['use_ephemerides'] = cmdline_arg_isset("-ephemerides")
     if (params['use_ephemerides']):
