@@ -2902,7 +2902,8 @@ def apply_nonsidereal_correction(ota_list, options, logger=None):
             dra_corrected*3600., ddec_t*3600, ota_list[ext].header['EXTNAME'])
         )
 
-    return
+    return [dra_t, ddec_t]
+
 
     
 def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
