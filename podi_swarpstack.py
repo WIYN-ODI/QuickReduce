@@ -123,6 +123,7 @@ import socket
 import tempfile
 import shutil
 import warnings
+import time
 
 try:
     dir, _ = os.path.split(os.path.abspath(sys.argv[0]))
@@ -151,8 +152,8 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
             'exptime': 0,
             'mjd_obs_start': 0,
             'mjd_obs_end': 0,
+            'nonsidereal-dradec': None,
         }
-            
 
         try:
             hdulist = pyfits.open(input_file)
@@ -217,7 +218,8 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                 # Keep frames that are already modified
                 from podi_collectcells import apply_nonsidereal_correction
                 # print options['nonsidereal']
-                apply_nonsidereal_correction(hdulist, options, logger)
+                nonsidereal_dradec = apply_nonsidereal_correction(hdulist, options, logger)
+                ret["nonsidereal-dradec"] = nonsidereal_dradec
 
                 try:
                     if (os.path.isfile(options['nonsidereal']['ref'])):
@@ -339,6 +341,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
         # Now we have the filename of the file to be used for the swarp-input
         #
         ret["master_reduction_files"] = master_reduction_files_used
+
         logger.debug("Sending return value to master process")
         output_queue.put(ret)
         input_queue.task_done()
@@ -403,12 +406,12 @@ def prepare_input(inputlist, swarp_params, options):
     # Keep track of what files are being used for this stack
     master_reduction_files_used = {}
     corrected_file_list = []
+    nonsidereal_offsets = []
 
     stack_start_time = 1e9
     stack_end_time = -1e9
     stack_total_exptime = 0
     stack_framecount = 0
-
 
     for i in range(n_jobs):
         ret = out_queue.get()
@@ -434,6 +437,7 @@ def prepare_input(inputlist, swarp_params, options):
                                                                    ret['master_reduction_files'])
 
         corrected_file_list.append(ret['corrected_file'])
+        nonsidereal_offsets.append(ret['nonsidereal-dradec'])
 
     #
     # By now all frames have all corrections applied,
@@ -446,7 +450,13 @@ def prepare_input(inputlist, swarp_params, options):
         
     logger.info("All files prepared!")
 
-    return corrected_file_list, stack_total_exptime, stack_framecount, stack_start_time, stack_end_time, master_reduction_files_used 
+    return (corrected_file_list, 
+            stack_total_exptime, 
+            stack_framecount, 
+            stack_start_time, 
+            stack_end_time, 
+            master_reduction_files_used,
+            nonsidereal_offsets)
 
 
 def mp_swarp_single(sgl_queue, dum):
@@ -457,12 +467,13 @@ def mp_swarp_single(sgl_queue, dum):
             sgl_queue.task_done()
             break
 
-        swarp_cmd, prepared_file, single_file = cmd
+        swarp_cmd, prepared_file, single_file, swarp_params, nonsidereal_dradec, create_mask = cmd
         logger = logging.getLogger("MPSwarpSgl(%s)" % (os.path.basename(single_file)))
 
         hdulist = pyfits.open(prepared_file)
         obsid = hdulist[0].header['OBSID']
 
+        single_created_ok = False
         try:
             logger.debug(" ".join(swarp_cmd.split()))
             ret = subprocess.Popen(swarp_cmd.split(), 
@@ -477,6 +488,7 @@ def mp_swarp_single(sgl_queue, dum):
 
             # Add some basic headers from input file to the single file
             # this is important for the differencing etc.
+            logger.info("adding header to single file (%s)" % (single_file))
             hdu_single = pyfits.open(single_file,  mode='update')
             for hdrkey in [
                     'TARGRA', 'TARGDEC',
@@ -487,19 +499,126 @@ def mp_swarp_single(sgl_queue, dum):
                 if (hdrkey in hdulist[0].header):
                     key, val, com = hdulist[0].header.cards[hdrkey]
                     hdu_single[0].header[key] = (val, com)
+            # hdu_single.writeto(single_file, clobber=True)
             hdu_single.flush()
+            hdu_single.close()
 
+            single_created_ok = True
             #print "\n".join(swarp_stderr)
             # single_prepared_files.append(single_file)
         except OSError as e:
             podi_logging.log_exception()
             print >>sys.stderr, "Execution failed:", e
 
+        #
+        # Apply the mask if requested
+        #
+        if (single_created_ok and not swarp_params['mask'] == None and create_mask):
+            
+            #
+            # Apply the non-sidereal correction to the mask
+            # (only in non-sidereal mode)
+            #
+            this_mask = single_file[:-5]+".maskraw.fits"
+            mask_hdu = pyfits.open(swarp_params['mask'])
+
+            if (not nonsidereal_dradec == None):
+                
+                # Correct the declination
+                mask_hdu[0].header['CRVAL2'] -= nonsidereal_dradec[1]
+                # correct RA, compensating for cos(declination)
+
+                cos_dec = math.cos(math.radians(mask_hdu[0].header['CRVAL2']))
+                mask_hdu[0].header['CRVAL1'] -= nonsidereal_dradec[0] / cos_dec
+
+            clobberfile(this_mask)
+            mask_hdu.writeto(this_mask, clobber=True)
+            mask_hdu.close()
+
+            #
+            # Swarp the mask to the identical pixelgrid as the single frame
+            #
+            hdu_single = pyfits.open(single_file,  mode='update')
+            out_crval1 = hdu_single[0].header['CRVAL1']
+            out_crval2 = hdu_single[0].header['CRVAL2']
+            out_naxis1 = hdu_single[0].header['NAXIS1']
+            out_naxis2 = hdu_single[0].header['NAXIS2']
+            hdu_single.close()
+
+            mask_aligned = single_file[:-5]+".mask.fits"
+            swarp_mask = """
+                %(swarp)s -c %(swarp_default)s 
+                -IMAGEOUT_NAME %(mask_aligned)s
+                -WEIGHTOUT_NAME /dev/null
+                -CENTER_TYPE MANUAL
+                -CENTER %(center_ra)f,%(center_dec)f
+                -IMAGE_SIZE %(imgsizex)d,%(imgsizey)d
+                -RESAMPLE_DIR %(resample_dir)s
+                -PIXEL_SCALE %(pixelscale)f \
+                -PIXELSCALE_TYPE %(pixelscale_type)s \
+                -COMBINE Y \
+                -COMBINE_TYPE AVERAGE \
+                -SUBTRACT_BACK N \
+                %(mask_raw)s
+            """ % {
+                'swarp': sitesetup.swarp_exec,
+                'swarp_default': "%s/.config/swarp.default" % (sitesetup.exec_dir),
+                'mask_raw': this_mask,
+                'mask_aligned': mask_aligned,
+                'center_ra': out_crval1,
+                'center_dec': out_crval2,
+                'imgsizex': out_naxis1,
+                'imgsizey': out_naxis2,
+                'resample_dir': swarp_params['unique_singledir'],
+                'pixelscale': swarp_params['pixelscale'],
+                'pixelscale_type': "MANUAL",
+                }
+
+            # print "\n"*3," ".join(swarp_mask.split()),"\n"*3
+            logger.info("Matching global mask to frame ...")
+            try:
+                start_time = time.time()
+                logger.debug(" ".join(swarp_mask.split()))
+                ret = subprocess.Popen(swarp_mask.split(), 
+                                       stdout=subprocess.PIPE, 
+                                       stderr=subprocess.PIPE)
+                (swarp_stdout, swarp_stderr) = ret.communicate()
+                logger.debug("swarp stdout:\n"+swarp_stdout)
+                if (len(swarp_stderr) > 0 and ret.returncode != 0):
+                    logger.warning("swarp stderr:\n"+swarp_stderr)
+                else:
+                    logger.debug("swarp stderr:\n"+swarp_stderr)
+                end_time = time.time()
+                logger.debug("Creating mask for X finished successfully after %.2d seconds" % (end_time-start_time))
+            except:
+                pass
+
+
+            #
+            # Multiply the weight mask of this single frame with the mask, 
+            # thus eliminating all sources we want to mask out
+            #
+            logger.info("Applying mask to weightmap (%s)" % (single_file))
+            mask_hdu = pyfits.open(mask_aligned)
+            weightmap_file = single_file[:-5]+".weight.fits"
+            weightmap_hdu = pyfits.open(weightmap_file, mode='update')
+
+            weightmap_hdu[0].data[mask_hdu[0].data > 0] = 0.
+
+            weightmap_hdu.flush()
+            weightmap_hdu.close()
+
         sgl_queue.task_done()
 
 
 
-def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=False, unique_dir=None):
+def swarpstack(outputfile, 
+               inputlist, 
+               swarp_params, 
+               options, 
+               keep_intermediates=False, 
+               unique_dir=None,
+               ):
 
     logger = logging.getLogger("SwarpStack - Prepare")
 
@@ -513,11 +632,11 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
 
     master_reduction_files_used = {}
     
-    logger.info("Removing some OTAs from input: %s" % (str(options['skip_otas'])))
-
+    ############################################################################
     #
     # Construct a unique name to hold intermediate files
     #
+    ############################################################################
     if (not unique_dir == None and os.path.isdir(unique_dir)):
         unique_singledir = unique_dir
         keep_intermediates = True
@@ -527,16 +646,101 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
         # Create a temporary directory
         unique_singledir = tempfile.mkdtemp(dir=sitesetup.swarp_singledir,
                                             prefix="%s-%05d----" % (hostname, process_id))
+    # Save the directory name in swarp_params
+    logger.info("Storing intermediate files in %s ..." % (unique_singledir))
+    swarp_params['unique_singledir'] = unique_singledir
 
+
+    ############################################################################
+    #
+    # Prepare the mask file if one is requested
+    #
+    ############################################################################
+    if (not swarp_params['mask-fits'] == None and
+        swarp_params['mask'] == None):
+
+        logger.info("Creating mask (from %s)" % (swarp_params['mask-fits']))
+
+        #
+        # Extract only the first extension
+        # 
+        hdulist = pyfits.open(swarp_params['mask-fits'])
+        image_only_fits = "%s/mask_primaryonly.fits" % (unique_singledir)
+        pyfits.HDUList([hdulist[0]]).writeto(image_only_fits, clobber=True)
+
+        #
+        # We use source-extractor to create the mask
+        #        
+        sex_default = "%s/.config/swarpstack_mask.conf" % (sitesetup.exec_dir)
+        params_default = "%s/.config/swarpstack_mask.params" % (sitesetup.exec_dir)
+        segmentation_file = "%s/mask_segmentation.fits" % (unique_singledir)
+
+        sex_cmd = """
+        %(sex)s 
+        -c %(config)s 
+        -PARAMETERS_NAME %(params)s
+        -DETECT_THRESH %(nsigma)f 
+        -DETECT_MINAREA %(minarea)f
+        -CHECKIMAGE_TYPE SEGMENTATION
+        -CHECKIMAGE_NAME %(segmentation_file)s
+        %(inputfits)s
+        """ % {
+            'sex': sitesetup.sextractor,
+            'config': sex_default,
+            'params': params_default,
+            'nsigma': swarp_params['mask-nsigma'],
+            'minarea': swarp_params['mask-npix'],
+            'segmentation_file': segmentation_file,
+            'inputfits': image_only_fits,
+            #swarp_params['mask-fits'],
+            }
+
+        # print "\n"*5,sex_cmd,"\n"*5
+        # print " ".join(sex_cmd.split())
+
+        #
+        # Run SourceExtractor to compute the segmentation map
+        #
+        try:
+            start_time = time.time()
+            logger.debug("Computing segmentation map:\n%s" % (" ".join(sex_cmd.split())))
+
+            ret = subprocess.Popen(sex_cmd.split(), 
+                                   stdout=subprocess.PIPE, 
+                                   stderr=subprocess.PIPE) #, shell=True)
+            (sex_stdout, sex_stderr) = ret.communicate()
+            logger.debug("sex stdout:\n"+sex_stdout)
+            if (len(sex_stderr) > 0 and ret.returncode != 0):
+                logger.warning("sex stderr:\n"+sex_stderr)
+            else:
+                logger.debug("sex stderr:\n"+sex_stderr)
+            end_time = time.time()
+            logger.info("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
+        except OSError as e:
+            podi_logging.log_exception()
+            print >>sys.stderr, "Execution failed:", e
+
+        #
+        # Now convert the segmentation mask into a object mask
+        # 
+        seghdu = pyfits.open(segmentation_file)
+        weight = numpy.zeros(shape=seghdu[0].data.shape, dtype=numpy.float32)
+        weight[seghdu[0].data > 0] = 1.
+        
+        maskhdu = pyfits.HDUList([pyfits.PrimaryHDU(data=weight, header=seghdu[0].header)])
+        maskfile = "%s/mask.fits" % (unique_singledir)
+        clobberfile(maskfile)
+        maskhdu.writeto(maskfile, clobber=True)
+
+        swarp_params['mask'] = maskfile
+
+    logger.info("Removing some OTAs from input: %s" % (str(options['skip_otas'])))
 
     ############################################################################
     #
     # Prepare all QR'ed input files, applying additional corrections where needed
     #
     ############################################################################
-
-    logger.info("Storing intermediate files in %s ..." % (unique_singledir))
-    swarp_params['unique_singledir'] = unique_singledir
 
     stack_start_time = 1e9
     stack_end_time = -1e9
@@ -547,8 +751,10 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
     # print "output=",outputfile
 
     modified_files, stack_total_exptime, stack_framecount, \
-        stack_start_time, stack_end_time, master_reduction_files_used = \
-                                prepare_input(inputlist, swarp_params, options)
+        stack_start_time, stack_end_time, master_reduction_files_used, \
+        nonsidereal_offsets = \
+        prepare_input(inputlist, swarp_params, options)
+
     # print modified_files
     inputlist = modified_files
 
@@ -699,7 +905,12 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
     # print inputlist
     # sys.exit(0)
 
-    for prepared_file in inputlist:
+    for i in range(len(inputlist)):
+        prepared_file = inputlist[i]
+        # for prepared_file in inputlist:
+        nonsidereal_dradec = nonsidereal_offsets[i]
+        # print prepared_file, nonsidereal_dradec
+
         hdulist = pyfits.open(prepared_file)
         obsid = hdulist[0].header['OBSID']
 
@@ -749,7 +960,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
             logger.info("Preparing file %s, please wait ..." % (prepared_file))
             logger.debug(" ".join(swarp_cmd.split()))
 
-            sgl_queue.put( (swarp_cmd, prepared_file, single_file) )
+            sgl_queue.put( (swarp_cmd, prepared_file, single_file, swarp_params, nonsidereal_dradec, True) )
             single_prepared_files.append(single_file)
 
     #
@@ -925,6 +1136,9 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
             swarp_cmd = "%s %s" % (sitesetup.swarp_exec, swarp_opts)
             # print swarp_cmd
 
+            # Disable the mask, since we already prepared it earlier
+            swarp_params['mask'] = None
+
             if (add_only and os.path.isfile(bgsub_file)):
                 logger.info("This single-swarped file (%s) exist, skipping it" % (bgsub_file))
             elif (swarp_params['reuse_singles'] and os.path.isfile(bgsub_file)):
@@ -934,7 +1148,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
                 logger.info("Preparing file %s, please wait ..." % (prepared_file))
                 logger.debug(" ".join(swarp_cmd.split()))
 
-                sgl_queue.put( (swarp_cmd, prepared_file, bgsub_file) )
+                sgl_queue.put( (swarp_cmd, prepared_file, bgsub_file, swarp_params, None, False) )
                 final_prepared_files.append(bgsub_file)
 
         #
@@ -970,19 +1184,11 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
     # Use the background-subtracted or single files from above as direct input, 
     # i.e. do not resample these files as they are already on the right pixel grid.
     #
-    # This procedure is done for each of the combine methods specified on the 
-    # command line
-    # 
     #############################################################################
     for combine_type in swarp_params['combine-type']:
         dic['combine_type'] = combine_type #swarp_params['combine-type'] #"AVERAGE"
-        if (len(swarp_params['combine-type']) > 1):
-            dic['imageout'] = "%s.%s.fits" % (outputfile, combine_type)
-            dic['weightout'] = "%s.%s.weight.fits" % (outputfile, combine_type) #outputfile+".weight.fits"
-        else:
-            dic['imageout'] = "%s.fits" % (outputfile)
-            dic['weightout'] = "%s.weight.fits" % (outputfile)
-
+        dic['imageout'] = "%s.%s.fits" % (outputfile, combine_type)
+        dic['weightout'] = "%s.%s.weight.fits" % (outputfile, combine_type) #outputfile+".weight.fits"
         dic['prepared_files'] = " ".join(single_prepared_files)
         dic['bgsub'] = "N" # as this was done before if swarp_params['subtract_back'] else "N"
         dic['clip-sigma'] = swarp_params['clip-sigma']
@@ -1012,7 +1218,7 @@ def swarpstack(outputfile, inputlist, swarp_params, options, keep_intermediates=
 
 
         logger = logging.getLogger("SwarpStack - FinalStack")
-        logger.info("Starting final stacking...")
+        logger.info("Starting final stacking (%s) ..." % (combine_type))
         # print swarp_opts
 
         swarp_cmd = "%s %s %s" % (sitesetup.swarp_exec, swarp_opts, " ".join(final_prepared_files))
@@ -1224,7 +1430,26 @@ def read_swarp_params(filelist):
                 params['clip-sigma'] = float(items[0])
             if (len(items) >= 2):
                 params['clip-ampfrac'] = float(items[1])
-            
+
+    params['mask-fits'] = None
+    params['mask-npix'] = 5
+    params['mask-nsigma'] = 2
+    if (cmdline_arg_isset("-maskframe")):
+        vals = get_cmdline_arg("-maskframe").split(",")
+        if (len(vals) >= 1):
+            if (os.path.isfile(vals[0])):
+                params['mask-fits'] = vals[0]
+        if (len(vals) >= 2 and not params['mask-fits'] == None):
+            params['mask-nsigma'] = float(vals[1])
+        if (len(vals) >= 3 and not params['mask-fits'] == None):
+            params['mask-npix'] = float(vals[2])
+        
+    params['mask'] = None
+    if (cmdline_arg_isset("-mask")):
+        mask = get_cmdline_arg("-mask")
+        if (os.path.isfile(mask)):
+            params['mask'] = mask
+
     return params
 
 if __name__ == "__main__":
