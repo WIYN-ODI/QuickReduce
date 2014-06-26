@@ -336,7 +336,9 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
             # Now change the filename of the input list to reflect 
             # the corrected file
             ret['corrected_file'] = corrected_filename
-    
+
+        hdulist.close()
+
         #
         # Now we have the filename of the file to be used for the swarp-input
         #
@@ -608,6 +610,7 @@ def mp_swarp_single(sgl_queue, dum):
             weightmap_hdu.flush()
             weightmap_hdu.close()
 
+        hdulist.close()
         sgl_queue.task_done()
 
 
@@ -801,6 +804,8 @@ def swarpstack(outputfile,
         out_naxis1 = output_info[0].header['NAXIS1']
         out_naxis2 = output_info[0].header['NAXIS2']
 
+        output_info.close()
+
         if (swarp_params['pixelscale'] <= 0):
             swarp_params['pixelscale'] = math.fabs(output_info[0].header['CD1_1']) * 3600.
             logger.info("Computing pixelscale from data: %.4f arcsec/pixel" % (swarp_params['pixelscale']))
@@ -884,6 +889,8 @@ def swarpstack(outputfile,
         out_naxis1 = output_info[0].header['NAXIS1']
         out_naxis2 = output_info[0].header['NAXIS2']
         
+        output_info.close()
+
         if (swarp_params['pixelscale'] <= 0):
             swarp_params['pixelscale'] = math.fabs(output_info[0].header['CD1_1']) * 3600.
             #pixelscale = (output_info[0].header['CD1_1'] * output_info[0].header['CD2_2'] \
@@ -913,6 +920,7 @@ def swarpstack(outputfile,
 
         hdulist = pyfits.open(prepared_file)
         obsid = hdulist[0].header['OBSID']
+        hdulist.close()
 
         # assemble all swarp options for that run
         dic = {'singledir': unique_singledir, #sitesetup.swarp_singledir,
@@ -1082,7 +1090,7 @@ def swarpstack(outputfile,
         for prepared_file in single_prepared_files:
             hdulist = pyfits.open(prepared_file)
             obsid = hdulist[0].header['OBSID']
-
+            hdulist.close()
             
             # assemble all swarp options for that run
             bgsub_file = "%(singledir)s/%(obsid)s.bgsub.fits" % {
@@ -1295,6 +1303,7 @@ def swarpstack(outputfile,
                 hdustack[0].header['NSR-ENDM'] = firsthdu[0].header['MJD-END']
             except:
                 pass
+            firsthdu.close()
 
         # Add the user-defined keywords to the stacked file. This is required for
         # proper integration with the PPA framework.
@@ -1382,6 +1391,7 @@ def read_swarp_params(filelist):
                     if ('MJD-OBS' in ext.header):
                         ref_mjd = ext.header['MJD-OBS']
                         break
+                hdulist.close()
             if (ref_mjd == None):
                 params['use_ephemerides'] = False
             else:
