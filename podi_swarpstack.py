@@ -730,13 +730,15 @@ def swarpstack(outputfile,
         weight = numpy.zeros(shape=seghdu[0].data.shape, dtype=numpy.float32)
         weight[seghdu[0].data > 0] = 1.
 
-        maskhdu = pyfits.HDUList([pyfits.PrimaryHDU(data=weight, header=seghdu[0].header)])
+        maskhdu = pyfits.HDUList([pyfits.PrimaryHDU(data=weight, header=seghdu[0].header.copy())])
         maskfile = "%s/mask.fits" % (unique_singledir)
         clobberfile(maskfile)
         maskhdu.writeto(maskfile, clobber=True)
 
         seghdu.close()
         maskhdu.close()
+        del seghdu
+        del maskhdu
 
         swarp_params['mask'] = maskfile
 
