@@ -729,12 +729,13 @@ def swarpstack(outputfile,
         seghdu = pyfits.open(segmentation_file)
         weight = numpy.zeros(shape=seghdu[0].data.shape, dtype=numpy.float32)
         weight[seghdu[0].data > 0] = 1.
-        seghdu.close()
 
         maskhdu = pyfits.HDUList([pyfits.PrimaryHDU(data=weight, header=seghdu[0].header)])
         maskfile = "%s/mask.fits" % (unique_singledir)
         clobberfile(maskfile)
         maskhdu.writeto(maskfile, clobber=True)
+
+        seghdu.close()
         maskhdu.close()
 
         swarp_params['mask'] = maskfile
@@ -1488,6 +1489,7 @@ if __name__ == "__main__":
                 # print "Adding ",line.strip(),"to command line"
                 if (not line.startswith("#")):
                     sys.argv.append(line)
+            conf.close()
         else:
             logger.error("Can't open the configfile (%s)" % (configfile))
 
