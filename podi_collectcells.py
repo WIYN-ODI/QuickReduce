@@ -288,12 +288,6 @@ else:
 
 
 
-def add_fits_header_title(header, title, before_keyword):
-    header.add_blank(before=before_keyword)
-    header.add_blank(title, before=before_keyword)
-    header.add_blank(before=before_keyword)
-    return
-
 def collect_reduce_ota(filename,
                        verbose=False,
                        options=None):

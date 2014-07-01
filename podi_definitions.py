@@ -2022,3 +2022,9 @@ def create_association_table(master, verbose=False):
 
 
 
+def add_fits_header_title(header, title, before_keyword):
+    header.add_blank(before=before_keyword)
+    header.add_blank(title, before=before_keyword)
+    header.add_blank(before=before_keyword)
+    return
+
