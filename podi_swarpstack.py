@@ -1260,6 +1260,9 @@ def swarpstack(outputfile,
         # Also open the first frame in the stack to be used as data source
         firsthdu = pyfits.open(inputlist[0])
 
+        if ('FILE0001' in hdustack[0].header):
+            add_fits_header_title(hdustack[0].header, "Input files as written by swarp", 'FILE0001')
+
         for hdrkey in [
                 'TARGRA', 'TARGDEC',
                 'FILTER', 'FILTERID', 'FILTDSCR', 
@@ -1268,44 +1271,68 @@ def swarpstack(outputfile,
             if (hdrkey in firsthdu[0].header):
                 key, val, com = firsthdu[0].header.cards[hdrkey]
                 hdustack[0].header[key] = (val, com)
+        add_fits_header_title(hdustack[0].header, "Headers inherited from input frames", 'TARGRA')
 
+        del hdustack[0].header['EXPTIME']
         hdustack[0].header['EXPTIME'] = (stack_total_exptime, "total exposure time in stack")
         hdustack[0].header['MJD-STRT'] = (stack_start_time, "MJD at start of earliest exposure")
         hdustack[0].header['MJD-END'] = (stack_end_time, "MJD at end of last exposure")
         hdustack[0].header['NCOMBINE'] = (stack_framecount, "number of exposures in stack")
+        add_fits_header_title(hdustack[0].header, "Computed timing information", 'EXPTIME')
 
         # Add some additional headers
-        hdustack[0].header['MAGZERO'] = 25.
-        hdustack[0].header['_BGSUB'] = "yes" if swarp_params['subtract_back'] else "no"
-        hdustack[0].header['_PXLSCLE'] = swarp_params['pixelscale']
-        hdustack[0].header['_RESGL'] = ("yes" if swarp_params['reuse_singles'] else "no", "reuse singles?")
-        hdustack[0].header['_NONSDRL'] = ("yes" if swarp_params['use_nonsidereal'] else "no", "using non-sidereal correction?")
+        hdustack[0].header['MAGZERO']  = (25.,
+                                          "after flux-scaling each input exposure")
+        hdustack[0].header['BACKGSUB'] = ("yes" if swarp_params['subtract_back'] else "no",
+                                          "was background subtracted?")
+        hdustack[0].header['PIXLSCAL'] = (swarp_params['pixelscale'],
+                                          "user-selected pixelscale")
+        hdustack[0].header['REUSESGL'] = ("yes" if swarp_params['reuse_singles'] else "no",
+                                          "reuse singles?")
+        hdustack[0].header['NONSIDRL'] = ("yes" if swarp_params['use_nonsidereal'] else "no",
+                                          "using non-sidereal correction?")
         valid_nonsidereal_reference = False
         try:
-            hdustack[0].header['_NSID_RA'] = options['nonsidereal']['dra']
-            hdustack[0].header['_NSID_DE'] = options['nonsidereal']['ddec']
-            hdustack[0].header['_NSID_RT'] = options['nonsidereal']['ref_mjd']
-            hdustack[0].header['_NSID_RF'] = options['nonsidereal']['ref']
+            hdustack[0].header['NSID_RA']  = (options['nonsidereal']['dra'],
+                                              "non-sidereal rate dRA*cosDec [arcsec/hr]")
+            hdustack[0].header['NSID_DEC'] = (options['nonsidereal']['ddec'],
+                                              "non-sidereal rate dDec [arcsec/hr]")
+            hdustack[0].header['NSID_RT']  = (options['nonsidereal']['ref_mjd'],
+                                              "non-sidereal reference MJD")
+            hdustack[0].header['NSID_RF']  = (options['nonsidereal']['ref'],
+                                              "non-sidereal ref. from cmd line")
             if (os.path.isfile(options['nonsidereal']['ref'])):
                 valid_nonsidereal_reference = True
         except:
             pass
         firsthdu.close()
+        add_fits_header_title(hdustack[0].header, "SwarpStack parameters supplied by user", 'MAGZERO')
 
         if (valid_nonsidereal_reference):
             firsthdu = pyfits.open(options['nonsidereal']['ref'])
             try:
-                hdustack[0].header['NSR-OBST'] = firsthdu[0].header['TIME-OBS']
-                hdustack[0].header['NSR-OBSD'] = firsthdu[0].header['DATE-OBS']
-                hdustack[0].header['NSR-OBSM'] = firsthdu[0].header['MJD-OBS']
+                hdustack[0].header['NSR-OBST'] = (firsthdu[0].header['TIME-OBS'], 
+                                                  "reference TIME-OBS")
+                hdustack[0].header['NSR-OBSD'] = (firsthdu[0].header['DATE-OBS'], 
+                                                  "reference DATE-OBS")
+                hdustack[0].header['NSR-OBSM'] = (firsthdu[0].header['MJD-OBS'], 
+                                                  "reference MJD-OBS")
 
-                hdustack[0].header['NSR-MIDT'] = firsthdu[0].header['TIME-MID']
-                hdustack[0].header['NSR-MIDD'] = firsthdu[0].header['DATE-MID']
-                hdustack[0].header['NSR-MIDM'] = firsthdu[0].header['MJD-MID']
+                hdustack[0].header['NSR-MIDT'] = (firsthdu[0].header['TIME-MID'], 
+                                                  "reference TIME-MID")
+                hdustack[0].header['NSR-MIDD'] = (firsthdu[0].header['DATE-MID'], 
+                                                  "reference DATE-MID")
+                hdustack[0].header['NSR-MIDM'] = (firsthdu[0].header['MJD-MID'], 
+                                                  "reference MJD-MID")
 
-                hdustack[0].header['NSR-ENDT'] = firsthdu[0].header['TIME-END']
-                hdustack[0].header['NSR-ENDD'] = firsthdu[0].header['DATE-END']
-                hdustack[0].header['NSR-ENDM'] = firsthdu[0].header['MJD-END']
+                hdustack[0].header['NSR-ENDT'] = (firsthdu[0].header['TIME-END'], 
+                                                  "reference TIME-END")
+                hdustack[0].header['NSR-ENDD'] = (firsthdu[0].header['DATE-END'], 
+                                                  "reference DATE-END")
+                hdustack[0].header['NSR-ENDM'] = (firsthdu[0].header['MJD-END'], 
+                                                  "reference MJD-END")
+                add_fits_header_title(hdustack[0].header, 
+                                      "Timing information from reference frame", 'NSR-OBST')
             except:
                 pass
             firsthdu.close()
@@ -1315,6 +1342,9 @@ def swarpstack(outputfile,
         # print options['additional_fits_headers']
         for key, value in options['additional_fits_headers'].iteritems():
             hdustack[0].header[key] = (value, "user-added keyword")
+        if (len(options['additional_fits_headers']) > 0):
+            add_fits_header_title(hdustack[0].header, 
+                                  "user-added keywords", options['additional_fits_headers'][0])
 
         #
         # Create an association table from the master reduction files used.
