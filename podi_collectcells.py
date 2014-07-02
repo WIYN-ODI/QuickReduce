@@ -1318,10 +1318,20 @@ def parallel_collect_reduce_ota(queue, return_queue,
             raise
 
         return_hdu = data_products['hdu']
+        # print data_products
         if (return_hdu == None):
             # queue.task_done()
             # continue
-            logger.warning("Received invalid result")
+            if (not os.path.isfile(filename)):
+                logger.critical("OTA did not return any data, missing file (%s)?" % (filename))
+            else:
+                logger.critical("OTA did not return any data, empty/faulty file (%s)?" % (filename))
+
+            return_queue.put( (ota_id, data_products) )
+
+            queue.task_done()
+            continue
+
 
         extname = return_hdu.header['FPPOS'] if (not return_hdu == None and 'FPPOS' in return_hdu.header) else "???"
         logger.debug("Received OTA pre-processed data for OTA %s" % (extname))
@@ -1347,7 +1357,7 @@ def parallel_collect_reduce_ota(queue, return_queue,
 
         # Now unpack the communication pipe
         logger.debug("Preparing communication pipe ...")
-	logger.debug(str(wrapped_pipe))
+        logger.debug(str(wrapped_pipe))
         fct, params = wrapped_pipe
         pipe = fct(*params)
 
@@ -1379,10 +1389,10 @@ def parallel_collect_reduce_ota(queue, return_queue,
         except:
             podi_logging.log_exception()
             pass
-                
+
         # Add the complete ImageHDU to the return data stream
         data_products['hdu'] = return_hdu
-        
+
         # Add the results to the return_queue so the master process can assemble the result file
         logger.debug("Adding results for OTA %02d to return queue" % (ota_id))
         return_queue.put( (ota_id, data_products) )
@@ -1998,6 +2008,7 @@ def collectcells(input, outputfile,
     ota_headers = {}
     intermediate_results_sent = {}
     pupilghost_scaling = None
+    ota_missing_empty = []
     for i in range(len(list_of_otas_being_reduced)):
         #hdu, ota_id, wcsfix_data = return_queue.get()
         try:
@@ -2038,6 +2049,7 @@ def collectcells(input, outputfile,
         header = data_products['header']
 
         if (header == None):
+            ota_missing_empty.append(ota_id)
             continue
         
         extname = header['EXTNAME']
@@ -2177,6 +2189,9 @@ def collectcells(input, outputfile,
         if (i < len(intermediate_results)):
 
             target_ota_id = intermediate_results[i]['ota-id']
+            if (target_ota_id in ota_missing_empty):
+                continue
+
             pipe_send = intermediate_results[i]['pipe-send']
 
             # Sent the intermediate results
@@ -2187,7 +2202,7 @@ def collectcells(input, outputfile,
         else:
             break
 
-    for i in range(len(list_of_otas_being_reduced)):
+    for i in range(len(list_of_otas_being_reduced) - len(ota_missing_empty)):
         try:
             ota_id, data_products = return_queue.get()
         except (KeyboardInterrupt, SystemExit):
