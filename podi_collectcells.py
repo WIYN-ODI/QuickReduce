@@ -358,7 +358,12 @@ def collect_reduce_ota(filename,
         except:
             # This happed with corrupt files
             return data_products
-            
+
+        # Check if we can find all 1+64 extensions
+        if (len(hdulist) < 65):
+            # Something is wrong with this file
+            return data_products
+
         reduction_files_used['raw'] = filename
 
         # Get the binning factor
