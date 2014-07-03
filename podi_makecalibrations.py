@@ -439,6 +439,19 @@ def compute_techdata(calib_biaslist, calib_flatlist, output_dir, options, n_fram
             #print bin_flatlist
             #print bin_flatlist[filtername]
 
+            out_filename = "%s/techdata_%s_bin%d.fits" % (output_dir, filtername, binning)
+
+            if (os.path.isfile(out_filename)):
+                logger.info("Techdata for %s, bin %d already exists, skipping" % (
+                        filtername, binning))
+                continue
+
+            if (len(bin_flatlist[filtername]) < n_frames or
+                len(bin_biaslist) < n_frames):
+                logger.warning("Insufficient data to create techdata for filter %s, binning %d (%d biases, %d flats, need >= %d)" % (
+                    filtername, binning, len(bin_biaslist), len(bin_flatlist[filtername]), n_frames))
+                continue
+
             association_table = {}
 
             biaslist = bin_biaslist
@@ -1037,7 +1050,8 @@ if __name__ == "__main__":
     # Insert here: Compute the GAIN for each cell
     #
     logger = logging.getLogger("MakeCalibration_TechData")
-    if ((not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "techdata") and compute_gain_readnoise):
+    if ((not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "techdata") 
+        and compute_gain_readnoise):
         logger.info("Computing gain and readnoise for each cell")
         techdatafile = "%s/techdata_bin%d.fits" % (output_directory, binning)
         compute_techdata(calib_bias_list, calib_flat_list, 
