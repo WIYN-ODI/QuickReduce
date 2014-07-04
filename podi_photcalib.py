@@ -709,8 +709,6 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             return error_return_value
 
 
-
-
     #
     # Now go through each of the extension
     # Improve: Change execution to parallel !!!
@@ -722,11 +720,18 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     # numpy.savetxt("odisource.dump", source_cat)
     # numpy.savetxt("matched.dump", odi_sdss_matched)
 
-
     # Stars without match in SDSS have RA=-9999, let's sort them out
     found_sdss_match = odi_sdss_matched[:,2] >= 0
     odi_sdss_matched = odi_sdss_matched[found_sdss_match]
+    n_matches = numpy.sum(found_sdss_match)
+
     # numpy.savetxt("matched.dump2", odi_sdss_matched)
+    logger.debug("Found %d matches between ODI source catalog and photometric reference catalog" % (
+            n_matches))
+
+    if (n_matches <= 0):
+        logger.warning("No overlap between source and photometric reference catalog found!")
+        return error_return_value
 
     odi_ra, odi_dec = odi_sdss_matched[:,0], odi_sdss_matched[:,1]
     sdss_ra, sdss_dec = odi_sdss_matched[:,2], odi_sdss_matched[:,3]
@@ -1054,7 +1059,8 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         # zp_calib_plot = output_filename[:-5]+".photZP"
         logger.debug("Preparing the photZP plots")
         zp_calib_plot = create_qa_filename(output_filename, "photZP", options)
-        podi_diagnosticplots.photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr,
+        try:
+            podi_diagnosticplots.photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr,
                                                   zp_calib_plot,
                                                   zp_median, zp_std,
                                                   sdss_filter, filtername, #"r", "odi_r",
@@ -1062,6 +1068,9 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                                                   options=options,
                                                   also_plot_singleOTAs=options['otalevelplots'],
                                                   details=detailed_return)
+        except:
+            podi_logging.log_exception()
+            logger.error("Problem with creating the photometric calibration diagnostic plot")
 
         # print odi_sdss_matched[0,:]
 
@@ -1076,13 +1085,17 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             ota_outlines = derive_ota_outlines(otalist)
 
         logger.debug("Preparing the photZP_map plots")
-        podi_diagnosticplots.photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec,
+        try:
+            podi_diagnosticplots.photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec,
                                                       output_filename=plotfilename,
                                                       sdss_filtername=sdss_filter, odi_filtername=filtername,
                                                       title=plottitle,
                                                       ota_outlines=ota_outlines,
                                                       options=options,
                                                       also_plot_singleOTAs=options['otalevelplots'])
+        except:
+            podi_logging.log_exception()
+            logger.error("Problem with creating the photometric zeropoint map")
 
     # results.close()
 
