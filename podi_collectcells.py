@@ -2384,9 +2384,10 @@ def collectcells(input, outputfile,
         import dev_ccmatch
         if (dev_ccmatch.create_debug_files): numpy.savetxt("debug.wcs_raw", global_source_cat)
         ccmatched = dev_ccmatch.ccmatch(source_catalog=global_source_cat,
-                                       reference_catalog=None, # meaning ccmtch will obtain it
-                                       input_hdu=ota_list, 
-                                       mode="otashear")
+                                        reference_catalog=None, # meaning ccmtch will obtain it
+                                        input_hdu=ota_list, 
+                                        mode="otashear",
+                                        max_pointing_error=sitesetup.max_pointing_error)
 
         # Use the fixed HDUList
         ota_list = ccmatched['hdulist']
