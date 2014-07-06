@@ -1520,7 +1520,8 @@ if __name__ == "__main__":
                     continue
                 # print "Adding ",line.strip(),"to command line"
                 if (not line.startswith("#")):
-                    sys.argv.append(line)
+                    items = line.split()
+                    sys.argv.append(items[0])
             conf.close()
         else:
             logger.error("Can't open the configfile (%s)" % (configfile))
