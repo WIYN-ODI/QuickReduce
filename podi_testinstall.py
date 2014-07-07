@@ -54,6 +54,8 @@ def check_package(name):
 
 def ask_for_option(var_name, question, backup, needs_quotes, config_array):
 
+    import podi_sitesetup
+
     suggestion = backup
     if (hasattr(podi_sitesetup, var_name)):
         suggestion = eval('podi_sitesetup.%s' % (var_name))
@@ -87,7 +89,25 @@ def ask_for_option(var_name, question, backup, needs_quotes, config_array):
 
 def update_sitesetup():
 
-    import sys, os, podi_sitesetup
+    import sys, os, shutil
+    try:
+        import podi_sitesetup
+        print "********************************************************"
+        print "**                                                    **"
+        print "** This is an update, loading existing configuration  **"
+        print "**                                                    **"
+        print "********************************************************"
+        print
+    except:
+        print "********************************************************"
+        print "**                                                    **"
+        print "** This is the very first run, initializing sitesetup **"
+        print "**                                                    **"
+        print "********************************************************"
+        print
+        shutil.copy("podi_sitesetup.py.blank", "podi_sitesetup.py")
+        import podi_sitesetup
+        pass
     import multiprocessing
     import datetime
 
@@ -213,7 +233,11 @@ def update_sitesetup():
                 print "I really need an answer!",
         if (answer == "y" or answer == "Y"):
             backup_file = "podi_sitesetup.py.backup_from_%s" % (datetime.datetime.now().strftime("%Y%m%dT%H%M%S"))
-            os.system("cp podi_sitesetup.py %s" % (backup_file))
+            # os.system("cp podi_sitesetup.py %s" % (backup_file))
+            try:
+                shutil.copy("podi_sitesetup.py", backup_file)
+            except:
+                pass
 
             new_config = open("podi_sitesetup.py", "w")
             new_config.write("".join(lines[:insert_at]))
@@ -312,7 +336,7 @@ if __name__ == "__main__":
     answer = raw_input("Do you want to run the sitesetup assistant (y/N)?")
     if (answer.lower() == "y"):
         print "\n"*4,"     Starting auto-configuration!","\n"*4
-        import sys, os, podi_sitesetup
+        # import sys, os, podi_sitesetup
         update_sitesetup()
 
 
