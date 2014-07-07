@@ -2388,7 +2388,7 @@ def collectcells(input, outputfile,
                                         input_hdu=ota_list, 
                                         mode="otashear",
                                         max_pointing_error=sitesetup.max_pointing_error,
-                                        max_rotator_eror=sitesetup.max_rotator_error)
+                                        max_rotator_error=sitesetup.max_rotator_error)
 
         # Use the fixed HDUList
         ota_list = ccmatched['hdulist']
