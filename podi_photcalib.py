@@ -791,6 +791,10 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     detailed_return['aperture_mag'] = col_mag
     detailed_return['aperture_magerr'] = col_magerr
 
+    # only select stars with properly detected magnitudes in the chosen aperture
+    valid_odi_mag = (odi_sdss_matched[:,SXcolumn[col_mag]+2] < 75)
+    odi_sdss_matched = odi_sdss_matched[valid_odi_mag]
+
     odi_mag = odi_sdss_matched[:,SXcolumn[col_mag]+2]
     odi_magerr = odi_sdss_matched[:,SXcolumn[col_magerr]+2]
 
@@ -849,7 +853,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     odi_mag -= zp_correction_exptime
 
     # Determine the zero point
-    zp = sdss_mag - odi_mag 
+    zp = (sdss_mag - odi_mag)
     zperr = numpy.hypot(sdss_magerr, odi_magerr)
 
     #
