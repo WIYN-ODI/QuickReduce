@@ -284,9 +284,10 @@ Calibration data:
                     if (os.path.isfile(ns['ref'])):
                         hdulist = pyfits.open(ns['ref'])
                         if ("MJD-OBS" in hdulist[0].header):
-                            ns['ref_mjd'] = hdulist[0].header['MJD-OBS']
+                            ns['ref_mjd'] = hdulist[0].header['MJD-OBS'] * 1.0
                             logger.debug("Found reference MJD (%f) in file %s" % (ns['ref_mjd'], ns['ref']))
                         hdulist.close()
+                        del hdulist
                     else:
                         logger.critical("Could not find the reference file for the -nonsidereal option!")
                         logger.critical("Disabling nonsidereal WCS correction")
