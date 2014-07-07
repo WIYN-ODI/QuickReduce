@@ -2387,7 +2387,8 @@ def collectcells(input, outputfile,
                                         reference_catalog=None, # meaning ccmtch will obtain it
                                         input_hdu=ota_list, 
                                         mode="otashear",
-                                        max_pointing_error=sitesetup.max_pointing_error)
+                                        max_pointing_error=sitesetup.max_pointing_error,
+                                        max_rotator_eror=sitesetup.max_rotator_error)
 
         # Use the fixed HDUList
         ota_list = ccmatched['hdulist']

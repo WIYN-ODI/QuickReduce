@@ -184,6 +184,9 @@ def update_sitesetup():
     changes = changes | ask_for_option('max_pointing_error', 
                    "Maximum allowed pointing error for astrometric calibration", 
                    8.0, False, config_array)
+    changes = changes | ask_for_option('max_rotator_error', 
+                   "Maximum allowed range for rotator error for astrometric calibration", 
+                   [-3,3.5], False, config_array)
     
     config_array.append("")
 
