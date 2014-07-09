@@ -1448,12 +1448,22 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     # eliminate all stars with problematic flags
     #
-    flags = numpy.array(src_raw[:,SXcolumn['flags']], dtype=numpy.int8) & sexflag_wcs
+    flags = numpy.array(src_raw[:,SXcolumn['flags']], dtype=numpy.int8)
     full_src_cat = src_raw[flags == 0]
     logger.debug("src_cat: "+str(full_src_cat.shape))
     if (create_debug_files): numpy.savetxt("ccmatch.src_cat", full_src_cat[:,0:2])
 
 
+#
+    # Eliminate all stars that are just barely detected (mag err > 0.3mag, 
+    # equiv to S/N ~ 3) and/or too compact (FWHM < 0.3'') to be "real" stars
+    #
+    likely_real_stars = (full_src_cat[:,SXcolumn['fwhm_world']] > 0.3/3600.) & \
+                        (full_src_cat[:,SXcolumn['mag_err_4.0']] < 0.3)
+    full_src_cat = full_src_cat[likely_real_stars]
+    if (create_debug_files): numpy.savetxt("ccmatch.src_cat2", full_src_cat[:,0:2])
+    logger.debug("Down-selecting source catalog to %d well-detected and not too-compact sources" % (
+        full_src_cat.shape[0]))
 
     #
     # Exclude all stars with nearby neighbors to limit confusion
@@ -1642,7 +1652,12 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # Now optimize the shift and rotation
     #
     logger.debug("Starting minimization routine to optimize shift & rotation")
-    logger.debug("Initial guess: %s" % (str(initial_guess)))
+    logger.debug("Initial guess: angle = %.5f deg" % (initial_guess[0]))
+    logger.debug("Initial guess: dra/ddec = %.7f / %.7f deg [ %.2f / %.2f arcsec]" % (
+        initial_guess[1], initial_guess[2], initial_guess[1]*3600., initial_guess[2]*3600.))
+    logger.debug("Initial guess: number matches: %d (contrast: %.5f)" % (
+        initial_guess[3], contrast))
+
     best_shift_rotation_solution = fit_best_rotation_shift(
          src_cat, ref_cat, initial_guess,
          center_ra, center_dec,
@@ -1652,7 +1667,9 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # print "Alternative method:\n"
     # print "best fit:",best_shift_rotation_solution
 
-    logger.debug("resulting fit solution: "+str(best_shift_rotation_solution))
+    logger.debug("Refined guess: angle = %.5f deg" % (best_shift_rotation_solution[0]))
+    logger.debug("Refined guess: dra/ddec = %.7f / %.7f deg [ %.2f / %.2f arcsec]" % (
+        best_shift_rotation_solution[1], best_shift_rotation_solution[2], best_shift_rotation_solution[1]*3600., best_shift_rotation_solution[2]*3600.))
 
     src_rotated = rotate_shift_catalog(full_src_cat, (center_ra, center_dec), 
                                        angle=best_shift_rotation_solution[0],
