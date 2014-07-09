@@ -119,7 +119,6 @@ def read_options_from_commandline(options=None):
         cals_dir = get_cmdline_arg("-cals")
         if (not os.path.isdir(cals_dir)):
             logger.critical("The specified cals-directory (%s) does not exist!!!" % (cals_dir))
-            stdout_write("\n\n   The specified cals-directory (%s) does not exist!!!\n\n\n" % (cals_dir))
             sys.exit(0)
 
         options['bias_dir'] = cals_dir
@@ -186,7 +185,7 @@ Calibration data:
         tmp = get_cmdline_arg("-wcsoffset")
         items = tmp.split(',')
         options['offset_pointing'] = [float(items[0]), float(items[1])]
-        stdout_write("Applying a user-defined WCS offset of %.3f, %.3f degrees\n" % (options['offset_pointing'][0], options['offset_pointing'][1]))
+        logger.info("Applying a user-defined WCS offset of %.3f, %.3f degrees\n" % (options['offset_pointing'][0], options['offset_pointing'][1]))
 
     #
     # Read all offsets from command line
