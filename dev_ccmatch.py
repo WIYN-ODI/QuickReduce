@@ -579,8 +579,11 @@ def find_best_guess(src_cat, ref_cat,
     else:
         n_random_matches = numpy.median(all_results[:,3][wrong_angles])
 
-    contrast = best_guess[3] / n_random_matches
-
+    # contrast = best_guess[3] / n_random_matches
+    if (n_random_matches >= 1):
+        contrast = (best_guess[3]-n_random_matches) / math.sqrt(n_random_matches)
+    else:
+        contrast = best_guess[3]
     
     return best_guess, n_random_matches, contrast
 
