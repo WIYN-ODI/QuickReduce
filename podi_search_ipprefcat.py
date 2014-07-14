@@ -251,6 +251,10 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
 
     # Load the SkyTable so we know in what files to look for the catalog"
     skytable_filename = "%s/SkyTable.fits" % (basedir)
+    if (not os.path.isfile(skytable_filename)):
+        logger.error("Unable to find catalog index file in %s!" % (basedir))
+        return None
+
     skytable_hdu = pyfits.open(skytable_filename)
 
     #print skytable_hdu.info()
