@@ -57,17 +57,17 @@ photcalib_order = ['sdss', 'ippref', 'ucac4']
 
 if (cmdline_arg_isset("-ncpu")):
     number_cpus = int(cmdline_arg_set_or_default("-ncpu", number_cpus))
-    print "Using user-defined CPU count of",number_cpus
+    # print "Using user-defined CPU count of",number_cpus
 else:
     try:
         import multiprocessing
         number_cpus = multiprocessing.cpu_count()
-        print "Yippie, found %d CPUs to use in parallel!" % (number_cpus)
+        # print "Yippie, found %d CPUs to use in parallel!" % (number_cpus)
         if (number_cpus > max_cpu_count and max_cpu_count > 1):
             number_cpus = max_cpu_count
-            print "... but using only %d of them!" % (number_cpus)
+            # print "... but using only %d of them!" % (number_cpus)
     except:
-        print "Problem figuring out how many CPUs to use, setting to 1"
+        # print "Problem figuring out how many CPUs to use, setting to 1"
         number_cpus=1
         pass
 
@@ -86,6 +86,7 @@ else:
 #
 ################################################################################
 if __name__ == "__main__":
+    print
     print "This file defines some site properties, mostly paths."
     print
     print "Please run podi_testinstall to change settings in here"
