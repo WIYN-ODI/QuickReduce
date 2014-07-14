@@ -740,7 +740,11 @@ if __name__ == "__main__":
         #print ota00
 
         directory, filename = os.path.split(ota00)
-        
+        if (not os.path.isfile(ota00)):
+            # This is not a valid filename, warn the user and continue
+            logger.warning("Unable to open file %s for inspection" % (ota00))
+            continue
+
         hdulist = pyfits.open(ota00)
         binning = get_binning(hdulist[1].header)
         obstype = hdulist[0].header['OBSTYPE']
