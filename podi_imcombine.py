@@ -73,10 +73,10 @@ max_cpu_count = -1
 
 try:
     number_cpus = multiprocessing.cpu_count()
-    print "Yippie, found %d CPUs to use in parallel!" % (number_cpus)
+    # print "Yippie, found %d CPUs to use in parallel!" % (number_cpus)
     if (number_cpus > max_cpu_count and max_cpu_count > 1):
         number_cpus = max_cpu_count
-        print "... but using only %d of them!" % (number_cpus)
+        # print "... but using only %d of them!" % (number_cpus)
 except:
     pass
 
