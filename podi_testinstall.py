@@ -201,6 +201,9 @@ def update_sitesetup():
                    "Path where all the podi-scripts are installed", 
                    os.path.abspath("."), True, config_array)
     
+    changes = changes | ask_for_option('fixwcs_mode', 
+                   "FixWCS mode: shift, rotation, otashift, otashear, distortion; otashear is recommended", 
+                   "otashear", True, config_array)
     changes = changes | ask_for_option('max_pointing_error', 
                    "Maximum allowed pointing error for astrometric calibration", 
                    8.0, False, config_array)
