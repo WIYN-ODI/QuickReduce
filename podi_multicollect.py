@@ -146,7 +146,7 @@ if __name__ == "__main__":
             outputfile = "%s/%s" % (outputfile_dir, outputfile_name)
 
 
-        stdout_write("Collecting cells from %s ==> %s\n" % (folder,outputfile))
+        logger.info("Collecting cells from %s ==> %s\n" % (folder,outputfile))
 
         # Collect all cells, perform reduction and write result file
         try:
@@ -159,10 +159,10 @@ if __name__ == "__main__":
             print traceback.format_exc()
             stdout_write("##############################\n")
 
-        stdout_write("\n")
+        logger.info("done with this file!")
+
+    logger.info("Yippie, completely done with all files!\n")
         
     # Shutdown logging to shutdown cleanly
     podi_logging.shutdown_logging(options)
 
-    stdout_write("Yippie, completely done!\n")
-    
