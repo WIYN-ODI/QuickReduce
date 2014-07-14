@@ -2358,7 +2358,7 @@ def collectcells(input, outputfile,
     # Fix the WCS if requested
     # New WCS matching using CCMatch
     #
-    ota_list[0].header['WCSFIXED'] = False
+    ota_list[0].header['WCSFIXED'] = (False, "Was WCS calibration performed")
     ota_list[0].header['WCSCAL'] = (False, "Was astrometric solution found")
     ota_list[0].header['WCSXRMS'] = (-1., "RMS in x-dir of astrometric solution")
     ota_list[0].header['WCSYRMS'] = (-1., "RMS in y-dir of astrometric solution")
@@ -2386,60 +2386,72 @@ def collectcells(input, outputfile,
         ccmatched = dev_ccmatch.ccmatch(source_catalog=global_source_cat,
                                         reference_catalog=None, # meaning ccmtch will obtain it
                                         input_hdu=ota_list, 
-                                        mode="otashear",
+                                        mode=sitesetup.fixwcs_mode,
                                         max_pointing_error=sitesetup.max_pointing_error,
                                         max_rotator_error=sitesetup.max_rotator_error)
 
         # Use the fixed HDUList
         ota_list = ccmatched['hdulist']
+
         ota_list[0].header['WCSFIXED'] = True
         ota_list[0].header['ASTRMCAT'] = "2MASS"
-        if ("WCS_QUAL" in ota_list[0].header):
-            ota_list[0].header['WCSCAL'] = ota_list[0].header['WCS_QUAL'] > 1.5
+        ota_list[0].header['WCSMXPOS'] = (sitesetup.max_pointing_error, 
+                                          "maximum pointing offset compensated")
+        ota_list[0].header['WCSMXROT'] = (str(sitesetup.max_rotator_error).replace(' ',''), 
+                                          "maximum pointing offset compensated")
+
+        #        if ("WCS_QUAL" in ota_list[0].header):
+        ota_list[0].header['WCSCAL'] = ccmatched['valid_wcs_solution'] #ota_list[0].header['WCS_QUAL'] > 1.5
         
-        # Also extract some of the matched/calibrated catalogs
-        odi_2mass_matched = ccmatched['matched_src+2mass']
-        global_source_cat = ccmatched['calibrated_src_cat']
+        if (not ccmatched['valid_wcs_solution']):
 
-        # Append the 2MASS reference catalog to output frame
-        logger.debug("Creating a FITS table for the full 2MASS reference catalog")
-        twomass_hdu = twomasscat_to_tablehdu(ccmatched['2mass-catalog']) #fixwcs_ref_ra, fixwcs_ref_dec)
-        ota_list.append(twomass_hdu)
+            # This disabled the photometric calibration afterwards
+            enough_stars_for_fixwcs = False
 
-        logger.debug("Creating a FITS table for the full ODI catalog")
-        src_tbhdu = odi_sources_to_tablehdu(ccmatched['calibrated_src_cat'])
-        #logger.debug(src_tbhdu)
-        ota_list.append(src_tbhdu)
+        else:
+            # Also extract some of the matched/calibrated catalogs
+            odi_2mass_matched = ccmatched['matched_src+2mass']
+            global_source_cat = ccmatched['calibrated_src_cat']
+
+            # Append the 2MASS reference catalog to output frame
+            logger.debug("Creating a FITS table for the full 2MASS reference catalog")
+            twomass_hdu = twomasscat_to_tablehdu(ccmatched['2mass-catalog']) #fixwcs_ref_ra, fixwcs_ref_dec)
+            ota_list.append(twomass_hdu)
+
+            logger.debug("Creating a FITS table for the full ODI catalog")
+            src_tbhdu = odi_sources_to_tablehdu(ccmatched['calibrated_src_cat'])
+            #logger.debug(src_tbhdu)
+            ota_list.append(src_tbhdu)
 
 
-        #
-        # Also create a TableHDU for the matched ODI+2MASS catalog
-        # 
-        logger.debug("Creating a FITS table for the matched ODI+2MASS catalog")
-        odi_2mass_cat = ccmatched['matched_src+2mass']
-        columns = [pyfits.Column(name='ODI_RA', format='D', unit='degrees', 
-                                 array=odi_2mass_cat[:,  0], disp='ODI right ascension'),
-                   pyfits.Column(name='ODI_DEC', format='D', unit='degrees', 
-                                 array=odi_2mass_cat[:,  1], disp='ODI declination'),
-                   pyfits.Column(name='TWOMASS_RA', format='D', unit='degrees', 
-                                 array=odi_2mass_cat[:, -2], disp='2MASS right ascension'),
-                   pyfits.Column(name='TWOMASS_DEC', format='D', unit='degrees', 
-                                 array=odi_2mass_cat[:, -1], disp='2MASS declination'),
-                   pyfits.Column(name='OTA', format='E', unit='',
-                                 array=odi_2mass_cat[:, 8], disp='source OTA'),
-        ]
-        coldefs = pyfits.ColDefs(columns)
-        matchedhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
-        matchedhdu.update_ext_name("CAT.ODI+2MASS", comment=None)
-        matchedhdu.header['MATCHRAD'] = (2., "matching radius in arcsec")
-        ota_list.append(matchedhdu)
+            #
+            # Also create a TableHDU for the matched ODI+2MASS catalog
+            # 
+            logger.debug("Creating a FITS table for the matched ODI+2MASS catalog")
+            odi_2mass_cat = ccmatched['matched_src+2mass']
+            columns = [pyfits.Column(name='ODI_RA', format='D', unit='degrees', 
+                                     array=odi_2mass_cat[:,  0], disp='ODI right ascension'),
+                       pyfits.Column(name='ODI_DEC', format='D', unit='degrees', 
+                                     array=odi_2mass_cat[:,  1], disp='ODI declination'),
+                       pyfits.Column(name='TWOMASS_RA', format='D', unit='degrees', 
+                                     array=odi_2mass_cat[:, -2], disp='2MASS right ascension'),
+                       pyfits.Column(name='TWOMASS_DEC', format='D', unit='degrees', 
+                                     array=odi_2mass_cat[:, -1], disp='2MASS declination'),
+                       pyfits.Column(name='OTA', format='E', unit='',
+                                     array=odi_2mass_cat[:, 8], disp='source OTA'),
+            ]
+            coldefs = pyfits.ColDefs(columns)
+            matchedhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
+            matchedhdu.update_ext_name("CAT.ODI+2MASS", comment=None)
+            matchedhdu.header['MATCHRAD'] = (2., "matching radius in arcsec")
+            ota_list.append(matchedhdu)
 
-        # Compute the WCS quality statistics
-        # This also writes to the Primary and OTA-level headers
-        wcs_quality = dev_ccmatch.global_wcs_quality(odi_2mass_cat, ota_list)
-        # print "WCS quality =",wcs_quality
-        ota_list[0].header['WCSXRMS'] = wcs_quality['full']['RMS-RA']
-        ota_list[0].header['WCSYRMS'] = wcs_quality['full']['RMS-DEC']
+            # Compute the WCS quality statistics
+            # This also writes to the Primary and OTA-level headers
+            wcs_quality = dev_ccmatch.global_wcs_quality(odi_2mass_cat, ota_list)
+            # print "WCS quality =",wcs_quality
+            ota_list[0].header['WCSXRMS'] = wcs_quality['full']['RMS-RA']
+            ota_list[0].header['WCSYRMS'] = wcs_quality['full']['RMS-DEC']
 
         # Compute the image quality using all detected sources
         # Make sure to only include round source (elongation < 1.3) and decent 
