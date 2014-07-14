@@ -120,6 +120,8 @@ if __name__ == "__main__":
     else:
         filelist = get_clean_cmdline()[1:]
 
+    logger = logging.getLogger("MultiCollect")
+
     # Now loop over all files and run collectcells
     for folder in filelist:
         if (folder[-1] == "/"):
@@ -159,7 +161,7 @@ if __name__ == "__main__":
             print traceback.format_exc()
             stdout_write("##############################\n")
 
-        logger.info("done with this file!")
+        logger.debug("done with this file!")
 
     logger.info("Yippie, completely done with all files!\n")
         
