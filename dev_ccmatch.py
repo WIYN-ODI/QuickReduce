@@ -1407,6 +1407,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     max_pointing_error = numpy.max(max_pointing_error_list)
     return_value['max_pointing_error'] = max_pointing_error
     return_value['max_pointing_error_list'] = max_pointing_error_list
+    return_value['contrasts'] = numpy.ones((max_pointing_error_list.shape[0])) * -1.
 
     if (type(source_catalog) == str):
         # Load the source catalog file
@@ -1617,7 +1618,9 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     center_ra = hdulist[1].header['CRVAL1']
     center_dec = hdulist[1].header['CRVAL2']
 
-    for pointing_error in max_pointing_error_list:
+    for i in range(max_pointing_error_list.shape[0]): #pointing_error in max_pointing_error_list:
+
+        pointing_error = max_pointing_error_list[i]
 
         logger.debug("Attempting to find WCS solution with search radius %.1f arcmin ..." % (
             max_pointing_error))
@@ -1632,6 +1635,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                 )
 
         logger.debug("Found contrast = %.4f (minimum requirement is %.2f)" % (contrast, min_contrast))
+        
+        return_value['contrasts'][i] = contrast
 
         if (contrast > min_contrast):
             logger.debug("Found good WCS solution (%.2f sigma, search radius: %.2f arcmin)" % (

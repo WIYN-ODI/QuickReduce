@@ -2403,7 +2403,9 @@ def collectcells(input, outputfile,
                                           "maximum pointing offset compensated")
         ota_list[0].header['WCSPLIST'] = (str(sitesetup.max_pointing_error).replace(' ',''),
                                           "maximum pointing error list allowed")
-
+        ota_list[0].header['WCSQUALS'] = ("["+','.join(["%.3f" % a for a in ccmatched['contrasts']])+"]",
+                                          "WCS quality for each max pointing error")
+        
         #        if ("WCS_QUAL" in ota_list[0].header):
         ota_list[0].header['WCSCAL'] = ccmatched['valid_wcs_solution'] #ota_list[0].header['WCS_QUAL'] > 1.5
         
