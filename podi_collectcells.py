@@ -2395,10 +2395,14 @@ def collectcells(input, outputfile,
 
         ota_list[0].header['WCSFIXED'] = True
         ota_list[0].header['ASTRMCAT'] = "2MASS"
-        ota_list[0].header['WCSMXPOS'] = (sitesetup.max_pointing_error, 
-                                          "maximum pointing offset compensated")
+        ota_list[0].header['WCSMXPOS'] = (ccmatched['max_pointing_error_searched'],
+                                          "maximum pointing offset searched for success")
+        ota_list[0].header['WCSEXPOS'] = (ccmatched['max_pointing_error'],
+                                          "maximum pointing offset allowed by config")
         ota_list[0].header['WCSMXROT'] = (str(sitesetup.max_rotator_error).replace(' ',''), 
                                           "maximum pointing offset compensated")
+        ota_list[0].header['WCSPLIST'] = (str(sitesetup.max_pointing_error).replace(' ',''),
+                                          "maximum pointing error list allowed")
 
         #        if ("WCS_QUAL" in ota_list[0].header):
         ota_list[0].header['WCSCAL'] = ccmatched['valid_wcs_solution'] #ota_list[0].header['WCS_QUAL'] > 1.5

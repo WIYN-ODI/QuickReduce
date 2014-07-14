@@ -1342,7 +1342,8 @@ def improve_wcs_solution(src_catalog,
 
 def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             max_pointing_error=7,
-            max_rotator_error=[-3,3.5]):
+            max_rotator_error=[-3,3.5],
+            min_contrast=3.0):
 
     """
 
@@ -1386,10 +1387,26 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     logger = logging.getLogger("CCMatch")
     logger.debug("Starting ccmatch")
     logger.debug("max_rot_error: %s degrees" % (str(max_rotator_error)))
-    logger.debug("max_pointing_error=%f arcmin" % (max_pointing_error))
+    logger.debug("max_pointing_error %s arcmin" % (str(max_pointing_error)))
 
     # Prepare the structure for the return values
     return_value = {}
+
+    # Convert the max_pointing_error passed as parameter into a list
+    try:
+        max_pointing_error_list = list(max_pointing_error)
+    except TypeError:
+        max_pointing_error_list = [max_pointing_error]
+    except:
+        podi_logging.log_exception()
+        logger.critical("I don't understand the format of the max_pointing_error variable, defaulting to fixed 8.0 arcmin")
+        max_pointing_error_list = [8.0]
+        pass
+    
+    max_pointing_error_list = numpy.sort(numpy.array(max_pointing_error_list))
+    max_pointing_error = numpy.max(max_pointing_error_list)
+    return_value['max_pointing_error'] = max_pointing_error
+    return_value['max_pointing_error_list'] = max_pointing_error_list
 
     if (type(source_catalog) == str):
         # Load the source catalog file
@@ -1421,7 +1438,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # Create the reference catalog
     #
     if (reference_catalog == None):
-        search_size = 0.8
+        search_size = 0.8 + max_pointing_error/60.
         ref_raw = podi_search_ipprefcat.get_reference_catalog(center_ra, center_dec, search_size, 
                                                               basedir=sitesetup.wcs_ref_dir,
                                                               cattype=sitesetup.wcs_ref_type)
@@ -1599,13 +1616,41 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     center_ra = hdulist[1].header['CRVAL1']
     center_dec = hdulist[1].header['CRVAL2']
-    initial_guess, n_random_matches, contrast = find_best_guess(src_cat, ref_cat,
-                                    center_ra, center_dec,
-                                    pointing_error=(max_pointing_error/60.),
-                                    angle_max=max_rotator_error, #[-2,2], #degrees
-                                    d_angle=20, # arcmin
-                                    allow_parallel=True
-                                    )
+
+    for pointing_error in max_pointing_error_list:
+
+        logger.debug("Attempting to find WCS solution with search radius %.1f arcmin ..." % (
+            max_pointing_error))
+
+        initial_guess, n_random_matches, contrast = \
+                find_best_guess(src_cat, ref_cat,
+                                center_ra, center_dec,
+                                pointing_error=(pointing_error/60.),
+                                angle_max=max_rotator_error, #[-2,2], #degrees
+                                d_angle=20, # arcmin
+                                allow_parallel=True
+                )
+
+        logger.debug("Found contrast = %.4f (minimum requirement is %.2f)" % (contrast, min_contrast))
+
+        if (contrast > min_contrast):
+            logger.debug("Found good WCS solution (%.2f sigma, search radius: %.2f arcmin)" % (
+                contrast, pointing_error))
+            break
+
+        return_value['max_pointing_error_searched'] = pointing_error
+
+
+    if (contrast < min_contrast):
+        logger.debug("Failed finding a good enough WCS solution")
+        return_value['hdulist'] = hdulist
+        return_value['matched_src+2mass'] = None
+        return_value['calibrated_src_cat'] = None
+        return_value['valid_wcs_solution'] = False
+        return return_value
+
+    # Remember to report a valid WCS was found
+    return_value['valid_wcs_solution'] = True
 
     logger = logging.getLogger("CCMatchShift")
     logger.debug("found initial best guess:")
