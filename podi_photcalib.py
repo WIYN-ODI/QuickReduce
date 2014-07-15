@@ -846,8 +846,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     else:
         return error_return_value
 
-    if (verbose):
-        print "ODI/SDSS", odi_mag.shape, sdss_mag.shape
+    logger.debug("ODI/SDSS: %s %s" % (str(odi_mag.shape), str(sdss_mag.shape)))
 
     zp_correction_exptime = -2.5 * math.log10(exptime)
     odi_mag -= zp_correction_exptime
@@ -1163,54 +1162,98 @@ if __name__ == "__main__":
 
     elif (cmdline_arg_isset("-swarp")):
 
-        print "Starting phot-calib..."
-        inputfile = get_clean_cmdline()[1]
-        
-        raw_frame = get_clean_cmdline()[2]
+        print """\
 
+   ************************************************
+   * photcalib for Swarp'ed QR data               *
+   * part of the QuickReduce pipeline package     *
+   * (c) 2014, Ralf Kotulla and WIYN Observatory  *
+   ************************************************
+"""
         import podi_collectcells
         options = podi_collectcells.read_options_from_commandline()
+        # Setup everything we need for logging
+        podi_logging.setup_logging(options)
 
-        # Run SourceExtractor
-        print "Running source-extractor"
-        sex_config_file = "%s/.config/wcsfix.sex" % (options['exec_dir'])
-        parameters_file = "%s/.config/wcsfix.sexparam" % (options['exec_dir'])
-        catfile = "%s.cat" % (inputfile[:-5])
-        sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s %s" % (
+        logger = logging.getLogger("SwarpPhotCalib")
+        recreate_catalogs = cmdline_arg_isset("-resex")
+
+        for inputfile in get_clean_cmdline()[1:]:
+            try:
+                logger.info("Starting phot-calib (%s)..." % (inputfile))
+
+                # Run SourceExtractor
+                logger.info("Starting source-extractor")
+                sex_config_file = "%s/.config/wcsfix.sex" % (options['exec_dir'])
+                parameters_file = "%s/.config/wcsfix.sexparam" % (options['exec_dir'])
+                catfile = "%s.cat" % (inputfile[:-5])
+                sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s %s" % (
                     sitesetup.sextractor, sex_config_file, parameters_file, catfile, 
                     inputfile, sitesetup.sex_redirect)
-        if (os.path.isfile(catfile) and not cmdline_arg_isset("-resex")):
-            print "catalog exists, re-using it"
-        else:
-            if (options['verbose']): print sexcmd
-            os.system(sexcmd)
+                logger.debug(sexcmd)
+                if (os.path.isfile(catfile) and not recreate_catalogs):
+                    logger.info("catalog exists, re-using it")
+                else:
+                    if (options['verbose']): print sexcmd
+                    start_time = time.time()
+                    try:
+                        ret = subprocess.Popen(sexcmd.split(), 
+                                               stdout=subprocess.PIPE, 
+                                               stderr=subprocess.PIPE)
+                        (sex_stdout, sex_stderr) = ret.communicate()
+                        #os.system(sexcmd)
+                        if (ret.returncode != 0):
+                            logger.warning("Sextractor might have a problem, check the log")
+                            logger.debug("Stdout=\n"+sex_stdout)
+                            logger.debug("Stderr=\n"+sex_stderr)
+                    except OSError as e:
+                        podi_logging.log_exception()
+                        print >>sys.stderr, "Execution failed:", e
+                    end_time = time.time()
+                    logger.debug("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
+                    # os.system(sexcmd)
+                    logger.debug("Sextractor complete")
 
-        # Load the catalog
-        src_catalog = numpy.loadtxt(catfile)
-        print "Found",src_catalog.shape[0],"stars in frame"
+                # Load the catalog
+                src_catalog = numpy.loadtxt(catfile)
+                logger.info("Found %d stars in frame" % (src_catalog.shape[0]))
 
-        # Now eliminate all frames with magnitude 99
-        good_photometry = src_catalog[:,SXcolumn['mag_aper_3.0']] < 0
-        src_catalog = src_catalog[good_photometry]
-        print src_catalog.shape[0],"stars with good photometry"
+                # Now eliminate all frames with magnitude 99
+                good_photometry = src_catalog[:,SXcolumn['mag_aper_3.0']] < 0
+                src_catalog = src_catalog[good_photometry]
+                logger.info("%s stars have good photometry (no flags)" % (src_catalog.shape[0]))
 
-        hdulist = pyfits.open(raw_frame)
-        filter_name = hdulist[0].header['FILTER']
-        exptime = hdulist[0].header['EXPTIME']
+                hdulist = pyfits.open(inputfile) #raw_frame)
+                filter_name = hdulist[0].header['FILTER']
+                exptime = 1.0 #hdulist[0].header['EXPTIME']
 
-        pc =  photcalib(src_catalog, 
-                        inputfile, 
-                        filtername=filter_name, 
-                        exptime=exptime,
-                        diagplots=True,
-                        plottitle="swarped frame",
-                        otalist=None,
-                        options=options,
-                        verbose=True,
-                        eliminate_flags=True)
-        zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = pc
-        print zeropoint_median
-        print zeropoint_std
+                plottitle = "%(file)s\n%(object)s -- %(exptime).1f sec -- %(filter)s" % {
+                    'file': inputfile,
+                    'object': hdulist[0].header['OBJECT'],
+                    'exptime': hdulist[0].header['EXPTIME'],
+                    'filter': hdulist[0].header['FILTER'],
+                }
+
+                hdulist.close()
+
+                pc =  photcalib(src_catalog, 
+                                inputfile, 
+                                filtername=filter_name, 
+                                exptime=exptime,
+                                diagplots=True,
+                                plottitle=plottitle,
+                                otalist=None,
+                                options=options,
+                                verbose=False,
+                                eliminate_flags=True)
+                zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = pc
+                logger.info("Zeropoint: %.4f +/- %f\n" % (zeropoint_median, zeropoint_std))
+            except:
+                podi_logging.log_exception()
+                pass
+
+        # Shutdown logging to shutdown cleanly
+        podi_logging.shutdown_logging(options)
 
     elif (cmdline_arg_isset("-aucap")):
 
