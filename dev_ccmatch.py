@@ -1637,13 +1637,13 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         logger.debug("Found contrast = %.4f (minimum requirement is %.2f)" % (contrast, min_contrast))
         
         return_value['contrasts'][i] = contrast
+        return_value['max_pointing_error_searched'] = pointing_error
 
         if (contrast > min_contrast):
             logger.debug("Found good WCS solution (%.2f sigma, search radius: %.2f arcmin)" % (
                 contrast, pointing_error))
             break
 
-        return_value['max_pointing_error_searched'] = pointing_error
 
 
     if (contrast < min_contrast):
