@@ -115,6 +115,8 @@ import podi_search_ipprefcat
 
 import podi_logging
 import logging
+import time
+import subprocess
 
 arcsec = 1./3600.
 number_bright_stars = 100
@@ -1187,16 +1189,20 @@ if __name__ == "__main__":
                 sex_config_file = "%s/.config/wcsfix.sex" % (options['exec_dir'])
                 parameters_file = "%s/.config/wcsfix.sexparam" % (options['exec_dir'])
                 catfile = "%s.cat" % (inputfile[:-5])
-                sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s %s" % (
-                    sitesetup.sextractor, sex_config_file, parameters_file, catfile, 
-                    inputfile, sitesetup.sex_redirect)
+                sexcmd = "%(sex)s -c %(config)s -PARAMETERS_NAME %(params)s -CATALOG_NAME %(cat)s %(fits)s" % {
+                    'sex': sitesetup.sextractor, 
+                    'config': sex_config_file,
+                    'params': parameters_file,
+                    'cat': catfile, 
+                    'fits': inputfile,
+                }
                 logger.debug(sexcmd)
                 if (os.path.isfile(catfile) and not recreate_catalogs):
                     logger.info("catalog exists, re-using it")
                 else:
-                    if (options['verbose']): print sexcmd
+                    # logger.info("\n\n\n%s\n\n\n" % (sexcmd))
                     start_time = time.time()
-                    try:
+                    try: 
                         ret = subprocess.Popen(sexcmd.split(), 
                                                stdout=subprocess.PIPE, 
                                                stderr=subprocess.PIPE)
