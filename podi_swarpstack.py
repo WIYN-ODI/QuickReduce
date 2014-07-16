@@ -910,8 +910,9 @@ def swarpstack(outputfile,
 
         output_info.close()
 
-        outimage_npixels = (out_naxis1 * out_naxis2)
+        outimage_npixels = (out_naxis1 * out_naxis2) 
         if (outimage_npixels > 1e9):
+            outimage_npixels /= 1e9
             if (swarp_params['huge_frame_allowed']):
                 logger.warning("The output file is going to be huge (%.3f GigaPixels), continuing" % (outimage_npixels))
             else:
