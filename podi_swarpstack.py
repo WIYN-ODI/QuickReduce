@@ -461,6 +461,20 @@ def prepare_input(inputlist, swarp_params, options):
             nonsidereal_offsets)
 
 
+
+def cleanup_singles(unique_singledir, logger):
+
+    try:
+        shutil.rmtree(unique_singledir)
+    except:
+        logger.error("There was a problem with recursively deleting the temp directory")
+        podi_logging.log_exception()
+        pass
+
+    return
+
+
+
 def mp_swarp_single(sgl_queue, dum):
 
     while(True):
@@ -893,9 +907,18 @@ def swarpstack(outputfile,
         out_crval2 = output_info[0].header['CRVAL2']
         out_naxis1 = output_info[0].header['NAXIS1']
         out_naxis2 = output_info[0].header['NAXIS2']
-        
+
         output_info.close()
 
+        outimage_npixels = (out_naxis1 * out_naxis2)
+        if (outimage_npixels > 1e9):
+            if (swarp_params['huge_frame_allowed']):
+                logger.warning("The output file is going to be huge (%.3f GigaPixels), continuing" % (outimage_npixels))
+            else:
+                logger.error("The output file exceeds the maximum allowed image size (%.3f GigaPixels)" % (outimage_npixels))
+                cleanup_singles(swarp_params['unique_singledir'], logger)
+                return None
+        
         if (swarp_params['pixelscale'] <= 0):
             swarp_params['pixelscale'] = math.fabs(output_info[0].header['CD1_1']) * 3600.
             #pixelscale = (output_info[0].header['CD1_1'] * output_info[0].header['CD2_2'] \
@@ -1374,7 +1397,6 @@ def swarpstack(outputfile,
 
 
 
-
 def read_swarp_params(filelist):
 
     params = {}
@@ -1494,6 +1516,8 @@ def read_swarp_params(filelist):
         mask = get_cmdline_arg("-mask")
         if (os.path.isfile(mask)):
             params['mask'] = mask
+
+    params['huge_frame_allowed'] = cmdline_arg_isset("-huge")
 
     return params
 
