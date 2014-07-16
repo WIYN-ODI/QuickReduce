@@ -1,0 +1,225 @@
+XTENSION= 'IMAGE   '           / Image extension                                
+BITPIX  =                  -64 / array data type                                
+NAXIS   =                    2 / number of array dimensions                     
+NAXIS1  =                    2                                                  
+NAXIS2  =                    2                                                  
+PCOUNT  =                    0 / number of parameters                           
+GCOUNT  =                    1 / number of groups                               
+QPIPESVN= 'Unversioned directory' / QuickReduce Revision                        
+EXTNAME = 'OTA33.SCI'                                                           
+OTA     =                   33 / OTA designation                                
+FPPOS   = 'xy33    '           / position of detector in focal plane mosaic     
+PIXSIZE1=                 12.0 / pixel size of axis1 (microns)                  
+PIXSIZE2=                 12.0 / pixel size of axis2 (microns)                  
+IMTM1_1 =                  1.0 / IMage Transform Matrix; a unit vector in the   
+IMTM1_2 =                  0.0 / serial (fast) direction of amplifier readout   
+IMTM2_1 =                  0.0 / and a unit vector in parallel (slow) direction 
+IMTM2_2 =                  1.0 / of amplifier readout                           
+CCDBIN1 =                    1 / column binning                                 
+CCDBIN2 =                    1 / row binning                                    
+CCDSUM  = '1 1     '           / row binning                                    
+DETSIZE = '[1:4036, 1:4015]'   / IRAF total image pixels in full mosaic         
+CTYPE1  = 'RA---TAN'           / WCS projection type for this axis              
+CTYPE2  = 'DEC--TAN'           / WCS projection type for this axis              
+CD1_1   =      3.127250522E-05 / Linear projection matrix                       
+CD2_2   =      3.137846442E-05 / Linear projection matrix                       
+CD1_2   =     -2.910706731E-08 / Linear projection matrix                       
+CD2_1   =      1.514063648E-09 / Linear projection matrix                       
+OTA_ID  = '13879   '           / OTA serial number                              
+TEMPDESC= 'Guided Exposure'    / template description                           
+CRVAL1  =    202.3931472297115 / Telescope RA in dec degrees                    
+CRVAL2  =    47.18647218556389 / Telescope DEC in dec degrees                   
+ROTOFFST=                  0.0 / [deg] WNIR rotator offset @exposure start      
+EQUINOX =               2000.0 / Mean equinox                                   
+DITHERNM= 'three point'        / name of dither sequence                        
+DITHERN =                    3 / number of dither steps                         
+DITHERIX=                    3 / order of this dither in sequence               
+DWRWNDW =              283.299 / [K] Dewar Window Avg Temperature               
+CONSWURL= 'https://svn/gpc/repos/sw/trunk/detector/ppc405/u-boot' / Controller s
+CONSWV  = '5774    '           / Controller software SVN revision               
+CON_MAC = '00:50:c2:64:90:70'  / Controller MAC (HW Ethernet) Address           
+CON_IP  = '192.168.1.184'      / Controller IP Address                          
+CON_NAME= 'odiG1   '           / Controller IP Hostname                         
+CON_DEV =                    1 / Controller device number (0 or 1)              
+CON_UP  =                38137 / [seconds] Controller up-time                   
+FPGASER =                   50 / Controller FPGA board serial number            
+FPGAVER = '1.1     '           / Controller FPGA board version                  
+FPGATAR = 'GPC     '           / Controller FPGA board target system            
+DAQ3USER=                   50 / Controller DAQ3U board serial number           
+DAQ3UVER= '2.2     '           / Controller DAQ3U board version                 
+DAQ3UTAR= 'GPC     '           / Controller DAQ3U board target system           
+PONTIME =                37680 / [sec] Time since last detector "power on"      
+DETPKGID=                  716 / Detector package ID                            
+DETTEM  =                999.0 / [C] Detector temperature                       
+DETTEMOV=                    F / Detector temperature overridden                
+DETTEADU=                 4095 / [ADU] Detector temperature A/D measurement     
+DETTCOFA=                  1.0 / Coefficient A used in overriding detector temp.
+DETTCOFB=                    0 / Coefficient B used in overriding detector temp.
+CDETTEM =                999.0 / [C] Detector temperature calc. by controller   
+CELLMODE= 'SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS'    
+PREAMSER=                   16 / Controller Preamp board serial number          
+PREAMVER= '1.2     '           / Controller Preamp board version                
+PREAMTAR= 'GPC     '           / Controller Preamp board target system          
+CLV_PPG4= 'fdff:dff7:ff7f:fffd:ffff:69ff:5544:6231' / Coded parallel timings (do
+CLV_PG3 = '3808:00d0:3307:b070:0681:0410:cc93:0326' / Coded serial timings      
+CLV_PG4 = '1024:4100:1003:b0bc:0901:000f:2732:08a2' / Coded SW/RST/VCLAMP/SAMP  
+CLV_ADC = '1500:7  '           / Coded ADC parameters                           
+CLV_MATH= '333301111A'         / Coded Math Engine multi-sample processing      
+CLV_MCAL= '1111A1111A'         / Coded Math Engine for 32bpp out (readcal)      
+CLV_TRIG=                    0 / Cross-trigger phase delay (x 10nsec)           
+CLV1PPG4= '6419:4190:1906:20c8:0c83:6819:5544:6231' / Coded parallel timings (do
+CLV1O1P = '6419:4190:1906:20c8:0c83:6819:cc44:62a8' / Coded parallel timings (le
+CLV1O1N = '6419:4190:1906:20c8:0c83:6819:aa22:64c8' / Coded parallel timings (ri
+CLV1PG3 = '3808:00d0:3307:b070:0681:0410:cc93:0326' / Coded serial timings      
+CLV1PG4 = '1024:4100:1003:b0bc:0901:000f:2732:08a2' / Coded SW/RST/VCLAMP/SAMP  
+CLV1ADC = '1500:7  '           / Coded ADC parameters                           
+CLV1MATH= '333301111A'         / Coded Math Engine multi-sample processing      
+CLV1MCAL= '1111A1111A'         / Coded Math Engine for 32bpp out (readcal)      
+CLV1TRIG=                    0 / Cross-trigger phase delay (x 10nsec)           
+CLV_PRES=                    3 / Serial prescan, (skipped in addition to CNPIX1)
+CLV2PPG4= 'fdff:dff7:ff7f:fffd:ffff:69ff:5544:6231' / Coded parallel timings (do
+CLV2O2N = 'fdff:dff7:ff7f:fffd:ffff:69ff:3322:6451' / Coded parallel timings (up
+CLV2O1P = 'fdff:dff7:ff7f:fffd:ffff:69ff:cc44:62a8' / Coded parallel timings (le
+CLV2O1N = 'fdff:dff7:ff7f:fffd:ffff:69ff:aa22:64c8' / Coded parallel timings (ri
+CLV2PG3 = '3808:00d0:3307:b070:0681:0410:cc93:0326' / Coded serial timings      
+CLV2PG4 = '1024:4100:1003:b0bc:0901:000f:2732:08a2' / Coded SW/RST/VCLAMP/SAMP  
+CLV2ADC = '1500:7  '           / Coded ADC parameters                           
+CLV2MATH= '333301111A'         / Coded Math Engine multi-sample processing      
+CLV2MCAL= '1111A1111A'         / Coded Math Engine for 32bpp out (readcal)      
+CLV2TRIG=                    0 / Cross-trigger phase delay (x 10nsec)           
+ADC_ZERO=                    0 / ADC skipped: FITS Ext are [adczero:adczero+namp
+ADC_CONF= '0c8:0c8:0c8:0c8:0c8:0c8:0c8:0c8' / ADC configuration                 
+ADC_MUX = '0c0:0c0:0c0:0c0:0c0:0c0:0c0:0c0' / ADC MUX configuration             
+ADC_PGAR= '026:026:026:026:026:026:026:026' / Red ADC pga (adcgain 2.0)         
+ADC_PGAG= '000:000:000:000:000:000:000:000' / Grn ADC pga (adcgain val)         
+ADC_PGAB= '000:000:000:000:000:000:000:000' / Blu ADC pga (adcgain val)         
+ADC_OFSR= '000:000:000:000:000:000:000:000' / Red ADC offset                    
+ADC_OFSG= '000:000:000:000:000:000:000:000' / Grn ADC offset                    
+ADC_OFSB= '000:000:000:000:000:000:000:000' / Blu ADC offset                    
+DAC_S_L =                 -4.0 / [V] Serial and summing well LO dac06=-4000 mV  
+DAC_S_H =                  8.0 / [V] Serial and summing well HI dac07=+8000 mV  
+DAC_P_L =                  1.0 / [V] Parallel and P. standby LO dac14=+1000 mV  
+DAC_P_H =                  8.5 / [V] Parallel and P. standby HI dac15=+8500 mV  
+DAC_RG_L=                 -2.0 / [V] Reset Gate LO              dac16=-2000 mV  
+DAC_RG_H=                  8.0 / [V] Reset Gate HI              dac17=+8000 mV  
+DAC_SO  =                  2.0 / [V] 1st Stage Source           dac18=+2000 mV  
+DAC_VSS =                  0.0 / [V] Logic Low Supply           dac20=+0000 mV  
+DAC_VDDL=                  9.5 / [V] Logic Drain Supply LO      dac21=+9500 mV  
+DAC_VDDH=                 14.5 / [V] Logic Drain Supply HI      dac22=+7250 mV  
+DAC_RD  =                 13.0 / [V] Reset Drain Bias           dac26=+6500 mV  
+DAC_SCP =                 22.0 / [V] Scupper Bias               dac28=+11000 mV 
+DAC_INIT=                 1650 / [mV] DAC internal vref offset voltage          
+DAC_DR  =                 24.0 / [V] Drain Bias                 dac19=+8000 mV  
+DAC_OG1 =                  0.0 / [V] Output Gate Bias           dac25=+0000 mV  
+DAC_SUB =                  0.0 / [V] Substrate                  dac27=+0000 mV  
+DAC_LREF=                  0.0 / [V] Logic Reference Ground     dac29=+0000 mV  
+DAC_SLL1=                  0.0 / [V] DRCSEL L1 (lvl shifters)   dac30=+0000 mV  
+DAC_SLL2=                  0.0 / [V] DRCSEL L2 (lvl shifters)   dac31=+0000 mV  
+DAC_SLH1=                  7.5 / [V] DRCSEL H1 (lvl shifters)   dac2020=+3750 mV
+DAC_SLH2=                  7.5 / [V] DRCSEL H2 (lvl shifters)   dac2021=+3750 mV
+DAC_CAL0= '-258 -249 -245 -274 -262 -270 -220 -210' / [mV] Pedestal cal         
+DAC_CAL1= '-264 -260 -258 -293 -284 -281 -225 -221' / [mV] Pedestal cal         
+DAC_CAL2= '-273 -268 -274 -294 -291 -275 -247 -226' / [mV] Pedestal cal         
+DAC_CAL3= '-287 -284 -277 -304 -294 -296 -247 -247' / [mV] Pedestal cal         
+DAC_CAL4= '-294 -303 -284 -312 -313 -302 -264 -254' / [mV] Pedestal cal         
+DAC_CAL5= '-297 -316 -289 -325 -313 -313 -274 -269' / [mV] Pedestal cal         
+DAC_CAL6= '-320 -328 -308 -335 -313 -330 -286 -279' / [mV] Pedestal cal         
+DAC_CAL7= '-338 -347 -317 -337 -318 -341 -293 -279' / [mV] Pedestal cal         
+CHECKSUM= 'hWBYjU9VhUAVhU7V'   / HDU checksum updated 2014-04-24T08:17:38       
+DATASUM = '         0'         / data unit checksum updated 2014-04-24T08:17:38 
+CRPIX1  =          2067.215337 / Reference pixel on this axis                   
+CRPIX2  =          2087.726073 / Reference pixel on this axis                   
+PGAFCTD =                    F                                                  
+GAIN    =    1.288549019607843                                                  
+GAINX   =     1.31891830140829 / gain averaged over all cells                   
+NGAIN   =                   64 / number of cells contrib. to avg. gain          
+RDNOISE =    7.391247694617443 / readnoise averaged over all cells              
+NRDNOISE=                   64 / number of cells contrib. to avg. readnoise     
+RDNOISEE=    9.692646080094402 / readnoise in e- averaged over all cells        
+NRDNOSEE=                   64 / number cells contrib. to avg. readnoise in e-  
+FRNG_SCL=                   -1                                                  
+FRNG_STD=                   -1                                                  
+FRNG_OK =                    F                                                  
+DETSEC  = '[12288:16384,12288:16384]' / position of OTA in focal plane          
+CUNIT1  = 'deg     '           / Axis unit                                      
+CUNIT2  = 'deg     '           / Axis unit                                      
+PV2_15  =        -0.3846741244 / Projection distortion parameter                
+PV2_9   =       -0.05340315484 / Projection distortion parameter                
+PV1_20  =          0.247354811 / Projection distortion parameter                
+PV1_21  =          8.653338706 / Projection distortion parameter                
+PV2_0   =      0.0006293554765 / Projection distortion parameter                
+PV2_1   =          0.994940643 / Projection distortion parameter                
+PV2_2   =      0.0004312418667 / Projection distortion parameter                
+PV2_4   =         0.0067611352 / Projection distortion parameter                
+PV2_5   =       0.006071999213 / Projection distortion parameter                
+PV2_6   =       0.001466757271 / Projection distortion parameter                
+PV2_7   =       -0.03230003386 / Projection distortion parameter                
+PV1_7   =       -0.07026424298 / Projection distortion parameter                
+PV1_6   =       0.002658312045 / Projection distortion parameter                
+PV1_5   =       0.004051347794 / Projection distortion parameter                
+PV1_4   =       0.007317424681 / Projection distortion parameter                
+PV1_2   =     -0.0001657408193 / Projection distortion parameter                
+PV1_1   =         0.9987964332 / Projection distortion parameter                
+PV1_0   =     -1.739941108E-05 / Projection distortion parameter                
+PV2_12  =         0.1670628397 / Projection distortion parameter                
+PV2_16  =         0.2374415193 / Projection distortion parameter                
+PV2_18  =          13.63449207 / Projection distortion parameter                
+PV2_19  =         -2.759595583 / Projection distortion parameter                
+PV1_9   = -0.09607464407999999 / Projection distortion parameter                
+PV1_8   =        -0.0129528277 / Projection distortion parameter                
+PV2_8   =        -0.0684361498 / Projection distortion parameter                
+PV2_14  =          0.290864647 / Projection distortion parameter                
+ASTIRMS2= '8.427003347E-05'    / Astrom. dispersion RMS (intern., high S/N)     
+ASTIRMS1= '8.499436727E-05'    / Astrom. dispersion RMS (intern., high S/N)     
+PV1_19  =          4.095724224 / Projection distortion parameter                
+RADECSYS= 'ICRS    '           / Astrometric system                             
+PV1_18  =          7.312101577 / Projection distortion parameter                
+PV2_17  =         0.9212864272 / Projection distortion parameter                
+PV1_22  =         -12.84147408 / Projection distortion parameter                
+PV2_13  =         0.1956425317 / Projection distortion parameter                
+ASTRRMS1= '1.194262541E-04'    / Astrom. dispersion RMS (ref., high S/N)        
+PV2_20  =           3.85209848 / Projection distortion parameter                
+PV1_17  =          4.423646275 / Projection distortion parameter                
+PV1_16  =        0.03411626837 / Projection distortion parameter                
+PV1_15  =         0.1188866213 / Projection distortion parameter                
+PV1_14  =         0.2266433538 / Projection distortion parameter                
+PV1_13  =         0.3126018658 / Projection distortion parameter                
+PV1_12  =          0.057489485 / Projection distortion parameter                
+PV1_10  =  0.07042311882000001 / Projection distortion parameter                
+PV2_22  =         -0.313325842 / Projection distortion parameter                
+PV2_21  =          2.502745967 / Projection distortion parameter                
+PV2_10  =      -0.009092546097 / Projection distortion parameter                
+ASTRRMS2= '1.187438334E-04'    / Astrom. dispersion RMS (ref., high S/N)        
+CRJ_ITER=                    4 / cosmic ray removal iterations                  
+CRJ_SIGC=                  5.0 / CR sigma clipping threshold                    
+CRJ_SIGF=                  0.3 / CR threshold for neighboring pixels            
+CRJ_OBJL=                  4.9 / CR contrast to underlying object               
+CRJ_SATU=              55000.0 / CR saturation limit                            
+CRJ_METH= 'cy      '           / CR implementation                              
+SKY_MEDI=    55.60701751708984 / sky-level median                               
+SKY_MEAN=    67.48625726699829 / sky-level mean                                 
+SKY_STD =    50.21981528843169 / sky-level rms                                  
+INHERIT =                    T / Inherit headers from PrimaryHDU                
+COMMENT Detector                                                                
+COMMENT --------                                                                
+COMMENT Iraf coordinates                                                        
+COMMENT ----------------                                                        
+COMMENT Grasp Telemetry                                                         
+COMMENT --------------                                                          
+COMMENT CELLMODE info                                                           
+COMMENT xy(0,0) S S S S S S S S  ------------------------------------------     
+COMMENT xy(0,1) S S S S S S S S  Cell usage for EXTNAME='xy__'                  
+COMMENT xy(0,2) S S S S S S S S                                                 
+COMMENT xy(0,3) S S S S S S S S     Legend:                                     
+COMMENT xy(0,4) S S S S S S S S      (S) Science data from cell                 
+COMMENT xy(0,5) S S S S S S S S      (V) Video data from cell                   
+COMMENT xy(0,6) S S S S S S S S      (F) Floated cell (no data)                 
+COMMENT xy(0,7) S S S S S S S S      (D) Dead cell (no data)                    
+COMMENT         0 1 2 3 4 5 6 7  ------------------------------------------     
+COMMENT If DETTEMOV is T, DETTEMP was overridden. Old                           
+COMMENT temp. is CDETTEM and new temp. was derived as:                          
+COMMENT V = (ADU-B) / (A*32768)                                                 
+COMMENT T = 3369-sqrt[3369^2+1313^2*(13.1*V-1)/(V-1)]                           
+HISTORY CC-BIAS: /nas/pub/marina_april2014/calib/bias_bin1.fits                 
+HISTORY CC-DARK: /nas/pub/marina_april2014/calib/dark_yes_bin1.fits             
+HISTORY CC-FLAT: /nas/pub/marina_april2014/calib/flat_CTIO_OIII_bin1.fits       
