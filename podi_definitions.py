@@ -48,9 +48,9 @@ import podi_sitesetup as sitesetup
 #
 # Update this variable below when changing versions
 #
-pipeline_plver = "QuickReduce 1.0"
+pipeline_plver = "QuickReduce 1.1"
 pipeline_name = "QuickReduce"
-pipeline_version = "1.0"
+pipeline_version = "1.1"
 try:
     cmd = "svnversion -n %s" % (sitesetup.exec_dir)
     ret = subprocess.Popen(cmd.split(), 
