@@ -40,14 +40,19 @@ def check_package(name):
     """
 
     try:
-        import_cmd = "import %s" % (name)
+        import_cmd = "import %s as pkg" % (name)
         exec(import_cmd)
     except ImportError:
         print "\nProblem importing %s" % (name)
     except:
         print "\nSome error occured while trying to import %s" % (name)
     else:
-        print "Found working version of %s!" % (name)
+        try:
+            version = pkg.__version__
+            print "Found package: %s (version: %s)" % (name, pkg.__version__)
+        except AttributeError:
+            print "Found package: %s" % (name)
+            pass
         return True
 
     return False
