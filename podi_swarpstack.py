@@ -243,11 +243,15 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
 
                 # now compute the Ra/Dec of the target in both the reference 
                 # frame and in this frame
-                ra_ref = swarp_params['ephemerides']['ra'](mjd_ref)
-                ra_this = swarp_params['ephemerides']['ra'](mjd_thisframe)
+                ephem_data = swarp_params['ephemerides']['data']
+                ra_from_mjd = scipy.interpolate.interp1d( ephem_data[:,0], ephem_data[:,1], kind='linear' )
+                dec_from_mjd = scipy.interpolate.interp1d( ephem_data[:,0], ephem_data[:,2], kind='linear' )
 
-                dec_ref = swarp_params['ephemerides']['dec'](mjd_ref)
-                dec_this = swarp_params['ephemerides']['dec'](mjd_thisframe)
+                ra_ref = ra_from_mjd(mjd_ref)
+                ra_this = ra_from_mjd(mjd_thisframe)
+
+                dec_ref = dec_from_mjd(mjd_ref)
+                dec_this = dec_from_mjd(mjd_thisframe)
 
                 # print "\n"*5, "ra//dec = ", ra_ref, dec_ref, "\n"*5
                 # The Ra/Dec correction is how much the object has moved 
@@ -997,8 +1001,11 @@ def swarpstack(outputfile,
             logger.info("Preparing file %s, please wait ..." % (prepared_file))
             logger.debug(" ".join(swarp_cmd.split()))
 
+            # print (swarp_cmd, prepared_file, single_file, swarp_params, nonsidereal_dradec, True)
+
             sgl_queue.put( (swarp_cmd, prepared_file, single_file, swarp_params, nonsidereal_dradec, True) )
             single_prepared_files.append(single_file)
+            time.sleep(2)
 
     #
     # Execute all swarps to create the single files
@@ -1456,6 +1463,10 @@ def read_swarp_params(filelist):
 
                 if (items[1] == "NASA"):
                     object_name = items[2]
+                    if ((object_name.startswith("'") and object_name.endswith("'")) or
+                        (object_name.startswith('"') and object_name.endswith('"'))):
+                        object_name = object_name[1:-1]
+
                     results = podi_ephemerides.get_ephemerides_for_object_from_filelist(
                         object_name=object_name, 
                         filelist=filelist,
@@ -1543,8 +1554,11 @@ if __name__ == "__main__":
                 line = line.strip()
                 if (len(line) <= 0):
                     continue
-                # print "Adding ",line.strip(),"to command line"
-                if (not line.startswith("#")):
+                elif (line.startswith("#")):
+                    continue
+                elif (line.startswith("-")):
+                    sys.argv.append(line)
+                else:
                     items = line.split()
                     sys.argv.append(items[0])
             conf.close()
