@@ -21,7 +21,8 @@ def get_ephemerides_for_object(object_name,
                                end_datetime="2014-01-01",
                                time_interval="6h",
                                session_log_file=None,
-                               verbose=True):
+                               verbose=True,
+                               compute_interpolation=False):
 
     logger = logging.getLogger("HorizonInterface")
 
@@ -338,10 +339,14 @@ def get_ephemerides_for_object(object_name,
     numpy.savetxt("ephem.data", data)
 
     # Now create some interpolation vectors
-    ra_vs_mjd = scipy.interpolate.interp1d( data[:,0], data[:,1], kind='linear' )
-    dec_vs_mjd = scipy.interpolate.interp1d( data[:,0], data[:,2], kind='linear' )
-    rate_ra_vs_mjd = scipy.interpolate.interp1d( data[:,0], data[:,3], kind='linear' )
-    rate_dec_vs_mjd = scipy.interpolate.interp1d( data[:,0], data[:,4], kind='linear' )
+    if (compute_interpolation):
+        ra_vs_mjd = scipy.interpolate.interp1d( data[:,0], data[:,1], kind='linear' )
+        dec_vs_mjd = scipy.interpolate.interp1d( data[:,0], data[:,2], kind='linear' )
+        rate_ra_vs_mjd = scipy.interpolate.interp1d( data[:,0], data[:,3], kind='linear' )
+        rate_dec_vs_mjd = scipy.interpolate.interp1d( data[:,0], data[:,4], kind='linear' )
+    else:
+        ra_vs_mjd, dec_vs_mjd, rate_ra_vs_mjd, rate_dec_vs_mjd = None, None, None, None
+
     results = {
         'data': data,
         'ra': ra_vs_mjd,
