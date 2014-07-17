@@ -477,6 +477,63 @@ if __name__ == "__main__":
         print results
 
     else:
-        object_name = get_clean_cmdline()[1]
-        get_ephemerides_for_object(object_name, verbose=False)
+        
+        from podi_commandline import *
+        options = read_options_from_commandline(None)
+        podi_logging.setup_logging(options)
 
+        object_name = get_clean_cmdline()[1]
+        results = get_ephemerides_for_object(object_name, verbose=False)
+
+        logger = logging.getLogger("OrbitPlots")
+
+        import matplotlib, matplotlib.pyplot
+        fig = matplotlib.pyplot.figure()
+        ax = fig.add_subplot(111)
+
+        ax.plot(results['data'][:,1], results['data'][:,2], "-", c='blue')
+
+        # matplotlib.pyplot.show()
+        # fig.show()
+        pngfile = "orbit_v1__%s.png" % (object_name.replace(' ','').replace("/",''))
+        logger.info("Saving Orbit (V1) to %s" % (pngfile))
+        fig.savefig(pngfile)
+
+
+        fig2 = matplotlib.pyplot.figure()
+        ax_ra = fig2.add_subplot(121, polar=True)
+        ax_ra.set_title("RA")
+        ax_ra.plot(numpy.radians(results['data'][:,1]), results['data'][:,0], color='r', linewidth=3)
+        ax_ra.set_rmin(results['data'][0,0])
+        ax_ra.set_rmax(results['data'][-1,0])
+        ax_ra.grid(True)
+
+        ax_dec = fig2.add_subplot(122, polar=True)
+        ax_dec.set_title("Declination")
+        ax_dec.plot(numpy.radians(results['data'][:,2]), results['data'][:,0], color='r', linewidth=3)
+        ax_dec.grid(True)
+        ax_dec.set_rmin(results['data'][0,0])
+        ax_dec.set_rmax(results['data'][-1,0])
+        # fig2.show()
+        # matplotlib.pyplot.show()
+        pngfile = "orbit_v2__%s.png" % (object_name.replace(' ','').replace("/",''))
+        logger.info("Saving Orbit (V2) to %s" % (pngfile))
+        fig2.savefig(pngfile)
+
+        fig3 = matplotlib.pyplot.figure()
+        ax3_ra = fig3.add_subplot(211)
+        ax3_ra.plot(results['data'][:,0], results['data'][:,1])
+        ax3_ra.set_xlabel("MJD")
+        ax3_ra.set_ylabel("RA [degrees]")
+
+        ax3_dec = fig3.add_subplot(212)
+        ax3_dec.plot(results['data'][:,0], results['data'][:,2])
+        ax3_dec.set_xlabel("MJD")
+        ax3_dec.set_ylabel("Declination [degrees]")
+        # fig3.show()
+        # matplotlib.pyplot.show()
+        pngfile = "orbit_v3__%s.png" % (object_name.replace(' ','').replace("/",''))
+        logger.info("Saving Orbit (V3) to %s" % (pngfile))
+        fig3.savefig(pngfile)
+
+        podi_logging.shutdown_logging(options)
