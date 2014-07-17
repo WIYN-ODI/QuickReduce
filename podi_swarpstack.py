@@ -126,8 +126,7 @@ import warnings
 import time
 
 try:
-    dir, _ = os.path.split(os.path.abspath(sys.argv[0]))
-    sys.path.append(dir+"/test")
+    sys.path.append(sitesetup.exec_dir+"/test")
     import ephemerides
     import podi_ephemerides
 except:
@@ -231,7 +230,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
 
             if (swarp_params['use_ephemerides']):
                 # get MJD of current frame
-                mjd_thisframe = hdulist[0].header['MJD-OBS']
+                mjd_thisframe = hdulist[0].header['MJD-OBS'] + 0.5*hdulist[0].header['EXPTIME']/2./86400
                 mjd_ref = swarp_params['ephemerides']['ref-mjd']
 
                 # print "\n"*10
@@ -1455,6 +1454,9 @@ def read_swarp_params(filelist):
                 for ext in hdulist:
                     if ('MJD-OBS' in ext.header):
                         ref_mjd = ext.header['MJD-OBS']
+                        # correct reference MJD to the mid-point of the exposure
+                        if ('EXPTIME' in ext.header):
+                            ref_mjd += ext.header['EXPTIME']/2./86400
                         break
                 hdulist.close()
             if (ref_mjd == None):
