@@ -800,10 +800,12 @@ def swarpstack(outputfile,
     logger.debug("Using header-only-file: %s" % (header_only_file))
 
     # Make sure the reference file is a valid file
-    if (not swarp_params['reference_file'] == None and os.path.isfile(swarp_params['reference_file'])):
-        logger.info("Using %s as reference file" % (swarp_params['reference_file']))
-    else:
-        swarp_params['reference_file'] = None
+    if (not swarp_params['reference_file'] == None):
+        if (os.path.isfile(swarp_params['reference_file'])):
+            logger.info("Using %s as reference file" % (swarp_params['reference_file']))
+        else:
+            logger.error("Could not find specified reference file (%s)" % (swarp_params['reference_file']))
+            swarp_params['reference_file'] = None
 
     logging.debug("Using modified input list: %s" % (str(inputlist)))
 
@@ -812,10 +814,13 @@ def swarpstack(outputfile,
     # Figure out the pixel-grid and sky-coverage of the final stack 
     #
     ############################################################################
+    logger.info("reference_file = %s" % (str(swarp_params['reference_file'])))
     if (add_only or not swarp_params['reference_file'] == None):
         #
         # This is the simpler add-only mode
         #
+
+        logger.info("Reading sky-coverage from reference frame")
 
         if (not swarp_params['reference_file'] == None):
             output_info = pyfits.open(swarp_params['reference_file'])
@@ -825,7 +830,7 @@ def swarpstack(outputfile,
 
         logger.info("Stack information...")
         logger.info("   Output-dimensions: %(NAXIS1)5d x %(NAXIS2)5d" % (output_info[0].header))
-
+        logger.info("       Output center: %(CRVAL1)10.6f / %(CRVAL2)10.6f" % (output_info[0].header))
         out_crval1 = output_info[0].header['CRVAL1']
         out_crval2 = output_info[0].header['CRVAL2']
         out_naxis1 = output_info[0].header['NAXIS1']
