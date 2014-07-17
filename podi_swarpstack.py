@@ -644,7 +644,7 @@ def swarpstack(outputfile,
     logger.debug("Using swarp-default in %s" % (swarp_default))
 
     if (len(inputlist) <= 0):
-        logger.error("No input files specified!")
+        logger.error("No (valid) input files specified!")
         return
 
     master_reduction_files_used = {}
@@ -1564,7 +1564,10 @@ if __name__ == "__main__":
 
         # Read command line and store all results in params dictionary
         outputfile = get_clean_cmdline()[1]
-        inputlist = get_clean_cmdline()[2:]
+        inputlist = []
+        for f in get_clean_cmdline()[2:]:
+            if (os.path.isfile(f)):
+                inputlist.append(f)
         params = read_swarp_params(inputlist)
         
         # print params
@@ -1585,7 +1588,10 @@ if __name__ == "__main__":
     except KeyboardInterrupt, SystemExit:
         pass
     except:
-        podi_logging.log_exception()
+        if (len(get_clean_cmdline()) < 3):
+            logger.error("Not enough parameters have been specified, need at least output file and 1 input file")
+        else:
+            podi_logging.log_exception()
         pass
     finally:
         podi_logging.shutdown_logging(options)
