@@ -279,7 +279,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                 logger.debug("Pre-correction Ra/Dec was: %12.7f  %+12.7f" % (orig_ra, orig_dec))
                 logger.debug("Post-corrected Ra/Dec is: %12.7f %+12.7f" % (orig_ra + d_ra, orig_dec + d_dec))
                 
-                ret["nonsidereal-dradec"] = numpy.array([numpy.NaN, d_dec, d_ra])
+                ret["nonsidereal-dradec"] = numpy.array([numpy.NaN, -d_dec, -d_ra])
 
 
             if (options['skip_otas'] != []):
@@ -544,16 +544,17 @@ def mp_swarp_single(sgl_queue, dum):
 
             if (not nonsidereal_dradec == None):
                 
+                d_radec = numpy.array(nonsidereal_dradec)
+
                 # Correct the declination
-                mask_hdu[0].header['CRVAL2'] -= nonsidereal_dradec[1]
+                mask_hdu[0].header['CRVAL2'] -= d_radec[1]
                 # correct RA, compensating for cos(declination)
 
-                d_radec = numpy.array(nonsidereal_dradec)
                 if (d_radec.shape[0] == 3):
-                    mask_hdu[0].header['CRVAL1'] -= nonsidereal_dradec[2]
+                    mask_hdu[0].header['CRVAL1'] -= d_radec[2]
                 else:
                     cos_dec = math.cos(math.radians(mask_hdu[0].header['CRVAL2']))
-                    mask_hdu[0].header['CRVAL1'] -= nonsidereal_dradec[0] / cos_dec
+                    mask_hdu[0].header['CRVAL1'] -= d_radec[0] / cos_dec
 
             clobberfile(this_mask)
             mask_hdu.writeto(this_mask, clobber=True)
