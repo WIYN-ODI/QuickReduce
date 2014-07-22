@@ -130,14 +130,17 @@ def mp_create_saturation_catalog(queue_in, queue_ret, verbose=False):
     logger.debug("Starting worker process")
 
     while (True):
-        filename = queue_in.get()
+        cmd = queue_in.get()
 
-        if (filename == None):
+        if (cmd == None):
             queue_in.task_done()
             logger.debug("Received shutdown command, terminating")
             return
 
-        cat_name = create_saturation_catalog_ota(filename, None, verbose=verbose, return_numpy_catalog=True)
+        filename, saturation_limit = cmd
+        cat_name = create_saturation_catalog_ota(filename, None, verbose=verbose, 
+                                                 return_numpy_catalog=True,
+                                                 saturation_limit=saturation_limit)
 
         queue_ret.put( cat_name )
 
@@ -147,7 +150,8 @@ def mp_create_saturation_catalog(queue_in, queue_ret, verbose=False):
 
 
 
-def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo=False):
+def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo=False,
+                              saturation_limit=65535):
 
     """
     Create catalogs listing all saturated pixels to enable handling saturation
@@ -241,7 +245,7 @@ def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo
                 continue
 
 
-        queue.put( (filename) )
+        queue.put( (filename, saturation_limit) )
         number_jobs_queued += 1
 
         # Remember the very first FITS file we find. This will serve as the primary HDU
@@ -316,7 +320,8 @@ def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo
 
 
 
-def create_saturation_catalog_ota(filename, output_dir, verbose=True, return_numpy_catalog=False):
+def create_saturation_catalog_ota(filename, output_dir, verbose=True, 
+                                  return_numpy_catalog=False, saturation_limit=65535):
     """
     Create a saturation table for a given OTA exposure.
 
@@ -347,12 +352,10 @@ def create_saturation_catalog_ota(filename, output_dir, verbose=True, return_num
 
     """
 
-    logger = logging.getLogger()
+    logger = logging.getLogger("OTASatCat")
 
     # Open filename
-    if (verbose):
-        stdout_write("Creating catalog of saturated pixels\n")
-        stdout_write("Input filename: %s\n" % (filename))
+    logger.debug("Input filename: %s" % (filename))
 
     try:
         hdulist = pyfits.open(filename)
@@ -375,12 +378,13 @@ def create_saturation_catalog_ota(filename, output_dir, verbose=True, return_num
     saturated_pixels_total = 0
 
     for ext in range(1, len(hdulist)):
-        if (type(hdulist[ext]) != pyfits.hdu.image.ImageHDU):
+        if (not is_image_extension(hdulist[ext])):
             continue
 
         # Find all saturated pixels (values >= 65K)
         data = hdulist[ext].data
-        saturated = (data >= 65535)
+        saturated = (data >= saturation_limit)
+        # print hdulist[ext].header['EXTNAME'], data.shape, numpy.max(data)
 
         # Skip this cell if no pixels are saturated
         number_saturated_pixels = numpy.sum(saturated)
@@ -392,7 +396,7 @@ def create_saturation_catalog_ota(filename, output_dir, verbose=True, return_num
         wn_cellx = hdulist[ext].header['WN_CELLX']
         wn_celly = hdulist[ext].header['WN_CELLY']
 
-        if (verbose): print "number of saturated pixels in cell %d,%d: %d" % (wn_cellx, wn_celly, number_saturated_pixels)
+        # logger.debug("number of saturated pixels in cell %d,%d: %d" % (wn_cellx, wn_celly, number_saturated_pixels))
 
         # Do some book-keeping preparing for the masking
         rows, cols = numpy.indices(data.shape)
@@ -495,7 +499,11 @@ def mask_saturation_defects(catfilename, ota, data):
     
     """
 
+    logger = logging.getLogger("MaskSatDefects")
+
     # Open the catalog file
+    logger.debug("Trying to open file %s" % (catfilename))
+
     catlist = pyfits.open(catfilename)
     extension_name  = "OTA%02d.SATPIX" % (ota)
 
@@ -504,8 +512,11 @@ def mask_saturation_defects(catfilename, ota, data):
     try:
         ota_cat = catlist[extension_name].data
     except:
+        logger.debug("This OTA (%02d) does not have any saturated pixels" % (ota))
         #print "couldn't find catalog",extension_name
         return data
+
+    logger.debug("Found saturated pixels in this OTA (%02d)" % (ota))
 
     # Now we have a valid catalog extension
     # First of all, create a frame for the mask
@@ -559,6 +570,7 @@ def mask_saturation_defects(catfilename, ota, data):
         # Re-insert the cell mask into the larger mask
         mask[by:ty, bx:tx] = cell_mask
 
+    logger.debug("Masking out %d pixels in OTA %02d" % (numpy.sum(mask), ota))
 
     # Now we have the full mask, mark all pixels as invalid
     #print mask[0:10,0:10]
@@ -898,7 +910,7 @@ def map_persistency_effects(hdulist, verbose=False):
     #
     for ext in range(len(hdulist)):
         # Skip extensions that are no Image HDUs
-        if (str(type(hdulist[ext])) != "<class 'pyfits.hdu.image.ImageHDU'>"):
+        if (not is_image_extension(hdulist[ext])):
             continue
 
         extname = hdulist[ext].header['EXTNAME']
@@ -1237,7 +1249,8 @@ if __name__ == "__main__":
         output_dir = cmdline_arg_set_or_default('-persistency', '.')
         verbose = cmdline_arg_isset("-verbose")
         for filename in get_clean_cmdline()[1:]:
-            create_saturation_catalog(filename, output_dir=output_dir, verbose=verbose)
+            create_saturation_catalog(filename, output_dir=output_dir, verbose=verbose,
+                                      saturation_limit=sitesetup.saturation_limit)
 
     elif (cmdline_arg_isset('-masksattrails')):
         input_file = get_clean_cmdline()[1]
@@ -1246,7 +1259,7 @@ if __name__ == "__main__":
         
         inputhdu = pyfits.open(input_file)
         for i in range(1, len(inputhdu)):
-            if (not type(inputhdu[i]) == pyfits.hdu.image.ImageHDU):
+            if (not is_image_extension(inputhdu[i])):
                 continue
             ota = int(inputhdu[i].header['EXTNAME'][3:5])
             print ota
@@ -1281,7 +1294,7 @@ if __name__ == "__main__":
 
         #inputhdu = pyfits.open(input_file)
         for i in range(1, len(inputhdu)):
-            if (not type(inputhdu[i]) == pyfits.hdu.image.ImageHDU):
+            if (not is_image_extension(inputhdu[i])):
                 continue
             ota = int(inputhdu[i].header['EXTNAME'][3:5])
             print "working on ota",ota
@@ -1315,7 +1328,7 @@ if __name__ == "__main__":
         persistency_hdu.writeto(persistency_map_out, clobber=True)
 
         for ext in range(0, len(hdulist)):
-            if (str(type(hdulist[ext])) != "<class 'pyfits.hdu.image.ImageHDU'>"):
+            if (not is_image_extension(hdulist[ext])):
                 continue
 
             extname = hdulist[ext].header['EXTNAME']

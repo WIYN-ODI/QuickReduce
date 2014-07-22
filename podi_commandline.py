@@ -351,7 +351,7 @@ def set_default_options(options_in=None):
     options['update_persistency_only'] = False
     options['persistency_dir'] = None
     options["persistency_map"] = None
-    options['max_persistency_time'] = 600
+    options['max_persistency_time'] = sitesetup.persistency_duration
 
     options['fringe_dir'] = None
     options['fringe_vectors'] = "%s/.fringevectors/" % (options['exec_dir'])

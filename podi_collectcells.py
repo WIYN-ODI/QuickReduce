@@ -893,19 +893,22 @@ def collect_reduce_ota(filename,
             #print "this frame=",saturated_thisframe,mjd
 
             if (not saturated_thisframe == None):
+                logger.debug("Using the following saturation frames: %s" % (str(saturated_thisframe)))
                 merged = podi_persistency.mask_saturation_defects(saturated_thisframe, ota, merged)
             hdu.header["SATMASK"] = saturated_thisframe
 
             # Also pick all files within a given MJD range, and apply the 
             # appropriate correction (which, for now, is simply masking all pixels)
-            filelist = podi_persistency.select_from_saturation_tables(full_filelist, mjd, [1,options['max_persistency_time']])
+            filelist = podi_persistency.select_from_saturation_tables(full_filelist, mjd, 
+                                                                      [1,options['max_persistency_time']])
             if (len(filelist) > 0):
                 # Extract only the filenames from the filelist dictionary
                 persistency_files_used = []
                 for assoc_persistency_file, assoc_mjd in filelist.iteritems():
                     persistency_files_used.append(assoc_persistency_file)
+                logger.debug("Using persistency catalogs in %s" % (str(persistency_files_used)))
                 reduction_files_used['persistency'] = persistency_files_used
-
+                
                 merged = podi_persistency.correct_persistency_effects(ota, merged, mjd, filelist)
                 persistency_catalog_counter = 0
                 for filename in filelist:
