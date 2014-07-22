@@ -215,6 +215,13 @@ def update_sitesetup():
     changes = changes | ask_for_option('max_rotator_error', 
                    "Maximum allowed range for rotator error for astrometric calibration", 
                    [-3,3.5], False, config_array)
+
+    changes = changes | ask_for_option('saturation_limit', 
+                   "Saturation count rate; pixel >= X are considered saturated", 
+                   65535, False, config_array)
+    changes = changes | ask_for_option('persistency_duration', 
+                   "Maximum timescale that persistency affects the data in seconds", 
+                   600, False, config_array)
     
     config_array.append("")
 
