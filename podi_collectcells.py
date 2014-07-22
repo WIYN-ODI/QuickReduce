@@ -2622,7 +2622,7 @@ def collectcells(input, outputfile,
         zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = \
             podi_photcalib.photcalib(global_source_cat, outputfile, filter_name, 
                                      exptime=exptime,
-                                     diagplots=True,
+                                     diagplots=options['create_qaplots'],
                                      plottitle=titlestring,
                                      otalist=ota_list,
                                      options=options,
