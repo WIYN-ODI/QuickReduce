@@ -310,7 +310,7 @@ def match_subtract_fringing(data_filename, fringe_filename, verbose=True, output
     all_results = None
     number_extensions = 0
     for ext in range(1, len(data_hdulist)):
-        if (type(data_hdulist[ext]) != pyfits.hdu.image.ImageHDU):
+        if (not is_image_extension(data_hdulist[ext])):
             continue
 
         # Load data for each extension/OTA
@@ -359,7 +359,7 @@ def match_subtract_fringing(data_filename, fringe_filename, verbose=True, output
     if (verbose): stdout_write("doing reduction\n")
 
     for ext in range(1, len(data_hdulist)):
-        if (type(data_hdulist[ext]) != pyfits.hdu.image.ImageHDU):
+        if (not is_image_extension(data_hdulist[ext])):
             continue
 
         extname = data_hdulist[ext].header['EXTNAME']
@@ -824,7 +824,7 @@ if __name__ == "__main__":
 
         all_vecs = None
         for ext in range(1, len(data_hdulist)):
-            if (type(data_hdulist[ext]) != pyfits.hdu.image.ImageHDU):
+            if (not is_image_extension(data_hdulist[ext])):
                 continue
             if (not data_hdulist[ext].header['CELLMODE'].find("V") < 0):
                 # This is marked as a guide CCD and most likely useless
@@ -864,7 +864,7 @@ if __name__ == "__main__":
 
         # Now do the correction
         for ext in range(1, len(data_hdulist)):
-            if (type(data_hdulist[ext]) != pyfits.hdu.image.ImageHDU):
+            if (not is_image_extension(data_hdulist[ext])):
                 continue
             data_hdulist[extname].data -= (fringe_hdulist[extname].data * final_scaling)
 

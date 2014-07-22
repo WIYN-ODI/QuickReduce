@@ -36,9 +36,7 @@ if __name__ == "__main__":
 
         for ext in hdulist:
             #print type(ext)
-            if (type(ext) == pyfits.hdu.image.PrimaryHDU or
-                type(ext) == pyfits.hdu.image.ImageHDU or
-                type(ext) == pyfits.hdu.compressed.CompImageHDU):
+            if (is_image_extension(ext)):
                 outlist.append(ext)
 
         print "writing",inputfile

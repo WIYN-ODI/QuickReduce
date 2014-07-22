@@ -87,7 +87,7 @@ def create_quickview(filename, output_directory, z1=None, z2=None, verbose=False
     # frame into the full OTA view
     #
     for extension in range(1, len(hdulist)):
-        if (not type(hdulist[extension]) == pyfits.hdu.image.ImageHDU):
+        if (not is_image_extension(hdulist[extension])):
             continue
 
         cell = hdulist[extension]
