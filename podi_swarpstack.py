@@ -1381,11 +1381,13 @@ def swarpstack(outputfile,
         # Add the user-defined keywords to the stacked file. This is required for
         # proper integration with the PPA framework.
         # print options['additional_fits_headers']
+        first_useradded_key = None
         for key, value in options['additional_fits_headers'].iteritems():
+            if (first_useradded_key == None): first_useradded_key = key
             hdustack[0].header[key] = (value, "user-added keyword")
-        if (len(options['additional_fits_headers']) > 0):
+        if (len(options['additional_fits_headers']) > 0 and not first_useradded_key == None):
             add_fits_header_title(hdustack[0].header, 
-                                  "user-added keywords", options['additional_fits_headers'][0])
+                                  "user-added keywords", first_useradded_key)
 
         #
         # Create an association table from the master reduction files used.
