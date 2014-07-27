@@ -873,8 +873,8 @@ def collect_reduce_ota(filename,
                     # normalize the data
                     merged /= norm_factor
                     # and fix the EXPTIME/EXPMEAS header as well
-                    hdu.header['EXPTIME'] /= norm_factor
-                    hdu.header['EXPMEAS'] /= norm_factor
+                    if ('EXPTIME' in hdu.header): hdu.header['EXPTIME'] /= norm_factor
+                    if ('EXPMEAS' in hdu.header): hdu.header['EXPMEAS'] /= norm_factor
             hdu.header['NORMALIZ'] = (norm_factor, "normalization constant")
                 
         #
