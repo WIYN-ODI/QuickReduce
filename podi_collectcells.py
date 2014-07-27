@@ -860,7 +860,12 @@ def collect_reduce_ota(filename,
             if (options['normalize'] == "EXPTIME" or
                 options['normalize'] == "EXPMEAS"):
                 # get the factor from the header
-                norm_factor = hdu.header[options['normalize']]
+                if (options['normalize'] in hdu.header):
+                    norm_factor = hdu.header[options['normalize']]
+                elif 'EXPTIME' in hdu.header:
+                    norm_factor = hdu.header['EXPTIME']
+                else:
+                    norm_factor = 1.0
 
                 if (norm_factor > 0):
                     logger.debug("normalizing data with constant %f (%s)" % (
