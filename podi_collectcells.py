@@ -2118,7 +2118,11 @@ def collectcells(input, outputfile,
             else:
                 sky_samples_global = numpy.append(sky_samples_global, sky_samples[ext], axis=0)
 
-    sky_global_median = numpy.median(sky_samples_global[:,4])
+    try:
+        sky_global_median = numpy.median(sky_samples_global[:,4])
+    except:
+        logger.warning("Problem determining the global sky level")
+        sky_global_median = -99999.99
     ota_list[0].header["SKYLEVEL"] = (sky_global_median, "median global sky level")
     ota_list[0].header["SKYBG"] = (sky_global_median, "median global sky background")
     logger.debug("Found global median sky-value = %.1f" % (sky_global_median))
@@ -2275,8 +2279,11 @@ def collectcells(input, outputfile,
     ota_list[0].header['NGAIN'] = (global_gain_count, "number of cells contribution to gain")
 
     # Compute the noise of the sky-level based on gain and readnoise XXXXXXX
-    ota_list[0].header["SKYNOISE"] = (math.sqrt( 8.**2 + sky_global_median*ota_list[0].header['GAIN'] ), 
-                                      "noise level of sky background")
+    if (sky_global_median > 0):
+        ota_list[0].header["SKYNOISE"] = (math.sqrt( 8.**2 + sky_global_median*ota_list[0].header['GAIN'] ), 
+                                          "noise level of sky background")
+    else:
+        ota_list[0].header["SKYNOISE"] = (-99999.99, "noise level of sky background")
 
 
     logger.debug("all data received from worker processes!")
@@ -2711,7 +2718,7 @@ def collectcells(input, outputfile,
 
         # Compute the sky-brightness 
         sky_arcsec = sky_global_median / (0.11**2) # convert counts/pixel to counts/arcsec*2
-        sky_mag = -99
+        sky_mag = -99.
 	if (sky_arcsec > 0 and zeropoint_exptime < 99): -2.5 * math.log10(sky_arcsec) + zeropoint_exptime
         ota_list[0].header['SKYMAG'] = sky_mag
 
@@ -2754,9 +2761,12 @@ def collectcells(input, outputfile,
             # (i.e. radius = seeing).
             aperture_area = (seeing / 0.11)**2 * math.pi
             readnoise = 8.
-            bgcounts = aperture_area * (sky_global_median + readnoise**2)
-            counts_sn1 = math.sqrt(bgcounts)
-            limiting_mag = -2.5*math.log10(counts_sn1) + zeropoint_exptime
+            if (sky_global_median >= 0):
+                bgcounts = aperture_area * (sky_global_median + readnoise**2)
+                counts_sn1 = math.sqrt(bgcounts)
+                limiting_mag = -2.5*math.log10(counts_sn1) + zeropoint_exptime
+            else:
+                limiting_mag = -99.
             ota_list[0].header['PHOTDPTH'] = limiting_mag
 
     # Create the image quality plot
