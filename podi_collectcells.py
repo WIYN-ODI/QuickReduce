@@ -1170,8 +1170,9 @@ def collect_reduce_ota(filename,
         # Now sample the background, excluding regions close to known sources
         logger.debug("Sampling sky background")
         sky_samples = numpy.array(podi_fitskybackground.sample_background(data=merged, wcs=None, 
-                                                                         starcat=starcat, 
-                                                                         min_found=200, boxwidth=30))
+                                                                          starcat=starcat, 
+                                                                          min_found=200, boxwidth=30,
+                                                                          min_box_spacing=3))
 
         if (sky_samples.shape[0] <= 0): #not sky_samples.shape[1] > 4):
             logger.warning("Something went wrong with the sky-calculation: %s" % (str(sky_samples.shape)))
@@ -2118,15 +2119,38 @@ def collectcells(input, outputfile,
             else:
                 sky_samples_global = numpy.append(sky_samples_global, sky_samples[ext], axis=0)
 
+
+    try:
+        sky_samples_clipped = three_sigma_clip(sky_samples_global[:,4], nsigma=3)
+        sky_median_clipped = numpy.median(sky_samples_clipped)
+        # print "clipped sky median", numpy.median(sky_samples_clipped)
+        # print "minimum sky value", numpy.min(sky_samples_global[:,4])
+    except:
+        sky_median_clipped = -99999.99
+        
     try:
         sky_global_median = numpy.median(sky_samples_global[:,4])
+        sky_global_min = numpy.min(sky_samples_global[:,4])
+        sky_global_std = numpy.std(sky_samples_global[:,4])
+        number_sky_samples = sky_samples_global.shape[0]
+        sky_1sigmas = scipy.stats.scoreatpercentile(sky_samples_global[:,4], [16,84])
+        print sky_1sigmas
     except:
         logger.warning("Problem determining the global sky level")
         sky_global_median = -99999.99
+        sky_global_min = -99999.99
+        sky_global_std = -99999.99
+        number_sky_samples = 0
+
     ota_list[0].header["SKYLEVEL"] = (sky_global_median, "median global sky level")
     ota_list[0].header["SKYBG"] = (sky_global_median, "median global sky background")
     logger.debug("Found global median sky-value = %.1f" % (sky_global_median))
+    ota_list[0].header['SKYBGCLP'] = (sky_median_clipped, "3-sigma clipped median sky level")
+    ota_list[0].header['SKYBGMIN'] = (sky_global_min, "miminum sky level")
+    ota_list[0].header['SKYBGSTD'] = (sky_global_std, "std.dev. of sky level")
+    ota_list[0].header['SKYSMPLS'] = (number_sky_samples, "number of sky level samples")
     add_fits_header_title(ota_list[0].header, "Derived global data", 'SKYLEVEL')
+
 
     #
     # Compute the global fringe scaling 
