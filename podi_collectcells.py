@@ -2403,7 +2403,8 @@ def collectcells(input, outputfile,
                                         input_hdu=ota_list, 
                                         mode=sitesetup.fixwcs_mode,
                                         max_pointing_error=sitesetup.max_pointing_error,
-                                        max_rotator_error=sitesetup.max_rotator_error)
+                                        max_rotator_error=sitesetup.max_rotator_error,
+                                        min_contrast=sitesetup.min_wcs_quality)
 
         # Use the fixed HDUList
         ota_list = ccmatched['hdulist']
@@ -2417,12 +2418,12 @@ def collectcells(input, outputfile,
         ota_list[0].header['WCSMXROT'] = (str(sitesetup.max_rotator_error).replace(' ',''), 
                                           "maximum pointing offset compensated")
         ota_list[0].header['WCSPLIST'] = (str(sitesetup.max_pointing_error).replace(' ',''),
-                                          "maximum pointing error list allowed")
+                                          "maximum pointing error allowed")
         ota_list[0].header['WCSQUALS'] = ("["+','.join(["%.3f" % a for a in ccmatched['contrasts']])+"]",
-                                          "WCS quality for each max pointing error")
-        
-        #        if ("WCS_QUAL" in ota_list[0].header):
-        ota_list[0].header['WCSCAL'] = ccmatched['valid_wcs_solution'] #ota_list[0].header['WCS_QUAL'] > 1.5
+                                          "WCS quality")
+        ota_list[0].header['WCSMINQ']  = (sitesetup.min_wcs_quality,
+                                          "Minimum WCS quality for successful calibration")
+        ota_list[0].header['WCSCAL'] = ccmatched['valid_wcs_solution']
         
         if (not ccmatched['valid_wcs_solution']):
 
