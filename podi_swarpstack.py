@@ -382,6 +382,22 @@ def prepare_input(inputlist, swarp_params, options):
             inputlist[i] = None
             continue
 
+        #
+        # Perform some checks to only include valid frames in the stack
+        #
+        # Frame needs to have valid WCS solution
+        if ('WCSCAL' in hdulist[0].header and
+            not hdulist[0].header['WCSCAL']):
+            inputlist[i] = None
+            logger.info("Excluding frame (%s) due to faulty WCS calibration" % (inputlist[i]))
+            continue
+        # and proper photometric calibration
+        if ('MAGZERO' in hdulist[0].header and
+            hdulist[0].header['MAGZERO'] <= 0):
+            inputlist[i] = None
+            logger.info("Excluding frame (%s) due to missing photometric calibration" % (inputlist[i]))
+            continue
+
         in_queue.put(inputlist[i])
         n_jobs += 1
 
@@ -1431,6 +1447,8 @@ def read_swarp_params(filelist):
     params['add'] = cmdline_arg_isset("-add")
     params['reference_file'] = cmdline_arg_set_or_default("-reference", None)
     params['no-fluxscale'] = cmdline_arg_isset('-nofluxscale')
+
+    params['ignore_quality_checks'] = cmdline_arg_isset("-ignorechecks")
 
     combine_methods = cmdline_arg_set_or_default('-combine', 'average')
     params['combine-type'] = []
