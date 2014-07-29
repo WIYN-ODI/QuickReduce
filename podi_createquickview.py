@@ -46,9 +46,14 @@ import pyfits
 import numpy
 import scipy
 import math
+import podi_logging
+import podi_commandline
+import logging
 
 import Image
 import ImageDraw
+
+numpy.seterr(divide='ignore', invalid='ignore')
 
 limit_overexposed = 55000
 overexposed = [1.0, 0.0, 0.0]
@@ -59,12 +64,19 @@ from podi_commandline import *
 
 def create_quickview(filename, output_directory, verbose=False, clobber=True):
 
+    logger = logging.getLogger("QuickView")
+
+    create_otalevel = cmdline_arg_isset("-otalevel")
+    scaling = cmdline_arg_set_or_default("-scaling", None)
+    if (not scaling in ['linear', 'log', 'sqrt', 'arcsinh']):
+        scaling = 'sqrt'
+
     hdulist = pyfits.open(filename)
     filter = hdulist[0].header['FILTER']
     obsid  = hdulist[0].header['OBSID'] 
     object = hdulist[0].header['OBJECT'].replace(' ','_').replace(',','_')
 
-    fullframe_image_filename = "%s/%s_%s.jpg" % (output_directory, obsid, object)
+    fullframe_image_filename = "%s/%s_%s.%s.jpg" % (output_directory, obsid, object, scaling)
     if (os.path.isfile(fullframe_image_filename) and not clobber):
         # File exists and we were asked not to overwrite anything
         stdout_write("\nFile (%s) exists, skipping ...\n" % (filename))
@@ -84,10 +96,15 @@ def create_quickview(filename, output_directory, verbose=False, clobber=True):
     binned_data[:] = numpy.NaN
 
     datapos = 0
-    if (verbose):
-        stdout_write("   Finding contrast: Reading OTA")
+#    if (verbose):
+#        stdout_write("   Finding contrast: Reading OTA")
+    logger.info("Finding best contrast")
     for extension in range(1, len(hdulist)):
         if (not is_image_extension(hdulist[extension])):
+            continue
+        if ('CELLMODE' in hdulist[extension].header and
+            hdulist[extension].header['CELLMODE'].find("V") > 0):
+            logger.info("Skipping guide-OTA %s" % (hdulist[extension].header['EXTNAME']))
             continue
 
         fppos = int(hdulist[extension].header['FPPOS'][2:4])
@@ -100,9 +117,10 @@ def create_quickview(filename, output_directory, verbose=False, clobber=True):
             extension += 1
             continue
 
+        logger.debug("Reading OTA %02d" % (fppos))
         #stdout_write("\rReading OTA %02d" % (fppos))
-        if (verbose):
-            stdout_write(" %02d" % (fppos))
+#        if (verbose):
+#            stdout_write(" %02d" % (fppos))
 
         # Rebin the frame 8x8 to make it more manageable
         binned = numpy.reshape(hdulist[extension].data, (512,8,512,8)).mean(axis=-1).mean(axis=1)
@@ -112,15 +130,15 @@ def create_quickview(filename, output_directory, verbose=False, clobber=True):
         del one_d
         del binned
 
-    if (verbose):
-        stdout_write(" - done!\n")
+    #if (verbose):
+    #    stdout_write(" - done!\n")
 
     #
     # Now we are through all OTA/extensions, compute the median value and stds 
     # so we can scale the frames accordingly
     #
-    if (verbose):
-        stdout_write("   Finding best intensity levels ...")
+    #if (verbose):
+    #    stdout_write("   Finding best intensity levels ...")
     median = 0
     std = 1e8
     binned_data = binned_data[0:datapos]
@@ -134,7 +152,8 @@ def create_quickview(filename, output_directory, verbose=False, clobber=True):
     # Compute the intensity levels, making sure not to exceed the maximum possible range
     min_level = numpy.max([median-1*std,0])
     max_level = numpy.min([median+8*std,60000])
-    stdout_write(" using %d ... %d\n" % (min_level, max_level))
+    # stdout_write(" using %d ... %d\n" % (min_level, max_level))
+    logger.info("Using intensity scale %d ... %d" % (min_level, max_level))
 
     #
     # Now that we have all the scaling factors, go ahead and create the preview images
@@ -142,16 +161,17 @@ def create_quickview(filename, output_directory, verbose=False, clobber=True):
 
     # Create space to hold the full 8x8 OTA focal plane
     full_focalplane = numpy.zeros(shape=(4096,4096))
-    if (verbose):
-        stdout_write("   Creating jpeg for OTA")
+    # if (verbose):
+    #     stdout_write("   Creating jpeg for OTA")
+    logger.info("Creating jpeg for OTAs and full focalplane")
     for extension in range(1, len(hdulist)):
         if (not is_image_extension(hdulist[extension])):
             continue
 
         fppos = int(hdulist[extension].header['FPPOS'][2:4])
         #stdout_write("\r   Creating jpegs (%02d) ..." % fppos)
-        if (verbose):
-            stdout_write(" %02d" % (fppos))
+        # if (verbose):
+        #     stdout_write(" %02d" % (fppos))
 
         fp_x = fppos % 10
         fp_y = math.floor(fppos / 10)
@@ -163,8 +183,14 @@ def create_quickview(filename, output_directory, verbose=False, clobber=True):
         greyscale[greyscale<0] = 0
         greyscale[greyscale>=1] = 1
 
-        greyscale = numpy.sqrt(greyscale)
-        #greyscale = numpy.log10(greyscale+1)/numpy.log10(2.0)
+        if (scaling == 'sqrt'):
+            greyscale = numpy.sqrt(greyscale)
+        elif (scaling == 'arcsinh'):
+            greyscale = numpy.arcsinh(greyscale)
+        elif (scaling == 'log'):
+            greyscale = numpy.log10(greyscale+1)/numpy.log10(2.0)
+        else: # (scaling == 'linear')
+            pass
 
         ffp_x = fp_x * 512
         ffp_y = fp_y * 512
@@ -174,37 +200,38 @@ def create_quickview(filename, output_directory, verbose=False, clobber=True):
         #image_filename = "%s/%s_%s.%02d.jpg" % (output_directory, obsid, object, fppos)
         #image.transpose(Image.FLIP_TOP_BOTTOM).save(image_filename, "JPEG")
         #del image
-        
-        #
-        # Mark all overexposed pixels in a different color
-        #
-        channel_r = greyscale + 0
-        channel_g = greyscale + 0
-        channel_b = greyscale + 0
 
-        channel_r[binned > limit_overexposed] = overexposed[0]
-        channel_g[binned > limit_overexposed] = overexposed[1]
-        channel_b[binned > limit_overexposed] = overexposed[2]
+        if (create_otalevel):
+            #
+            # Mark all overexposed pixels in a different color
+            #
+            channel_r = greyscale + 0
+            channel_g = greyscale + 0
+            channel_b = greyscale + 0
 
-        im_r = Image.fromarray(numpy.uint8(channel_r*255))
-        im_g = Image.fromarray(numpy.uint8(channel_g*255))
-        im_b = Image.fromarray(numpy.uint8(channel_b*255))
-        im_rgb = Image.merge('RGB', (im_r, im_g, im_b))
-        image_filename = "%s/%s_%s.%02d.rgb.jpg" % (output_directory, obsid, object, fppos)
-        im_rgb.transpose(Image.FLIP_TOP_BOTTOM).save(image_filename, "JPEG")
+            channel_r[binned > limit_overexposed] = overexposed[0]
+            channel_g[binned > limit_overexposed] = overexposed[1]
+            channel_b[binned > limit_overexposed] = overexposed[2]
 
-        # Delete all temporary images to keep memory demands low
-        del im_r
-        del im_g
-        del im_b
-        del im_rgb
+            im_r = Image.fromarray(numpy.uint8(channel_r*255))
+            im_g = Image.fromarray(numpy.uint8(channel_g*255))
+            im_b = Image.fromarray(numpy.uint8(channel_b*255))
+            im_rgb = Image.merge('RGB', (im_r, im_g, im_b))
+            image_filename = "%s/%s_%s.%02d.rgb-%s.jpg" % (output_directory, obsid, object, fppos, scaling)
+            im_rgb.transpose(Image.FLIP_TOP_BOTTOM).save(image_filename, "JPEG")
+
+            # Delete all temporary images to keep memory demands low
+            del im_r
+            del im_g
+            del im_b
+            del im_rgb
 
     #
     # Prepare the preview for the full focal plane
     #
     #stdout_write("\r   Creating jpegs (full-frame) ...")
-    if (verbose):
-        stdout_write(" full-frame")
+    # if (verbose):
+    #     stdout_write(" full-frame")
     image = Image.fromarray(numpy.uint8(full_focalplane*255))
 
     # Add lines to indicate detector borders. Make sure to make them wider than 
@@ -234,8 +261,8 @@ def create_quickview(filename, output_directory, verbose=False, clobber=True):
     image.transpose(Image.FLIP_TOP_BOTTOM).save(fullframe_image_filename, "JPEG")
     del image
 
-    stdout_write(" - done!\n")
-
+    # stdout_write(" - done!\n")
+    logger.info("all done!\n")
 
 
 if __name__ == "__main__":
@@ -243,12 +270,18 @@ if __name__ == "__main__":
 #    filename = sys.argv[1]
 #    print filename
 
+    options = read_options_from_commandline(None)
+    podi_logging.setup_logging(options)
+
+
     output_directory = "."
-    output_directory = sys.argv[1]
+    output_directory = get_clean_cmdline()[1]
 
     clobber = not cmdline_arg_isset("-noclobber")
     if (not clobber):
         stdout_write("Activating no-clobber mode!\n")
 
-    for filename in sys.argv[2:]:
+    for filename in get_clean_cmdline()[2:]:
         create_quickview(filename, output_directory, verbose=True, clobber=clobber)
+
+    podi_logging.shutdown_logging(options)
