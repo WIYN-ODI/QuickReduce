@@ -504,7 +504,16 @@ def mask_saturation_defects(catfilename, ota, data):
     # Open the catalog file
     logger.debug("Trying to open file %s" % (catfilename))
 
-    catlist = pyfits.open(catfilename)
+    if (not os.path.isfile(catfilename)):
+        logger.warning("Could not find saturation catalog (%s)" % (catfilename))
+        return data
+
+    try:
+        catlist = pyfits.open(catfilename)
+    except:
+        logger.warning("Unable to open saturation catalog (%s)" % (catfilename))
+        return data
+
     extension_name  = "OTA%02d.SATPIX" % (ota)
 
     #print catfilename, ota, data.shape
@@ -634,9 +643,10 @@ def save_saturation_table_list(filename, mjd_catalog_list):
     if (os.path.isdir(filename)):
         filename = "%s/index.cat" % (filename)
 
+    file_listing = ['%s --> %.12f' % (catfile, mjd) for catfile, mjd in mjd_catalog_list.iteritems()]
+
     with open(filename, "w") as fh:
-        for catfile, mjd in mjd_catalog_list.iteritems():
-            print >>fh, '%s --> %.12f' % (catfile, mjd)
+        fh.write("\n".join(file_listing)+"\n")
         fh.close()
 
     pickled_cat = filename+".pickle"
@@ -673,13 +683,16 @@ def get_list_of_saturation_tables(directory, mjd_catalog_list=None):
         abs_filename = os.path.abspath(full_filename)
 
         if (not abs_filename in mjd_catalog_list):
-            hdulist = pyfits.open(full_filename)
-            mjd = hdulist[0].header['MJD-OBS']
-            # print "Adding file",abs_filename,":",mjd
+            try:
+                hdulist = pyfits.open(full_filename)
+                mjd = hdulist[0].header['MJD-OBS']
+                # print "Adding file",abs_filename,":",mjd
         
-            mjd_catalog_list[abs_filename] = mjd
+                mjd_catalog_list[abs_filename] = mjd
 
-            hdulist.close()
+                hdulist.close()
+            except:
+                pass
 
     # At the end of the run, dump the list of files into the directory
     save_saturation_table_list(indexfile, mjd_catalog_list)
@@ -793,6 +806,8 @@ def correct_persistency_effects(ota, data, mjd, filelist):
 
     """
 
+    logger = logging.getLogger("CorrectPersistency(%02d)" % (ota))
+
     # First of all, create a frame for the mask
     mask = numpy.zeros(shape=data.shape)
 
@@ -818,11 +833,19 @@ def correct_persistency_effects(ota, data, mjd, filelist):
 
     for cat_mjd, catfilename in mjd_sorted_filelist:
 
-        # Open the catalog file
-        catlist = pyfits.open(catfilename)
-        extension_name  = "OTA%02d.SATPIX" % (ota)
-        d_mjd = mjd - cat_mjd
+        if (not os.path.isfile(catfilename)):
+            logger.warning("Could not find saturation catalog (%s)" % (catfilename))
+            continue
         
+        try:
+            # Open the catalog file
+            catlist = pyfits.open(catfilename)
+            extension_name  = "OTA%02d.SATPIX" % (ota)
+            d_mjd = mjd - cat_mjd
+        except:
+            logger.warning("Unable to open saturation catalog (%s)" % (catfilename))
+            continue
+
         #print ota, catfilename, d_mjd, d_mjd*86400
 
         try:
