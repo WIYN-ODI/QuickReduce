@@ -2129,18 +2129,22 @@ def collectcells(input, outputfile,
         sky_median_clipped = -99999.99
         
     try:
+            
         sky_global_median = numpy.median(sky_samples_global[:,4])
         sky_global_min = numpy.min(sky_samples_global[:,4])
         sky_global_std = numpy.std(sky_samples_global[:,4])
         number_sky_samples = sky_samples_global.shape[0]
-        sky_1sigmas = scipy.stats.scoreatpercentile(sky_samples_global[:,4], [16,84])
-        print sky_1sigmas
+
+        percentiles = list(sigma_to_percentile(numpy.array([-1,1,-2,2])))
+        sky_sigmas = scipy.stats.scoreatpercentile(sky_samples_global[:,4], percentiles)
+        # print sky_1sigmas
     except:
         logger.warning("Problem determining the global sky level")
         sky_global_median = -99999.99
         sky_global_min = -99999.99
         sky_global_std = -99999.99
         number_sky_samples = 0
+        sky_sigmas = [-99999.99, -99999.99, -99999.99, -99999.99]
 
     ota_list[0].header["SKYLEVEL"] = (sky_global_median, "median global sky level")
     ota_list[0].header["SKYBG"] = (sky_global_median, "median global sky background")
@@ -2149,6 +2153,10 @@ def collectcells(input, outputfile,
     ota_list[0].header['SKYBGMIN'] = (sky_global_min, "miminum sky level")
     ota_list[0].header['SKYBGSTD'] = (sky_global_std, "std.dev. of sky level")
     ota_list[0].header['SKYSMPLS'] = (number_sky_samples, "number of sky level samples")
+    ota_list[0].header['SKYL1SIG'] = (sky_sigmas[0], "sky level lower 1st quantile")
+    ota_list[0].header['SKYU1SIG'] = (sky_sigmas[1], "sky level upper 1st quantile")
+    ota_list[0].header['SKYL2SIG'] = (sky_sigmas[2], "sky level lower 2nd quantile")
+    ota_list[0].header['SKYU2SIG'] = (sky_sigmas[3], "sky level upper 2nd quantile")
     add_fits_header_title(ota_list[0].header, "Derived global data", 'SKYLEVEL')
 
 

@@ -40,6 +40,7 @@ import pyfits
 import subprocess
 import scipy
 import scipy.ndimage
+import scipy.special
 from bottleneck import nanmean, nanmedian
 
 from podi_commandline import *
@@ -2028,3 +2029,5 @@ def add_fits_header_title(header, title, before_keyword):
     header.add_blank(before=before_keyword)
     return
 
+def sigma_to_percentile(s):
+    return 100 * 0.5*(1 + scipy.special.erf(s/math.sqrt(2)))
