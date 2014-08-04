@@ -484,6 +484,8 @@ backup_gain = 1.3
 backup_readnoise = 6.5
 backup_readnoise_electrons = 9.0
 
+invalid_sky_level_value = -99999.99
+
 
 def get_valid_filter_name(hdr):
     """
