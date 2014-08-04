@@ -89,7 +89,9 @@ max_tried = 1.5*min_found
 
 
 
-def sample_background(data, wcs, starcat, min_found=200, boxwidth=30, fit_regions=[], box_center=None):
+def sample_background(data, wcs, starcat, min_found=200, boxwidth=30, 
+                      fit_regions=[], box_center=None,
+                      min_box_spacing=5):
 
     # Now pick a number of random data points, and keep 
     # searching until we either found 50 per OTA or have tried 100 times
@@ -134,7 +136,7 @@ def sample_background(data, wcs, starcat, min_found=200, boxwidth=30, fit_region
             dy = box_center[tried,0] - ota_y
             dr = numpy.sqrt( dx**2 + dy**2 )
             dr_sorted = numpy.sort(dr)
-            if (dr_sorted[0] < 5*boxwidth):
+            if (dr_sorted[0] < min_box_spacing*boxwidth):
                 # This means there's a star nearby
                 tried += 1
                 continue
