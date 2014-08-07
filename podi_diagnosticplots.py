@@ -104,7 +104,7 @@ offset: %(MEDIAN-RA)+0.3f'' / %(MEDIAN-DEC)+0.3f''
 R.M.S. %(RMS-RA)0.3f'' / %(RMS-DEC)0.3f''
 %(RMS).3f'' (combined)\
 """ % ota_global_stats
-        ax.text(2.9, -2.9, global_text,
+        ax.text(-2.9, -2.9, global_text,
         horizontalalignment='right',
         verticalalignment='bottom',
                  fontsize=10, backgroundcolor='white')
@@ -124,7 +124,7 @@ offset: %(MEDIAN-RA)+0.3f'' / %(MEDIAN-DEC)+0.3f''
 R.M.S. %(RMS-RA)0.3f'' / %(RMS-DEC)0.3f''
 %(RMS).3f'' (combined)\
 """ % ota_stats
-        ax.text(-2.9, -2.9, local_text,
+        ax.text(2.9, -2.9, local_text,
                  horizontalalignment='left',
                  verticalalignment='bottom',
                  fontsize=10, backgroundcolor='white')
