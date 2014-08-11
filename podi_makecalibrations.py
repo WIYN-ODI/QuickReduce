@@ -645,6 +645,13 @@ def gain_readnoise_to_tech_hdu(hdulist, gain, readnoise):
 
 if __name__ == "__main__":
 
+    if (len(sys.argv) < 2):
+        print """
+Use as follows:
+podi_makecalibrations.py input.list calib-directory
+"""
+        sys.exit(0)
+
     stdout_write("""\
 
     **********************************************************************
@@ -952,7 +959,7 @@ if __name__ == "__main__":
 
                 flat_list = []
                 for (filename, obstype, _filter, bin) in calib_file_list:
-                    if (obstype == "DFLAT" and binning == bin and filter == _filter):
+                    if (obstype in ["DFLAT", "TFLAT"] and binning == bin and filter == _filter):
                         flat_list.append(filename)
 
                 if (len(flat_list) <= 0):
