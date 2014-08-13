@@ -157,7 +157,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
         try:
             hdulist = pyfits.open(input_file)
         except IOError:
-            logger.error("Can't open file %s" % (inputlist[i]))
+            logger.error("Can't open file %s" % (input_file))
             output_queue.put(None)
             input_queue.task_done()
             continue
@@ -190,6 +190,8 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
             suffix = "otaselect"
         if (corrected_filename == None and not options['bpm_dir'] == None):
             suffix = "bpmfixed"
+        if (corrected_filename == None and not swarp_params['subtract_back'] == 'swarp'):
+            suffix = "skysub"
 
         if (not suffix == None):
             corrected_filename = "%(single_dir)s/%(obsid)s.%(suffix)s.fits" % {
@@ -329,6 +331,25 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
 
                 # Save the modified OTA list for later
                 hdulist = pyfits.HDUList(ota_list)
+
+            if (not swarp_params['subtract_back'] == 'swarp' and not swarp_params['subtract_back'] == False):
+                skylevel = numpy.NaN
+                if (swarp_params['subtract_back'] in hdulist[0].header):
+                    skylevel = hdulist[0].header[swarp_params['subtract_back']]
+                else:
+                    try:
+                        skylevel = float(swarp_params['subtract_back'])
+                    except ValueError:
+                        logger.warning("Could not determine sky-level (%s), skipping sky-subtraction" % (
+                            swarp_params['subtract_back']))
+                    except:
+                        raise
+                if (not numpy.isnan(skylevel)):
+                    for ext in hdulist:
+                        if (not is_image_extension(ext)):
+                            continue
+                        ext.data -= skylevel
+                        logger.debug("Subtracting skylevel (%f) from extension %s" % (skylevel, ext.name))
 
             # Check if the corrected file already exists - if not create it
             #if (not os.path.isfile(corrected_filename)):
@@ -879,7 +900,7 @@ def swarpstack(outputfile,
         if (swarp_params['no-fluxscale']):
             swarp_opts += " -FSCALE_KEYWORD none "
 
-        swarp_opts += " -SUBTRACT_BACK %s " % ("Y" if swarp_params['subtract_back'] else "N")
+        swarp_opts += " -SUBTRACT_BACK %s " % ("Y" if swarp_params['subtract_back']=='swarp' else "N")
 
         logger.debug("SWARP options for pre-stack:\n"+" ".join(swarp_opts.split()))
 
@@ -1102,7 +1123,7 @@ def swarpstack(outputfile,
     # the target.
     #
     bg_opts = ""
-    if (swarp_params['target_dimension'] > 0 and swarp_params['subtract_back']):
+    if (swarp_params['target_dimension'] > 0 and swarp_params['subtract_back']=='swarp'):
         dic['BACK_TYPE'] = "AUTO"
         dic['BACK_SIZE'] = 128
         dic['BACK_FILTERSIZE'] = 3
@@ -1140,7 +1161,7 @@ def swarpstack(outputfile,
         # swarp_opts += bg_opts
 
 
-    if (swarp_params['subtract_back']):
+    if (swarp_params['subtract_back']=='swarp'):
         logger = logging.getLogger("SwarpStack - SkySub")
         logger.info("Performing sky-subtraction on all frames")
 
@@ -1173,7 +1194,7 @@ def swarpstack(outputfile,
                    'resample_dir': unique_singledir,
                    'inputfile': prepared_file,
                    'swarp_default': swarp_default,
-                   'bgsub': "Y" if swarp_params['subtract_back'] else "N",
+                   'bgsub': "Y" if swarp_params['subtract_back']=='swarp' else "N",
                    'bgsub_file': bgsub_file,
                    'bgsub_weight_file': bgsub_weight_file,
                    'bgopts': bg_opts,
@@ -1440,7 +1461,12 @@ def read_swarp_params(filelist):
     logger = logging.getLogger("SwarpStack - Config")
 
     params['pixelscale'] = float(cmdline_arg_set_or_default("-pixelscale", 0))
-    params['subtract_back'] = cmdline_arg_isset("-bgsub")
+
+    # params['subtract_back'] = cmdline_arg_isset("-bgsub")
+    params['subtract_back'] = False
+    if (cmdline_arg_isset("-bgsub")):
+        params['subtract_back'] = cmdline_arg_set_or_default("-bgsub", 'swarp')
+
     params['reuse_singles'] = cmdline_arg_isset("-reusesingles")
     params['use_nonsidereal'] = cmdline_arg_isset("-nonsidereal")
     params['target_dimension'] = float(cmdline_arg_set_or_default('-dimension', -1))
