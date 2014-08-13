@@ -69,8 +69,7 @@ def get_mpc_catalog(fitsfile):
     #print date_obs.day + date_obs.hour/24. + date_obs.minute/1440.
 
     ut_day = date_obs.day + date_obs.hour/24. + date_obs.minute/1440.
-    ut_day_string = "%.2f" % (ut_day)
-    
+
     found_radec = False
     for i in range(len(hdulist)):
         if ('CRVAL1' in hdulist[i].header and
@@ -93,7 +92,7 @@ def get_mpc_catalog(fitsfile):
     data2 = [
         {'year': date_obs.year},
         {'month': date_obs.month},
-        {'day': ut_day_string},
+        {'day': ut_day},
         {'which': 'pos'},
         {'ra': rad2sex(math.degrees(j2k.ra/15.), False, 2)},
         {'decl': rad2sex(math.degrees(j2k.dec), True, 2)},
@@ -109,7 +108,6 @@ def get_mpc_catalog(fitsfile):
         {'ps': 'n'},
         {'type': 'p'},
     ]
-    print ut_day, ut_day_string
 
     if (verbose):
         print data2

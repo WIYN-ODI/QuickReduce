@@ -76,8 +76,6 @@ def create_quickview(filename, output_directory, verbose=False, clobber=True):
     obsid  = hdulist[0].header['OBSID'] 
     object = hdulist[0].header['OBJECT'].replace(' ','_').replace(',','_')
 
-    print clobber
-
     fullframe_image_filename = "%s/%s_%s.%s.jpg" % (output_directory, obsid, object, scaling)
     if (os.path.isfile(fullframe_image_filename) and not clobber):
         # File exists and we were asked not to overwrite anything
@@ -283,7 +281,6 @@ if __name__ == "__main__":
     if (not clobber):
         stdout_write("Activating no-clobber mode!\n")
 
-    clobber=False
     for filename in get_clean_cmdline()[2:]:
         create_quickview(filename, output_directory, verbose=True, clobber=clobber)
 

@@ -146,7 +146,7 @@ def differential_photometry(inputlist, source_coords,
                 else:
                     src_mjd = float(sc_items[4])
             if (len(sc_items) >= 6):
-                src_name = sc_items[5].strip()
+                src_name = sc_items[5]
             elif (len(sc_items) == 3):
                 src_name = sc_items[2].strip()
 
@@ -164,10 +164,10 @@ def differential_photometry(inputlist, source_coords,
         src_names.append(src_name)
 
     src_params = numpy.array(src_params)
-    # print "\n"*10,src_names,"\n"*10
+    print "\n"*10,src_names,"\n"*10
 
-    # print "source coordinate data:"
-    # numpy.savetxt(sys.stdout, src_params, "%14.6f")
+    print "source coordinate data:"
+    numpy.savetxt(sys.stdout, src_params, "%14.6f")
 
     # print src_ra, src_dec, src_dra, src_ddec, src_mjd
 
