@@ -75,4 +75,4 @@ if __name__ == "__main__":
         ra = hdr['RA']
         dec = hdr['DEC']
 
-        print "%s %s %6s %d %15s %6.1f %60s %14s %14s" % (filename, dateobs, obstype, binning, filter, exptime, object, ra, dec)
+        print "%s %s %6s %d %15s %8.3f %60s %14s %14s" % (filename, dateobs, obstype, binning, filter, exptime, object, ra, dec)

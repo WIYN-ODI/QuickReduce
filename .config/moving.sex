@@ -19,7 +19,7 @@ DETECT_THRESH    3              # <sigmas> or <threshold>,<ZP> in mag.arcsec-2
 ANALYSIS_THRESH  3              # <sigmas> or <threshold>,<ZP> in mag.arcsec-2
  
 FILTER           N              # apply filter for detection (Y or N)?
-FILTER_NAME      default.conv   # name of the file containing the filter
+FILTER_NAME      /home/addon/sextractor/sextractor-2.19.5/config/gauss_4.0_7x7.conv   # name of the file containing the filter
 FILTER_THRESH                   # Threshold[s] for retina filtering
  
 DEBLEND_NTHRESH  32             # Number of deblending sub-thresholds

@@ -487,7 +487,7 @@ if __name__ == "__main__":
         flatfile = get_clean_cmdline()[1]
         hdulist = pyfits.open(flatfile)
 
-        for i in range(2): #len(hdulist)):
+        for i in range(5): #len(hdulist)):
 
             if (not is_image_extension(hdulist[i])):
                 continue

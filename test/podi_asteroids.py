@@ -14,6 +14,7 @@ import numpy
 
 import astropy
 import astropy.io
+import astropy.io.fits
 import astropy.io.votable
 import astropy.wcs
 
@@ -67,7 +68,7 @@ def get_minorobjects(epoch, ra, dec, sr):
 
 
 
-def create_ds9_region_file(votab_array, region_file, epoch, mjd_start, mjd_end, rel_nonsidereal):
+def create_ds9_region_file(votab_array, region_file, epoch, mjd_start, mjd_end, rel_nonsidereal, fitsfile):
 
     obj_ra = votab_array['RA']
     obj_dec = votab_array['DEC']
@@ -75,11 +76,27 @@ def create_ds9_region_file(votab_array, region_file, epoch, mjd_start, mjd_end, 
 
     exptime = (mjd_end - mjd_start) * 86400.
 
+    hdulist = astropy.io.fits.open(fitsfile)
+    mjdobs = hdulist[0].header['MJD-OBS']
+    if ('NSID_RT' in hdulist[0].header):
+        refmjd = hdulist[0].header['NSID_RT']
+    else:
+        refmjd = hdulist[0].header['MJD-OBS']
+    refmjd_to_mjdobs = (refmjd - mjdobs) * 24.
+    hdulist.close()
+
     print "relative non-sidereal motion:", rel_nonsidereal
     pm_ra = votab_array['dracosdec'] - rel_nonsidereal[0]
     pm_dec = votab_array['ddec'] - rel_nonsidereal[1]
-    print pm_ra
-    print pm_dec
+    # print pm_ra
+    # print pm_dec
+    
+    # For plotting, debugging etc, merge Ra/Dec
+    pm_radec = numpy.zeros((pm_ra.shape[0],2))
+    pm_radec[:,0] = pm_ra[:]
+    pm_radec[:,1] = pm_dec[:]
+    numpy.savetxt(sys.stdout, pm_radec, fmt="%+10.5f")
+
     # Now create a ds9 region file with all information
 
     # coord_j2000 = ephem.Equatorial(obj_ra, obj_dec, epoch=ephem.J2000)
@@ -95,23 +112,33 @@ def create_ds9_region_file(votab_array, region_file, epoch, mjd_start, mjd_end, 
         coord_j2000 = ephem.Equatorial(obj_ra[obj], obj_dec[obj], epoch=ephem.J2000)
         cos_declination = math.cos(coord_j2000.dec)
 
-        print "  %-13s : %s %s" % (names[obj], coord_j2000.ra, coord_j2000.dec)
+        refmjd_to_mjdobs_ra = pm_ra[obj] * refmjd_to_mjdobs / cos_declination / 3600.
+        refmjd_to_mjdobs_dec = pm_dec[obj] * refmjd_to_mjdobs / 3600.
+
         length = numpy.hypot(pm_ra[obj], pm_dec[obj]) * (exptime/3600.) / 3600.
         angle = numpy.degrees(numpy.arctan2(pm_ra[obj], pm_dec[obj])) + 90.
 
         offset_ra = (epoch - mjd_start)*24.*pm_ra[obj] if mjd_start > 0 else 0.
         offset_dec = (epoch - mjd_start)*24.*pm_dec[obj] if mjd_start > 0 else 0.
 
-        dec0 = numpy.degrees(coord_j2000.dec) - offset_ra/3600./cos_declination
-        ra0  = numpy.degrees(coord_j2000.ra)  - offset_ra/3600.
+        dec0 = numpy.degrees(coord_j2000.dec) - offset_dec/3600.
+        ra0  = numpy.degrees(coord_j2000.ra)  - offset_ra/3600./cos_declination
 
         dec1 = dec0 + (exptime/3600.) * pm_dec[obj] / 3600.
         ra1  = ra0  + (exptime/3600.) * pm_ra[obj] / cos_declination / 3600.
-        print names[obj], offset_ra, offset_dec
+        # print names[obj], offset_ra, offset_dec
+
+        if (obj == 7):
+            print "  %-13s : %s %s" % (names[obj], coord_j2000.ra, coord_j2000.dec)
+            print "epoch:", epoch
+            print "offset ra/dec = ", offset_ra, offset_dec
+            print "ra/dec/ 0", ra0, dec0
+            print "ra/dec/ 1", ra1, dec1
+
 
         dict = {
             'ra': numpy.degrees(coord_j2000.ra)-offset_ra/3600.,
-            'dec': numpy.degrees(coord_j2000.dec)-offset_ra/3600.,
+            'dec': numpy.degrees(coord_j2000.dec)-offset_dec/3600.,
             'pm_ra': pm_ra[obj] * (exptime/3600.) / 3600.,
             'pm_dec': pm_dec[obj] * (exptime/3600.) / 3600.,
             'length': length,
@@ -126,6 +153,11 @@ def create_ds9_region_file(votab_array, region_file, epoch, mjd_start, mjd_end, 
 #        print >>ds9, '# vector(%(ra)f, %(dec)f, %(length)f, %(angle)f) vector=1' % dict
         print >>ds9, 'line(%(ra0)f,%(dec0)f,%(ra1)f,%(dec1)f) # line=1 0' % dict
         print >>ds9, '# text(%(ra)f,%(dec)f) text={%(name)s}' % dict
+        print >>ds9, 'point(%f,%f) # point=circle color=%s' % (
+            math.degrees(coord_j2000.ra)-refmjd_to_mjdobs_ra, 
+            math.degrees(coord_j2000.dec)-refmjd_to_mjdobs_dec, 
+            'red')
+
 
     ds9.close()
 
@@ -167,7 +199,7 @@ if __name__ == "__main__":
 
 
 
-    fitsfile = sys.argv[1]
+    fitsfile = get_clean_cmdline()[1]
 
     if (cmdline_arg_isset("-mpc")):
         mp_data = podi_mpchecker.get_mpc_catalog(fitsfile)
@@ -180,10 +212,10 @@ if __name__ == "__main__":
     hdulist = astropy.io.fits.open(fitsfile)
     rel_nonsidereal_ra = 0.
     rel_nonsidereal_dec = 0.
-    if ('_NSID_RA' in hdulist[0].header):
-        rel_nonsidereal_ra = hdulist[0].header['_NSID_RA']
-    if ('_NSID_DE' in hdulist[0].header):
-        rel_nonsidereal_dec = hdulist[0].header['_NSID_DE']
+    if ('NSID_RA' in hdulist[0].header):
+        rel_nonsidereal_ra = hdulist[0].header['NSID_RA']
+    if ('NSID_DEC' in hdulist[0].header):
+        rel_nonsidereal_dec = hdulist[0].header['NSID_DEC']
 
 
     epoch = hdulist[0].header['MJD-OBS'] + mjd0
@@ -191,6 +223,11 @@ if __name__ == "__main__":
     mjd_end   = hdulist[0].header['MJD-END']+mjd0  if ('MJD-END'  in hdulist[0].header) else 0
 
     exptime = 3500.
+
+    print "epoch:",epoch
+    print "mjd start:", mjd_start
+    print "mjd end:", mjd_end
+    print "nonsid rates:", rel_nonsidereal_ra, rel_nonsidereal_dec
 
     # obj_ra = votab.array['RA']
     # obj_dec = votab.array['DEC']
@@ -203,9 +240,10 @@ if __name__ == "__main__":
 
     # coord_j2000 = ephem.Equatorial(obj_ra, obj_dec, epoch=ephem.J2000)
 
-    region_file = sys.argv[2]
+    region_file = get_clean_cmdline()[2]
 
-    create_ds9_region_file(mp_data, region_file, epoch, mjd_start, mjd_end, [rel_nonsidereal_ra, rel_nonsidereal_dec])
+    create_ds9_region_file(mp_data, region_file, epoch, mjd_start, mjd_end, 
+                           [rel_nonsidereal_ra, rel_nonsidereal_dec], fitsfile)
 
 
 
