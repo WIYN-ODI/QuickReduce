@@ -340,7 +340,8 @@ def imcombine_sharedmem_data(shmem_buffer, operation, sizes):
 
 
 
-def imcombine_subprocess(extension, filelist, shape, operation, queue, verbose):
+def imcombine_subprocess(extension, filelist, shape, operation, queue, verbose,
+                         subtract=None, scale=None):
 
     #
     # Allocate enough shared momory to hold all frames
@@ -362,9 +363,32 @@ def imcombine_subprocess(extension, filelist, shape, operation, queue, verbose):
             if (not is_image_extension(hdulist[i])):
                 continue
             fppos = hdulist[i].header['EXTNAME']
-            if (fppos == extension):
-                buffer[:,:,file_number] = hdulist[i].data[:,:]
-                break
+
+            if (not fppos == extension):
+                continue
+
+            # Get data for the right extension in this frame
+            framedata = hdulist[i].data[:,:]
+            
+            # optionally, apply the scaling and subtraction correction
+            if (not subtract == None):
+                try:
+                    framedata -= float(subtract)
+                except ValueError:
+                    if (subtract in hdulist[0].header):
+                        # print "subtracting",hdulist[0].header[subtract]
+                        framedata -= hdulist[0].header[subtract]                
+            if (not scale == None):
+                try:
+                    framedata *= float(scale)
+                except ValueError:
+                    if (scale in hdulist[0].header):
+                        framedata *= hdulist[0].header[scale]         
+
+            # store the (corrected) image data for parallel processing
+            buffer[:,:,file_number] = framedata
+            break
+
         hdulist[i].data = None
         hdulist.close()
         del hdulist
@@ -381,7 +405,9 @@ def imcombine_subprocess(extension, filelist, shape, operation, queue, verbose):
 
 
 
-def imcombine(input_filelist, outputfile, operation, return_hdu=False):
+def imcombine(input_filelist, outputfile, operation, return_hdu=False,
+              subtract=None, scale=None):
+
     # First loop over all filenames and make sure all files exist
     filelist = []
     for file in input_filelist:
@@ -433,7 +459,19 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False):
         #
         return_queue = multiprocessing.JoinableQueue()
         worker_args=(ref_fppos, filelist, ref_hdulist[cur_ext].data.shape, operation, return_queue, verbose)
-        p = multiprocessing.Process(target=imcombine_subprocess, args=worker_args)
+
+        kw_args = {
+            'extension': ref_fppos,
+            'filelist':  filelist, 
+            'shape':     ref_hdulist[cur_ext].data.shape,
+            'operation': operation, 
+            'queue':     return_queue, 
+            'verbose':   verbose,
+            'subtract':  subtract,
+            'scale':     scale,
+        }
+        # p = multiprocessing.Process(target=imcombine_subprocess, args=worker_args)
+        p = multiprocessing.Process(target=imcombine_subprocess, kwargs=kw_args)
         p.start()
         combined = return_queue.get()
         p.terminate()
@@ -497,4 +535,7 @@ if __name__ == "__main__":
 
     operation = cmdline_arg_set_or_default("-op", "mean")
 
-    imcombine(filelist, outputfile, operation)
+    subtract = cmdline_arg_set_or_default("-subtract", None)
+    scale = cmdline_arg_set_or_default("-scale", None)
+    
+    imcombine(filelist, outputfile, operation, subtract=subtract, scale=scale)
