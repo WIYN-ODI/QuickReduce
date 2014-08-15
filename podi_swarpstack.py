@@ -178,7 +178,6 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
         master_reduction_files_used = collect_reduction_files_used(
             {}, {"calibrated": input_file} ) #ret['corrected_file']})
 
-
         # Assemble the temporary filename for the corrected frame
         suffix = None
         # Now construct the output filename
@@ -1002,6 +1001,14 @@ def swarpstack(outputfile,
         obsid = hdulist[0].header['OBSID']
         hdulist.close()
 
+        magzero = hdulist[0].header['PHOTZP_X'] if 'PHOTZP_X' in hdulist[0].header else -99.
+        fluxscale_kw = 'XXXXXXXX'
+        # print magzero, swarp_params['no-fluxscale']
+        if (magzero > 0 and not swarp_params['no-fluxscale']):
+            fluxscale_value = math.pow(10, 0.4*(swarp_params['target_magzero']-magzero))
+        else:
+            fluxscale_value = 1.0
+
         # assemble all swarp options for that run
         dic = {'singledir': unique_singledir, #sitesetup.swarp_singledir,
                'obsid': obsid,
@@ -1014,7 +1021,8 @@ def swarpstack(outputfile,
                'resample_dir': unique_singledir,
                'inputfile': prepared_file,
                'swarp_default': swarp_default,
-               'fluxscale': 'none' if swarp_params['no-fluxscale'] else 'FLXSCALE'
+               'fluxscale_kw': fluxscale_kw, #'none' if swarp_params['no-fluxscale'] else 'FLXSCALE'
+               'fluxscale_value': fluxscale_value,
            }
 
         swarp_opts = """\
@@ -1030,7 +1038,8 @@ def swarpstack(outputfile,
                  -IMAGE_SIZE %(imgsizex)d,%(imgsizey)d \
                  -RESAMPLE_DIR %(resample_dir)s \
                  -SUBTRACT_BACK N \
-                 -FSCALE_KEYWORD %(fluxscale)s \
+                 -FSCALE_KEYWORD %(fluxscale_kw)s \
+                 -FSCALE_DEFAULT %(fluxscale_value).10e \
                  %(inputfile)s \
                  """ % dic
 
@@ -1218,6 +1227,8 @@ def swarpstack(outputfile,
                      -WEIGHT_TYPE MAP_WEIGHT \
                      -DELETE_TMPFILES Y \
                      -WRITE_FILEINFO Y
+                     -FSCALE_KEYWORD XXXXXXXX \
+                     -FSCALE_DEFAULT 1.0 \
                      %(bgopts)s \
                      %(inputfile)s \
                      """ % dic
@@ -1359,7 +1370,7 @@ def swarpstack(outputfile,
         add_fits_header_title(hdustack[0].header, "Computed timing information", 'EXPTIME')
 
         # Add some additional headers
-        hdustack[0].header['MAGZERO']  = (25.,
+        hdustack[0].header['MAGZERO']  = (swarp_params['target_magzero'],
                                           "after flux-scaling each input exposure")
         hdustack[0].header['BACKGSUB'] = ("yes" if swarp_params['subtract_back'] else "no",
                                           "was background subtracted?")
@@ -1589,6 +1600,8 @@ def read_swarp_params(filelist):
             params['mask'] = mask
 
     params['huge_frame_allowed'] = cmdline_arg_isset("-huge")
+
+    params['target_magzero'] = float(cmdline_arg_set_or_default("-targetzp", 25.0))
 
     return params
 
