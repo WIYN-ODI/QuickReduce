@@ -2112,6 +2112,9 @@ def collectcells(input, outputfile,
             # We don't know about this OTA, skip it
             continue
 
+        if (sky_samples[ext] == None):
+            continue
+
         sky_plus_ota = numpy.empty((sky_samples[ext].shape[0], sky_samples[ext].shape[1]+1))
         sky_plus_ota[:, :sky_samples[ext].shape[1]] = sky_samples[ext][:,:]
         sky_plus_ota[:, -1] = ota_number
