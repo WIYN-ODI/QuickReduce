@@ -3237,7 +3237,7 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
 
     #
     # Magnitudes and errors for all ODI apertures
-        #
+    #
     for i in range(len(SXapertures)):
         apsize = SXapertures[i]
         col_mag = "mag_aper_%0.1f" % (apsize)
@@ -3255,6 +3255,28 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
                                  )
         )
 
+
+    #
+    # ODI source position in detector coordinates
+    #
+    columns.append(pyfits.Column(name='ODI_X',
+                                     format='E', unit='pixel',
+                                     array=odi_sdss_matched[:,SXcolumn['x']+2],
+                                     disp='source coordinate X'
+                                 )
+    )
+    columns.append(pyfits.Column(name='ODI_Y',
+                                     format='E', unit='pixel',
+                                     array=odi_sdss_matched[:,SXcolumn['y']+2],
+                                     disp='source coordinate Y'
+                                 )
+    )
+    columns.append(pyfits.Column(name='ODI_OTA',
+                                     format='E', unit='',
+                                     array=odi_sdss_matched[:,SXcolumn['ota']+2],
+                                     disp='source OTA'
+                                 )
+    )
 
     coldefs = pyfits.ColDefs(columns)
     tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
