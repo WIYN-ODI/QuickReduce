@@ -620,11 +620,12 @@ def load_saturation_table_list(indexfile, mjd_catalog_list):
                 try:
                     abs_filename = items[0].strip()
                     mjd = float(items[1].strip())
+                    exptime = float(items[2].strip())
                     #print items,"-->", abs_filename, mjd
 
                     # only add the file to the catalog if it exists
                     if (os.path.isfile(abs_filename)):
-                        mjd_catalog_list[abs_filename] = mjd
+                        mjd_catalog_list[abs_filename] = (mjd, exptime)
                 except:
                     print "@@@@@ ERROR in podi_persistency:"
                     print "@@@@@ Problem reading line:"
@@ -643,7 +644,8 @@ def save_saturation_table_list(filename, mjd_catalog_list):
     if (os.path.isdir(filename)):
         filename = "%s/index.cat" % (filename)
 
-    file_listing = ['%s --> %.12f' % (catfile, mjd) for catfile, mjd in mjd_catalog_list.iteritems()]
+    file_listing = ['%s --> %.12f %.3f' % (catfile, mjd, exptime) 
+                    for catfile, (mjd, exptime) in mjd_catalog_list.iteritems()]
 
     with open(filename, "w") as fh:
         fh.write("\n".join(file_listing)+"\n")
@@ -655,6 +657,7 @@ def save_saturation_table_list(filename, mjd_catalog_list):
         pf.close()
 
     return
+
 
 def get_list_of_saturation_tables(directory, mjd_catalog_list=None): 
     """
@@ -686,9 +689,10 @@ def get_list_of_saturation_tables(directory, mjd_catalog_list=None):
             try:
                 hdulist = pyfits.open(full_filename)
                 mjd = hdulist[0].header['MJD-OBS']
+                exptime = hdulist[0].header['EXPTIME']
                 # print "Adding file",abs_filename,":",mjd
         
-                mjd_catalog_list[abs_filename] = mjd
+                mjd_catalog_list[abs_filename] = (mjd, exptime)
 
                 hdulist.close()
             except:
@@ -735,18 +739,26 @@ def select_from_saturation_tables(mjd_catalog_list, search_mjd, delta_mjd_range=
     """
 
     close_mjd_files = {}
-    for full_filename, mjd in mjd_catalog_list.iteritems():
+    # print "\n"*3,search_mjd, delta_mjd_range,"\n"*3
+
+    for full_filename, (mjd, exptime) in mjd_catalog_list.iteritems():
 
         #mjd = mjd_catalog_list[full_filename]
 
         delta_mjd = (search_mjd - mjd) * 86400.
-        
+        # print "%80s %14.7f %9.3f %12.3f (%12.3f)" % (full_filename, mjd, exptime, delta_mjd, delta_mjd-exptime)
+
         if (delta_mjd_range == None):
             if (delta_mjd > -1 and delta_mjd < 1):
                 return full_filename
         else:
-            if (delta_mjd >= delta_mjd_range[0] and delta_mjd <= delta_mjd_range[1]):
-                close_mjd_files[full_filename] = mjd
+            # print (delta_mjd >= delta_mjd_range[0]), \
+            #     (delta_mjd <= delta_mjd_range[1]), \
+            #     (delta_mjd-exptime <= delta_mjd_range[1])
+            if ((delta_mjd) >= delta_mjd_range[0] and
+                (delta_mjd-exptime) <= delta_mjd_range[1]):
+                close_mjd_files[full_filename] = (mjd, exptime)
+
                 #close_mjd_files.append( (mjd, full_filename) )
 
     if (delta_mjd_range == None):
@@ -814,10 +826,10 @@ def correct_persistency_effects(ota, data, mjd, filelist):
     # extract all mjds
     mjds = []
     catalog = []
-    for catfilename, cat_mjd in filelist.iteritems():
+    for catfilename, (cat_mjd, exptime) in filelist.iteritems():
         #print mjd, catfilename
         mjds.append(mjd)
-        catalog.append( (cat_mjd, catfilename) )
+        catalog.append( (cat_mjd, catfilename, exptime) )
 
     # Now sort the list of MJD's from smallest (earliest) to largest (latest)
     mjd_sorting = numpy.argsort(numpy.array(mjds))
@@ -828,10 +840,7 @@ def correct_persistency_effects(ota, data, mjd, filelist):
         mjd_sorted_filelist.append(catalog[mjd_sorting[i]])
         #print filelist[mjd_sorting[i]][0]
 
-    #print "\n"
-    #return
-
-    for cat_mjd, catfilename in mjd_sorted_filelist:
+    for cat_mjd, catfilename, exptime in mjd_sorted_filelist:
 
         if (not os.path.isfile(catfilename)):
             logger.warning("Could not find saturation catalog (%s)" % (catfilename))
@@ -841,7 +850,7 @@ def correct_persistency_effects(ota, data, mjd, filelist):
             # Open the catalog file
             catlist = pyfits.open(catfilename)
             extension_name  = "OTA%02d.SATPIX" % (ota)
-            d_mjd = mjd - cat_mjd
+            d_mjd = mjd - cat_mjd + exptime/86400.
         except:
             logger.warning("Unable to open saturation catalog (%s)" % (catfilename))
             continue
