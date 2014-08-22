@@ -1815,6 +1815,18 @@ def collectcells(input, outputfile,
     list_of_otas_to_collect = available_ota_coords
     if (options['central_only']):
         list_of_otas_to_collect = central_array_ota_coords
+    logger.debug("List of otas to collect: %s" % (str(list_of_otas_to_collect)))
+
+    filtername = hdulist[0].header['FILTER']
+    if (filtername in blocked_out_otas):
+        exclude_ota = blocked_out_otas[filtername]
+        unblocked_otas = []
+        for (ox, oy) in list_of_otas_to_collect:
+            ota = ox * 10 + oy;
+            if (not ota in exclude_ota):
+                unblocked_otas.append((ox,oy))
+        list_of_otas_to_collect = unblocked_otas
+        logger.debug("List of UN-BLOCKED OTAs: %s" % (str(list_of_otas_to_collect)))
 
     ota_list = [None] * (len(list_of_otas_to_collect)+1)
     # And add the primary HDU to make the fits file a valid one

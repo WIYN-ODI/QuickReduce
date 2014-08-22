@@ -111,6 +111,37 @@ central_array_ota_coords = [
     ]
 
 
+blocked_out_otas = {
+    "odi_g": [],
+    "odi_i": [],
+    "odi_r": [],
+    "odi_z": [],
+    #
+    # All other filters
+    #
+              "823_v2": [],
+             "918R_v1": [],
+            "BATC_390": [],
+            "BATC_420": [],
+             "CTIO_Ha": [55, 61],
+         "CTIO_Ha_8nm": [],
+           "CTIO_OIII": [],
+     "Halpha_and_odiz": [],
+            "KPNO_815": [],
+            "mosaic_u": [],
+    "MosaicU_and_odir": [],
+                "OPEN": [],
+              "s2_SII": [],
+              "sdss_u": [],
+                 "UG5": [],
+             "unknown": [],
+             "UNKNOWN": [],
+            "Us_solid": [],
+         "windowGlass": [],
+                "WRC3": [],
+            "Harris_B": [],
+}
+
 broken_ota_cells = {
     "OTA00": [(7,0),(7,1),(7,2),(7,3),(7,4),(7,5),(7,6),(7,7)],  #00
     "OTA16": [],#1.6
