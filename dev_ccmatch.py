@@ -553,7 +553,7 @@ def find_best_guess(src_cat, ref_cat,
 
     
     logger.debug(all_results)
-    if (create_debug_files): numpy.savetxt("ccmatch.allresults", all_results)
+    if (create_debug_files): numpy.savetxt("ccmatch.allresults.%d" % (pointing_error), all_results)
 
 
     #
@@ -585,7 +585,7 @@ def find_best_guess(src_cat, ref_cat,
     else:
         contrast = best_guess[3]
     
-    return best_guess, n_random_matches, contrast
+    return best_guess, n_random_matches, contrast, all_results
 
 
 
@@ -1052,7 +1052,8 @@ def apply_correction_to_header(hdulist, best_guess, verbose=False):
     to the output FITS header.
 
     """
-    
+    logger = logging.getLogger("ApplyWCSCorrection")
+
     for ext in range(len(hdulist)):
         if (not is_image_extension(hdulist[ext])):
             continue
@@ -1060,8 +1061,9 @@ def apply_correction_to_header(hdulist, best_guess, verbose=False):
         ota_extension = hdulist[ext]
         
         # Read all WCS relevant information from the FITS header
-        print "\nApplying shift",best_guess[1:3],"to extension",ota_extension.header['EXTNAME']
-        print hdulist[ext].header['CRVAL1'], hdulist[ext].header['CRVAL2']
+        logger.debug("Applying shift %f, %f to extension %s" % (
+            best_guess[1], best_guess[2], ota_extension.header['EXTNAME']))
+        # print hdulist[ext].header['CRVAL1'], hdulist[ext].header['CRVAL2']
         wcs_poly = header_to_polynomial(ota_extension.header)
 
         # Apply the shift and rotation
@@ -1448,24 +1450,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         ref_raw = reference_catalog #numpy.loadtxt(ref_catfile)[:,0:2]
     logger.debug("ref. cat (raw) ="+str(ref_raw.shape))
     
-    #
-    # Reduce the reference catalog to approx. the coverage of the source catalog
-    #
-    ref_close = match_catalog_areas(src_raw, ref_raw, max_pointing_error/60.)
-    logger.debug("area matched ref. catalog: "+str(ref_close.shape))
-    if (ref_close.shape[0] <= 0):
-        logger.debug("couldn't find any matched stars overlapping the odi field")
-        logger.critical("Found no overlap between 2MASS catalog and ODI source catalog.")
-        logger.critical("This should not happen. Please report this problem to the")
-        logger.critical("author (kotulla@uwm.edu) and attach the debug.log file. Thanks!")
-        logger.debug("Falling back to using the full sample.")
 
-    if (create_debug_files): numpy.savetxt("ccmatch.matched_ref_cat", ref_close)
-
-    # Save the matched 2MASS catalog as return data
-    return_value['2mass-catalog'] = ref_close
-
-    
     #
     # eliminate all stars with problematic flags
     #
@@ -1475,7 +1460,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     if (create_debug_files): numpy.savetxt("ccmatch.src_cat", full_src_cat[:,0:2])
 
 
-#
+    #
     # Eliminate all stars that are just barely detected (mag err > 0.3mag, 
     # equiv to S/N ~ 3) and/or too compact (FWHM < 0.3'') to be "real" stars
     #
@@ -1493,8 +1478,9 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     if (only_isolated_stars):
         logger.debug("Selecting isolated stars - ODI source catalog")
         if (create_debug_files): numpy.savetxt("ccmatch.odi_full", full_src_cat)
-        isolated_stars = pick_isolated_stars(full_src_cat, radius=10)
-        if (create_debug_files): numpy.savetxt("ccmatch.odi_isolated", full_src_cat)
+        # isolated_stars = pick_isolated_stars(full_src_cat, radius=10)
+        isolated_stars = pick_isolated_stars(full_src_cat, radius=5)
+        if (create_debug_files): numpy.savetxt("ccmatch.odi_isolated", isolated_stars)
         logger.debug("Down-selected source catalog to %d isolated stars" % (full_src_cat.shape[0]))
     else:
         isolated_stars = full_src_cat
@@ -1504,7 +1490,6 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         logger.warning("Please tell kotulla@uwm.edu about this")
         isolated_stars = full_src_cat
         logger.debug("Using full catalog instead of only isolated stars")
-
 
     #
     # Cut down the catalog size to the brightest n stars
@@ -1517,115 +1502,77 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     else:
         src_cat = isolated_stars
 
-    n_max_ref = 2000
-    if (ref_close.shape[0] > n_max_ref):
-        logger.debug("Lots of stars (%d) in the reference catalog" % (ref_close.shape[0]))
-
-    ref_cat = ref_close.copy()
-    min_distance = 8
-    logger.debug("Selecting isolated stars - reference catalog")
-    if (create_debug_files): numpy.savetxt("ccmatch.2mass_full", ref_cat)
-    while (ref_cat.shape[0] > n_max_ref or min_distance < 10):
-        min_distance += 2
-        ref_cat = pick_isolated_stars(ref_cat, radius=min_distance)
-        if (create_debug_files): numpy.savetxt("ccmatch.2mass_isolated", ref_cat)
-        logger.debug("Down-selected reference catalog to %d isolated stars (min_d=%d)" % (ref_cat.shape[0], min_distance))
-    logger.debug("Final reference catalog: %d sources, isolated by >%d" % (ref_cat.shape[0], min_distance))
 
     # 
     # Get rid of all data except the coordinates
     # 
     src_cat = src_cat[:,0:2]
 
-
+    #
+    # Set fall-back solution: No correction
+    #
     current_best_rotation = 0
     current_best_shift = [0.,0.]
 
     if (mode == "shift"):
-
-        # Prepare source catalog
-        
-        # Load & Prepare reference catalog
-        center_ra = hdulist[1].header['CRVAL1']
-        center_dec = hdulist[1].header['CRVAL2']
-
-        # Compute the optimal shift vector
-        wcs_correction, n_random_matches, contrast = \
-            ccmatch_shift(source_cat=src_cat,
-                          reference_cat=ref_cat,
-                          center=(center_ra, center_dec),
-                          pointing_error=(max_pointing_error/60.)
-            )
-        
-        logger.debug(wcs_correction)
-
-        # For testing, apply correction to the input catalog, 
-        # match it to the reference catalog and output both to file
-        src_rotated = rotate_shift_catalog(src_raw, (center_ra, center_dec), 
-                                           angle=0.,
-                                           shift=wcs_correction[1:3],
-                                           verbose=False)
-        matched = kd_match_catalogs(src_rotated, ref_cat, matching_radius=(2./3600.), max_count=1)
-        if (create_debug_files): numpy.savetxt("ccmatch.after_shift", matched)
-
-        # src_raw_rotated = rotate_shift_catalog(src_raw, (center_ra, center_dec), 
-        #                                        angle=0.,
-        #                                        shift=wcs_correction[1:3],
-        #                                        verbose=False)
-
-        # Add the best fit shift to outut header to keep track 
-        # of the changes we are making
-        log_shift_rotation(hdulist, params=wcs_correction, n_step=1,
-                           description="WCS calib best guess",
-                           n_random_matches=n_random_matches,
-                           wcs_contrast = contrast,
-        )
-
-        # Now apply this shift to the output file and write results
-        apply_correction_to_header(hdulist, wcs_correction, verbose=False)
-
-        # All work is done, write the output FITS file
-        # print "writing results ..."
-        # hdulist.writeto(outputfile, clobber=True)
-        return_value['hdulist'] = hdulist
-        return_value['transformation'] = wcs_correction
-        return_value['matched_src+2mass'] = matched
-        return_value['calibrated_src_cat'] = src_rotated
-
-        return return_value #hdulist, wcs_correction, 
-
-        ##################################################################################
-        #
-        # End of shift only
-        #
-        ##################################################################################
-
-
-
-
-
-    #
-    #   |
-    #   |
-    #   |   This is the end of computing for mode="shift"
-    #  \1/  The code below optimizes rotation and possibly distortion
-    #   "
-    #
+        # For shift-only WCS mode, set the allowed range of angles to None
+        # to reflect no rotator angle correction
+        max_rotator_error = None
 
     #
     # Find 1st order best guess
     #
     center_ra = hdulist[1].header['CRVAL1']
     center_dec = hdulist[1].header['CRVAL2']
-
-    for i in range(max_pointing_error_list.shape[0]): #pointing_error in max_pointing_error_list:
+    for i in range(max_pointing_error_list.shape[0]):
 
         pointing_error = max_pointing_error_list[i]
 
         logger.debug("Attempting to find WCS solution with search radius %.1f arcmin ..." % (
             max_pointing_error))
 
-        initial_guess, n_random_matches, contrast = \
+        #
+        # Reduce the reference catalog to approx. the coverage of the source catalog
+        #
+        ref_close = match_catalog_areas(src_raw, ref_raw, pointing_error/60.)
+        logger.debug("area matched ref. catalog: "+str(ref_close.shape))
+        if (ref_close.shape[0] <= 0):
+            logger.debug("couldn't find any matched stars overlapping the odi field")
+            logger.critical("Found no overlap between 2MASS catalog and ODI source catalog.")
+            logger.critical("This should not happen. Please report this problem to the")
+            logger.critical("author (kotulla@uwm.edu) and attach the debug.log file. Thanks!")
+            logger.debug("Falling back to using the full sample.")
+
+        if (create_debug_files): numpy.savetxt("ccmatch.matched_ref_cat.%d" % (pointing_error), ref_close)
+
+        # Save the matched 2MASS catalog as return data
+        return_value['2mass-catalog'] = ref_close
+
+        #
+        # Down-select reference catalog by only picking isolated stars
+        #
+        n_max_ref = 2000
+        if (ref_close.shape[0] > n_max_ref):
+            logger.debug("Lots of stars (%d) in the reference catalog" % (ref_close.shape[0]))
+
+        ref_cat = ref_close.copy()
+        min_distance = 8
+        logger.debug("Selecting isolated stars - reference catalog")
+        if (create_debug_files): numpy.savetxt("ccmatch.2mass_full.%d" % (pointing_error), ref_cat)
+        while (ref_cat.shape[0] > n_max_ref or min_distance < 10):
+            min_distance += 2
+            ref_cat = pick_isolated_stars(ref_cat, radius=min_distance)
+            if (create_debug_files): 
+                numpy.savetxt("ccmatch.2mass_isolated.%d.%d" % (pointing_error, min_distance), ref_cat)
+            logger.debug("Down-selected reference catalog to %d isolated stars (min_d=%d'')" % (
+                ref_cat.shape[0], min_distance))
+        logger.debug("Final reference catalog: %d sources, isolated by >%d arcsec" % (
+            ref_cat.shape[0], min_distance))
+
+        #
+        # Now perform the actual first step of WCS calibration
+        #
+        initial_guess, n_random_matches, contrast, all_results = \
                 find_best_guess(src_cat, ref_cat,
                                 center_ra, center_dec,
                                 pointing_error=(pointing_error/60.),
@@ -1633,6 +1580,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                                 d_angle=20, # arcmin
                                 allow_parallel=True
                 )
+        if (create_debug_files): numpy.savetxt("ccmatch.allresults.%d" % (pointing_error), all_results)
 
         logger.debug("Found contrast = %.4f (minimum requirement is %.2f)" % (contrast, min_contrast))
         
@@ -1643,7 +1591,6 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             logger.debug("Found good WCS solution (%.2f sigma, search radius: %.2f arcmin)" % (
                 contrast, pointing_error))
             break
-
 
 
     if (contrast < min_contrast):
@@ -1682,7 +1629,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     current_best_shift = initial_guess[1:3]
     logger.debug("Improving global shift/rotation solution")
     logger.debug("Full ODI source catalog: %d" % (full_src_cat.shape[0]))
-    guessed_cat = rotate_shift_catalog(full_src_cat[:,0:2], (center_ra, center_dec), 
+    guessed_cat = rotate_shift_catalog(full_src_cat, (center_ra, center_dec), 
                                        angle=current_best_rotation,
                                        shift=current_best_shift,
                                        verbose=False)
@@ -1699,6 +1646,24 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     logger.debug("Matched ODI+2MASS: %d" % (guessed_match.shape[0]))
     if (create_debug_files): numpy.savetxt("ccmatch.guessed_match", guessed_match)
 
+
+    if (mode == "shift"):
+        #
+        # If shift only is requested, no further improvement is necessary
+        #
+        apply_correction_to_header(hdulist, initial_guess, verbose=False)
+
+        return_value['hdulist'] = hdulist
+        return_value['transformation'] = initial_guess
+        return_value['matched_src+2mass'] = guessed_match
+        return_value['calibrated_src_cat'] = guessed_cat
+
+        return return_value
+        ##################################################################################
+        #
+        # End of shift only
+        #
+        ##################################################################################
 
 
     #
