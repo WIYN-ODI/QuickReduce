@@ -1197,7 +1197,7 @@ def collect_reduce_ota(filename,
         filter_name = get_valid_filter_name(hdulist[0].header)
         # binning = ota_list[0].header['BINNING']
         pg_template = "%s/pupilghost_template___level_%d__bin%d.fits" % (options['pupilghost_dir'], filter_level, binning)
-        logger.debug("looking for pupil ghost template %s...\n" % (pg_template))
+        logger.debug("looking for pupil ghost template %s..." % (pg_template))
         # If we have a template for this level
         if (os.path.isfile(pg_template)):
             logger.debug("\n   Using pupilghost template %s, filter %s ... " % (pg_template, filter_name))
@@ -1233,6 +1233,8 @@ def collect_reduce_ota(filename,
                     data_products['pupilghost-scaling'] = pupilghost_scaling
                     logger.debug("PG scaling:\n%s" % (str(pupilghost_scaling)))
                 logger.debug("Done with pg scaling")
+        else:
+            logger.debug("No appropriate pupilghost template found!")
 
             # # Find the optimal scaling factor
             # logger.debug("Searching for optimal pupilghost scaling factor")
@@ -2121,10 +2123,12 @@ def collectcells(input, outputfile,
         not_a_guiding_ota = False
 
         if (not ota_name in ota_headers):
+            logger.debug("Found OTA that I don't understand: %s" % (ota_name))
             # We don't know about this OTA, skip it
             continue
 
         if (sky_samples[ext] == None):
+            logger.debug("Found empty sky-sample list: %s" % (ota_name))
             continue
 
         sky_plus_ota = numpy.empty((sky_samples[ext].shape[0], sky_samples[ext].shape[1]+1))
@@ -2137,9 +2141,10 @@ def collectcells(input, outputfile,
                 sky_samples_global = sky_plus_ota 
             else:
                 sky_samples_global = numpy.append(sky_samples_global, sky_plus_ota, axis=0)
+        logger.debug("Entire list of sky-samples now contains % 4d entries" % (sky_samples_global.shape[0]))
 
-
-    numpy.savetxt("skyglobal", sky_samples_global)
+    logger.debug("Done with collecting sky sample data")
+    # numpy.savetxt("skyglobal", sky_samples_global)
 
     try:
         sky_samples_clipped = three_sigma_clip(sky_samples_global[:,4], nsigma=3)
@@ -2171,9 +2176,9 @@ def collectcells(input, outputfile,
         sky_bottom5percent = invalid_sky_level_value
         sky_bottom5boxes = invalid_sky_level_value
 
+    logger.debug("Found global median sky-value = %.1f" % (sky_global_median))
     ota_list[0].header["SKYLEVEL"] = (sky_global_median, "median global sky level")
     ota_list[0].header["SKYBG"] = (sky_global_median, "median global sky background")
-    logger.debug("Found global median sky-value = %.1f" % (sky_global_median))
     ota_list[0].header['SKYBGCLP'] = (sky_median_clipped, "3-sigma clipped median sky level")
     ota_list[0].header['SKYBGMIN'] = (sky_global_min, "miminum sky level")
     ota_list[0].header['SKYBGSTD'] = (sky_global_std, "std.dev. of sky level")
@@ -2185,29 +2190,32 @@ def collectcells(input, outputfile,
     ota_list[0].header['SKY_LO5P'] = (sky_bottom5percent, "sky level, 5 percent")
     ota_list[0].header['SKY_LO5S'] = (sky_bottom5boxes, "sky level, lowest 5 samples")
     add_fits_header_title(ota_list[0].header, "Derived global data", 'SKYLEVEL')
+    logger.debug("All sky-related FITS header entries written")
 
     #
     # Compute the global fringe scaling 
     # 
     fringe_scaling_median = fringe_scaling_std = 0
     if (not options['fringe_dir'] == None and not fringe_scaling == None): #.shape[0] > 0):
+        logger.debug("Computing average fringe scaling amplitude")
         # Determine the global scaling factor
         good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])
         fringe_scaling_median = numpy.median(good_scalings)
         fringe_scaling_std    = numpy.std(good_scalings)
     else:
         fringe_scaling_median, fringe_scaling_std = -1., -1.
-
+        
     # and log the values in the primary header
     ota_list[0].header["FRNG_SCL"] = (fringe_scaling_median, "median fringe scaling")
     ota_list[0].header["FRNG_STD"] = (fringe_scaling_std, "fringe scaling uncertainty")
+    logger.debug("Fringe scaling: %.3f +/- %.3f" % (fringe_scaling_median, fringe_scaling_std))
 
     #
     # Compute the global median pupil-ghost contribution
     #
     pupilghost_scaling_median = pupilghost_scaling_std = 0.
     if (options['pupilghost_dir'] != None and not pupilghost_scaling == None):
-
+        logger.debug("Computing global pupilghost scaling")
         ratio = pupilghost_scaling[:,4] / pupilghost_scaling[:,5]
         pg_max = numpy.max(pupilghost_scaling[:,5])
         strong_pg_signal = pupilghost_scaling[:,5] > 0.4*pg_max
@@ -2237,6 +2245,7 @@ def collectcells(input, outputfile,
     else:
         pupilghost_scaling_median = -1.
     ota_list[0].header["PUPLGFAC"] = (pupilghost_scaling_median, "pupilghost scaling")
+    logger.debug("Pupilghost scaling: %.3f +/- %.3f" % (pupilghost_scaling_median, pupilghost_scaling_std))
 
     ############################################################################
     #
@@ -2252,7 +2261,7 @@ def collectcells(input, outputfile,
     logger.debug("Computed all intermediate data parameters")
     intermed_results = {
         "pupilghost-scaling-median": pupilghost_scaling_median,
-        "pupilghost-scaling-std": pupilghost_scaling_median,
+        "pupilghost-scaling-std": pupilghost_scaling_std,
         "fringe-scaling-median": fringe_scaling_median,
         "fringe-scaling-std": fringe_scaling_std,
     }
@@ -3002,13 +3011,13 @@ def collectcells(input, outputfile,
     #print "hdulist=",hdulist
 
     if (not batchmode):
-        stdout_write("writing output file (%s)..." % (outputfile))
+        logger.debug("Complete, writing output file %s" % (outputfile))
         clobberfile(outputfile)
         hdulist.writeto(outputfile, clobber=True)
         # afw.write(hdulist, outputfile)
-        stdout_write(" done!\n")
+        logger.debug("All work completed successfully, output written to %s" % (outputfile))
     else:
-        stdout_write(" continuing ...")
+        logger.info("All work completed successfully, parsing output for further processing")
         return hdulist
 
     # afw.finish(userinfo=True)
