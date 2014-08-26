@@ -1529,7 +1529,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         pointing_error = max_pointing_error_list[i]
 
         logger.debug("Attempting to find WCS solution with search radius %.1f arcmin ..." % (
-            max_pointing_error))
+            pointing_error))
 
         #
         # Reduce the reference catalog to approx. the coverage of the source catalog
