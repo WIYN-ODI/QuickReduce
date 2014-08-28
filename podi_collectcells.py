@@ -1521,8 +1521,9 @@ def collectcells_with_timeout(input, outputfile,
         stdout_write("\n   Killing collectcells after timeout...")
         p.terminate()
         stdout_write(" all done!\n\n")
+        return -1
 
-    return
+    return 0
 
 
 
@@ -3529,6 +3530,13 @@ def check_filename_directory(given, default_filename):
 
 
 
+returnvalue_meaning = {
+     0: "OK",
+    -1: "timeout",
+    -2: "exception",
+    -3: "unknown",
+    -4: "profiler",
+}
 
 
 if __name__ == "__main__":
@@ -3562,7 +3570,20 @@ if __name__ == "__main__":
     # Then read the actual given parameters from the command line
     options = read_options_from_commandline(options)
 
+    #
+    # Initialize the log for easier debugging later on (if needed)
+    #
+    logger = logging.getLogger("CCRoot")
+    logger.debug("COLLECTCELLS STARTUP")
+    logger.debug("Execute command:\n%s" % (" ".join(sys.argv)))
+    logger.debug("Current working directory: %s" % (os.getcwd()))
+    logger.debug("Executable: %s" % (os.path.abspath(__file__)))
+    logger.debug("COLLECTCELLS INPUT: %s (%s)" % (input, os.path.abspath(input)))
+
+    #
     # Collect all cells, perform reduction and write result file
+    #
+    retvalue = -3
     try:
         if (cmdline_arg_isset('-profile')):
             options['profile'] = True
@@ -3572,20 +3593,34 @@ if __name__ == "__main__":
             p = pstats.Stats("profiler")
             p.strip_dirs().sort_stats('time').print_stats()
             p.sort_stats('time').print_stats()
+            retvalue = -4
         else:
             if (cmdline_arg_isset("-timeout")):
                 timeout = float(cmdline_arg_set_or_default("-timeout", 900))
                 print "Setting timeout to",timeout,"seconds"
-                collectcells_with_timeout(input, outputfile, options=options,
-                                          timeout=timeout,
-                                          process_tracker=process_tracker)
+                retvalue = collectcells_with_timeout(input, outputfile, options=options,
+                                                     timeout=timeout,
+                                                     process_tracker=process_tracker)
             else:
                 collectcells(input, outputfile, process_tracker=process_tracker, options=options)
+                retvalue = 0
     except:
         print "Cleaning up left over child processes"
         podi_logging.log_exception()
         kill_all_child_processes(process_tracker)
-
+        retvalue = -2
 
     finally:
+        #
+        # Send some debug.log closing statement and shutdown all logging
+        #
+        logger.debug("COLLECTCELLS RETURN-VALUE: %d (%s)" % (retvalue, returnvalue_meaning[retvalue]))
+        logger.debug("COLLECTCELLS SHUTDOWN")
         podi_logging.shutdown_logging(options)
+
+    #
+    # return the return value as determined above to let the calling program 
+    # know if all execution was completed successfully or if there were some 
+    # errors/problems during execution
+    #
+    sys.exit(retvalue)
