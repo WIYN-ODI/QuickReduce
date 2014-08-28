@@ -1891,7 +1891,6 @@ def extract_biassec_from_cell(data, binning):
     return data[dy1:dy2, dx1:dx2]
 
 
-
 def match_catalog_areas(src, to_match, radius):
     """
 
@@ -1900,37 +1899,36 @@ def match_catalog_areas(src, to_match, radius):
 
     """
 
+    #
     # Account for the cos(dec) effect
+    #
     max_dec = numpy.max(numpy.fabs(src[:,1]))
     if (max_dec > 85): max_dec = 85
     cos_dec = numpy.cos(numpy.radians(max_dec))
 
+    #
+    # Apply cos(dec) correction to the src catalog 
+    # (make sure to copy the catalogs to prevent altering the 
+    # actual input catalogs) ...
+    #
     src_radec = src[:,0:2].copy()
     src_radec[:,0] *= cos_dec
     #src_radec[:,0] *= numpy.cos(numpy.radians(src_radec[:,1]))
     src_tree = scipy.spatial.cKDTree(src_radec)
 
+    #
+    # ... and to the match catalog
+    #
     match_radec = to_match[:,0:2].copy()
     match_radec[:,0] *= cos_dec
-    #match_radec[:,0] *= numpy.cos(numpy.radians(match_radec[:,1]))
-    match_tree = scipy.spatial.cKDTree(match_radec)
 
-    # Now select all neighbors within the search radius
-    matches = match_tree.query_ball_tree(src_tree, radius, p=2)
-
-    valid = numpy.ones(shape=to_match.shape[0])
-
-    for i in range(len(matches)):
-        if (len(matches[i]) > 0):
-            # This means we found a star in the source catalog close enough to this star
-            # don't do anything
-            pass
-        else:
-            # We didn't find a nearby neighbor, so this is a source to be removed.
-            valid[i] = 0
-
-    matched = to_match[valid == 1]
-    # matched[:,0] /= numpy.cos(numpy.radians(matched[:,1])) 
+    #
+    # Now determine, for each match source (in 2MASS), the distance 
+    # to the 1 (k=1) closest source in the src (ODI) catalog. If the distance is
+    # less than 'radius', the source is close enough and is considered matched
+    #
+    d,l = src_tree.query(match_radec, k=1, eps=0.05, p=2, distance_upper_bound=radius)
+    matched = to_match[d<radius]
 
     return matched
 
