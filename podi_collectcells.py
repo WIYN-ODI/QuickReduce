@@ -1521,7 +1521,7 @@ def collectcells_with_timeout(input, outputfile,
         stdout_write("\n   Killing collectcells after timeout...")
         p.terminate()
         stdout_write(" all done!\n\n")
-        return -1
+        return 1
 
     return 0
 
@@ -3531,11 +3531,11 @@ def check_filename_directory(given, default_filename):
 
 
 returnvalue_meaning = {
-     0: "OK",
-    -1: "timeout",
-    -2: "exception",
-    -3: "unknown",
-    -4: "profiler",
+    0: "OK",
+    1: "timeout",
+    2: "exception",
+    3: "unknown",
+    4: "profiler",
 }
 
 
@@ -3583,7 +3583,7 @@ if __name__ == "__main__":
     #
     # Collect all cells, perform reduction and write result file
     #
-    retvalue = -3
+    retvalue = 3
     try:
         if (cmdline_arg_isset('-profile')):
             options['profile'] = True
@@ -3593,7 +3593,7 @@ if __name__ == "__main__":
             p = pstats.Stats("profiler")
             p.strip_dirs().sort_stats('time').print_stats()
             p.sort_stats('time').print_stats()
-            retvalue = -4
+            retvalue = 4
         else:
             if (cmdline_arg_isset("-timeout")):
                 timeout = float(cmdline_arg_set_or_default("-timeout", 900))
@@ -3608,7 +3608,7 @@ if __name__ == "__main__":
         print "Cleaning up left over child processes"
         podi_logging.log_exception()
         kill_all_child_processes(process_tracker)
-        retvalue = -2
+        retvalue = 2
 
     finally:
         #
