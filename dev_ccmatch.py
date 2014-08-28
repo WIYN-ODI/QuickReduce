@@ -538,20 +538,28 @@ def find_best_guess(src_cat, ref_cat,
     else:
 
         for cur_angle in range(n_angles):
+
             angle = all_results[cur_angle,0]
-            logger.debug("Working on angle %f deg / %f arcmin" % (angle,angle*60))
+            logger.debug("Starting work on angle %f deg / %f arcmin" % (angle,angle*60))
+            # print "Starting work on angle",angle,angle*60,"(deg/arcmin)"
 
             src_rotated = rotate_shift_catalog(src_cat, (center_ra, center_dec), angle, None)
+
             logger.debug("Angle: %f -->" % (angle*60.))
-            numpy.savetxt("ccmatch.cat%f" % (angle*60), src_rotated)
-            n_matches, offset = count_matches(src_rotated, ref_cat, matching_radius, 
-                                              fine_radius=fine_radius,
+            n_matches, offset = count_matches(src_rotated, ref_cat, 
+                                              pointing_error=pointing_error, 
+                                              matching_radius=matching_radius,
                                               debugangle=angle)
+
+            if (create_debug_files):
+                numpy.savetxt("ccmatch.cat%f" % (angle*60), src_rotated)
+                print angle*60,offset
+                matched_cat = kd_match_catalogs(src_rotated[:,0:2]+offset, ref_cat[:,0:2], matching_radius, max_count=1)
+                numpy.savetxt("ccmatch.matched_%f" % (angle*60), matched_cat)
 
             all_results[cur_angle,1:3] = offset
             all_results[cur_angle,3] = n_matches
 
-    
     logger.debug(all_results)
     if (create_debug_files): numpy.savetxt("ccmatch.allresults.%d" % (pointing_error), all_results)
 
