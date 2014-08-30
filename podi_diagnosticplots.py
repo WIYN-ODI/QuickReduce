@@ -1188,6 +1188,144 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
 
 
 
+from matplotlib.collections import LineCollection
+
+def  diagplot_psfshape(ra, dec, elongation, angle, ota, 
+                       filename='psfshape_test',
+                       options=None,
+                       title='test',
+                       also_plot_singleOTAs=False):
+
+
+    logger = logging.getLogger("DiagPlot_PSFShape")
+    fig = matplotlib.pyplot.figure()
+    ax = fig.add_subplot(111)
+    ax.ticklabel_format(useOffset=False)
+
+    around_zero = False
+    if ((numpy.max(ra) - numpy.min(ra)) > 180):
+        
+        # This means we most likely have to deal with coordinates around 0
+        ra[ra > 180] -= 360.
+        around_zero = True
+
+    ramin, ramax = 284.4, 284.5 #numpy.min(ra), numpy.max(ra)
+    decmin, decmax = 22.5, 22.6 #numpy.min(dec), numpy.max(dec)
+
+    dimension = numpy.min([ramax-ramin, decmax-decmin])
+
+    vector_scaling = 10 * dimension/100 * 3600. # size of 1 arcsec in percent of screen size
+
+    ax.plot(ra, dec,
+            color='red', marker='o', linestyle='None',
+            markeredgecolor='none', markersize=4, 
+            )
+
+    elongation -= 1.0
+
+    print elongation[:25]
+    scale = 10./3600. 
+    dx = numpy.cos(numpy.radians(angle))*elongation * scale
+    dy = numpy.sin(numpy.radians(angle))*elongation * scale
+    print dx[:25]
+    print dy[:25]
+
+    arrows = []
+    for i in range(ra.shape[0]):
+        position = [[ra[i]-dx[i], dec[i]-dy[i]],
+                    [ra[i]+dx[i], dec[i]+dy[i]]]
+        arrows.append(position)
+
+    lines = LineCollection(arrows,alpha=0.8)
+    ax.add_collection(lines)
+
+#     Q = ax.quiver(ra, dec, dx, dy,
+#                   pivot='mid',
+#                   units='inches',
+# #                  angles='xy',
+#                   scale_units='inches',
+# #                  headwidth=2, headlength=2, headaxislength=1.8,
+# #                  width=1e-4, linewidth=1, edgecolor='#000000', color='#000000',
+#                  zorder=99
+#     )
+    
+#     qk = matplotlib.pyplot.quiverkey(Q, 0.5, 0.03, 1, r'$1 \frac{m}{s}$', fontproperties={'weight': 'bold'})
+
+#    ax.plot( ra, dec, 'k.')
+    #axis([-1, 7, -1, 7])             
+    # Q = ax.quiver(radec[:,0], radec[:,1], 
+    #               d_radec[:,0]*vector_scaling, d_radec[:,1]*vector_scaling,
+    #               angles='xy', scale_units='xy', pivot='tail', zorder=99, 
+    #               scale=1, 
+    #               headwidth=2, headlength=2, headaxislength=1.8,
+    #               width=1e-4, linewidth=1, edgecolor='#000000', color='#000000',
+    #               )
+
+    # Determine min and max values
+
+    ax.set_title(title)
+    # ax.set_xlim((ramin-0.02, ramax+0.02))
+    # ax.set_ylim((decmin-0.02, decmax+0.02))
+    ax.set_xlabel("RA [degrees]")
+    ax.set_ylabel("DEC [degrees]")
+    # Invert the x-axis to have north up and east to the left
+    ax.set_xlim(ax.get_xlim()[::-1])
+
+    # draw some arrow to mark how long the other arrows are
+    #arrow_x = ramin  + 0.05 * (ramax - ramin)
+    #arrow_y = decmax - 0.05 * (decmax - decmin)
+    arrow_length = 1 / 3600. # arcsec
+    # ax.plot(arrow_x, arrow_y, "ro")
+    # ax.quiver(arrow_x, arrow_y, arrow_length*vector_scaling, 0, linewidth=0,
+    #           angles='xy', scale_units='xy', scale=1, pivot='middle',
+    #           headwidth=0)
+
+    logger.debug("Adding quiverkey at pos") #, arrow_x, arrow_y
+    # qk = ax.quiverkey(Q, arrow_x, arrow_y, arrow_length, 
+    #                   label="1''", labelpos='S',
+    #                   coordinates='data'
+    #                   )
+    # qk = ax.quiverkey(Q, 0.05, 0.95, arrow_length*vector_scaling, 
+    #                   label="1''", labelpos='S',
+    #                   coordinates='axes'
+    #                   )
+
+    # ax.quiver(arrow_x, arrow_y, arrow_length*vector_scaling, 0, linewidth=0,
+    #           angles='xy', scale_units='xy', scale=1, pivot='middle',
+    #           headwidth=0)
+
+    # if (not ota_outlines == None):
+    #     corners = numpy.array(ota_outlines)
+    #     if (around_zero):
+    #         corners[:,:,0][corners[:,:,0] > 180.] -= 360.
+    #     coll = matplotlib.collections.PolyCollection(corners,facecolor='none',edgecolor='#808080', linestyle='-')
+    #     ax.add_collection(coll)
+
+    # add a line
+    # x,y = numpy.array([[arrow_x-arrow_length*vector_scaling, arrow_x+arrow_length*vector_scaling], [arrow_y, arrow_y]])
+    # ax.plot(x,y, linewidth=3, color='black')
+
+    # add label saying "2''"
+    # ax.text(arrow_x, arrow_y-2*vector_scaling/3600., "%d''" % (2*arrow_length*3600), 
+    #                        horizontalalignment='center')
+
+    extension_list = ['png']
+    if (filename == None):
+        matplotlib.pyplot.show()
+        fig.show()
+    else:
+        for ext in extension_list:
+            logger.debug("saving file: %s.%s" % (filename, ext))
+            fig.set_size_inches(8,6)
+            fig.savefig(filename+"."+ext, dpi=100)
+
+    matplotlib.pyplot.close()
+    logger.debug("done!")
+
+    return
+
+
+
 #####################################################################################
 #
 #
@@ -1287,6 +1425,44 @@ if __name__ == "__main__":
                         also_plot_singleOTAs=True,
                         title_info = None,
                     )
+
+    elif (cmdline_arg_isset("-psfshape")):
+
+        inputframe = get_clean_cmdline()[1]
+        plotname = None #get_clean_cmdline()[2]
+
+        print inputframe,"-->",plotname
+        
+
+        from podi_collectcells import read_options_from_commandline
+        options = read_options_from_commandline(None)
+
+        hdulist = pyfits.open(inputframe)
+        hdulist.info()
+        try:
+            odi_cat = hdulist['CAT.ODI'].data
+        except:
+            print "no source catalog found"
+            sys.exit(0)
+
+        #ota_outlines = derive_ota_outlines(hdulist)
+
+        ota = odi_cat.field('OTA')
+        flags = odi_cat.field('FLAGS')
+
+        in_ota = (ota==33) & (flags == 0)
+
+        ra = odi_cat.field('RA')[in_ota]
+        dec = odi_cat.field('DEC')[in_ota]
+        elongation = odi_cat.field('ELONGATION')[in_ota]
+        angle = odi_cat.field('THETAWIN_IMAGE')[in_ota]
+        ota = odi_cat.field('OTA')[in_ota]
+
+        diagplot_psfshape(ra, dec, elongation, angle, ota, 
+                          filename=plotname,
+                          options=options,
+                          also_plot_singleOTAs=True
+                      )
 
     else:
         matched_cat = numpy.loadtxt("odi+2mass.matched")
