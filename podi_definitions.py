@@ -1747,17 +1747,19 @@ def derive_ota_outlines(otalist):
 
     all_corners = []
     for ext in range(len(otalist)):
-        if (type(otalist[ext]) == pyfits.hdu.image.ImageHDU):
+        if (not is_image_extension(otalist[ext])):
+            continue
+#type(otalist[ext]) == pyfits.hdu.image.ImageHDU):
             
-            wcs = astWCS.WCS(otalist[ext].header, mode='pyfits')
+        wcs = astWCS.WCS(otalist[ext].header, mode='pyfits')
             
-            corner_coords = []
-            corner_coords.append(wcs.pix2wcs(                            0,                             0))
-            corner_coords.append(wcs.pix2wcs(otalist[ext].header['NAXIS1'],                             0))
-            corner_coords.append(wcs.pix2wcs(otalist[ext].header['NAXIS1'], otalist[ext].header['NAXIS2']))
-            corner_coords.append(wcs.pix2wcs(                            0, otalist[ext].header['NAXIS2']))
+        corner_coords = []
+        corner_coords.append(wcs.pix2wcs(                            0,                             0))
+        corner_coords.append(wcs.pix2wcs(otalist[ext].header['NAXIS1'],                             0))
+        corner_coords.append(wcs.pix2wcs(otalist[ext].header['NAXIS1'], otalist[ext].header['NAXIS2']))
+        corner_coords.append(wcs.pix2wcs(                            0, otalist[ext].header['NAXIS2']))
 
-            all_corners.append(corner_coords)
+        all_corners.append(corner_coords)
 
     return all_corners
 
