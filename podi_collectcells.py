@@ -638,8 +638,13 @@ def collect_reduce_ota(filename,
                     fppos_bias = bias_ext.header['FPPOS']
                     if (fppos_bias == fppos):
                         # This is the one
-                        merged -= bias_ext.data
-                        logger.debug("Subtracting bias: %s" % (bias_filename))
+                        try:
+                            merged -= bias_ext.data
+                            logger.debug("Subtracting bias: %s" % (bias_filename))
+                        except:
+                            logger.warning("Unable to subtract bias, dimensions don't match (data: %s, bias: %s)" % (
+                                str(merged.shape), str(bias_ext.data.shape)))
+                            pass
                         break
 
                 bias.close()
@@ -675,8 +680,13 @@ def collect_reduce_ota(filename,
                     if (fppos_dark == fppos):
                         # This is the one
                         dark_scaling = exposure_time / darktime
-                        logger.debug("Subtracting dark: %s (scaling=%.2f)" % (dark_filename, dark_scaling))
-                        merged -= (dark_ext.data * dark_scaling)
+                        try:
+                            merged -= (dark_ext.data * dark_scaling)
+                            logger.debug("Subtracting dark: %s (scaling=%.2f)" % (dark_filename, dark_scaling))
+                        except:
+                            logger.warning("Unable to subtract dark, dimensions don't match (data: %s, dark: %s)" % (
+                                str(merged.shape), str(dark_ext.data.shape)))
+                            pass
                         break
 
                 dark.close()
@@ -703,8 +713,13 @@ def collect_reduce_ota(filename,
                     fppos_flatfield = ff_ext.header['FPPOS']
                     if (fppos_flatfield == fppos):
                         # This is the one
-                        merged /= ff_ext.data
-                        logger.debug("Dividing by flatfield: %s" % (flatfield_filename))
+                        try:
+                            merged /= ff_ext.data
+                            logger.debug("Dividing by flatfield: %s" % (flatfield_filename))
+                        except:
+                            logger.warning("Unable to apply flat-field, dimensions don't match (data: %s, flat: %s)" % (
+                                str(merged.shape), str(ff_ext.data.shape)))
+                            pass
 
                         # If normalizing with the flat-field, overwrite the gain
                         # keyword with the average gain value of the flatfield.
