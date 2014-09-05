@@ -2631,6 +2631,20 @@ def collectcells(input, outputfile,
                                            also_plot_singleOTAs=options['otalevelplots'],
                                            title_info=title_info)
 
+        plotfilename = create_qa_filename(outputfile, "psfshape", options)
+        podi_diagnosticplots.diagplot_psfshape_map(ra=global_source_cat[:, SXcolumn['ra']], 
+                                                   dec=global_source_cat[:, SXcolumn['dec']], 
+                                                   elongation=global_source_cat[:, SXcolumn['elongation']], 
+                                                   angle=global_source_cat[:, SXcolumn['position_angle']], 
+                                                   fwhm=global_source_cat[:, SXcolumn['fwhm_world']], 
+                                                   ota=global_source_cat[:, SXcolumn['ota']], 
+                                                   output_filename=plotfilename,
+                                                   title=diagnostic_plot_title,
+                                                   ota_outlines=ota_outlines, 
+                                                   options=options,
+                                                   also_plot_singleOTAs=options['otalevelplots'],
+                                                   title_info=title_info)
+
     #
     # Add some default photometric calibration keywords
     #
