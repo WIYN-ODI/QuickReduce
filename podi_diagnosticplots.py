@@ -1187,15 +1187,17 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
 
 
 
-
 from matplotlib.collections import LineCollection
+elongation_limit = 3.5
 
-def  diagplot_psfshape(ra, dec, elongation, angle, ota, 
-                       filename='psfshape_test',
-                       options=None,
-                       title='test',
-                       also_plot_singleOTAs=False):
 
+def plot_psfshape_map(ra, dec, elongation, angle, fwhm, 
+                      output_filename='psfshape_test',
+                      options=None,
+                      title='test',
+                      ota_outlines=None,
+                      show_round_stars=True,
+                      ):
 
     logger = logging.getLogger("DiagPlot_PSFShape")
     fig = matplotlib.pyplot.figure()
@@ -1209,120 +1211,220 @@ def  diagplot_psfshape(ra, dec, elongation, angle, ota,
         ra[ra > 180] -= 360.
         around_zero = True
 
-    ramin, ramax = 284.4, 284.5 #numpy.min(ra), numpy.max(ra)
-    decmin, decmax = 22.5, 22.6 #numpy.min(dec), numpy.max(dec)
+    ramin, ramax = numpy.min(ra), numpy.max(ra)
+    decmin, decmax = numpy.min(dec), numpy.max(dec)
 
     dimension = numpy.min([ramax-ramin, decmax-decmin])
 
-    vector_scaling = 10 * dimension/100 * 3600. # size of 1 arcsec in percent of screen size
-
-    ax.plot(ra, dec,
-            color='red', marker='o', linestyle='None',
-            markeredgecolor='none', markersize=4, 
-            )
-
+    # Convert axis ratio to axis excess (i.e. round stars have then 0 elongation)
     elongation -= 1.0
 
-    print elongation[:25]
-    scale = 10./3600. 
-    dx = numpy.cos(numpy.radians(angle))*elongation * scale
-    dy = numpy.sin(numpy.radians(angle))*elongation * scale
-    print dx[:25]
-    print dy[:25]
+    #
+    # Plot all round stars as small grey datapoints, mostly for reference 
+    # and orientation
+    #
+    round_stars = elongation < 0.25
+    elongated = elongation > 0.1
+    logger.debug("Plotting round stars")
+    if (numpy.sum(round) > 0 and show_round_stars):
+        ax.plot(ra[round_stars], dec[round_stars],
+                color='grey', marker='o', linestyle='None',
+                markeredgecolor='none', markersize=3, alpha=0.5
+            )
 
+
+    #
+    # Compute the arrow positions
+    #
+    # scaling is 10x, i.e. stars with 1:2 axis ration (elongation=1) 
+    # get drawn with 10'' long streaks one either side of the star
+    #
+
+    scale = 10./3600. 
+    dx = numpy.cos(numpy.radians(angle))*elongation * scale / numpy.cos(numpy.radians(dec))
+    dy = numpy.sin(numpy.radians(angle))*elongation * scale
+    # print dx[:25]
+    # print dy[:25]
+
+    # convert FWHM from degrees to arcseconds
+    fwhm *= 3600. 
+    # only use stars with reasonable seeing - this is for color-mapping only
+    seeing_range = [0.4, 2.5]
+    rel_seeing = fwhm - seeing_range[0] / (seeing_range[1] - seeing_range[0])
     arrows = []
     for i in range(ra.shape[0]):
+        if (not elongated[i] or fwhm[i] < seeing_range[0]):
+            continue
         position = [[ra[i]-dx[i], dec[i]-dy[i]],
                     [ra[i]+dx[i], dec[i]+dy[i]]]
         arrows.append(position)
 
-    lines = LineCollection(arrows,alpha=0.8)
-    ax.add_collection(lines)
+    # print elongated[:25]
+    # print arrows[:25]
+    # print arrows[elongated]
 
-#     Q = ax.quiver(ra, dec, dx, dy,
-#                   pivot='mid',
-#                   units='inches',
-# #                  angles='xy',
-#                   scale_units='inches',
-# #                  headwidth=2, headlength=2, headaxislength=1.8,
-# #                  width=1e-4, linewidth=1, edgecolor='#000000', color='#000000',
-#                  zorder=99
-#     )
-    
-#     qk = matplotlib.pyplot.quiverkey(Q, 0.5, 0.03, 1, r'$1 \frac{m}{s}$', fontproperties={'weight': 'bold'})
-
-#    ax.plot( ra, dec, 'k.')
-    #axis([-1, 7, -1, 7])             
-    # Q = ax.quiver(radec[:,0], radec[:,1], 
-    #               d_radec[:,0]*vector_scaling, d_radec[:,1]*vector_scaling,
-    #               angles='xy', scale_units='xy', pivot='tail', zorder=99, 
-    #               scale=1, 
-    #               headwidth=2, headlength=2, headaxislength=1.8,
-    #               width=1e-4, linewidth=1, edgecolor='#000000', color='#000000',
-    #               )
+    # Draw all streaks
+    if (numpy.sum(elongated) > 0):
+        logger.debug("Plotting elongated stars")
+        colormap = matplotlib.pyplot.cm.get_cmap("spectral")
+        lines = LineCollection(arrows,
+                           alpha=0.8, 
+                           array=fwhm[elongated],
+                           cmap=colormap, 
+                           norm=matplotlib.pyplot.Normalize(0.5,2.5),
+                           zorder=99)
+        ax.add_collection(lines)
 
     # Determine min and max values
 
     ax.set_title(title)
-    # ax.set_xlim((ramin-0.02, ramax+0.02))
-    # ax.set_ylim((decmin-0.02, decmax+0.02))
+    ax_dx = 0.1*(ramax - ramin)
+    ax_dy = 0.1*(decmax - decmin)
+    ax.set_xlim((ramin-ax_dx, ramax+ax_dx))
+    ax.set_ylim((decmin-ax_dy, decmax+ax_dy))
     ax.set_xlabel("RA [degrees]")
     ax.set_ylabel("DEC [degrees]")
     # Invert the x-axis to have north up and east to the left
     ax.set_xlim(ax.get_xlim()[::-1])
 
-    # draw some arrow to mark how long the other arrows are
-    #arrow_x = ramin  + 0.05 * (ramax - ramin)
-    #arrow_y = decmax - 0.05 * (decmax - decmin)
-    arrow_length = 1 / 3600. # arcsec
-    # ax.plot(arrow_x, arrow_y, "ro")
-    # ax.quiver(arrow_x, arrow_y, arrow_length*vector_scaling, 0, linewidth=0,
-    #           angles='xy', scale_units='xy', scale=1, pivot='middle',
-    #           headwidth=0)
+    # Draw OTA outlines if requested
+    if (not ota_outlines == None):
+        corners = numpy.array(ota_outlines)
+        if (around_zero):
+            corners[:,:,0][corners[:,:,0] > 180.] -= 360.
+        coll = matplotlib.collections.PolyCollection(corners,facecolor='none',edgecolor='#808080', linestyle='-')
+        ax.add_collection(coll)
 
-    logger.debug("Adding quiverkey at pos") #, arrow_x, arrow_y
-    # qk = ax.quiverkey(Q, arrow_x, arrow_y, arrow_length, 
-    #                   label="1''", labelpos='S',
-    #                   coordinates='data'
-    #                   )
-    # qk = ax.quiverkey(Q, 0.05, 0.95, arrow_length*vector_scaling, 
-    #                   label="1''", labelpos='S',
-    #                   coordinates='axes'
-    #                   )
-
-    # ax.quiver(arrow_x, arrow_y, arrow_length*vector_scaling, 0, linewidth=0,
-    #           angles='xy', scale_units='xy', scale=1, pivot='middle',
-    #           headwidth=0)
-
-    # if (not ota_outlines == None):
-    #     corners = numpy.array(ota_outlines)
-    #     if (around_zero):
-    #         corners[:,:,0][corners[:,:,0] > 180.] -= 360.
-    #     coll = matplotlib.collections.PolyCollection(corners,facecolor='none',edgecolor='#808080', linestyle='-')
-    #     ax.add_collection(coll)
-
-    # add a line
-    # x,y = numpy.array([[arrow_x-arrow_length*vector_scaling, arrow_x+arrow_length*vector_scaling], [arrow_y, arrow_y]])
-    # ax.plot(x,y, linewidth=3, color='black')
-
-    # add label saying "2''"
-    # ax.text(arrow_x, arrow_y-2*vector_scaling/3600., "%d''" % (2*arrow_length*3600), 
-    #                        horizontalalignment='center')
-
-    extension_list = ['png']
-    if (filename == None):
+    # Save plot to file
+    if (output_filename == None):
         matplotlib.pyplot.show()
         fig.show()
     else:
-        for ext in extension_list:
-            logger.debug("saving file: %s.%s" % (filename, ext))
-            fig.set_size_inches(8,6)
-            fig.savefig(filename+"."+ext, dpi=100)
+        fig.set_size_inches(8,6)
+        if (not options == None):
+            for ext in options['plotformat']:
+                if (ext != ''):
+                    fig.savefig(output_filename+"."+ext, dpi=100)
+                    logger.debug("saving plot to %s.%s" % (output_filename, ext))
+        else:
+            fig.savefig(output_filename+".png", dpi=100)
 
     matplotlib.pyplot.close()
     logger.debug("done!")
 
     return
+
+
+def  diagplot_psfshape_map(ra, dec, elongation, angle, fwhm, ota, 
+                           output_filename='psfshape_test',
+                           options=None,
+                           title='test',
+                           title_info=None,
+                           ota_outlines = None,
+                           also_plot_singleOTAs=False
+):
+
+
+
+    """
+
+    Generate all PSF Shape plots for the entire focalplane and, optionally, for
+    each OTA.
+
+    """
+
+    logger = logging.getLogger("DiagPlot_PSFShape")
+    logger.info("Creating the PSF-shape diagnostic plot ...")
+
+    processes = []
+
+    title = "PSF Shape"
+    if (not title_info == None):
+        try:
+            title = "PSF Shape - %(OBSID)s (focal plane)\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec)" % title_info
+        except:
+            pass
+
+    elongation[elongation > elongation_limit] = elongation_limit
+
+    # Create one plot for the full focal plane, using boxes to outlines OTAs
+    plot_args = {"ra": ra, 
+                 "dec": dec, 
+                 "elongation": elongation,
+                 "angle": angle,
+                 "fwhm": fwhm, 
+                 "output_filename": output_filename, 
+                 "title": title,
+                 "ota_outlines": ota_outlines, 
+                 "options": options,
+                 "show_round_stars": False,
+    }
+    p = multiprocessing.Process(target=plot_psfshape_map, kwargs=plot_args)
+    p.start()
+    processes.append(p)
+   
+    # plot_psfsize_map(ra, dec, fwhm, output_filename, 
+    #                  fwhm_range=fwhm_range,
+    #                  title=title,
+    #                  ota_outlines=ota_outlines,
+    #                  options=options)
+
+    logger.debug("OTA-outlines:")
+    logger.debug(ota_outlines)
+
+    # If requested, do the same for the individual OTAs
+    if (also_plot_singleOTAs):
+        list_of_otas = available_ota_coords
+        if (options['central_only']):
+            list_of_otas = central_array_ota_coords
+
+        for (otax, otay) in list_of_otas:
+            this_ota = otax * 10 + otay
+
+            in_this_ota = (ota == this_ota)
+            if (numpy.sum(in_this_ota) <= 0):
+                continue
+
+            ra_ota = ra[in_this_ota]
+            dec_ota = dec[in_this_ota]
+            elongation_ota = elongation[in_this_ota]
+            angle_ota = angle[in_this_ota]
+            fwhm_ota = fwhm[in_this_ota]
+            title = "PSF map, OTA %02d" % (this_ota)
+
+            if (not title_info == None):
+                title_info['OTA'] = this_ota
+                try:
+                    title = "PSF Shape - %(OBSID)s OTA %(OTA)02d\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec)" % title_info
+                except:
+                    pass
+
+            ota_plotfile = create_qa_otaplot_filename(output_filename, this_ota, options['structure_qa_subdirs'])
+
+            plot_args = {"ra": ra_ota, 
+                         "dec": dec_ota, 
+                         "elongation": elongation_ota,
+                         "angle": angle_ota,
+                         "fwhm": fwhm_ota,
+                         "output_filename": ota_plotfile, 
+                         "title": title,
+                         "ota_outlines": ota_outlines, 
+                         #"ota_outlines": None,
+                         "options": options,
+            }
+            p = multiprocessing.Process(target=plot_psfshape_map, kwargs=plot_args)
+            p.start()
+            processes.append(p)
+
+
+    for p in processes:
+        p.join()
+
+    logger.debug("done!")
+
+    return
+
+
 
 
 
@@ -1429,7 +1531,7 @@ if __name__ == "__main__":
     elif (cmdline_arg_isset("-psfshape")):
 
         inputframe = get_clean_cmdline()[1]
-        plotname = None #get_clean_cmdline()[2]
+        plotname = get_clean_cmdline()[2]
 
         print inputframe,"-->",plotname
         
@@ -1445,23 +1547,26 @@ if __name__ == "__main__":
             print "no source catalog found"
             sys.exit(0)
 
-        #ota_outlines = derive_ota_outlines(hdulist)
+        ota_outlines = derive_ota_outlines(hdulist)
 
         ota = odi_cat.field('OTA')
         flags = odi_cat.field('FLAGS')
 
-        in_ota = (ota==33) & (flags == 0)
+        in_ota = (flags == 0) #& (ota == 32)
 
         ra = odi_cat.field('RA')[in_ota]
         dec = odi_cat.field('DEC')[in_ota]
         elongation = odi_cat.field('ELONGATION')[in_ota]
         angle = odi_cat.field('THETAWIN_IMAGE')[in_ota]
         ota = odi_cat.field('OTA')[in_ota]
+        fwhm = odi_cat.field('FWHM_WORLD')[in_ota]
 
-        diagplot_psfshape(ra, dec, elongation, angle, ota, 
-                          filename=plotname,
-                          options=options,
-                          also_plot_singleOTAs=True
+        diagplot_psfshape_map(ra, dec, elongation, angle, fwhm, ota, 
+                              output_filename=plotname,
+                              options=options,
+                              also_plot_singleOTAs=True,
+                              
+                              ota_outlines=ota_outlines,
                       )
 
     else:
