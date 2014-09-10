@@ -72,26 +72,41 @@ from podi_commandline import *
 import podi_imcombine
 import podi_fitskybackground
 import time
+import podi_imarith
+import podi_logging
 
+def compute_illumination_frame(queue, return_queue, tmp_dir):
 
+    root = logging.getLogger("CompIllumination")
 
-if __name__ == "__main__":
+    while (True):
+        cmd = queue.get()
+        if (cmd == None):
+            root.debug("Received shutdown command")
+            queue.task_done()
+            return
 
-    filelist = get_clean_cmdline()[2:]
-    outfile = get_clean_cmdline()[1]
+        fitsfile = cmd
+        root.debug("Received new work: %s" % (fitsfile))
 
-    masked_list = []
-
-    for fitsfile in filelist:
+        tempfiles = []
 
         # get some info so we know what to call the output frame
         hdulist = pyfits.open(fitsfile)
         obsid = hdulist[0].header['OBSID']
-        
-        # Run Sextractor
-        segmask = "%s_segmentation.fits" % (obsid)
+        logger = logging.getLogger("CompIllum(%s)" % (obsid))
 
+        # Run Sextractor
+        segmask = "%s/%s_segmentation.fits" % (tmp_dir, obsid)
+        masked_frame = "%s/%s_masked.fits" % (tmp_dir, obsid)
+
+        if (not (os.path.isfile(segmask) and os.path.isfile(masked_frame))):
+            logger.info("Starting work (source detection, masking, normalization) ...")
+        else:
+            logger.info("No work necessary, re-using existing data ...")
+            
         if (not os.path.isfile(segmask)):
+            logger.debug("Creating segmentation mask: %s" % (segmask))
             sex_cmd = """%(sex)s -c %(conf)s \
                          -PARAMETERS_NAME %(params)s \
                          -CHECKIMAGE_TYPE SEGMENTATION \
@@ -106,7 +121,8 @@ if __name__ == "__main__":
                 'segfile': segmask,
                 'image': fitsfile,
                 }
-            print " ".join(sex_cmd.split())
+            
+            logger.debug("Starting Sextractor:\n%s" % (" ".join(sex_cmd.split())))
 
             start_time = time.time()
             try:
@@ -120,9 +136,9 @@ if __name__ == "__main__":
             except OSError as e:
                 print >>sys.stderr, "Execution failed:", e
             end_time = time.time()
-            print("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
+            logger.debug("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
         else:
-            print "segmentation mask (%s) exist, re-using it" % (segmask)
+            logger.debug("segmentation mask (%s) exist, re-using it" % (segmask))
 
         #
         # Now use the mask and the input frame to mask out 
@@ -132,8 +148,9 @@ if __name__ == "__main__":
         hdu_out = []
         hdu_out.append(hdulist[0])
 
-        masked_frame = "%s_masked.fits" % (obsid)
         if (not os.path.isfile(masked_frame)):
+            logger.debug("Preparing masked frame: %s" % (masked_frame))
+
             mask_hdu = pyfits.open(segmask)
 
             for ext in hdulist:
@@ -150,11 +167,18 @@ if __name__ == "__main__":
                     if (ext.name == mask_ext.name):
                         # found it
                         found_mask = True
-                        print "found the mask for extension",ext.name
+                        logger.debug("found the mask for extension %s" % (ext.name))
+                        
+                        mask_grown = scipy.ndimage.filters.convolve(
+                            input=mask_ext.data, 
+                            weights=numpy.ones((10,10)), 
+                            output=None, 
+                            mode='constant', cval=0.0)
 
                         # Set all detected pixels to NaN to ignore them during the
                         # final imcombine
-                        ext.data[mask_ext.data > 0] = numpy.NaN
+#                        ext.data[mask_ext.data > 0] = numpy.NaN
+                        ext.data[mask_grown > 0] = numpy.NaN
 
                         # Rescale with the global sky-level
                         # maybe better to re-compute based on the segmentation mask
@@ -163,10 +187,10 @@ if __name__ == "__main__":
                         hdu_out.append(ext)
 
                 if (not found_mask):
-                    print "Can't find extension ",ext.name," in mask"
+                    logger.debug("Can't find extension %s in mask" % (ext.name))
 
 
-            print "writing masked frame to", masked_frame
+            logger.debug("writing masked frame to %s" % (masked_frame))
 
             clobberfile(masked_frame)
             hdulist_out = pyfits.HDUList(hdu_out)
@@ -174,17 +198,63 @@ if __name__ == "__main__":
 
             mask_hdu.close()
 
-        masked_list.append(masked_frame)
+        return_queue.put(masked_frame)
+        queue.task_done()
 
-        print "done with this one, taking next frame"
+        logger.debug("done with this one, taking next frame")
+
+    root.debug("Terminating process")
+    return
+
+
+def prepare_illumination_correction(filelist, outfile, tmpdir):
+
+    logger = logging.getLogger("CreateIllumCorr")
+
+    number_files_sent_off = 0
+    queue = multiprocessing.JoinableQueue()
+    return_queue = multiprocessing.Queue()
+
+    logger.info("Preparing all individual illumination reference frames")
+    for fitsfile in filelist:
+        logger.debug("Queuing %s" % (fitsfile))
+        queue.put((fitsfile))
+        number_files_sent_off += 1
+
+    processes = []
+    for i in range(sitesetup.number_cpus):
+        logger.debug("Starting process #%d" % (i+1))
+        p = multiprocessing.Process(target=compute_illumination_frame,
+                                    kwargs = {'queue': queue,
+                                              'return_queue': return_queue,
+                                              'tmp_dir': tmpdir,
+                                          },
+                                    # args=(queue, return_queue),
+        )
+        queue.put(None)
+        p.start()
+        processes.append(p)
+
+    masked_list = []
+    for i in range(number_files_sent_off):
+        masked_frame = return_queue.get()
+        if (not masked_frame == None):
+            masked_list.append(masked_frame)
+
+    for p in processes:
+        p.join()
+
+    logger.info("All files prepared, combining ...")
 
     #
     # Stack all files with all stars masked out
     #
-    print "Stacking the following frames:"
-    print "\n".join(["  ** %s" % a for a in masked_list])
+    logger.debug("Stacking the following frames:\n%s" % (
+        "\n".join(["  ** %s" % a for a in masked_list])))
+
     presmoothed_file = outfile[:-5]+".raw.fits"
     if (not os.path.isfile(presmoothed_file)):
+        logger.debug("Starting imcombine!")
         combined = podi_imcombine.imcombine(input_filelist=masked_list,
                                             outputfile=None,
                                             operation="sigmaclipmedian",
@@ -194,7 +264,7 @@ if __name__ == "__main__":
 
         combined.writeto(outfile[:-5]+".raw.fits")
     else:
-        print "reading pre-smoothed file from file"
+        logger.debug("Found raw (pre-smoothed) combined frame, reusing it")
         combined = pyfits.open(presmoothed_file)
 
     # Now go through all extensions and apply some smoothing or 
@@ -206,6 +276,8 @@ if __name__ == "__main__":
     # print numpy.sum(smooth_filter_1d)
     # print numpy.sum(smooth_filter_2d)
 
+    logger.info("Starting smoothing to increase signal-to-noise")
+
     smooth_filter_2d = numpy.ones((5,5))
     smooth_filter_2d /= numpy.sum(smooth_filter_2d)
 
@@ -213,17 +285,74 @@ if __name__ == "__main__":
         if (not is_image_extension(ext)):
             continue
 
-        print "smoothing ", ext.name
+        logger.debug("smoothing %s" % (ext.name))
 
         data = ext.data.copy()
         data[numpy.isnan(data)] = 1.0
-        data_out = scipy.signal.convolve2d(data, 
-                                           smooth_filter_2d,
-                                           mode='same',
-                                           boundary='fill',
-                                           fillvalue=1)
+        # data_out = scipy.signal.convolve2d(data, 
+        #                                    smooth_filter_2d,
+        #                                    mode='same',
+        #                                    boundary='fill',
+        #                                    fillvalue=1)
+        data_out = scipy.ndimage.filters.median_filter(input=data, 
+                                                       size=3,
+                                                       mode='constant', cval=1.0)
 
         data_out[numpy.isnan(ext.data)] = numpy.NaN
         ext.data = data_out
 
     combined.writeto(outfile, clobber=True)
+    logger.info("Work done, output written to %s" % (outfile))
+
+    return
+
+if __name__ == "__main__":
+
+    # Setup everything we need for logging
+    options = read_options_from_commandline(None)
+    podi_logging.setup_logging(options)
+
+    if (cmdline_arg_isset("-create")):
+
+        filelist = get_clean_cmdline()[2:]
+        outfile = get_clean_cmdline()[1]
+        tmpdir = cmdline_arg_set_or_default("-tmp", sitesetup.scratch_dir)
+
+        prepare_illumination_correction(filelist, outfile, tmpdir)
+
+    elif (cmdline_arg_isset("-apply1")):
+
+        illumcorr = get_clean_cmdline()[1]
+        inputfile = get_clean_cmdline()[2]
+        outputfile = get_clean_cmdline()[3]
+
+        podi_imarith.imarith(inputfile, "/", illumcorr, outputfile)
+
+    elif (cmdline_arg_isset("-applyall")):
+
+        illumcorr = get_clean_cmdline()[1]
+        insert = get_clean_cmdline()[2]
+
+        for inputfile in get_clean_cmdline()[3:]:
+            outputfile = "%s.%s.fits" % (inputfile[:-5], insert)
+            podi_imarith.imarith(inputfile, "/", illumcorr, outputfile)
+
+
+
+        pass
+
+    else:
+
+        print """\
+Options are:
+
+  -create output.fits input*.fits
+
+  -apply1 illumcorr.fits input.fits output.fits
+
+  -applyall illumcorr.fits insert_string input*.fits
+
+"""
+        
+    # Shutdown logging to shutdown cleanly
+    podi_logging.shutdown_logging(options)
