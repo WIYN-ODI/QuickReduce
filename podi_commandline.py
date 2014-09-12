@@ -101,7 +101,7 @@ import podi_sitesetup as sitesetup
 from podi_definitions import *
 
 
-def read_options_from_commandline(options=None):
+def read_options_from_commandline(options=None, ignore_errors=False):
     """
     Read all command line options and store them in the options dictionary.
 
@@ -119,7 +119,8 @@ def read_options_from_commandline(options=None):
         cals_dir = get_cmdline_arg("-cals")
         if (not os.path.isdir(cals_dir)):
             logger.critical("The specified cals-directory (%s) does not exist!!!" % (cals_dir))
-            sys.exit(0)
+            if (not ignore_errors):
+                sys.exit(0)
 
         options['bias_dir'] = cals_dir
         options['dark_dir'] = cals_dir

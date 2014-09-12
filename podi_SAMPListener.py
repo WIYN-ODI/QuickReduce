@@ -798,7 +798,7 @@ if __name__ == "__main__":
     else:
 
         print "Starting logger"
-        options = read_options_from_commandline()
+        options = read_options_from_commandline(None, ignore_errors=True)
         options = podi_logging.setup_logging(options)
         
         SAMPListener()
