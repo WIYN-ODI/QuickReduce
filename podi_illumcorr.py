@@ -75,7 +75,24 @@ import time
 import podi_imarith
 import podi_logging
 
-def compute_illumination_frame(queue, return_queue, tmp_dir):
+
+def get_illumination_filename(calibdir, filtername, binning):
+
+    if (os.path.isfile(calibdir)):
+        return calibdir
+
+    elif (os.path.isdir(calibdir)):
+        fn = "%s/illumination__%s_bin%d.fits" % (calibdir, filtername, binning)
+        return fn
+
+    elif (calibdir == None):
+        fn = "illumination__%s_bin%d.fits" % (filtername, binning)
+        return fn
+
+    return calibdir
+    
+
+def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False):
 
     root = logging.getLogger("CompIllumination")
 
@@ -100,12 +117,12 @@ def compute_illumination_frame(queue, return_queue, tmp_dir):
         segmask = "%s/%s_segmentation.fits" % (tmp_dir, obsid)
         masked_frame = "%s/%s_masked.fits" % (tmp_dir, obsid)
 
-        if (not (os.path.isfile(segmask) and os.path.isfile(masked_frame))):
+        if (not (os.path.isfile(segmask) and os.path.isfile(masked_frame)) or redo):
             logger.info("Starting work (source detection, masking, normalization) ...")
         else:
             logger.info("No work necessary, re-using existing data ...")
             
-        if (not os.path.isfile(segmask)):
+        if (not os.path.isfile(segmask) or redo):
             logger.debug("Creating segmentation mask: %s" % (segmask))
             sex_cmd = """%(sex)s -c %(conf)s \
                          -PARAMETERS_NAME %(params)s \
@@ -148,7 +165,7 @@ def compute_illumination_frame(queue, return_queue, tmp_dir):
         hdu_out = []
         hdu_out.append(hdulist[0])
 
-        if (not os.path.isfile(masked_frame)):
+        if (not os.path.isfile(masked_frame) or redo):
             logger.debug("Preparing masked frame: %s" % (masked_frame))
 
             mask_hdu = pyfits.open(segmask)
@@ -207,7 +224,7 @@ def compute_illumination_frame(queue, return_queue, tmp_dir):
     return
 
 
-def prepare_illumination_correction(filelist, outfile, tmpdir):
+def prepare_illumination_correction(filelist, outfile, tmpdir=".", redo=False):
 
     logger = logging.getLogger("CreateIllumCorr")
 
@@ -228,6 +245,7 @@ def prepare_illumination_correction(filelist, outfile, tmpdir):
                                     kwargs = {'queue': queue,
                                               'return_queue': return_queue,
                                               'tmp_dir': tmpdir,
+                                              'redo': redo,
                                           },
                                     # args=(queue, return_queue),
         )
@@ -246,14 +264,31 @@ def prepare_illumination_correction(filelist, outfile, tmpdir):
 
     logger.info("All files prepared, combining ...")
 
+    # Pick the first file, and extract some information about filter and binning
+    filtername = "unknown"
+    binning = 0
+    for infile in filelist:
+        try:
+            hdulist = pyfits.open(infile)
+            filtername = hdulist[0].header['FILTER']
+            binning = hdulist[0].header['BINNING']
+            hdulist.close()
+            break
+        except:
+            pass
+
+    illumcorrfile = get_illumination_filename(outfile, filtername, binning)
+    print "\n"*5,illumcorrfile,"\n",outfile,"\n"*5
+
+    presmoothed_file = illumcorrfile[:-5]+".raw.fits"
+
     #
     # Stack all files with all stars masked out
     #
     logger.debug("Stacking the following frames:\n%s" % (
         "\n".join(["  ** %s" % a for a in masked_list])))
 
-    presmoothed_file = outfile[:-5]+".raw.fits"
-    if (not os.path.isfile(presmoothed_file)):
+    if (not os.path.isfile(presmoothed_file) or redo):
         logger.debug("Starting imcombine!")
         combined = podi_imcombine.imcombine(input_filelist=masked_list,
                                             outputfile=None,
@@ -262,7 +297,9 @@ def prepare_illumination_correction(filelist, outfile, tmpdir):
                                             subtract=None,
                                             scale=None)
 
-        combined.writeto(outfile[:-5]+".raw.fits")
+        clobberfile(presmoothed_file)
+        logger.debug("Writing stacked, pre-smoothed frame to %s" % (presmoothed_file))
+        combined.writeto(presmoothed_file)
     else:
         logger.debug("Found raw (pre-smoothed) combined frame, reusing it")
         combined = pyfits.open(presmoothed_file)
@@ -301,7 +338,7 @@ def prepare_illumination_correction(filelist, outfile, tmpdir):
         data_out[numpy.isnan(ext.data)] = numpy.NaN
         ext.data = data_out
 
-    combined.writeto(outfile, clobber=True)
+    combined.writeto(illumcorrfile, clobber=True)
     logger.info("Work done, output written to %s" % (outfile))
 
     return
@@ -317,8 +354,11 @@ if __name__ == "__main__":
         filelist = get_clean_cmdline()[2:]
         outfile = get_clean_cmdline()[1]
         tmpdir = cmdline_arg_set_or_default("-tmp", sitesetup.scratch_dir)
+        redo = cmdline_arg_isset("-redo")
 
-        prepare_illumination_correction(filelist, outfile, tmpdir)
+        print outfile, "\n"*5
+
+        prepare_illumination_correction(filelist, outfile, tmpdir, redo)
 
     elif (cmdline_arg_isset("-apply1")):
 
