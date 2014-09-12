@@ -268,6 +268,7 @@ import podi_photcalib
 import podi_nonlinearity
 import podi_logging
 import podi_cosmicrays
+import podi_illumcorr
 
 from astLib import astWCS
 
@@ -764,6 +765,37 @@ def collect_reduce_ota(filename,
                 flatfield.close()
                 hdu.header.add_history("CC-FLAT: %s" % (os.path.abspath(flatfield_filename)))
                 del flatfield
+
+        #
+        # Apply illumination correction, if requested
+        #
+        if (not options['illumcorr_dir'] == None):
+            illumcorr_filename = podi_illumcorr.get_illumination_filename(
+                options['illumcorr_dir'], filter_name, binning)
+
+            if (os.path.isfile(illumcorr_filename)):
+                illumcorr = pyfits.open(illumcorr_filename)
+                reduction_files_used['illumination'] = illumcorr_filename
+
+                # Search for the flatfield data for the current OTA
+                for ff_ext in illumcorr:
+                    if (not is_image_extension(ff_ext)):
+                        continue
+                    fppos_flatfield = ff_ext.header['FPPOS']
+                    if (fppos_flatfield == fppos):
+                        # This is the one
+                        try:
+                            merged /= ff_ext.data
+                            logger.debug("Applying illumination correction: %s" % (illumcorr_filename))
+                        except:
+                            logger.warning(
+                                "Unable to apply illumination correction, dimensions don't match (data: %s, i.c.: %s)" % (
+                                str(merged.shape), str(ff_ext.data.shape)))
+                            pass
+                        break
+                        
+                illumcorr.close()
+                del illumcorr
 
         # Finally, apply bad pixel masks 
         if (not options['bpm_dir'] == None):

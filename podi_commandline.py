@@ -125,7 +125,9 @@ def read_options_from_commandline(options=None):
         options['dark_dir'] = cals_dir
         options['flat_dir'] = cals_dir
         options['techdata'] = cals_dir
-        logger.info("tech-data: %s" % (options['techdata']))
+        logger.debug("tech-data: %s" % (options['techdata']))
+
+        options['illumcorr_dir'] = cals_dir
 
     options['bias_dir'] = cmdline_arg_set_or_default("-bias", options['bias_dir'])
     options['dark_dir'] = cmdline_arg_set_or_default("-dark", options['dark_dir'])
@@ -308,6 +310,12 @@ Calibration data:
     options['crj_saturation'] = float(cmdline_arg_set_or_default("-crjsaturation", sitesetup.crj_saturation))
     options['crj_method'] = cmdline_arg_set_or_default("-crjmethod", "cy")
 
+    if (not cmdline_arg_isset('-illumcorr')):
+        options['illumcorr_dir'] = None
+    else:
+        options['illumcorr_dir'] = cmdline_arg_set_or_default("-illumcorr", options['illumcorr_dir'])
+        logger.debug("Using illumination correction from %s" % (options['illumcorr_dir']))
+
     if (cmdline_arg_isset("-keepsex")):
         sitesetup.sex_delete_tmps = False
 
@@ -413,6 +421,8 @@ def set_default_options(options_in=None):
     options['crj_objlim'] = 5.0
     options['crj_saturation'] = -1
     options['crj_method'] = "cy"
+
+    options['illumcorr_dir'] = None
 
     return options
 
