@@ -60,7 +60,7 @@ if __name__ == "__main__":
             continue
 
         
-        obstype, object, exptime, filter, dateobs = "???", "???", -999, "???", "???"
+        obstype, object, exptime, filter, dateobs, expmeas = "???", "???", -999, "???", "???", -1
         try:
             obstype = hdr['OBSTYPE']
             object = hdr['OBJECT']
@@ -68,6 +68,7 @@ if __name__ == "__main__":
             filter = hdr['FILTER']
             dateobs = hdr['DATE-OBS']
             binning = get_binning(hdulist[1].header)
+            expmeas = hdr['EXPMEAS'] if 'EXPMEAS' in hdr else -1.
 
         except:
             pass
@@ -75,4 +76,16 @@ if __name__ == "__main__":
         ra = hdr['RA']
         dec = hdr['DEC']
 
-        print "%s %s %6s %d %15s %8.3f %60s %14s %14s" % (filename, dateobs, obstype, binning, filter, exptime, object, ra, dec)
+        print "%(filename)s %(dateobs)s %(obstype)6s %(binning)d %(filter)15s %(exptime)8.3f %(expmeas)8.3f %(object)60s %(ra)14s %(dec)14s" % {
+            "filename": filename, 
+            "dateobs": dateobs, 
+            "obstype": obstype, 
+            "binning": binning, 
+            "filter": filter, 
+            "exptime": exptime, 
+            "expmeas": expmeas, 
+            "object": object, 
+            "ra": ra, 
+            "dec": dec
+        }
+        
