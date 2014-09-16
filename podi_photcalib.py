@@ -1230,15 +1230,23 @@ if __name__ == "__main__":
                 logger.info("%s stars have good photometry (no flags)" % (src_catalog.shape[0]))
 
                 hdulist = pyfits.open(inputfile) #raw_frame)
-                filter_name = hdulist[0].header['FILTER']
-                exptime = 1.0 #hdulist[0].header['EXPTIME']
 
-                plottitle = "%(file)s\n%(object)s -- %(exptime).1f sec -- %(filter)s" % {
-                    'file': inputfile,
-                    'object': hdulist[0].header['OBJECT'],
-                    'exptime': hdulist[0].header['EXPTIME'],
-                    'filter': hdulist[0].header['FILTER'],
-                }
+                try:
+                    filter_name = hdulist[0].header['FILTER']
+                except:
+                    filter_name = cmdline_arg_set_or_default('-filter', 'odi_r')
+
+                exptime = 1.0
+
+                try:
+                    plottitle = "%(file)s\n%(object)s -- %(exptime).1f sec -- %(filter)s" % {
+                        'file': inputfile,
+                        'object': hdulist[0].header['OBJECT'],
+                        'exptime': hdulist[0].header['EXPTIME'],
+                        'filter': hdulist[0].header['FILTER'],
+                    }
+                except:
+                    plottitle = "raw file"
 
                 hdulist.close()
 
@@ -1253,7 +1261,12 @@ if __name__ == "__main__":
                                 verbose=False,
                                 eliminate_flags=True)
                 zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = pc
-                logger.info("Zeropoint: %.4f +/- %f\n" % (zeropoint_median, zeropoint_std))
+                logger.info("Zeropoint: %.4f +/- %f (#stars: %d)\n" % (
+                    zeropoint_median, zeropoint_std, odi_sdss_matched.shape[0])
+                )
+
+                numpy.savetxt(inputfile[:-5]+".matchedcat", odi_sdss_matched)
+
             except:
                 podi_logging.log_exception()
                 pass
@@ -1338,6 +1351,260 @@ if __name__ == "__main__":
             zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = pc
             print zeropoint_median
             print zeropoint_std
+
+    elif (cmdline_arg_isset("-zpmapcombine")):
+
+        from podi_commandline import *
+        import podi_logging
+
+        options = read_options_from_commandline(None)
+        podi_logging.setup_logging(options)
+
+        plotfile = get_clean_cmdline()[1]
+        logger = logging.getLogger("ZPMap")
+
+        import matplotlib, matplotlib.pyplot
+        fig = matplotlib.pyplot.figure()
+        ax = fig.add_subplot(111)
+
+        ota_pixelsize = 4100.
+
+        #colors = np.r_[np.linspace(0.1, 1, 5), np.linspace(0.1, 1, 5)] 
+        mymap = matplotlib.pyplot.get_cmap("spectral")
+
+        # get the colors from the color map
+        #my_colors = mymap(colors)
+        # here you give floats as color to scatter and a color map
+        #         # scatter "translates" this
+        # axes[0].scatter(data[:, 0], data[:, 1], s=40,
+        #                 c=colors, edgecolors='None',
+        #                 cmap=mymap)
+        # for n in range(5):
+        #     # here you give a color to scatter
+        #     axes[1].scatter(data[n, 0], data[n, 1], s=40,
+        #                     color=my_colors[n], edgecolors='None',
+        #                     label="point %d" %(n))
+        # # by default legend would show multiple scatterpoints (as you would normally
+        # # plot multiple points with scatter)
+        # # I reduce the number to one here
+        # plt.legend(scatterpoints=1)
+        # plt.tight_layout()
+        # plt.show()
+
+        zp_range = [-0.2, 0.2]
+
+        ota_xmin, ota_xmax, ota_ymin, ota_ymax = 2,4,2,4
+
+        all_x = numpy.array([])
+        all_y = numpy.array([])
+        all_zp = numpy.array([])
+        all_err = numpy.array([])
+
+        for fitsfile in get_clean_cmdline()[2:]:
+            logger.info("Reading %s ..." % (fitsfile))
+            try:
+                hdulist = pyfits.open(fitsfile)
+                tbhdu = hdulist['CAT.PHOTCALIB']
+            except:
+                continue
+
+            filtername = hdulist[0].header['FILTER']
+            sdss_eq = sdss_equivalents[filtername]
+            # print sdss_eq
+
+            sdss_mag_col = 'SDSS_MAG_%s' % (sdss_eq)
+            sdss_mag = tbhdu.data.field(sdss_mag_col)
+            
+            odi_mag_col = 'ODI_MAG_D%02d' % (10*hdulist[0].header['MAG0SIZE'])
+            odi_mag = tbhdu.data.field(odi_mag_col)
+
+            odi_err_col = 'ODI_ERR_D%02d' % (10*hdulist[0].header['MAG0SIZE'])
+            odi_err = tbhdu.data.field(odi_err_col)
+
+            ota = tbhdu.data.field('ODI_OTA')
+            ota_x = numpy.floor(ota/10.)
+            ota_y = numpy.fmod(ota, 10.)
+            x = tbhdu.data.field('ODI_X') + ota_x * ota_pixelsize
+            y = tbhdu.data.field('ODI_Y') + ota_y * ota_pixelsize
+
+            zp = sdss_mag - odi_mag# - hdulist[0].header['PHOTZP']
+            zp_median = numpy.median(zp)
+            zp -= zp_median
+
+            # print zp[:10]
+
+            good_points = (odi_err < 0.05) & \
+                          (ota_x >= ota_xmin) & (ota_x <= ota_xmax) & \
+                          (ota_y >= ota_ymin) & (ota_y <= ota_ymax)
+
+            all_x = numpy.append(all_x, x[good_points])
+            all_y = numpy.append(all_y, y[good_points])
+            all_zp = numpy.append(all_zp, zp[good_points])
+            all_err = numpy.append(all_err, odi_err[good_points])
+
+            # matplotlib.pyplot.scatter(x,y, c=zp, 
+            #                           cmap=mymap,
+            #                           vmin=zp_range[0], vmax=zp_range[1], 
+            #                           edgecolor='none',
+            #                           s=9,
+            #                       )
+
+            # ax.scatter(x,y, c=zp, 
+            #                           cmap=mymap,
+            #                           vmin=zp_range[0], vmax=zp_range[1], 
+            #                           edgecolor='none',
+            #                           s=9,
+            #                       )
+
+        import scipy.interpolate 
+
+        logger.info("Plotting...")
+
+        minx, maxx = ota_xmin*ota_pixelsize, (ota_xmax+1)*ota_pixelsize
+        miny, maxy = ota_ymin*ota_pixelsize, (ota_ymax+1)*ota_pixelsize
+
+        if (cmdline_arg_isset('-interpolate')):
+
+            method = get_cmdline_arg_set_or_default("-interpolate", "linear")
+
+            grid_x, grid_y = numpy.mgrid[minx:maxx:100j, miny:maxy:100j]
+
+            xy = numpy.zeros(shape=(all_x.shape[0], 2))
+            xy[:,0] = all_x
+            xy[:,1] = all_y
+
+            grid_z0 = scipy.interpolate.griddata(xy, all_zp, (grid_x, grid_y), method=method)
+
+            matplotlib.pyplot.imshow(grid_z0.T, extent=(minx,maxx,miny,maxy), 
+                                     origin='lower',
+                                     cmap=mymap,
+                                     vmin=zp_range[0], vmax=zp_range[1],)
+
+
+        if (cmdline_arg_isset("-spline")):
+
+            err = numpy.hypot(all_err, 0.01)
+            splinemode = cmdline_arg_set_or_default("-spline", 'nw,5')
+            items = splinemode.split(',')
+
+            weight = numpy.ones(err.shape)
+            weight_txt = ''
+            if items[0] == 'w':
+                weight = 0.01/err
+                weight_txt = "weighted "
+
+            logger.info("Fitting %sspline surface to residuals" % (weight_txt))
+
+
+            if (len(items) <= 2):
+                nodes = int(items[1]) if len(items) == 2 else 5
+                xcoord = numpy.linspace(minx, maxx, nodes)
+                ycoord = numpy.linspace(miny, maxy, nodes)
+            elif (len(items) >= 3):
+                xcoord = numpy.linspace(minx, maxx, int(items[1]))
+                ycoord = numpy.linspace(miny, maxy, int(items[2]))
+                
+            # print all_err[:10], err[:10]
+            grid_x, grid_y = numpy.mgrid[minx:maxx:100j, miny:maxy:100j]
+            #grid_x, grid_y = numpy.mgrid[minx:maxx:24j, miny:maxy:24j]
+            # bispline = scipy.interpolate.bisplrep(x=all_x, y=all_y, z=all_zp,
+            #                                       w=weight,
+            #                                       # xb=minx, xe=maxx, yb=miny, ye=maxy,
+            #                                       kx=3, ky=3,
+            #                                       s=0.2, #all_x.shape[0],
+            #                                   )
+
+            # znew = scipy.interpolate.bisplev(grid_x[:,0],grid_y[0,:],bispline)
+
+            # Create the knots (10 knots in each direction, making 100 total
+            #xcoord = numpy.linspace(numpy.min(all_x), numpy.max(all_x), 5)
+            #ycoord = numpy.linspace(numpy.min(all_y), numpy.max(all_y), 5)
+            spl = scipy.interpolate.LSQBivariateSpline(x=all_x, y=all_y, z=all_zp, 
+                                                       tx=xcoord, ty=ycoord,
+                                                       w=weight, 
+                                                       kx=3, ky=3,
+                                                       #bbox=[minx,maxx,miny,maxy]
+            )
+            znew = spl(grid_x[:,0],grid_y[0,:])
+
+            matplotlib.pyplot.imshow(znew.T, extent=(minx,maxx,miny,maxy), 
+                                     origin='lower',
+                                     cmap=mymap,
+                                     vmin=zp_range[0], vmax=zp_range[1],
+                                     interpolation='none')
+
+
+            # labels_x, labels_y = numpy.mgrid[minx:maxx:10j, miny:maxy:10j]
+            # zlabels = scipy.interpolate.bisplev(labels_x[:,0],labels_y[0,:],bispline)
+            # print zlabels.shape
+            # for x in range(zlabels.shape[0]):
+            #     for y in range(zlabels.shape[1]):
+            #         print x,y,labels_x[x,0], labels_y[y,0],"%.3f" % zlabels[x,y]
+            #         ax.text(labels_x[x], labels_y[y], 
+            #                                "%.3f" % zlabels[x,y], 
+            #                                ha='center', va='center', color='black')
+
+            #grid_x, grid_y = numpy.mgrid[minx:maxx:24j, miny:maxy:24j]
+ 
+        matplotlib.pyplot.scatter(all_x,all_y, c=all_zp, 
+                                  cmap=mymap,
+                                  vmin=zp_range[0], vmax=zp_range[1], 
+                                  edgecolor='none',
+                                  s=9,
+                                  )
+
+        ax.scatter(all_x,all_y, c='black', marker='.', 
+                                  edgecolor='none', s=3,
+                                  )
+
+
+        #
+        # Draw the limits of the OTAs
+        #
+        for i in range(ota_ymin, ota_ymax+1):
+            ax.axhline(y=i*ota_pixelsize, linewidth=1, color='white', ls='-')
+            #ax.axhline(y=i*ota_pixelsize, linewidth=1, color='black', ls=':')
+        for i in range(ota_xmin, ota_xmax+1):
+            ax.axvline(x=i*ota_pixelsize, linewidth=1, color='white', ls='-')
+            # ax.axvline(x=i*ota_pixelsize, linewidth=1, color='black', ls=':')
+
+        # print ax.get_xticklabels()
+        # for x in range(len(ax.get_xticklabels())): 
+        #     print ax.get_xticklabels()[x]
+        #     del ax.get_xticklabels()[x]
+        # ax.set_xticklabels([])
+        # ax.set_xticks([])
+
+        matplotlib.pyplot.xlim((minx, maxx))
+        matplotlib.pyplot.ylim((miny, maxy))
+#        matplotlib.pyplot.ylim((0, 7*ota_pixelsize))
+
+        matplotlib.pyplot.xlabel("OTA")
+        matplotlib.pyplot.ylabel("OTA")
+        #label_text = ["%d" % ota for ota in range(minx,7)]
+        #label_pos = [(x+0.5)*ota_pixelsize for x in range(0,7)]
+        matplotlib.pyplot.xticks([(ota+0.5)*ota_pixelsize for ota in range(ota_xmin,ota_xmax+1)],
+                                 ["%d" % ota for ota in range(ota_xmin, ota_xmax+1)])
+        matplotlib.pyplot.yticks([(ota+0.5)*ota_pixelsize for ota in range(ota_ymin, ota_ymax+1)],
+                                 ["%d" % ota for ota in range(ota_ymin, ota_ymax+1)])
+#        matplotlib.pyplot.yticks(label_pos, label_text)
+
+        #ax.set_xticks(label_pos, label_text)
+        #ax.set_yticks(label_pos, label_text)
+        #ax.set_xlim((0, 7*ota_pixelsize))
+        #ax.set_ylim((0, 7*ota_pixelsize))
+
+        colorbar = matplotlib.pyplot.colorbar(cmap=mymap)
+        colorbar.set_label("phot. zeropoint deviation from median")
+
+        # fig.colorbar(ax)
+        #matplotlib.pyplot.show()
+        #fig.show()
+        # fig.savefig(plotfile)
+        matplotlib.pyplot.savefig(plotfile)
+        logger.info("Results written to %s!\n" % (plotfile))
+
+        podi_logging.shutdown_logging(options)
 
     else:
         fitsfile = get_clean_cmdline()[1]
