@@ -1568,7 +1568,7 @@ def read_swarp_params(filelist):
 
     params['ignore_quality_checks'] = cmdline_arg_isset("-ignorechecks")
 
-    combine_methods = cmdline_arg_set_or_default('-combine', 'average')
+    combine_methods = cmdline_arg_set_or_default('-combine', 'weighted')
     params['combine-type'] = []
     for combine_method in combine_methods.split(","):
         if (not combine_method.lower() in ['average', 'median', 'sum', 'min', 'max', 'weighted', 'chi2',
