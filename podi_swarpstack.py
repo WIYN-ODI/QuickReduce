@@ -141,7 +141,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
             input_queue.task_done()
             break
 
-        input_file = cmd
+        (input_file, fileid) = cmd
         logger = logging.getLogger("MP-Prep( %s )" % (os.path.basename(input_file)))
 
 
@@ -178,25 +178,42 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
         master_reduction_files_used = collect_reduction_files_used(
             {}, {"calibrated": input_file} ) #ret['corrected_file']})
 
+        #
+        # Compute on how to scale the flux values
+        #
+        fluxscale_value = numpy.NaN
+        magzero = hdulist[0].header['PHOTZP_X'] if 'PHOTZP_X' in hdulist[0].header else -99.
+        if (magzero > 0 and not swarp_params['no-fluxscale']):
+            fluxscale_value = math.pow(10, 0.4*(swarp_params['target_magzero']-magzero))
+        else:
+            exptime = hdulist[0].header['EXPMEAS'] if 'EXPMEAS' in hdulist[0].header else (
+                hdulist[0].header['EXPTIME'] if 'EXPTIME' in hdulist[0].header else 1.0)
+            fluxscale_value = 1./exptime
+
         # Assemble the temporary filename for the corrected frame
         suffix = None
         # Now construct the output filename
-        if (corrected_filename and swarp_params['use_nonsidereal']):
+        if (suffix == None and swarp_params['no-fluxscale'] and not numpy.isnan(fluxscale_value)):
+            suffix = "exptimenorm"
+        if (suffix == None and not numpy.isnan(swarp_params['target_magzero']) and not numpy.isnan(fluxscale_value)):
+            suffix = "fluxnorm"
+        if (suffix == None and swarp_params['use_nonsidereal']):
             suffix = "nonsidereal"
-        if (corrected_filename == None and swarp_params['use_ephemerides']):
+        if (suffix == None and swarp_params['use_ephemerides']):
             suffix = "ephemerides"
-        if (corrected_filename == None and options['skip_otas'] != []):
+        if (suffix == None and options['skip_otas'] != []):
             suffix = "otaselect"
-        if (corrected_filename == None and not options['bpm_dir'] == None):
+        if (suffix == None and not options['bpm_dir'] == None):
             suffix = "bpmfixed"
-        if (corrected_filename == None and not swarp_params['subtract_back'] == 'swarp'):
+        if (suffix == None and not swarp_params['subtract_back'] == 'swarp'):
             suffix = "skysub"
 
         if (not suffix == None):
-            corrected_filename = "%(single_dir)s/%(obsid)s.%(suffix)s.fits" % {
+            corrected_filename = "%(single_dir)s/%(obsid)s.%(suffix)s.%(fileid)d.fits" % {
                 "single_dir": swarp_params['unique_singledir'],
                 "obsid": hdulist[0].header['OBSID'],
                 "suffix": suffix,
+                "fileid": fileid,
             }
 
         #
@@ -207,7 +224,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
         ):
             # Either we don't need to apply any corrections or we can re-use an 
             # older file with these corrections already applied
-
+            logger.info("No correction needs to be applied!")
             ret['corrected_file'] = input_file
         else:
 
@@ -350,6 +367,15 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                         ext.data -= skylevel
                         logger.debug("Subtracting skylevel (%f) from extension %s" % (skylevel, ext.name))
 
+
+            if (not numpy.isnan(fluxscale_value)):
+                logger.debug("Applying flux-scaling (%.10e)" % (fluxscale_value))
+                for ext in hdulist:
+                    if (not is_image_extension(ext)):
+                        continue
+                    ext.data *= fluxscale_value
+                    logger.debug("Applying flux-scaling (%.10e) to extension %s" % (fluxscale_value, ext.name))
+
             # Check if the corrected file already exists - if not create it
             #if (not os.path.isfile(corrected_filename)):
             logger.info("Writing correctly prepared file--> %s" % (corrected_filename))
@@ -361,6 +387,33 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
             # the corrected file
             ret['corrected_file'] = corrected_filename
 
+        #
+        # Now also create a relative weight map for this frame
+        # scaling factor is the exposure time of each frame
+        #
+        weight_hdulist = [hdulist[0]] # copy the primary header
+        for ext in hdulist[1:]:
+            if (not is_image_extension(ext)):
+                continue
+
+            weight_data = numpy.ones(ext.data.shape, dtype=numpy.float32) #* 100.
+            if (not numpy.isnan(fluxscale_value)):
+                weight_data /= fluxscale_value
+            weight_data[numpy.isnan(ext.data)] = 0.
+
+            weight_img = pyfits.ImageHDU(header=ext.header, data=weight_data) 
+            weight_hdulist.append(weight_img)
+
+        # convert extension list to proper HDUList ...
+        weight_hdulist = pyfits.HDUList(weight_hdulist)
+
+        # ... and write extension to file
+        weight_filename = ret['corrected_file'][:-5]+".weight.fits"
+        clobberfile(weight_filename)
+        weight_hdulist.writeto(weight_filename, clobber=True)
+        logger.info("Wrote input weight map to %s" % (weight_filename))
+
+        # Finally, close the input file
         hdulist.close()
 
         #
@@ -418,7 +471,7 @@ def prepare_input(inputlist, swarp_params, options):
             logger.info("Excluding frame (%s) due to missing photometric calibration" % (inputlist[i]))
             continue
 
-        in_queue.put(inputlist[i])
+        in_queue.put((inputlist[i],i+1))
         n_jobs += 1
 
     logger.info("Queued %d jobs ..." % (n_jobs))
@@ -644,11 +697,11 @@ def mp_swarp_single(sgl_queue, dum):
                                        stdout=subprocess.PIPE, 
                                        stderr=subprocess.PIPE)
                 (swarp_stdout, swarp_stderr) = ret.communicate()
-                logger.debug("swarp stdout:\n"+swarp_stdout)
-                if (len(swarp_stderr) > 0 and ret.returncode != 0):
-                    logger.warning("swarp stderr:\n"+swarp_stderr)
-                else:
-                    logger.debug("swarp stderr:\n"+swarp_stderr)
+                # logger.debug("swarp stdout:\n"+swarp_stdout)
+                # if (len(swarp_stderr) > 0 and ret.returncode != 0):
+                #     logger.warning("swarp stderr:\n"+swarp_stderr)
+                # else:
+                #     logger.debug("swarp stderr:\n"+swarp_stderr)
                 end_time = time.time()
                 logger.debug("Creating mask for X finished successfully after %.2d seconds" % (end_time-start_time))
             except:
@@ -771,11 +824,11 @@ def swarpstack(outputfile,
                                    stdout=subprocess.PIPE, 
                                    stderr=subprocess.PIPE) #, shell=True)
             (sex_stdout, sex_stderr) = ret.communicate()
-            logger.debug("sex stdout:\n"+sex_stdout)
-            if (len(sex_stderr) > 0 and ret.returncode != 0):
-                logger.warning("sex stderr:\n"+sex_stderr)
-            else:
-                logger.debug("sex stderr:\n"+sex_stderr)
+            # logger.debug("sex stdout:\n"+sex_stdout)
+            # if (len(sex_stderr) > 0 and ret.returncode != 0):
+            #     logger.warning("sex stderr:\n"+sex_stderr)
+            # else:
+            #     logger.debug("sex stderr:\n"+sex_stderr)
             end_time = time.time()
             logger.info("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
         except OSError as e:
@@ -824,6 +877,8 @@ def swarpstack(outputfile,
 
     # print modified_files
     inputlist = modified_files
+
+    print "\n\n".join(inputlist)
 
 
     add_only = swarp_params['add'] and os.path.isfile(outputfile)
@@ -928,11 +983,11 @@ def swarpstack(outputfile,
             #print retcode.stdout.readlines()
             #print retcode.stderr.readlines()
             (swarp_stdout, swarp_stderr) = ret.communicate()
-            logger.debug("swarp stdout:\n"+swarp_stdout)
-            if (len(swarp_stderr) > 0 and ret.returncode != 0):
-                logger.warning("swarp stderr:\n"+swarp_stderr)
-            else:
-                logger.debug("swarp stderr:\n"+swarp_stderr)
+            # logger.debug("swarp stdout:\n"+swarp_stdout)
+            # if (len(swarp_stderr) > 0 and ret.returncode != 0):
+            #     logger.warning("swarp stderr:\n"+swarp_stderr)
+            # else:
+            #     logger.debug("swarp stderr:\n"+swarp_stderr)
         except OSError as e:
             podi_logging.log_exception()
             print >>sys.stderr, "Execution failed:", e
@@ -1001,13 +1056,15 @@ def swarpstack(outputfile,
         obsid = hdulist[0].header['OBSID']
         hdulist.close()
 
-        magzero = hdulist[0].header['PHOTZP_X'] if 'PHOTZP_X' in hdulist[0].header else -99.
         fluxscale_kw = 'XXXXXXXX'
+        magzero = hdulist[0].header['PHOTZP_X'] if 'PHOTZP_X' in hdulist[0].header else -99.
         # print magzero, swarp_params['no-fluxscale']
-        if (magzero > 0 and not swarp_params['no-fluxscale']):
-            fluxscale_value = math.pow(10, 0.4*(swarp_params['target_magzero']-magzero))
-        else:
-            fluxscale_value = 1.0
+        # if (magzero > 0 and not swarp_params['no-fluxscale']):
+        #     fluxscale_value = math.pow(10, 0.4*(swarp_params['target_magzero']-magzero))
+        # else:
+        #     exptime = hdulist[0].header['EXPMEAS'] if 'EXPMEAS' in hdulist[0].header else (
+        #         hdulist[0].header['EXPTIME'] if 'EXPTIME' in hdulist[0].header else 1.0)
+        #     fluxscale_value = 1./exptime
 
         # assemble all swarp options for that run
         dic = {'singledir': unique_singledir, #sitesetup.swarp_singledir,
@@ -1022,28 +1079,38 @@ def swarpstack(outputfile,
                'inputfile': prepared_file,
                'swarp_default': swarp_default,
                'fluxscale_kw': fluxscale_kw, #'none' if swarp_params['no-fluxscale'] else 'FLXSCALE'
-               'fluxscale_value': fluxscale_value,
+               'fluxscale_value': 1.0, #fluxscale_value,
+               'fileid': i+1,
+               'delete_tmpfiles': "N" if keep_intermediates else "Y",
            }
 
-        swarp_opts = """\
-                 -c %(swarp_default)s \
-                 -IMAGEOUT_NAME %(singledir)s/%(obsid)s.fits \
-                 -WEIGHTOUT_NAME %(singledir)s/%(obsid)s.weight.fits \
-                 -PIXEL_SCALE %(pixelscale)f \
-                 -PIXELSCALE_TYPE %(pixelscale_type)s \
-                 -COMBINE Y \
-                 -COMBINE_TYPE AVERAGE \
-                 -CENTER_TYPE MANUAL \
-                 -CENTER %(center_ra)f,%(center_dec)f \
-                 -IMAGE_SIZE %(imgsizex)d,%(imgsizey)d \
-                 -RESAMPLE_DIR %(resample_dir)s \
-                 -SUBTRACT_BACK N \
-                 -FSCALE_KEYWORD %(fluxscale_kw)s \
-                 -FSCALE_DEFAULT %(fluxscale_value).10e \
-                 %(inputfile)s \
+        single_file = "%(singledir)s/%(obsid)s.%(fileid)d.fits" % dic
+
+        swarp_opts = """
+                 -c %(swarp_default)s 
+                 -IMAGEOUT_NAME %(singledir)s/%(obsid)s.%(fileid)d.fits 
+                 -WEIGHTOUT_NAME %(singledir)s/%(obsid)s.%(fileid)d.weight.fits 
+                 -PIXEL_SCALE %(pixelscale)f 
+                 -PIXELSCALE_TYPE %(pixelscale_type)s 
+                 -COMBINE Y 
+                 -COMBINE_TYPE WEIGHTED
+                 -CENTER_TYPE MANUAL 
+                 -CENTER %(center_ra)f,%(center_dec)f 
+                 -IMAGE_SIZE %(imgsizex)d,%(imgsizey)d 
+                 -RESAMPLE_DIR %(resample_dir)s 
+                 -SUBTRACT_BACK N 
+                 -FSCALE_KEYWORD %(fluxscale_kw)s 
+                 -FSCALE_DEFAULT %(fluxscale_value).10e 
+                 -WEIGHT_TYPE MAP_WEIGHT
+                 -WEIGHT_SUFFIX .weight.fits 
+                 -RESCALE_WEIGHTS N
+                 -DELETE_TMPFILES %(delete_tmpfiles)s \
+                 %(inputfile)s 
                  """ % dic
 
-        single_file = "%(singledir)s/%(obsid)s.fits" % dic
+#                 -WEIGHT_TYPE MAP_WEIGHT 
+
+#                 -WEIGHT_THRESH 5
 
         # print swarp_opts
         swarp_cmd = "%s %s" % (sitesetup.swarp_exec, swarp_opts)
@@ -1118,6 +1185,8 @@ def swarpstack(outputfile,
     # Done re-naming the old file
     #
 
+    # sys.exit(0)
+
     #############################################################################
     #
     # Now perform the background subtraction on each of the prepared single files
@@ -1179,18 +1248,22 @@ def swarpstack(outputfile,
         # Prepare the worker queue
         sgl_queue = multiprocessing.JoinableQueue()
 
+        fileid = 0
         for prepared_file in single_prepared_files:
             hdulist = pyfits.open(prepared_file)
             obsid = hdulist[0].header['OBSID']
             hdulist.close()
-            
+            fileid += 1
+
             # assemble all swarp options for that run
-            bgsub_file = "%(singledir)s/%(obsid)s.bgsub.fits" % {
+            bgsub_file = "%(singledir)s/%(obsid)s.%(fileid)d.bgsub.fits" % {
                 'singledir': unique_singledir,
-                'obsid': obsid,}
-            bgsub_weight_file = "%(singledir)s/%(obsid)s.bgsub.weight.fits" % {
+                'obsid': obsid,
+                'fileid': fileid,}
+            bgsub_weight_file = "%(singledir)s/%(obsid)s.%(fileid)d.bgsub.weight.fits" % {
                 'singledir': unique_singledir,
-                'obsid': obsid,}
+                'obsid': obsid,
+                'fileid': fileid,}
 
             dic = {'singledir': unique_singledir,
                    'obsid': obsid,
@@ -1208,16 +1281,18 @@ def swarpstack(outputfile,
                    'bgsub_weight_file': bgsub_weight_file,
                    'bgopts': bg_opts,
                    'inputfile': prepared_file,
+                   'fileid': fileid,
+                   'delete_tmpfiles': "N" if keep_intermediates else "Y",
                }
             
             swarp_opts = """\
                      -c %(swarp_default)s \
-                     -IMAGEOUT_NAME %(singledir)s/%(obsid)s.bgsub.fits \
-                     -WEIGHTOUT_NAME %(singledir)s/%(obsid)s.bgsub.weight.fits \
+                     -IMAGEOUT_NAME %(bgsub_file)s \
+                     -WEIGHTOUT_NAME %(bgsub_weight_file)s \
                      -PIXEL_SCALE %(pixelscale)f \
                      -PIXELSCALE_TYPE %(pixelscale_type)s \
                      -COMBINE Y \
-                     -COMBINE_TYPE AVERAGE \
+                     -COMBINE_TYPE WEIGHTED \
                      -CENTER_TYPE MANUAL \
                      -CENTER %(center_ra)f,%(center_dec)f \
                      -IMAGE_SIZE %(imgsizex)d,%(imgsizey)d \
@@ -1225,7 +1300,9 @@ def swarpstack(outputfile,
                      -RESAMPLE Y \
                      -SUBTRACT_BACK %(bgsub)s \
                      -WEIGHT_TYPE MAP_WEIGHT \
-                     -DELETE_TMPFILES Y \
+                     -WEIGHT_SUFFIX .weight.fits \
+                     -RESCALE_WEIGHTS N \
+                     -DELETE_TMPFILES %(delete_tmpfiles)s \
                      -WRITE_FILEINFO Y
                      -FSCALE_KEYWORD XXXXXXXX \
                      -FSCALE_DEFAULT 1.0 \
@@ -1280,6 +1357,8 @@ def swarpstack(outputfile,
 
     logging.debug("files to stack: %s" % (str(final_prepared_files)))
 
+    # sys.exit(0)
+
     #############################################################################
     #
     # Now all single files are prepared, go ahead and produce the actual stack
@@ -1296,46 +1375,48 @@ def swarpstack(outputfile,
         dic['clip-sigma'] = swarp_params['clip-sigma']
         dic['clip-ampfrac'] = swarp_params['clip-ampfrac']
 
-        swarp_opts = """\
-                     -c %(swarp_default)s \
-                     -IMAGEOUT_NAME %(imageout)s \
-                     -WEIGHTOUT_NAME %(weightout)s \
-                     -COMBINE_TYPE %(combine_type)s \
-                     -PIXEL_SCALE %(pixelscale)f \
-                     -PIXELSCALE_TYPE %(pixelscale_type)s \
-                     -COMBINE Y \
-                     -COMBINE_TYPE %(combine_type)s \
-                     -CLIP_AMPFRAC %(clip-ampfrac)f \
-                     -CLIP_SIGMA %(clip-sigma)f \
-                     -CENTER_TYPE MANUAL \
-                     -CENTER %(center_ra)f,%(center_dec)f \
-                     -IMAGE_SIZE %(imgsizex)d,%(imgsizey)d \
-                     -RESAMPLE N \
-                     -RESAMPLE_DIR %(singledir)s \
-                     -SUBTRACT_BACK %(bgsub)s \
-                     -WEIGHT_TYPE MAP_WEIGHT \
-                     -DELETE_TMPFILES N \
+        swarp_opts = """
+                     -c %(swarp_default)s 
+                     -IMAGEOUT_NAME %(imageout)s 
+                     -WEIGHTOUT_NAME %(weightout)s 
+                     -COMBINE_TYPE %(combine_type)s 
+                     -PIXEL_SCALE %(pixelscale)f 
+                     -PIXELSCALE_TYPE %(pixelscale_type)s 
+                     -COMBINE Y 
+                     -COMBINE_TYPE %(combine_type)s 
+                     -CLIP_AMPFRAC %(clip-ampfrac)f 
+                     -CLIP_SIGMA %(clip-sigma)f 
+                     -CENTER_TYPE MANUAL 
+                     -CENTER %(center_ra)f,%(center_dec)f 
+                     -IMAGE_SIZE %(imgsizex)d,%(imgsizey)d 
+                     -RESAMPLE N 
+                     -RESAMPLE_DIR %(singledir)s 
+                     -SUBTRACT_BACK %(bgsub)s 
+                     -WEIGHT_TYPE MAP_WEIGHT 
+                     -WEIGHT_SUFFIX .weight.fits 
+                     -RESCALE_WEIGHTS N 
+                     -DELETE_TMPFILES N 
                      -WRITE_FILEINFO Y
                      """ % dic
-
 
         logger = logging.getLogger("SwarpStack - FinalStack")
         logger.info("Starting final stacking (%s) ..." % (combine_type))
         # print swarp_opts
 
         swarp_cmd = "%s %s %s" % (sitesetup.swarp_exec, swarp_opts, " ".join(final_prepared_files))
-        logger.debug(" ".join(swarp_cmd.split()))
+        logger.debug("swarp-options:%s"  %(swarp_cmd))
+        logger.debug("\n"+" ".join(swarp_cmd.split()))
         try:
             ret = subprocess.Popen(swarp_cmd.split(), 
                                        stdout=subprocess.PIPE, 
                                        stderr=subprocess.PIPE)
             (swarp_stdout, swarp_stderr) = ret.communicate()
 
-            logger.debug("swarp stdout:\n"+swarp_stdout)
-            if (len(swarp_stderr) > 0 and ret.returncode != 0):
-                logger.warning("swarp stderr:\n"+swarp_stderr)
-            else:
-                logger.debug("swarp stderr:\n"+swarp_stderr)
+            # logger.debug("swarp stdout:\n"+swarp_stdout)
+            # if (len(swarp_stderr) > 0 and ret.returncode != 0):
+            #     logger.warning("swarp stderr:\n"+swarp_stderr)
+            # else:
+            #     logger.debug("swarp stderr:\n"+swarp_stderr)
             #print "\n".join(swarp_stderr)
             logger.info("done, swarp returned (ret-code: %d)!" % ret.returncode)
         except OSError as e:
