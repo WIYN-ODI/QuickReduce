@@ -59,7 +59,7 @@ def translate_filename_remote2local(input_filename, remote_filename):
     if (local_filename.find("%") >= 0):
         # This filename contains some special formatting instructions
         # Go ahead and translate them
-        import podi_collectcells
-        local_filename = podi_collectcells.format_filename(input_filename, local_filename)
+        from podi_definitions import format_filename
+        local_filename = format_filename(input_filename, local_filename)
 
     return local_filename
