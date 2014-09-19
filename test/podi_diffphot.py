@@ -146,13 +146,12 @@ def differential_photometry(inputlist, source_coords,
                 else:
                     src_mjd = float(sc_items[4])
             if (len(sc_items) >= 6):
-                src_name = sc_items[5]
+                src_name = sc_items[5].strip()
             elif (len(sc_items) == 3):
                 src_name = sc_items[2].strip()
 
             if (not src_name == None):
                 logger.info("Found source identifier: %s" % (src_name))
-
 
         except:
             logger.error("ERROR: Problem with interpreting coordinate string: %s" % (src_coord))
@@ -164,10 +163,10 @@ def differential_photometry(inputlist, source_coords,
         src_names.append(src_name)
 
     src_params = numpy.array(src_params)
-    print "\n"*10,src_names,"\n"*10
+    # print "\n"*10,src_names,"\n"*10
 
-    print "source coordinate data:"
-    numpy.savetxt(sys.stdout, src_params, "%14.6f")
+    # print "source coordinate data:"
+    # numpy.savetxt(sys.stdout, src_params, "%14.6f")
 
     # print src_ra, src_dec, src_dra, src_ddec, src_mjd
 
@@ -366,10 +365,10 @@ def differential_photometry(inputlist, source_coords,
         #########################################################################
 
         # Find the aperture magnitude that is valid
-        try:
-            numpy.savetxt(sys.stdout, [src_data[SXcolumn['mag_aper_2.0']:SXcolumn['mag_err_12.0']+1]], " %8.4f")
-        except:
-            pass
+        # try:
+        #     numpy.savetxt(sys.stdout, [src_data[SXcolumn['mag_aper_2.0']:SXcolumn['mag_err_12.0']+1]], " %8.4f")
+        # except:
+        #     pass
         good_source_aperture = '4.0'
         src_aper_mag = "mag_aper_%s" % (good_source_aperture)
         src_aper_err = "mag_err_%s" % (good_source_aperture)
@@ -385,8 +384,8 @@ def differential_photometry(inputlist, source_coords,
         aperture_correction = numpy.median(aperture_diff_filtered)
         aperture_correction_std = numpy.std(aperture_diff_filtered)
 
-        numpy.savetxt("apcorr%d.raw" % (i_cat), aperture_diffs)
-        numpy.savetxt("apcorr%d.filter" % (i_cat), aperture_diff_filtered)
+        # numpy.savetxt("apcorr%d.raw" % (i_cat), aperture_diffs)
+        # numpy.savetxt("apcorr%d.filter" % (i_cat), aperture_diff_filtered)
         print aperture_correction, aperture_correction_std
 
 
@@ -431,7 +430,7 @@ def differential_photometry(inputlist, source_coords,
         #
         phot_data[:, SXcolumn['mag_auto']] = phot_data[:, SXcolumn[src_aper_mag]] + aperture_correction
         phot_data[:, SXcolumn['mag_err_auto']] = phot_data[:, SXcolumn[src_aper_err]]
-        numpy.savetxt("photcat%d" % (i_cat), phot_data)
+        # numpy.savetxt("photcat%d" % (i_cat), phot_data)
         #
         # also apply aperture correction to target source
         #
@@ -463,21 +462,23 @@ def differential_photometry(inputlist, source_coords,
     print target_source.shape
     print all_cats.shape
 
+    print "mjds:", target_mjd
+
     #############################################################################
     #
     # Now compute the median and filtered magnitude of each reference star
     #
     #############################################################################
 
-    for i in range(all_cats.shape[1]):
-        numpy.savetxt("allcats_%d.cat" % (i+1), all_cats[:,i,:])
+    #for i in range(all_cats.shape[1]):
+    #    numpy.savetxt("allcats_%d.cat" % (i+1), all_cats[:,i,:])
 
     # Iteratively eliminate outliers
     for i in range(3):
         median_mags = bottleneck.nanmedian(all_cats[:,:, SXcolumn['mag_auto']], axis=0)
         std_mags = bottleneck.nanstd(all_cats[:,:, SXcolumn['mag_auto']], axis=0)
-        numpy.savetxt("photcat_median_%d" % i, median_mags)
-        numpy.savetxt("photcat_std_%d" % i, std_mags)
+        #numpy.savetxt("photcat_median_%d" % i, median_mags)
+        #numpy.savetxt("photcat_std_%d" % i, std_mags)
         outlier = (all_cats[:,:, SXcolumn['mag_auto']] > median_mags + 0.25) | \
                   (all_cats[:,:, SXcolumn['mag_auto']] < median_mags - 0.25)
         #print outlier
@@ -507,15 +508,15 @@ def differential_photometry(inputlist, source_coords,
     print diffphot_correction
     print diffphot_correction.shape
 
-    numpy.save("correction", diffphot_correction)
-    numpy.savetxt("correction.dat", diffphot_correction)
-    numpy.save("all_cats", all_cats)
+    #numpy.save("correction", diffphot_correction)
+    #numpy.savetxt("correction.dat", diffphot_correction)
+    #numpy.save("all_cats", all_cats)
 
     # As verification, apply the correction to each of the reference star catalogs
     print all_cats.shape
     all_cats[:,:, SXcolumn['mag_auto']] -= diffphot_correction
-    for i in range(all_cats.shape[0]):
-        numpy.savetxt("photcat%d.corr2" % (i), all_cats[i,:,SXcolumn['mag_auto']])
+    #for i in range(all_cats.shape[0]):
+    #    numpy.savetxt("photcat%d.corr2" % (i), all_cats[i,:,SXcolumn['mag_auto']])
 
     #############################################################################
     #
@@ -523,7 +524,7 @@ def differential_photometry(inputlist, source_coords,
     #
     #############################################################################
 
-    numpy.savetxt("mjd", target_mjd)
+    #numpy.savetxt("mjd", target_mjd)
     #numpy.savetxt("target_source.raw", target_source)
     print target_source.shape
     print target_source
@@ -555,96 +556,99 @@ def differential_photometry(inputlist, source_coords,
     print src_names
     for i_source in range(src_params.shape[0]):
 
-        fig = matplotlib.pyplot.figure()
-        #ax_final = fig.add_subplot(311)
-        #ax_raw = fig.add_subplot(312)
-        #ax_corr = fig.add_subplot(313)
+        try:
+            fig = matplotlib.pyplot.figure()
+            #ax_final = fig.add_subplot(311)
+            #ax_raw = fig.add_subplot(312)
+            #ax_corr = fig.add_subplot(313)
 
-        time = target_mjd  /24.
-        #print time.shape
-        #print target_source.shape
-        #print target_source[0,:,0].shape
-        # break
+            time = target_mjd  /24.
+            #print time.shape
+            #print target_source.shape
+            #print target_source[0,:,0].shape
+            # break
 
-        width = 0.83
-        ax_final = fig.add_axes([0.15,0.3,width,0.65])
-        ax_corr = fig.add_axes([0.15,0.1,width,0.2])
+            width = 0.83
+            ax_final = fig.add_axes([0.15,0.3,width,0.65])
+            ax_corr = fig.add_axes([0.15,0.1,width,0.2])
 
-        if (not plot_title == None):
-            this_plot_title = plot_title
+            if (not plot_title == None):
+                this_plot_title = plot_title
 
-            name_tag = "%name"
-            if (not src_names[i_source] == None):
-                print src_names[i_source] 
-                this_plot_title = my_replace(plot_title, name_tag, src_names[i_source])
-                # begin_pos = plot_title.find(name_tag)
-                # end_pos = begin_pos + len(name_tag)
-                # this_plot_title = "%s%s%s" % (plot_title[:begin_pos], src_names[i_source], plot_title[end_pos+1:])
+                name_tag = "%name"
+                if (not src_names[i_source] == None):
+                    print src_names[i_source] 
+                    this_plot_title = my_replace(plot_title, name_tag, src_names[i_source])
+                    # begin_pos = plot_title.find(name_tag)
+                    # end_pos = begin_pos + len(name_tag)
+                    # this_plot_title = "%s%s%s" % (plot_title[:begin_pos], src_names[i_source], plot_title[end_pos+1:])
 
-            ax_final.set_title(this_plot_title)
+                ax_final.set_title(this_plot_title)
 
-        from matplotlib.ticker import NullFormatter
-        nullfmt   = NullFormatter()         # no labels
-        # no labels
-        ax_final.xaxis.set_major_formatter(nullfmt)
-        ax_corr.set_xlabel("modified julian date")
+            from matplotlib.ticker import NullFormatter
+            nullfmt   = NullFormatter()         # no labels
+            # no labels
+            ax_final.xaxis.set_major_formatter(nullfmt)
+            ax_corr.set_xlabel("modified julian date")
 
-        #
-        # Also plot the uncorrected light curve as crossed connected with a thin line
-        #
-        c = '#A75858'
-        ax_final.scatter(time, target_source[:, i_source, SXcolumn['mag_auto']],
-                         color=c, marker='x', label='aperture-corr.')
-        ax_final.plot(time, target_source[:, i_source, SXcolumn['mag_auto']],
-                         color=c, linestyle='-')
+            #
+            # Also plot the uncorrected light curve as crossed connected with a thin line
+            #
+            c = '#A75858'
+            ax_final.scatter(time, target_source[:, i_source, SXcolumn['mag_auto']],
+                             color=c, marker='x', label='aperture-corr.')
+            ax_final.plot(time, target_source[:, i_source, SXcolumn['mag_auto']],
+                             color=c, linestyle='-')
 
-        #
-        # Also show the actual 4'' aperture data
-        #
-        c = '#4AA2A5'
-        ax_final.scatter(time, target_source[:, i_source, SXcolumn['mag_aper_4.0']],
-                         color=c, marker='x', label='raw 4"')
-        ax_final.plot(time, target_source[:, i_source, SXcolumn['mag_aper_4.0']],
-                         color=c, linestyle='-')
+            #
+            # Also show the actual 4'' aperture data
+            #
+            c = '#4AA2A5'
+            ax_final.scatter(time, target_source[:, i_source, SXcolumn['mag_aper_4.0']],
+                             color=c, marker='x', label='raw 4"')
+            ax_final.plot(time, target_source[:, i_source, SXcolumn['mag_aper_4.0']],
+                             color=c, linestyle='-')
 
-        #
-        # Plot the light curve as data points with uncertainties
-        # 
-        ax_final.errorbar(time, target_corrected[:, i_source, SXcolumn['mag_auto']], 
-                    yerr=target_corrected[:, i_source, SXcolumn['mag_err_auto']], 
-                    fmt='o', c='blue')
-        ax_final.scatter(time, target_corrected[:, i_source, SXcolumn['mag_auto']],
-                         c='blue', label='final')
-        ax_final.set_ylabel("app. mag.\n[mag (12'')]")
-        ax_final.legend(loc='best', borderaxespad=0.5, prop={'size':9})
+            #
+            # Plot the light curve as data points with uncertainties
+            # 
+            ax_final.errorbar(time, target_corrected[:, i_source, SXcolumn['mag_auto']], 
+                        yerr=target_corrected[:, i_source, SXcolumn['mag_err_auto']], 
+                        fmt='o', c='blue')
+            ax_final.scatter(time, target_corrected[:, i_source, SXcolumn['mag_auto']],
+                             c='blue', label='final')
+            ax_final.set_ylabel("app. mag.\n[mag (12'')]")
+            ax_final.legend(loc='best', borderaxespad=0.5, prop={'size':9})
 
-        #
-        # As bottom plot show correction amplitude
-        #
-        # Determine the plotting range
-        max_corr = numpy.nanmax(numpy.fabs(diffphot_correction)) * 1.35
-        ax_corr.plot(time, diffphot_correction, marker='o')
-        # ax_corr.set_ylim((-0.09,+0.09))
-        ax_corr.set_ylim((-1*max_corr,+1*max_corr))
-        ax_corr.axhline(y=0, linewidth=1, color='grey')
-        ax_corr.set_ylabel("correction\n[mag]")
+            #
+            # As bottom plot show correction amplitude
+            #
+            # Determine the plotting range
+            max_corr = numpy.nanmax(numpy.fabs(diffphot_correction)) * 1.35
+            ax_corr.plot(time, diffphot_correction, marker='o')
+            # ax_corr.set_ylim((-0.09,+0.09))
+            ax_corr.set_ylim((-1*max_corr,+1*max_corr))
+            ax_corr.axhline(y=0, linewidth=1, color='grey')
+            ax_corr.set_ylabel("correction\n[mag]")
 
-        if (plot_filename == None):
-            matplotlib.pyplot.show()
-            fig.show()
-        else:
-            if (not src_names[i_source] == None and plot_filename.find('%name') >= 0):
-                names_underscore = my_replace(src_names[i_source], " ", "_")
-                this_plot = my_replace(plot_filename, "%name", names_underscore)
-            elif (plot_filename.find('%name') >= 0):
-                name_id = "src_%d" % (i_source+1)
-                this_plot = my_replace(plot_filename, "%name", name_id)
+            if (plot_filename == None):
+                matplotlib.pyplot.show()
+                fig.show()
             else:
-                this_plot = "%s.%d.%s" % (plot_filename[:-4], i_source+1, plot_filename[-3:])
+                if (not src_names[i_source] == None and plot_filename.find('%name') >= 0):
+                    names_underscore = my_replace(src_names[i_source], " ", "_")
+                    this_plot = my_replace(plot_filename, "%name", names_underscore)
+                elif (plot_filename.find('%name') >= 0):
+                    name_id = "src_%d" % (i_source+1)
+                    this_plot = my_replace(plot_filename, "%name", name_id)
+                else:
+                    this_plot = "%s.%d.%s" % (plot_filename[:-4], i_source+1, plot_filename[-3:])
 
-#            fig.savefig(plot_filename)
-            fig.savefig(this_plot)
-            logger.info("Writing plot: %s"  % (this_plot))
+    #            fig.savefig(plot_filename)
+                fig.savefig(this_plot)
+                logger.info("Writing plot: %s"  % (this_plot))
+        except:
+            pass
 
     return
 
@@ -658,6 +662,8 @@ if __name__ == "__main__":
     options = read_options_from_commandline(options)
     logger = logging.getLogger("DiffPhot: Main")
 
+    print sys.argv
+    print " ".join(sys.argv)
 
     clean_cmdline = get_clean_cmdline()[1:]
     coord_end = 0
