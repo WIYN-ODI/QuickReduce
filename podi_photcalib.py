@@ -1196,6 +1196,12 @@ if __name__ == "__main__":
                     'cat': catfile, 
                     'fits': inputfile,
                 }
+
+                weight_file = inputfile[:-5]+".weight.fits"
+                if (os.path.isfile(weight_file)):
+                    logger.info("Using weight file for source extraction (%s)" % (weight_file))
+                    sexcmd += " -WEIGHT_TYPE MAP_WEIGHT -RESCALE_WEIGHTS Y -WEIGHT_IMAGE %s" % (weight_file)
+
                 logger.debug(sexcmd)
                 if (os.path.isfile(catfile) and not recreate_catalogs):
                     logger.info("catalog exists, re-using it")
