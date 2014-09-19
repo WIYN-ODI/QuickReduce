@@ -52,13 +52,7 @@ import scipy.stats
 from podi_definitions import *
 from podi_commandline import *
 
-if __name__ == "__main__":
-
-    # Read in the input parameters
-    input_1 = sys.argv[1]
-    op = sys.argv[2]
-    input_2 = sys.argv[3]
-    output = sys.argv[4]
+def imarith(input_1, op, input_2, output):
 
     stdout_write("\nOpening input files ...")
     # Open both input fits files
@@ -128,3 +122,14 @@ if __name__ == "__main__":
     hdu_1.writeto(output)
     stdout_write(" done!\n\n")
 
+    return
+
+if __name__ == "__main__":
+
+    # Read in the input parameters
+    input_1 = sys.argv[1]
+    op = sys.argv[2]
+    input_2 = sys.argv[3]
+    output = sys.argv[4]
+
+    imarith(input_1, op, input_2, output)
