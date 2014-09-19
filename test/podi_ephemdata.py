@@ -184,6 +184,10 @@ if __name__ == "__main__":
                                          'time until astronomical twilight [hours]')
         hdulist[0].header['SUN_ST18'] = (24.*(wiyn.date-wiyn_astrotwilight.previous_setting(sun)), 
                                          'time since astronomical twilight [hours]')
+
+        add_fits_header_title(hdulist[0].header,
+                              "almanach data", 'SUN__RA')
+
         print hdulist[0].header
 
         print wiyn.date+0.
