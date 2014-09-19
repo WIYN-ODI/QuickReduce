@@ -115,6 +115,7 @@ from podi_commandline import *
 from podi_definitions import *
 #from podi_collectcells import *
 import podi_sitesetup as sitesetup
+import podi_illumcorr
 import multiprocessing
 
 import podi_logging
@@ -143,8 +144,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
 
         (input_file, fileid) = cmd
         logger = logging.getLogger("MP-Prep( %s )" % (os.path.basename(input_file)))
-
-
+        
         ret = {
             "master_reduction_files": {},
             "corrected_file": None,
@@ -203,6 +203,8 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
             suffix = "ephemerides"
         if (suffix == None and options['skip_otas'] != []):
             suffix = "otaselect"
+        if (suffix == None and options['illumcorr']):
+            suffix = "illumcorr"
         if (suffix == None and not options['bpm_dir'] == None):
             suffix = "bpmfixed"
         if (suffix == None and not swarp_params['subtract_back'] == 'swarp'):
@@ -215,6 +217,8 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                 "suffix": suffix,
                 "fileid": fileid,
             }
+
+        logger.info("Applying preparations ...")
 
         #
         # Check if we need to apply any corrections
@@ -229,7 +233,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
         else:
 
             if (swarp_params['use_nonsidereal']):
-                logger.info("Applying the non-sidereal motion correction")
+                logger.debug("Applying the non-sidereal motion correction")
 
                 # First apply the non-sidereal correction to all input frames
                 # Keep frames that are already modified
@@ -278,7 +282,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                 d_dec = dec_ref - dec_this
                 # print d_ra, d_dec
                 d_days = mjd_thisframe - mjd_ref
-                logger.info("Applying ephemerid correction (%+.6f deg, %+.6f deg, dT=%.3f days)" % (
+                logger.debug("Applying ephemerid correction (%+.6f deg, %+.6f deg, dT=%.3f days)" % (
                     d_ra, d_dec, d_days))
 
                 # Now apply these corrections to all extensions with an
@@ -301,7 +305,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
 
 
             if (options['skip_otas'] != []):
-                logger.info("Skipping some OTAs")
+                logger.debug("Skipping some OTAs")
                 ota_list = []
                 for ext in hdulist:
                     ota = -1
@@ -318,7 +322,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                 hdulist = pyfits.HDUList(ota_list)
 
             if (not options['bpm_dir'] == None):
-                logger.info("Applying bad-pixel masks")
+                logger.debug("Applying bad-pixel masks")
                 for ext in range(len(hdulist)):
                     if (not is_image_extension(hdulist[ext])):
                         continue
@@ -336,7 +340,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
 
             # Loop over all extensions and only select those that are not marked as guide chips
             if (True): #options['skip_otas'] != []):
-                logger.info("Sorting out guide-OTAs")
+                logger.debug("Sorting out guide-OTAs")
                 ota_list = []
                 for ext in hdulist:
                     if ('CELLMODE' in ext.header and
@@ -347,6 +351,14 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
 
                 # Save the modified OTA list for later
                 hdulist = pyfits.HDUList(ota_list)
+
+            if (not options['illumcorr_dir'] == None):
+                illum_file = podi_illumcorr.get_illumination_filename(
+                    options['illumcorr_dir'], hdulist[0].header['FILTER'], hdulist[0].header['BINNING'])
+                logger.debug("Applying illumination correction (%s)" % (illum_file))
+                master_reduction_files_used = collect_reduction_files_used(
+                    master_reduction_files_used, {"illumination": illum_file})
+                podi_illumcorr.apply_illumination_correction(hdulist, illum_file)
 
             if (not swarp_params['subtract_back'] == 'swarp' and not swarp_params['subtract_back'] == False):
                 skylevel = numpy.NaN
@@ -378,7 +390,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
 
             # Check if the corrected file already exists - if not create it
             #if (not os.path.isfile(corrected_filename)):
-            logger.info("Writing correctly prepared file--> %s" % (corrected_filename))
+            logger.debug("Writing correctly prepared file--> %s" % (corrected_filename))
 
             clobberfile(corrected_filename)
             hdulist.writeto(corrected_filename, clobber=True)
@@ -581,6 +593,7 @@ def mp_swarp_single(sgl_queue, dum):
 
         hdulist = pyfits.open(prepared_file)
         obsid = hdulist[0].header['OBSID']
+        logger.info("Starting work on focal-plane frame ...")
 
         single_created_ok = False
         try:
@@ -1046,6 +1059,7 @@ def swarpstack(outputfile,
     # print inputlist
     # sys.exit(0)
 
+    logger.info("Preparing focal-plane frames for %d frames..." % (len(inputlist)))
     for i in range(len(inputlist)):
         prepared_file = inputlist[i]
         # for prepared_file in inputlist:
@@ -1121,14 +1135,15 @@ def swarpstack(outputfile,
             logger.info("This single-swarped file (%s) exist, re-using it" % (single_file))
             single_prepared_files.append(single_file)
         else:
-            logger.info("Preparing file %s, please wait ..." % (prepared_file))
-            logger.debug(" ".join(swarp_cmd.split()))
+            logger.debug("Queuing single file %s:\n%s" % (
+                prepared_file, " ".join(swarp_cmd.split()))
+            )
 
             # print (swarp_cmd, prepared_file, single_file, swarp_params, nonsidereal_dradec, True)
 
             sgl_queue.put( (swarp_cmd, prepared_file, single_file, swarp_params, nonsidereal_dradec, True) )
             single_prepared_files.append(single_file)
-            time.sleep(2)
+            # time.sleep(2)
 
     #
     # Execute all swarps to create the single files
@@ -1683,6 +1698,8 @@ def read_swarp_params(filelist):
     params['huge_frame_allowed'] = cmdline_arg_isset("-huge")
 
     params['target_magzero'] = float(cmdline_arg_set_or_default("-targetzp", 25.0))
+
+    params['illumcorr'] = cmdline_arg_set_or_default("-illumcorr", None)
 
     return params
 
