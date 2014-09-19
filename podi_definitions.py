@@ -2064,3 +2064,71 @@ def add_fits_header_title(header, title, before_keyword):
 
 def sigma_to_percentile(s):
     return 100 * 0.5*(1 + scipy.special.erf(s/math.sqrt(2)))
+
+
+
+
+def format_filename(input_filename_or_header, outputfile):
+    """
+
+    Format the input string and replace special keywords with information from
+    the FITS header.
+
+    """
+
+    if (type(input_filename_or_header) == str):
+        # This is a string, interpret it as a filename
+        if (os.path.isfile(input_filename_or_header)):
+            filename = input_filename_or_header
+        elif (os.path.isdir(input_filename_or_header)):
+            dirname = input_filename_or_header
+            if (dirname.endswith("/")): dirname = dirname[:-1]
+            # For now, assume that OTA 33 always exists, and that there is no .fz ending
+            directory, obsid = os.path.split(dirname)
+            filename = "%s/%s.33.fits" % (dirname, obsid)
+            if (not os.path.isfile(filename)):
+                filename = filename+".fz"
+                if (not os.path.isfile(filename)):
+                    return outputfile
+
+        hdulist = pyfits.open(filename)
+        header = hdulist[0].header
+    else:
+        # This is a header
+        header = input_filename_or_header
+
+    while (outputfile.find("%") >= 0):
+        start = outputfile.find("%") 
+        if (outputfile[start:start+7] == "%FILTER"):
+            outputfile = outputfile[:start] + header['FILTER'] + outputfile[start+7:]
+        elif (outputfile[start:start+7] == "%OBJECT"):
+            # The object name might contain spaces, replace them with underscores
+            # Also replace all other special characters with underscores
+            objectname = header['OBJECT'].replace(' ', '_')
+            objectname = objectname.replace(',', '_')
+            objectname = objectname.replace('(', '_')
+            objectname = objectname.replace(')', '_')
+            objectname = objectname.replace('/', '_')
+            objectname = objectname.replace('\\', '_')
+            objectname = objectname.replace('`', '_')
+            objectname = objectname.replace('"', '_')
+            objectname = objectname.replace('\'', '_')
+            objectname = objectname.replace(')', '_')
+            outputfile = outputfile[:start] + objectname  + outputfile[start+7:]
+        elif (outputfile[start:start+6] == "%OBSID"):
+            outputfile = outputfile[:start] + header['OBSID'] + outputfile[start+6:]
+        elif (outputfile[start:start+7] == "%OBSSEQ"):
+            obsid = header['OBSID']
+            dot_position = obsid.find(".")
+            obs_sequence = obsid[:dot_position]
+            outputfile = outputfile[:start] + obs_sequence + outputfile[start+7:]
+        elif (outputfile[start:start+8] == "%EXPTIME"):
+            outputfile = "%s%.1f%s" % (outputfile[:start], header['EXPTIME'], outputfile[start+8:])
+        else:
+            stdout_write("found unknown tag in %s\n" % outputfile)
+            break
+
+    return outputfile
+
+
+
