@@ -92,6 +92,51 @@ def get_illumination_filename(calibdir, filtername, binning):
     return calibdir
     
 
+def apply_illumination_correction(input_hdu, illumcorr_hdu, output_file=None):
+
+    logger = logging.getLogger("ApplyIllumCorr")
+
+    input_is_hdu = True
+    if (not type(input_hdu) == pyfits.hdu.hdulist.HDUList):
+        input_is_hdu = False
+        try:
+            hdu = pyfits.open(input_hdu)
+            input_hdu = hdu
+        except:
+            logger.error("Can't figure out what format input_hdu is in")
+            return None
+
+    illum_is_hdu = True
+    if (not type(illumcorr_hdu) == pyfits.hdu.hdulist.HDUList):
+        illum_is_hdu = False
+        try:
+            hdu = pyfits.open(illumcorr_hdu)
+            illumcorr_hdu = hdu
+        except:
+            logger.error("Can't figure out what format illumcorr_hdu is in")
+            return None
+
+    for ext in input_hdu:
+        if (not is_image_extension(ext)):
+            continue
+
+        # Now search for the right illumination frame
+        for il in illumcorr_hdu:
+            if (ext.name == il.name):
+                ext.data /= il.data
+                break
+    
+    if (not illum_is_hdu):
+        illumcorr_hdu.close()
+
+    if (not input_is_hdu and not output_file == None):
+        clobberfile(output_file)
+        input_hdu.writeto(output_file, clobber=True)
+        return output_file
+
+    
+    return input_hdu
+
 def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False):
 
     root = logging.getLogger("CompIllumination")
@@ -353,7 +398,7 @@ if __name__ == "__main__":
 
         filelist = get_clean_cmdline()[2:]
         outfile = get_clean_cmdline()[1]
-        tmpdir = cmdline_arg_set_or_default("-tmp", sitesetup.scratch_dir)
+        tmpdir = cmdline_arg_set_or_default("-tmp", sitesetup.swarp_singledir)
         redo = cmdline_arg_isset("-redo")
 
         print outfile, "\n"*5
