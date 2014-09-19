@@ -70,7 +70,7 @@ def count_matches(src_cat, ref_cat,
 
     """
 
-    logger = logging.getLogger()
+    logger = logging.getLogger("CountMatches")
 
     # 
     # Now loop over all stars in the source catalog and find nearby stars in the reference catalog
@@ -356,7 +356,7 @@ def count_matches_parallelwrapper(work_queue, return_queue,
 
     """
 
-    logger = logging.getLogger()
+    logger = logging.getLogger("ParCountMatch")
     while (True):
         task = work_queue.get()
         if (task == None):
