@@ -1560,6 +1560,50 @@ def swarpstack(outputfile,
     return modified_files, single_prepared_files, final_prepared_files, unique_singledir
 
 
+def load_horizons_ephems(object_name, ref_file, ref_mjd, filelist, params):
+
+    if ((object_name.startswith("'") and object_name.endswith("'")) or
+        (object_name.startswith('"') and object_name.endswith('"'))):
+        object_name = object_name[1:-1]
+    object_name = object_name.replace(".", " ")
+
+    results = podi_ephemerides.get_ephemerides_for_object_from_filelist(
+        object_name=object_name, 
+        filelist=filelist,
+        session_log_file="swarpstack_horizon.session",
+        verbose=False
+    )
+
+    params['ephemerides'] = {
+        'ref': ref_file,
+        'ref-mjd': ref_mjd,
+        'datafile': "NASA-TELNET",
+        'data': results['data'],
+        'ra': results['ra'],
+        'dec': results['dec'],
+    }
+    return
+
+def get_reference_mjd(item):
+
+    try:
+        ref_mjd = float(item)
+    except:
+        if (os.path.isfile(item)):
+            hdulist = pyfits.open(item)
+            for ext in hdulist:
+                if ('MJD-OBS' in ext.header):
+                    ref_mjd = ext.header['MJD-OBS']
+                    # correct reference MJD to the mid-point of the exposure
+                    if ('EXPTIME' in ext.header):
+                        ref_mjd += ext.header['EXPTIME']/2./86400
+                    break
+            hdulist.close()
+        else:
+            ref_mjd = None
+
+    return ref_mjd
+
 
 def read_swarp_params(filelist):
 
@@ -1611,44 +1655,23 @@ def read_swarp_params(filelist):
             # See if the first parameter is a number, if so it's the reference MJD,
             # if not, assume it's a FITS file and we are to read MJD-OBS from the header
             ref_mjd = None
-            try:
-                ref_mjd = float(items[0])
-            except:
-                hdulist = pyfits.open(items[0])
-                for ext in hdulist:
-                    if ('MJD-OBS' in ext.header):
-                        ref_mjd = ext.header['MJD-OBS']
-                        # correct reference MJD to the mid-point of the exposure
-                        if ('EXPTIME' in ext.header):
-                            ref_mjd += ext.header['EXPTIME']/2./86400
-                        break
-                hdulist.close()
-            if (ref_mjd == None):
-                params['use_ephemerides'] = False
-            else:
-
-                if (items[1] == "NASA"):
-                    object_name = items[2]
-                    if ((object_name.startswith("'") and object_name.endswith("'")) or
-                        (object_name.startswith('"') and object_name.endswith('"'))):
-                        object_name = object_name[1:-1]
-
-                    results = podi_ephemerides.get_ephemerides_for_object_from_filelist(
-                        object_name=object_name, 
-                        filelist=filelist,
-                        session_log_file="swarpstack_horizon.session",
-                        verbose=False
-                    )
-
-                    params['ephemerides'] = {
-                        'ref': items[0],
-                        'ref-mjd': ref_mjd,
-                        'datafile': "NASA-TELNET",
-                        'data': results['data'],
-                        'ra': results['ra'],
-                        'dec': results['dec'],
-                    }
+            if (items[0] == 'NASA'):
+                if (len(items) >= 3):
+                    ref_file = items[2]
                 else:
+                    # Use the first input frame as reference frame
+                    ref_file = get_clean_cmdline()[2]
+                
+                ref_mjd = get_reference_mjd(ref_file)
+
+                if (not ref_mjd == None):
+                    object_name = items[1]
+                    load_horizons_ephems(object_name, ref_file, ref_mjd, filelist, params)
+            elif (items[0] == 'file'):
+                ref_file = get_clean_cmdline()[2] if len(items) <=3 else items[2]
+                ref_mjd = get_reference_mjd(ref_file)
+                if (not ref_mjd == None):
+
                     # Now read and process the datafile
                     import ephemerides
                     ra, dec, data = ephemerides.load_ephemerides(
@@ -1664,6 +1687,9 @@ def read_swarp_params(filelist):
                         'ra': ra,
                         'dec': dec,
                     }
+            if (ref_mjd == None):
+                params['use_ephemerides'] = False
+
 
     params['clip-ampfrac'] = 0.3
     params['clip-sigma'] = 4.0
