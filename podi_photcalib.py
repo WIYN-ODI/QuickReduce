@@ -804,7 +804,6 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
     photref_col_mag = photref_col_err = -1
 
-    numpy.savetxt("odicat.precolorcorr", odi_sdss_matched)
     if (detailed_return['catalog'] == "SDSS"):
         # Compute the calibration magnitude from SDSS, 
         # accounting for color-terms if needed
@@ -863,7 +862,6 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     else:
         return error_return_value
 
-    numpy.savetxt("odicat.postcolorcorr", odi_sdss_matched)
     detailed_return['odi_sdss_matched'] = odi_sdss_matched.copy()
 
     if (photref_col_mag < 0):
@@ -1150,14 +1148,6 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                                                       options=options,
                                                       also_plot_singleOTAs=options['otalevelplots'],
                                                       details=detailed_return)
-            # podi_diagnosticplots.photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr,
-            #                                       zp_calib_plot,
-            #                                       zp_median, zp_std,
-            #                                       sdss_filter, filtername, #"r", "odi_r",
-            #                                       title=plottitle,
-            #                                       options=options,
-            #                                       also_plot_singleOTAs=options['otalevelplots'],
-            #                                       details=detailed_return)
         except:
             podi_logging.log_exception()
             logger.error("Problem with creating the photometric calibration diagnostic plot")
