@@ -50,8 +50,11 @@ number_cpus = "auto"
 # calibration. This is the currently best order, so mess with it on you 
 # own risk. 
 photcalib_order = ['sdss', 'ippref', 'ucac4']
-
-
+photcalib_error_cutoff = {
+    'SDSS': 0.02,
+    'IPPRef': 0.05, 
+    'UCAC4': 0.05,
+}
 
 
 

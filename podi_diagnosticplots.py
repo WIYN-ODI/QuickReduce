@@ -635,10 +635,8 @@ def wcsdiag_shift(matched_radec_odi,
 
 
 
-def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_filename,
-                         zp_median, zp_std, 
+def photocalib_zeropoint(output_filename,
                          sdss_filtername, odi_filtername,
-                         zp_upper1sigma=None, zp_lower1sigma=None,
                          zp_distribfull=None, zp_distribclipped=None,
                          title=None,
                          options=None,
@@ -655,20 +653,34 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
     logger = logging.getLogger("DiagPlot_PhotZP")
     logger.info("Creating the photometric calibration plot ...")
 
+    if (details['photref_col_mag'] < 0):
+        logger.debug("Error: No valid reference photometry found!")
+        return
+
+
     fig = matplotlib.pyplot.figure()
     ax = fig.add_subplot(111)
 
-    zp_raw = sdss_mag - odi_mag
-    zp_err = numpy.hypot(sdss_magerr, odi_magerr)
+    small_errors = details['odi_sdss_matched_smallerrors']
+    sdss_mag = small_errors[:, details['photref_col_mag']]
+    sdss_magerr = small_errors[:, details['photref_col_err']]
 
-    if (zp_raw.shape[0] < 5):
-        zp_clipped = zp_raw
-        clipped = numpy.isfinite(zp_clipped)
-    else:
-        zp_clipped, clipped = three_sigma_clip(zp_raw, return_mask=True)
+    # zp = small_errors[:, photref_col_mag] - small_errors[:, SXcolumn[col_mag]+2]
+    # zp_err = numpy.hypot(small_errors[:, photref_col_err], small_errors[:, SXcolumn[col_magerr]+2])
 
+    # zp_raw = sdss_mag - odi_mag
+    # zp_err = numpy.hypot(sdss_magerr, odi_magerr)
+
+    # if (zp_raw.shape[0] < 5):
+    #     zp_clipped = zp_raw
+    #     clipped = numpy.isfinite(zp_clipped)
+    # else:
+    #     zp_clipped, clipped = three_sigma_clip(zp_raw, return_mask=True)
+
+    zp_median = details['median']
+    zp_std = details['std']
     delta = 0.3 if zp_std < 0.3 else zp_std
-    close_to_median = (zp_raw > zp_median - 3 * delta) & (zp_raw < zp_median + 3 * delta)
+    # close_to_median = (zp_raw > zp_median - 3 * delta) & (zp_raw < zp_median + 3 * delta)
     
     #zp_max, zp_min = zp_median+3*delta, zp_median-3*delta
     zp_min = zp_median-sitesetup.diagplot__zeropoint_ZPrange[0] if \
@@ -677,8 +689,10 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
              (sitesetup.diagplot__zeropoint_ZPrange[1] > 0) else zp_median+5*zp_std+0.3
 
     # Determine the min and max sdss magnitudes
-    sdss_min = numpy.min(sdss_mag - sdss_magerr) - 1
-    sdss_max = numpy.max(sdss_mag + sdss_magerr)
+    sdss_min = numpy.min(details['odi_sdss_matched'][:,details['photref_col_mag']] - 
+                         details['odi_sdss_matched'][:,details['photref_col_err']]) - 1
+    sdss_max = numpy.max(details['odi_sdss_matched'][:,details['photref_col_mag']] +
+                         details['odi_sdss_matched'][:,details['photref_col_err']])
     # now round them to the nearest integer
     sdss_minint = sitesetup.diagplot__zeropoint_magrange[0] if \
                   (sitesetup.diagplot__zeropoint_magrange[0] > 0) else int(math.floor(sdss_min))
@@ -694,7 +708,7 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
     # Draw a grey-shaded region outlining the 1-sigma range
     #
     ax.barh(zp_median-zp_std, (sdss_maxint-sdss_minint), height=2*zp_std, 
-            left=sdss_minint, label=u"1 sigma range", 
+            left=sdss_minint, label=u"1$\sigma$ range", 
             color="#a0a0a0", edgecolor='#a0a0a0')
 
 
@@ -703,9 +717,12 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
     #
 
     # Prepare a histogram to illustrate the distribution of ZP values
-    binwidth = numpy.max([(0.2 * zp_std), 0.05])
+    binwidth = numpy.max([(0.2 * zp_std), 0.025])
     nbins = (zp_max - zp_min) / binwidth
-    count, edges = numpy.histogram(zp_raw, bins=nbins, range=[zp_min, zp_max], normed=True)
+    small_errors = details['odi_sdss_matched_smallerrors']
+    zp_good = small_errors[:, details['photref_col_mag']] \
+              - small_errors[:, details['odi_col_mag']]
+    count, edges = numpy.histogram(zp_good, bins=nbins, range=[zp_min, zp_max], normed=True)
     # Normalize histogram
     count = count * (zp_std*math.sqrt(2*math.pi)) / numpy.sum(count) / binwidth
 
@@ -721,21 +738,79 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
     matplotlib.pyplot.plot(gauss_x, gauss_y, linewidth=1, ls='-', color='black')
     #print gauss_y, gauss_x
 
+    #
+    # Count the number of sources in each of the categories
+    #
+    n_ref = details['odi_sdss_matched_ref'].shape[0]
+    n_outlier = details['odi_sdss_matched_outlier'].shape[0]
+    n_all = details['odi_sdss_matched'].shape[0]
+    n_ignored = n_all-(n_ref+n_outlier)
+
 
     #
     # Plot the actual measurments and values deemed to be outliers
     #
-    ax.errorbar(sdss_mag[clipped==False], zp_raw[clipped==False], 
-                xerr=sdss_magerr[clipped==False], 
-                yerr=zp_err[clipped==False], 
-                capsize=0,
-                fmt="r+", fillstyle='none', label='outliers')
+    # full_cat = details['odi_sdss_matched']
+    # full_sdss_mag = full_cat[:, details['photref_col_mag']]
+    # full_odi_mag = full_cat[:, details['odi_col_mag']] 
+    # full_sdss_err = full_cat[:, details['photref_col_err']]
+    # full_odi_err = full_cat[:, details['odi_col_err']] 
+    # full_zp = full_sdss_mag - full_odi_mag
+    # within_std = numpy.fabs(full_zp - zp_median) <= zp_std
+    # outside_std = numpy.fabs(full_zp - zp_median) > zp_std
 
-    ax.errorbar(sdss_mag[clipped], zp_raw[clipped], 
-                xerr=sdss_magerr[clipped], 
-                yerr=zp_err[clipped], 
+
+    #
+    # Plot sources with large (i.e.exceeding the limit specified 
+    # in the sitesetup configuration) errors
+    #
+    largeerr_cat = details['odi_sdss_matched_largeerrors']
+    largeerr_sdss_mag = largeerr_cat[:, details['photref_col_mag']]
+    largeerr_odi_mag = largeerr_cat[:, details['odi_col_mag']] 
+    largeerr_sdss_err = largeerr_cat[:, details['photref_col_err']]
+    largeerr_odi_err = largeerr_cat[:, details['odi_col_err']] 
+    largeerr_zp = largeerr_sdss_mag - largeerr_odi_mag
+    ax.errorbar(largeerr_sdss_mag, 
+                largeerr_zp,
+                xerr=largeerr_sdss_err, 
+                yerr=numpy.hypot(largeerr_sdss_err, largeerr_odi_err),
                 capsize=0,
-                fmt="b+", linewidth=1, label='valid')
+                fmt='.', ms=0, color='#606060', 
+                label='ignored (#: %d)' % n_ignored)
+
+               
+    # smallerr_cat = details['odi_sdss_matched_smallerrors']
+    # smallerr_sdss_mag = smallerr_cat[:, details['photref_col_mag']]
+    # smallerr_odi_mag = smallerr_cat[:, details['odi_col_mag']] 
+    # smallerr_sdss_err = smallerr_cat[:, details['photref_col_err']]
+    # smallerr_odi_err = smallerr_cat[:, details['odi_col_err']] 
+    # smallerr_zp = smallerr_sdss_mag - smallerr_odi_mag
+
+    #
+    # Plot all valid calibrator sources
+    #
+    ref_cat = details['odi_sdss_matched_ref']
+    ax.errorbar(ref_cat[:, details['photref_col_mag']],
+                ref_cat[:, details['photref_col_mag']]-ref_cat[:, details['odi_col_mag']],
+                xerr=ref_cat[:, details['photref_col_err']],
+                yerr=numpy.hypot(ref_cat[:, details['photref_col_err']],
+                                 ref_cat[:, details['odi_col_err']]),
+                capsize=0,
+                fmt="+", ms=5, color='blue', linewidth=1, 
+                label='valid calibrator (#: %d)' % n_ref)
+
+    #
+    # And for completeness, also plot sources deemed outliers
+    # 
+    outlier_cat = details['odi_sdss_matched_outlier']
+    ax.errorbar(outlier_cat[:, details['photref_col_mag']],
+                outlier_cat[:, details['photref_col_mag']]-outlier_cat[:, details['odi_col_mag']],
+                xerr=outlier_cat[:, details['photref_col_err']],
+                yerr=numpy.hypot(outlier_cat[:, details['photref_col_err']],
+                                 outlier_cat[:, details['odi_col_err']]),
+                capsize=0,
+                fmt="+", ms=5, color='red', linewidth=1, 
+                label='outlier (#: %d)' % n_outlier)
 
     #
     # Overplot a white line to illustrate the median value
@@ -750,8 +825,9 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
         # Add some information about the fitted slope
         if (not details['zp_magnitude_slope'] == None):
             fit, err = details['zp_magnitude_slope']
-            minx = numpy.min(sdss_mag[clipped])
-            maxx = numpy.max(sdss_mag[clipped])
+            full_cat = details['odi_sdss_matched']
+            minx = numpy.min(full_cat[:, details['photref_col_mag']])
+            maxx = numpy.max(full_cat[:, details['photref_col_mag']])
             slopefit_x = numpy.linspace(minx-0.1*(maxx-minx), maxx+0.1*(maxx-minx), 100)
             slopefit_y = fit[0] + fit[1] * slopefit_x
             ax.plot(slopefit_x, slopefit_y, "k-", label="fit ZP(%s-ODI)" % (details['catalog']))
@@ -759,7 +835,11 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
     ax.grid(True)
     ax.legend(loc='upper left', borderaxespad=0.5, prop={'size':9})
 
-    photzp_text = u"ZP = %.3f \u00b1 %.3f mag" % (zp_median, zp_std)
+    rms = details['rms']
+    sem = details['sem']
+    photzp_text = u"ZP = %.3f \u00b1 %.3f mag\nr.m.s/s.e.m. = %.3f/%.3f mag" % (
+        zp_median, zp_std, rms, sem, 
+    )
     ax.text(0.96, 0.05, photzp_text, fontsize=15,
             horizontalalignment='right',
             verticalalignment='bottom',
@@ -788,7 +868,7 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
             for ext in options['plotformat']:
                 if (ext != ''):
                     fig.savefig(output_filename+"."+ext, dpi=100)
-                    logger.debug("plot saved as %s.%s" % (output_filename, ext))
+                    logger.info("plot saved as %s.%s" % (output_filename, ext))
         else:
             fig.savefig(output_filename+".png", dpi=100)
 
@@ -826,7 +906,7 @@ def photocalib_zeropoint(odi_mag, odi_magerr, sdss_mag, sdss_magerr, output_file
 #
 #####################################################################################
 
-def plot_zeropoint_map(ra, dec, zp, ota_outlines, output_filename, options, zp_range):
+def plot_zeropoint_map(details, ota_select, ota_outlines, output_filename, options, zp_range):
     """
 
     Plot the photometric zeropoint, color-coded, as function of position
@@ -841,6 +921,15 @@ def plot_zeropoint_map(ra, dec, zp, ota_outlines, output_filename, options, zp_r
     ax.ticklabel_format(useOffset=False)
     zp_min, zp_max = zp_range
 
+    full_catalog = details['odi_sdss_matched_smallerrors'].copy()
+    if (not ota_select == None):
+        in_this_ota = full_catalog[:, SXcolumn['ota']+2] == ota_select
+        full_catalog = full_catalog[in_this_ota]
+
+    ra = full_catalog[:, 0]
+    dec = full_catalog[:, 1]
+    zp = full_catalog[:, details['photref_col_mag']] - full_catalog[:, details['odi_col_mag']]
+
     around_zero = False
     min_ra, max_ra = numpy.min(ra), numpy.max(ra)
     if ((max_ra - min_ra) > 180 or (max_ra > 0 and min_ra < 0) or max_ra > 360):
@@ -848,14 +937,14 @@ def plot_zeropoint_map(ra, dec, zp, ota_outlines, output_filename, options, zp_r
         ra[ra > 180] -= 360.
         around_zero = True
 
-    if (ra.shape[0] < 5):
-        zp_clipped = zp
-        clipped = numpy.isfinite(zp)
-    else:
-        zp_clipped, clipped = three_sigma_clip(zp, return_mask=True)
+    # if (ra.shape[0] < 5):
+    #     zp_clipped = zp
+    #     clipped = numpy.isfinite(zp)
+    # else:
+    #     zp_clipped, clipped = three_sigma_clip(zp, return_mask=True)
 
-    zp_median_ota = numpy.median(zp_clipped)
-    zp_std_ota = numpy.std(zp_clipped)
+    zp_median_ota = numpy.median(zp)
+    zp_std_ota = numpy.std(zp)
 
     #print ra_ota
     #print zp_ota
@@ -898,7 +987,8 @@ def plot_zeropoint_map(ra, dec, zp, ota_outlines, output_filename, options, zp_r
     return
 
 
-def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
+def photocalib_zeropoint_map(details,
+                             output_filename,
                              sdss_filtername, odi_filtername,
                              title=None,
                              ota_outlines=None,
@@ -917,10 +1007,10 @@ def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
 
     processes = []
 
-    zp_raw = sdss_mag - odi_mag
-
-    zp_median = numpy.median(zp_raw)
-
+    
+    zp_median = details['median'] 
+    zp_raw = details['odi_sdss_matched'][:, details['photref_col_mag']] \
+             - details['odi_sdss_matched'][:, details['odi_col_mag']]
     zp_min = scipy.stats.scoreatpercentile(zp_raw,  5) if \
              (sitesetup.diagplot__zeropointmap_range[0] <= 0) else \
              zp_median - sitesetup.diagplot__zeropointmap_range[0]
@@ -930,21 +1020,22 @@ def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
 
     # Create one plot for the full focal plane, using boxes to outlines OTAs
     zp_range = (zp_min, zp_max)
-    kwargs = {"ra": ra.copy(), 
-              "dec": dec.copy(), 
-              "zp": zp_raw.copy(), 
+    kwargs = {"details": details,
+              "ota_select": None,
               "ota_outlines": ota_outlines,
               "output_filename": output_filename,
               "options": options, 
               "zp_range": zp_range,
     }
     if (not allow_parallel):
-        plot_zeropoint_map(ra, dec, zp_raw, ota_outlines, output_filename, options, zp_range)
+        plot_zeropoint_map(details, None, ota_outlines, output_filename, options, zp_range)
     else:
         p = multiprocessing.Process(target=plot_zeropoint_map, 
                                     kwargs=kwargs)
         p.start()
         processes.append(p)
+
+#    return
 
     logger.debug(ota_outlines)
 
@@ -956,20 +1047,15 @@ def photocalib_zeropoint_map(odi_mag, sdss_mag, ota, ra, dec, output_filename,
 
         for (otax, otay) in list_of_otas:
             this_ota = otax * 10 + otay
-            in_this_ota = (ota == this_ota)
+            in_this_ota = (details['odi_sdss_matched_smallerrors'][:, SXcolumn['ota']+2] == this_ota)
             if (numpy.sum(in_this_ota) <= 0):
                 continue
-            zp_ota = zp_raw[in_this_ota].copy()
-            ra_ota = ra[in_this_ota].copy()
-            dec_ota = dec[in_this_ota].copy()
 
-            # ota_plotfile = "%s_OTA%02d" % (output_filename, this_ota)
             ota_plotfile = create_qa_otaplot_filename(output_filename, this_ota, options['structure_qa_subdirs'])
 
 
-            kwargs = {"ra": ra_ota, 
-                      "dec": dec_ota, 
-                      "zp": zp_ota, 
+            kwargs = {"details": details, 
+                      "ota_select": this_ota,
                       "ota_outlines": None,
                       "output_filename": ota_plotfile,
                       "options": options, 
