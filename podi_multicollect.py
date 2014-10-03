@@ -76,6 +76,7 @@ import pyfits
 import numpy
 import scipy
 import traceback
+import time
 
 gain_correct_frames = False
 from podi_collectcells import *
@@ -150,6 +151,7 @@ if __name__ == "__main__":
 
         logger.info("Collecting cells from %s ==> %s\n" % (folder,outputfile))
 
+        start_time = time.time()
         # Collect all cells, perform reduction and write result file
         try:
             collectcells(folder, outputfile, process_tracker=None, options=options, batchmode=False)
@@ -160,8 +162,10 @@ if __name__ == "__main__":
             stdout_write("#  ==> %s\n" % (error))
             print traceback.format_exc()
             stdout_write("##############################\n")
+        end_time = time.time()
 
         logger.debug("done with this file!")
+        logger.debug("QR run-time (%s): %.3f" % (folder, end_time-start_time))
 
     logger.info("Yippie, completely done with all files!\n")
         
