@@ -2124,6 +2124,9 @@ def collectcells(input, outputfile,
                 sky_samples_global = sky_plus_ota 
             else:
                 sky_samples_global = numpy.append(sky_samples_global, sky_plus_ota, axis=0)
+        
+        if (sky_samples_global == None):
+            continue
         logger.debug("Entire list of sky-samples now contains % 4d entries" % (sky_samples_global.shape[0]))
 
     logger.debug("Done with collecting sky sample data")
@@ -2927,7 +2930,7 @@ def collectcells(input, outputfile,
             ]:
         sky_tbhdu.header[key] = ota_list[0].header[key]
     ota_list.append(sky_tbhdu)
-    numpy.savetxt("skyfinal", sky_samples_final)
+    # numpy.savetxt("skyfinal", sky_samples_final)
 
     if (not options['nonsidereal'] == None):
         logger.info("Starting non-sidereal WCS modification")
