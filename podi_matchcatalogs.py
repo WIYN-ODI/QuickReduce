@@ -148,4 +148,13 @@ def match_catalog_segment(ref_full, odi_full, ra_ranges, dec_ranges,
     
 if __name__ == "__main__":
 
+
+    cat_a = numpy.loadtxt(sys.argv[1])
+    cat_b = numpy.loadtxt(sys.argv[2])
+
+    matched = match_catalogs(ref_full=cat_a, odi_full=cat_b, 
+                             matching_radius=2, verbose=False)
+
+    numpy.savetxt(sys.argv[3], matched)
+
     print "Hello"
