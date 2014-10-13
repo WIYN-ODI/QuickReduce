@@ -39,7 +39,8 @@ import ephem
 gain_correct_frames = False
 from podi_definitions import *
 
-def scamp_header_to_minifits(filename, minifits_outputname, reference_fits):
+def scamp_header_to_minifits(filename, minifits_outputname, reference_fits, 
+                             reference_extension="OTA33.SCI"):
 
     if (not os.path.isfile(filename)):
         return None
@@ -100,12 +101,14 @@ def scamp_header_to_minifits(filename, minifits_outputname, reference_fits):
     # Count how many image extensions exist in the reference frame
     n_imageext = 0;
     for i in range(len(refhdu)):
-        try:
-            extname = refhdu[i].header['EXTNAME']
-            if (extname[0:3] == "OTA" and extname[-3:] == "SCI"):
-                n_imageext += 1
-        except:
-            pass
+        if (is_image_extension(refhdu[i])):
+            n_imageext += 1
+        # try:
+        #     extname = refhdu[i].header['EXTNAME']
+        #     if (extname[0:3] == "OTA" and extname[-3:] == "SCI"):
+        #         n_imageext += 1
+        # except:
+        #     pass
 
     if (len(values_list) != n_imageext):
         stdout_write("Illegal scamp solution or wrong reference fits (%d vs %d)!\n" % (len(values_list), len(refhdu)-1))
@@ -113,6 +116,7 @@ def scamp_header_to_minifits(filename, minifits_outputname, reference_fits):
 
     # Now copy all scamp headers into the minifits
     # With this data at hand, work out the shift we need to apply to the scamp solution
+    print "Creating the minfits headers"
     for ota in range(len(values_list)):
 
         # Create a new Image extension to hold the header
@@ -127,10 +131,13 @@ def scamp_header_to_minifits(filename, minifits_outputname, reference_fits):
 
 
     # Now go through both the minifits and the reference and assign the extname keywords
+    print "Correcting CRVALs for reference position"
     ota33_found = False
-    for ext in range(1, 14): #len(refhdu)):
+    for ext in range(1, len(refhdu)):
+        if (not is_image_extension(refhdu[ext])):
+            continue
         extname = refhdu[ext].header['EXTNAME']
-        if (extname == "OTA33.SCI"): ota33_found = True
+        if (extname == reference_extension): ota33_found = True
         extlist[ext].update_ext_name(extname)
 
     # Create a proper HDUList from the list of new HDUs
@@ -145,14 +152,14 @@ def scamp_header_to_minifits(filename, minifits_outputname, reference_fits):
     # From scamp: Typically somewhere around 2000,2000 in OTA 3,3
     # NB: 0.11 / 3600. is the pixel scale in degrees/pixel, ignoring rotation and distortion
     if (ota33_found):
-        dx_crpix = 4200 - minifits_hdulist['OTA33.SCI'].header["CRPIX1"]
-        dy_crpix = 4200 - minifits_hdulist['OTA33.SCI'].header["CRPIX2"]
+        dx_crpix = 4200 - minifits_hdulist[reference_extension].header["CRPIX1"]
+        dy_crpix = 4200 - minifits_hdulist[reference_extension].header["CRPIX2"]
         d_ra  = dx_crpix * 0.11 / 3600.
         d_dec = dy_crpix * 0.11 / 3600.
     else:
         d_ra, d_dec = 0, 0
 
-    for ext in range(1, 14):
+    for ext in range(1, len(minifits_hdulist)):
         minifits_hdulist[ext].header['CRVAL1'] = d_ra
         minifits_hdulist[ext].header['CRVAL2'] = d_dec
 
@@ -170,6 +177,11 @@ if __name__ == "__main__":
     outputfile = sys.argv[2]
 
     reference = sys.argv[3]
+
+    try:
+        ref_ext = sys.argv[4]
+    except:
+        ref_ext = "OTA33.SCI"
     
-    scamp_header_to_minifits(scampfile, outputfile, reference)
+    scamp_header_to_minifits(scampfile, outputfile, reference, ref_ext)
     
