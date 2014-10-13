@@ -52,7 +52,7 @@ INTERPOLATE            N               # Interpolate bad input pixels (Y/N)?
                                        # (all or for each image)
  
 FSCALASTRO_TYPE        VARIABLE        # NONE,FIXED, or VARIABLE
-FSCALE_KEYWORD         FLXSCALE        # FITS keyword for the multiplicative
+FSCALE_KEYWORD         XXXXXXX         # FITS keyword for the multiplicative
                                        # factor applied to each input image
 FSCALE_DEFAULT         1.0             # Default FSCALE value if not in header
  
@@ -87,7 +87,7 @@ COMBINE_BUFSIZE        256             # RAM dedicated to co-addition(MB)
  
 #------------------------------ Miscellaneous ---------------------------------
  
-DELETE_TMPFILES        Y               # Delete temporary resampled FITS files
+DELETE_TMPFILES        N               # Delete temporary resampled FITS files
                                        # (Y/N)?
 COPY_KEYWORDS          OBJECT          # List of FITS keywords to propagate
                                        # from the input to the output headers
