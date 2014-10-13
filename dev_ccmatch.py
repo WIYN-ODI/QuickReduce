@@ -17,6 +17,7 @@ import scipy.stats
 import math
 import scipy.spatial
 import itertools
+import cStringIO
 
 from podi_definitions import *
 from podi_commandline import *
@@ -687,8 +688,9 @@ def find_best_guess(src_cat, ref_cat,
             all_results[cur_angle,1:3] = offset
             all_results[cur_angle,3] = n_matched
 
-        
-        numpy.savetxt(sys.stdout, all_results, "%10.6f")
+        s = cStringIO.StringIO()
+        numpy.savetxt(s, all_results, "%10.3f %12.6f %12.6f % 8d")
+        logger.debug("Combined Results from ccmatch:\n     angle          dRA         dDec    count\n%s" % (s.getvalue()))
 
         # Join all processes to make sure they terminate alright 
         # without leaving zombie processes behind.
@@ -1103,7 +1105,6 @@ def optimize_wcs_solution(ota_cat, hdr, optimize_header_keywords):
     for i in range(len(optimize_header_keywords)):
         hdr[optimize_header_keywords[i]] = better_wcs[i]
 
-    print p_init[0],p_init[1]," --> ", better_wcs[0], better_wcs[1]
     return p_init, better_wcs
 
 
@@ -1215,8 +1216,6 @@ def log_shift_rotation(hdulist, params, n_step=1, description="",
     hdulist[0].header['WCS%d_DDE' % n_step] = (params[2]*3600, "%s d_DEC [arcsec]" % (description))
     hdulist[0].header['WCS%d_N'   % n_step] = (params[3], "%s n_matches" % (description))
 
-    print "\n"*10,n_random_matches,"\n"*10
-
     if (not n_random_matches == None):
         hdulist[0].header['WCS_NRND'] = (n_random_matches if n_random_matches >= 0 else -1, 
                                          "number of random matches")
@@ -1244,7 +1243,7 @@ def apply_correction_to_header(hdulist, best_guess, verbose=False):
         ota_extension = hdulist[ext]
         
         # Read all WCS relevant information from the FITS header
-        logger.info("Applying shift %f/%f and rotation %f deg to extension %s" % (
+        logger.debug("Applying shift %f/%f and rotation %f deg to extension %s" % (
             best_guess[1], best_guess[2], best_guess[0], ota_extension.header['EXTNAME']))
 
         if (verbose):
@@ -1758,7 +1757,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     for i in range(max_pointing_error_list.shape[0]):
 
         pointing_error = max_pointing_error_list[i]
-        logger.info("\n\n\nSearching for WCS pointing with search radius %f arcmin" % (pointing_error))
+        logger.info("Searching for WCS pointing with search radius %f arcmin" % (pointing_error))
 
         logger.debug("Attempting to find WCS solution with search radius %.1f arcmin ..." % (
             pointing_error))
@@ -1947,7 +1946,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     # Apply best shift/rotation WCS correction to FITS header
     #
-    apply_correction_to_header(hdulist, best_shift_rotation_solution, verbose=True)
+    apply_correction_to_header(hdulist, best_shift_rotation_solution, verbose=False)
 
     # For testing, apply correction to the input catalog, 
     # match it to the reference catalog and output both to file
