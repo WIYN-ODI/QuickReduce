@@ -478,7 +478,8 @@ def prepare_input(inputlist, swarp_params, options):
             continue
         # and proper photometric calibration
         if ('MAGZERO' in hdulist[0].header and
-            hdulist[0].header['MAGZERO'] <= 0):
+            hdulist[0].header['MAGZERO'] <= 0 and
+            not swarp_params['no-fluxscale']):
             inputlist[i] = None
             logger.info("Excluding frame (%s) due to missing photometric calibration" % (inputlist[i]))
             continue
