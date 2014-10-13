@@ -476,6 +476,42 @@ SXcolumn = {}
 for name in SXcolumn_names:
     SXcolumn[name] = len(SXcolumn)
 
+SXcolumn_descriptions = [
+    "ALPHAWIN_J2000      Right ascension of barycenter (J2000)                      [deg]",
+    "DELTAWIN_J2000      Declination of barycenter (J2000)                          [deg]",
+    "XWIN_IMAGE          Object position along x (double precision)                 [pixel]",
+    "YWIN_IMAGE          Object position along y (double precision)                 [pixel]",
+    "FWHM_IMAGE          FWHM assuming a gaussian core                              [pixel]",
+    "FWHM_WORLD          FWHM assuming a gaussian core                              [pixel]",
+    "BACKGROUND          Background at centroid position [count]",
+    "FLAGS               Extraction flags",
+    "EXT_NUMBER          FITS extension number",
+    "MAG_APER_2.0        magnitude in aperture with radius 2.0''                    [mag]",
+    "MAG_APER_3.0        magnitude in aperture with radius 3.0''                    [mag]",
+    "MAG_APER_4.0        magnitude in aperture with radius 4.0''                    [mag]",
+    "MAG_APER_5.0        magnitude in aperture with radius 5.0''                    [mag]",
+    "MAG_APER_6.0        magnitude in aperture with radius 6.0''                    [mag]",
+    "MAG_APER_8.0        magnitude in aperture with radius 8.0''                    [mag]",
+    "MAG_APER_10.0       magnitude in aperture with radius 10.0''                   [mag]",
+    "MAG_APER_12.0       magnitude in aperture with radius 12.0''                   [mag]",
+    "MAG_ERR_2.0         magnitude uncertainty in aperture with radius 2.0''        [mag]",
+    "MAG_ERR_3.0         magnitude uncertainty in aperture with radius 3.0''        [mag]",
+    "MAG_ERR_4.0         magnitude uncertainty in aperture with radius 4.0''        [mag]",
+    "MAG_ERR_5.0         magnitude uncertainty in aperture with radius 5.0''        [mag]",
+    "MAG_ERR_6.0         magnitude uncertainty in aperture with radius 6.0''        [mag]",
+    "MAG_ERR_8.0         magnitude uncertainty in aperture with radius 8.0''        [mag]",
+    "MAG_ERR_10.0        magnitude uncertainty in aperture with radius 10.0''       [mag]",
+    "MAG_ERR_12.0        magnitude uncertainty in aperture with radius 12.0''       [mag]",
+    "MAG_AUTO            Kron-like elliptical aperture magnitude                    [mag]",
+    "MAGERR_AUTO         RMS error for AUTO magnitude                               [mag]",
+    "FLUX_MAX            Peak flux above background                                 [count]",
+    "AWIN_IMAGE          Profile RMS along major axis                               [pixel]",
+    "BWIN_IMAGE          Profile RMS along minor axis                               [pixel]",
+    "THETA_IMAGE         Position angle (CCW/x)                                     [deg]",
+    "ELONGATION          A_IMAGE/B_IMAGE",
+    "ELLIPTICITY         1 - B_IMAGE/A_IMAGE",
+]
+
    
 reference_zeropoint = {
     "odi_g": [26.0, 26.2],
