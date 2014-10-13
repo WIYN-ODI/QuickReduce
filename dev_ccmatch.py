@@ -86,105 +86,254 @@ def count_matches(src_cat, ref_cat,
     ref_cat[:,0] *= cos_dec
     src_cat = src_cat.copy()
     src_cat[:,0] *= cos_dec
-
+    
+    logger.debug("Creating ref KDtree")
     ref_tree = scipy.spatial.cKDTree(ref_cat)
 
-    src_tree = scipy.spatial.cKDTree(src_cat)
 
     # print "\n\n\nIn count_matches:"
     # print "src-cat:",src_cat.shape
     # print "ref-cat:",ref_cat.shape
 
     #
-    # First create a catalog of nearby reference stars for each source star
+    # Allocate some memory to hold a 2-d binned count array
+    # bin-size is 1 arcsec^2, with side-length +/- pointing_errors [in degrees]
     #
-    # find all matches
-    matches = src_tree.query_ball_tree(ref_tree, pointing_error, p=2)
-    # also count how many matches in total we have found
-    n_matches = src_tree.count_neighbors(ref_tree, pointing_error, p=2)
+    grid_size = pointing_error * 3600 * 2 + 1
+    count_grid_2d = numpy.zeros((grid_size, grid_size))
 
-    all_offsets = numpy.zeros(shape=(n_matches,2))
-    cur_pair = 0
+    idx_x, idx_y = numpy.indices(count_grid_2d.shape)
+    idx_x -= (grid_size-1)/2.
+    idx_y -= (grid_size-1)/2.
+    valid_pixelpos = numpy.hypot(idx_x, idx_y) < (pointing_error * 3600)
 
-    # dummy = open("ccmatch.offsets.%d" % int(round((debugangle*60),0)), "w")
+    import matplotlib.pyplot as plt
+    fig = plt.figure(figsize=(15, 15))
+    ax = fig.add_subplot(111)
 
-    for cur_src in range(len(matches)):
-        if (len(matches[cur_src]) <= 0):
+    #
+    # Split catalog into chunks to limit momory usage 
+    # and hopefully speed things up
+    #
+    chunksize = 50
+    n_chunks = int(math.ceil(src_cat.shape[0] / chunksize))
+
+    peak_position = []
+    all_significance = []
+    all_max_mean_std = []
+    no_gain_chunks = 0
+    previous_max = -1
+    previous_peak_std = numpy.array([1e9, 1e9])
+    for chunk in range(n_chunks):
+        
+        # Get this chunk of the catalog
+        src_chunk = src_cat[chunk*chunksize:(chunk+1)*chunksize, :]
+
+        # logger.info("Creating src KDtree")
+        src_tree = scipy.spatial.cKDTree(src_chunk)
+
+        #
+        # First create a catalog of nearby reference stars for each source star
+        #
+        # find all matches
+        # logger.info("Running ball_tree query")
+        matches = src_tree.query_ball_tree(ref_tree, pointing_error, p=2)
+
+        # also count how many matches in total we have found
+        # logger.info("counting all neighbors")
+        n_matches = src_tree.count_neighbors(ref_tree, pointing_error, p=2)
+
+        # Allocate memory to hold all offsets between src and reference catalog
+        all_offsets = numpy.zeros(shape=(n_matches,2))
+        cur_pair = 0
+
+        # dummy = open("ccmatch.offsets.%d" % int(round((debugangle*60),0)), "w")
+        # logger.info("assembling entire catalog (%d)" % (len(matches)))
+
+
+        for cur_src in range(len(matches)):
+            if (len(matches[cur_src]) <= 0):
+                continue
+
+
+            #if (verbose): print "\n",cur_src
+            # print matches[cur_src]
+
+            #
+            # matches[cur_src] contains the indices of matching stars from 
+            # the reference catalog.
+            # So extract the actual coordinates of all nearby reference stars
+            #
+            cur_matches = numpy.array(ref_cat[matches[cur_src]])
+            #if (verbose): print cur_matches
+            # print cur_matches.shape
+
+            #
+            # Subtract the source position to get relative offsets
+            #
+            cur_matches -= src_chunk[cur_src]
+            #if (verbose): print cur_matches
+            #numpy.savetxt(dummy, cur_matches)
+            #print >>dummy, "\n\n\n\n\n"
+
+            #
+            # And add all offsets into the global offset registry
+            #
+            # for cur_refstar in range(len(matches[cur_src])):
+            #     all_offsets[cur_pair,:] = cur_matches[cur_refstar]
+            #     cur_pair += 1
+            all_offsets[cur_pair:cur_pair+cur_matches.shape[0], :] = cur_matches[:,:]
+            cur_pair += cur_matches.shape[0]
+
+            # #
+            # # Add the new found src-ref pairs to count grid
+            # #
+            # this_2d, xedges, yedges = numpy.histogram2d(cur_matches[:,0]*3600, cur_matches[:,1]*3600, 
+            #                                             bins=grid_size, 
+            #                                             range=[[-pointing_error*3600, pointing_error*3600],
+            #                                                    [-pointing_error*3600, pointing_error*3600]], 
+            #                                             normed=False, 
+            #                                             weights=None)
+            # count_grid_2d += this_2d
+
+            # all_offsets[cur_pair:cur_pair+len(matches[cur_src]), :] = cur_matches[matches[cur_src]]
+            # cur_pair += len(matches[cur_src])
+
+             #print "#matches for source",cur_src, "-->", len(matches[cur_src]), src_cat.shape[0], ref_cat.shape[0], this_2d.shape, numpy.sum(this_2d)
+            # sys.stdout.write(".")
+            # sys.stdout.flush()
+
+        this_2d, xedges, yedges = numpy.histogram2d(all_offsets[:,0]*3600, all_offsets[:,1]*3600, 
+                                                    bins=grid_size, 
+                                                    range=[[-pointing_error*3600, pointing_error*3600],
+                                                           [-pointing_error*3600, pointing_error*3600]], 
+                                                    normed=False, 
+                                                    weights=None)
+        count_grid_2d += this_2d
+        if (create_debug_files): numpy.savetxt("cc_countgrid_%+0.3f_chunk%03d" % (debugangle, chunk), count_grid_2d)
+
+        # print "all-offsets:", all_offsets.shape, count_grid_2d.shape
+
+        # Now smooth the count_grid with a small kernel to avoid spurious 
+        # single-pixel peaks and combine more extended peaks
+        # smoothed = scipy.ndimage.filters.gaussian_filter(
+        #     input=count_grid_2d, sigma=3, order=0, 
+        #     output=None, mode='constant', cval=0.0)
+        smoothed = count_grid_2d
+
+        # peak_index = numpy.array(numpy.unravel_index(count_grid_2d.argmax(), count_grid_2d.shape))
+        peak_index = numpy.array(numpy.unravel_index(smoothed.argmax(), count_grid_2d.shape))
+        peak_pos = peak_index - (grid_size-1)/2
+
+        # _max = numpy.max(count_grid_2d[valid_pixelpos])
+        # _std = numpy.std(count_grid_2d[valid_pixelpos]) 
+        # _mean = numpy.mean(count_grid_2d[valid_pixelpos])
+        # _median = numpy.median(count_grid_2d[valid_pixelpos])
+
+        _max = numpy.max(smoothed[valid_pixelpos])
+        _std = numpy.std(smoothed[valid_pixelpos]) 
+        _mean = numpy.mean(smoothed[valid_pixelpos])
+        _median = numpy.median(smoothed[valid_pixelpos])
+
+        if (create_debug_files):
+            # sys.stdout.write("\r%d / %d" % (cur_src, len(matches)))
+            # sys.stdout.flush()
+            # ax.imshow(count_grid_2d, interpolation='nearest', origin='low',
+            #           extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]])
+            ax.imshow(smoothed, interpolation='nearest', origin='low',
+                      extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]])
+            #plt.show()
+            figname = "progress_chunk_%03d.png" % (chunk) if debugangle==None \
+                      else "progress_%.2fdeg_chunk%03d.png" % (debugangle, chunk)
+            fig.savefig(figname)
+
+            print "\npeak at:", peak_pos, "max=%f std=%f mean=%f median=%f" % (
+                numpy.max(count_grid_2d), numpy.std(count_grid_2d), numpy.mean(count_grid_2d), numpy.median(count_grid_2d)
+            )
+            print "valid_only: std=%f, mean=%f, median=%f" % (
+                numpy.std(count_grid_2d[valid_pixelpos]), 
+                numpy.mean(count_grid_2d[valid_pixelpos]), 
+                numpy.median(count_grid_2d[valid_pixelpos])
+            )
+
+        # Compute the number of input sources we compared to the reference catalog
+        n_searched = numpy.min([(chunk+1) * chunksize, src_cat.shape[0]])
+
+        significance = _max / _std
+        all_significance.append(significance)
+        all_max_mean_std.append([_max, _mean, _std, n_searched])
+        peak_position.append(peak_pos)
+        peak_position_np = numpy.array(peak_position)
+
+        # Keep track if we keep finding new matches
+        if (_max <= previous_max):
+            # print "This was a NO-GAIN chunk!"
+            no_gain_chunks += 1
+        previous_max = _max
+
+        # numpy.savetxt("peakpos_%s" % (str(debugangle)), peak_position_np)
+        # numpy.savetxt("mms_%s" % (str(debugangle)), numpy.array(all_max_mean_std))
+
+        # now determine the scatter in peak position across the last three chunks
+        peak_std = numpy.std(peak_position_np[-3:, :], axis=0)
+        if (create_debug_files):
+            print "scatter in peak position:", peak_std, (peak_std<2).all()
+            print "significance:", significance
+
+        #
+        # Check if the uncertainty in the peak position was reduced or not
+        # In good cases, the uncertainty only goes down, never up
+        #
+        if (chunk > 4):
+            if ((peak_std > previous_peak_std).any()):
+                if (create_debug_files): print "Uncertainty in position is increasing, this is not good"
+                # Mark this run as invalid
+                significance = -1.
+                break
+            previous_peak_std = peak_std
+            
+        if (n_chunks > 3 and chunk < 3):
+            # Try at least 3 chunks
+            if (create_debug_files): print "--> need more chunks"
+            continue
+        elif (n_chunks <= 3 and chunk < n_chunks-1):
+            # If less than 3 chunks, only finish after the last chunk to 
+            # include all/sufficient sources
+            if (create_debug_files): print "--> waiting for last chunk"
             continue
 
-        #if (verbose): print "\n",cur_src
-        # print matches[cur_src]
-        #
-        # matches[cur_src] contains the indices of matching stars from the reference catalog
-        # So extract the actual coordinates of all nearby reference stars
-        #
-        cur_matches = numpy.array(ref_cat[matches[cur_src]])
-        #if (verbose): print cur_matches
+        if ((peak_std < 2).all()): # scatter less than 2 arcsec in all directions
+            if (create_debug_files): print "We found a solution!"
+            break
+        if (no_gain_chunks >= 2):
+            if (create_debug_files): print "This seems to go no-where, aborting"
+            significance = -2.
+            break
 
-        # print cur_matches.shape
+    # Average the peak position for which we find a small scatter
+    mean_peak_pos = numpy.mean(peak_position_np[-3:, :], axis=0)
 
-#        matches[cur_src] -= src_cat[cur_src]
+    # convert peak position back to degrees, and
+    # un-do the cos(dec) correction we applied in the beginning
+    offset = (mean_peak_pos / 3600.) / numpy.array([cos_dec, 1.])
 
-        # Subtract the source position to get relative offsets
-        cur_matches -= src_cat[cur_src]
-        #if (verbose): print cur_matches
-      
-        #numpy.savetxt(dummy, cur_matches)
-        #print >>dummy, "\n\n\n\n\n"
+    final_significance = significance
 
-        # And add all offsets into the global offset registry
-        for cur_refstar in range(len(matches[cur_src])):
-            all_offsets[cur_pair,:] = cur_matches[cur_refstar]
-            cur_pair += 1
+    # Compute the number of input sources we compared to the reference catalog
+    n_searched = numpy.min([(chunk+1) * chunksize, src_cat.shape[0]])
 
-    all_offsets = all_offsets[:cur_pair,:]
-    # print "found", all_offsets.shape, "potential offsets", cur_pair, n_matches
+    # Now that we have a solution, match the shifted source catalog 
+    # and count the number of matches
+    n_matches = -1
+    if (final_significance >= 0):
+        src_corrected = src_cat[:, 0:2] + (mean_peak_pos / 3600.) #(offset) * numpy.array([cos_dec, 1.])
+        corr_tree = scipy.spatial.cKDTree(src_corrected)
+        n_matches = corr_tree.count_neighbors(ref_tree, 2./3600., p=2) # match stars within 2 arcsec
 
-    if (create_debug_files): numpy.savetxt("ccmatch.dump",all_offsets)
+    logger.debug("done with entire cat (% 7s): %8.4f %8.4f %8.4f --> %8.4f % 6d" % (
+        str(debugangle), _max, _mean, _std, final_significance, n_matches))
 
-    # 
-    # At this stage, we have a catalog of all potential offsets, 
-    # so we now need to figure out which one is the most likely,
-    # i.e. the most frequently occuring
-    #
-    # print "matching radius during count_matches:", matching_radius, matching_radius*3600
-    candidate_offset_tree = scipy.spatial.cKDTree(all_offsets)
-    n_coincidences = candidate_offset_tree.count_neighbors(
-        candidate_offset_tree, matching_radius, p=2)
-    coincidences = candidate_offset_tree.query_ball_tree(
-        candidate_offset_tree, matching_radius, p=2)
-
-    search_weights = numpy.zeros(shape=(len(coincidences),3))
-
-    for i in range(len(coincidences)):
-        search_weights[i,0] = len(coincidences[i])
-        search_weights[i,1:3] = all_offsets[i,:]
-
-    # search_weights = numpy.zeros(shape=(all_offsets.shape[0],3))
-    # search_weights[:,1:3] = all_offsets
-    # for i in range(all_offsets.shape[0]):
-    #     neighbors = candidate_offset_tree.query_ball_point(search_weights[i,1:3], 1e-8, p=2)
-    #     search_weights[i,0] = len(neighbors)
-    #     #search_weights[i,0] = candidate_offset_tree.count_neighbors(
-    #     #    scipy.spatial.cKDTree(search_weights[i,1:3]), (5./3600.), p=2)
-
-    # Find which offset has the highest weight
-    max_coincidence_count = numpy.argmax(search_weights[:,0])
-
-    best_offset = all_offsets[max_coincidence_count,:]
-
-    # So far all work was done with cos_dec fixed data, so revert this fix to 
-    # yield real corrections
-    best_offset[0] /= cos_dec
-
-    #print "best offset", best_offset, "matching in",search_weights[max_coincidence_count][0],"fields"
-    logger.debug("best offset %s matching in %d fields" % (
-        best_offset, search_weights[max_coincidence_count][0]))
-
-    if (not debugangle == None):
-        if (create_debug_files): numpy.savetxt("ccmatch.offsetcount.%d" % int(round((debugangle*60),0)), search_weights)
-
-    return search_weights[max_coincidence_count,0], best_offset
+    return offset, n_matches, n_searched, _max, _mean, _std
 
 
 def rotate_shift_catalog(src_cat, center, angle, shift=None, verbose = False):
@@ -370,18 +519,21 @@ def count_matches_parallelwrapper(work_queue, return_queue,
         src_rotated = rotate_shift_catalog(src_cat, (center_ra, center_dec), angle, None)
 
         # print "Angle:",angle*60.," --> ",
-        n_matches, offset = count_matches(src_rotated, ref_cat, 
-                                          pointing_error=pointing_error, 
-                                          matching_radius=matching_radius,
-                                          debugangle=angle)
+        
+#        n_matches, offset = count_matches(src_rotated, ref_cat, 
+        cm_data = count_matches(src_rotated, ref_cat, 
+                                pointing_error=pointing_error, 
+                                matching_radius=matching_radius,
+                                debugangle=angle)
 
         if (create_debug_files):
+            offset, final_significance, n_searched, _max, _mean, _std = cm_data
             numpy.savetxt("ccmatch.cat%f" % (angle*60), src_rotated)
-            print angle*60,offset
+            # print angle*60,offset
             matched_cat = kd_match_catalogs(src_rotated[:,0:2]+offset, ref_cat[:,0:2], matching_radius, max_count=1)
             numpy.savetxt("ccmatch.matched_%f" % (angle*60), matched_cat)
 
-        return_queue.put((angle_id, n_matches, offset))
+        return_queue.put((angle_id, cm_data))
         work_queue.task_done()
 
     return
@@ -524,10 +676,19 @@ def find_best_guess(src_cat, ref_cat,
         for i in range(n_angles):
 
             returned = return_queue.get()
-            cur_angle, n_matches, offset = returned
+            # cur_angle, n_matches, offset = returned
+            cur_angle, cm_data = returned
+            offset, n_matched, n_searched, _max, _mean, _std = cm_data
+
+            # Compute number of real matches as the fraction of stars
+            #n_matched = (_max - _mean) / n_searched
+            #if (final_significance < 0): n_matched = 0
 
             all_results[cur_angle,1:3] = offset
-            all_results[cur_angle,3] = n_matches
+            all_results[cur_angle,3] = n_matched
+
+        
+        numpy.savetxt(sys.stdout, all_results, "%10.6f")
 
         # Join all processes to make sure they terminate alright 
         # without leaving zombie processes behind.
@@ -579,17 +740,27 @@ def find_best_guess(src_cat, ref_cat,
     #
     best_angle = best_guess[0]
     # select all results with rotator angles differing by >20 arcmin
-    wrong_angles = numpy.fabs(all_results[:,0]-best_angle) > 20./60.
+    wrong_angles = numpy.fabs(all_results[:,0]-best_angle) > 40./60.
+
+    # random_matches = wrong_angles & (all_results[:,3] > 0)
+    # random_results = numpy.median(all_results[random_matches:, 3])
+    
+    # contrast = (best_guess[3]-random_results) / random_results
+    # print "\n"*10,"Determining contrast:",random_matches,best_guess,"\n"*5
 
     # number random matches:
-    if (numpy.sum(wrong_angles) <= 0):
-        n_random_matches = 1
-    else:
-        n_random_matches = numpy.median(all_results[:,3][wrong_angles])
+    n_random_matches = 1
+    if (numpy.sum(wrong_angles) > 0):
+        randoms = all_results[:,3][wrong_angles]
+        valid_count = randoms >= 0
+        if (numpy.sum(valid_count) > 0):
+            n_random_matches = numpy.median(randoms[valid_count]) #all_results[:,3][wrong_angles])
 
-    # contrast = best_guess[3] / n_random_matches
+    contrast = best_guess[3] / n_random_matches
+
+    #n_src = src_cat.shape[0]
     if (n_random_matches >= 1):
-        contrast = (best_guess[3]-n_random_matches) / math.sqrt(n_random_matches)
+        contrast = (best_guess[3]-n_random_matches) / math.sqrt(n_random_matches) #* math.sqrt(n_src*best_guess[3])
     else:
         contrast = best_guess[3]
     
@@ -932,6 +1103,7 @@ def optimize_wcs_solution(ota_cat, hdr, optimize_header_keywords):
     for i in range(len(optimize_header_keywords)):
         hdr[optimize_header_keywords[i]] = better_wcs[i]
 
+    print p_init[0],p_init[1]," --> ", better_wcs[0], better_wcs[1]
     return p_init, better_wcs
 
 
@@ -1043,8 +1215,11 @@ def log_shift_rotation(hdulist, params, n_step=1, description="",
     hdulist[0].header['WCS%d_DDE' % n_step] = (params[2]*3600, "%s d_DEC [arcsec]" % (description))
     hdulist[0].header['WCS%d_N'   % n_step] = (params[3], "%s n_matches" % (description))
 
+    print "\n"*10,n_random_matches,"\n"*10
+
     if (not n_random_matches == None):
-        hdulist[0].header['WCS_NRND'] = (n_random_matches, "number of random matches")
+        hdulist[0].header['WCS_NRND'] = (n_random_matches if n_random_matches >= 0 else -1, 
+                                         "number of random matches")
     if (not wcs_contrast == None):
         hdulist[0].header['WCS_QUAL'] = (wcs_contrast, "WCS quality")
 
@@ -1069,21 +1244,44 @@ def apply_correction_to_header(hdulist, best_guess, verbose=False):
         ota_extension = hdulist[ext]
         
         # Read all WCS relevant information from the FITS header
-        logger.debug("Applying shift %f, %f to extension %s" % (
-            best_guess[1], best_guess[2], ota_extension.header['EXTNAME']))
-        # print hdulist[ext].header['CRVAL1'], hdulist[ext].header['CRVAL2']
-        wcs_poly = header_to_polynomial(ota_extension.header)
-
-        # Apply the shift and rotation
-        wcs_poly = wcs_apply_shift(wcs_poly, best_guess[1:3])
-
-        # Write the updated, WCS relevant keywords back to FITS header
-        wcs_wcspoly_to_header(wcs_poly, hdulist[ext].header) #ota_extension.header)
+        logger.info("Applying shift %f/%f and rotation %f deg to extension %s" % (
+            best_guess[1], best_guess[2], best_guess[0], ota_extension.header['EXTNAME']))
 
         if (verbose):
             print hdulist[ext].header['CRVAL1'], hdulist[ext].header['CRVAL2']
             hdulist[ext].header['XVAL1'] = hdulist[ext].header['CRVAL1']
             hdulist[ext].header['XVAL2'] = hdulist[ext].header['CRVAL2']
+
+        # Get CD matrix
+        hdr = ota_extension.header
+        cd = numpy.array([ [hdr['CD1_1'], hdr['CD1_2']],
+                           [hdr['CD2_1'], hdr['CD2_2']] ])
+        angle_rad = numpy.radians(best_guess[0])
+        rot = numpy.array([ [+math.cos(angle_rad), -math.sin(angle_rad)],
+                            [+math.sin(angle_rad), +math.cos(angle_rad)] ])
+        # rot = numpy.array([ [+math.cos(angle_rad), +math.sin(angle_rad)],
+        #                     [-math.sin(angle_rad), +math.cos(angle_rad)] ])
+        cd_rot = cd.dot(rot)
+        hdulist[ext].header['CD1_1'] = cd_rot[0,0]
+        hdulist[ext].header['CD1_2'] = cd_rot[0,1]
+        hdulist[ext].header['CD2_1'] = cd_rot[1,0]
+        hdulist[ext].header['CD2_2'] = cd_rot[1,1]
+
+        # Now apply the offset in Ra/Dec
+        hdulist[ext].header['CRVAL1'] += best_guess[1]
+        hdulist[ext].header['CRVAL2'] += best_guess[2]
+
+        # # print hdulist[ext].header['CRVAL1'], hdulist[ext].header['CRVAL2']
+        # wcs_poly = header_to_polynomial(ota_extension.header)
+
+        # # Apply the shift and rotation
+        # wcs_poly = wcs_apply_shift(wcs_poly, best_guess[1:3])
+
+        # # Write the updated, WCS relevant keywords back to FITS header
+        # wcs_wcspoly_to_header(wcs_poly, hdulist[ext].header) #ota_extension.header)
+
+        if (verbose):
+            print hdulist[ext].header['CRVAL1'], hdulist[ext].header['CRVAL2']
 
     return
 
@@ -1353,7 +1551,9 @@ def improve_wcs_solution(src_catalog,
 def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             max_pointing_error=7,
             max_rotator_error=[-3,3.5],
-            min_contrast=3.0):
+            min_contrast=3.0,
+            angle_steps=20, # arcmin
+            fov=0.8):
 
     """
 
@@ -1426,6 +1626,11 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     else:
         src_raw = source_catalog
 
+    # Sort the source catalog by magnitude
+    logger.debug("Sorting source catalog")
+    si = numpy.argsort(src_raw[:, SXcolumn['mag_auto']])
+    src_raw = src_raw[si]
+
     #
     # Make sure we have a valid input catalog
     #
@@ -1436,6 +1641,9 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     else:
         logger.debug("optimzing WCS in passed HDUlist")
         hdulist = input_hdu
+
+    hdulist[0].header['WCS_MODE'] = ('none',
+                                     "method to calibrate WCS")
 
 
     #
@@ -1449,10 +1657,17 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # Create the reference catalog
     #
     if (reference_catalog == None):
-        search_size = 0.8 + max_pointing_error/60.
+        search_size = fov + max_pointing_error/60.
         ref_raw = podi_search_ipprefcat.get_reference_catalog(center_ra, center_dec, search_size, 
                                                               basedir=sitesetup.wcs_ref_dir,
                                                               cattype=sitesetup.wcs_ref_type)
+
+        # Sort the reference catalog by brightness
+        logger.debug("Sorting reference catalog")
+        si = numpy.argsort(ref_raw[:,4])
+        ref_raw = ref_raw[si]
+
+        # Now get rid of all info except coordinates
         ref_raw = ref_raw[:,0:2]
     else:
         ref_raw = reference_catalog #numpy.loadtxt(ref_catfile)[:,0:2]
@@ -1466,6 +1681,10 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     full_src_cat = src_raw[flags == 0]
     logger.debug("src_cat: "+str(full_src_cat.shape))
     if (create_debug_files): numpy.savetxt("ccmatch.src_cat", full_src_cat[:,0:2])
+
+    if (create_debug_files):
+        numpy.savetxt("ccdebug.ref", ref_raw)
+        numpy.savetxt("ccdebug.src", full_src_cat[:,0:2])
 
 
     #
@@ -1482,7 +1701,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     # Exclude all stars with nearby neighbors to limit confusion
     #
-    only_isolated_stars = True
+    only_isolated_stars = False #RK True
     if (only_isolated_stars):
         logger.debug("Selecting isolated stars - ODI source catalog")
         if (create_debug_files): numpy.savetxt("ccmatch.odi_full", full_src_cat)
@@ -1503,13 +1722,13 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # Cut down the catalog size to the brightest n stars
     #
     n_max = 1500 #750
-    if (isolated_stars.shape[0] > n_max):
+    truncate_to_bright_stars = False #True #RK
+    if (isolated_stars.shape[0] > n_max and truncate_to_bright_stars):
         logger.debug("truncating src_cat:"+str(isolated_stars.shape)+"--> "+str(n_max))
         # That's more than we need, limited the catalog to the brightest n stars
         src_cat, bright_mags = select_brightest(isolated_stars, isolated_stars[:,10:13], n_max)
     else:
         src_cat = isolated_stars
-
 
     # 
     # Get rid of all data except the coordinates
@@ -1532,9 +1751,14 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     center_ra = hdulist[1].header['CRVAL1']
     center_dec = hdulist[1].header['CRVAL2']
+
+    use_only_isolated_reference_stars = False
+
+    # max_pointing_error_list = numpy.array([numpy.max(numpy.array(max_pointing_error_list))])
     for i in range(max_pointing_error_list.shape[0]):
 
         pointing_error = max_pointing_error_list[i]
+        logger.info("\n\n\nSearching for WCS pointing with search radius %f arcmin" % (pointing_error))
 
         logger.debug("Attempting to find WCS solution with search radius %.1f arcmin ..." % (
             pointing_error))
@@ -1567,7 +1791,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         min_distance = 8
         logger.debug("Selecting isolated stars - reference catalog")
         if (create_debug_files): numpy.savetxt("ccmatch.2mass_full.%d" % (pointing_error), ref_cat)
-        while (ref_cat.shape[0] > n_max_ref or min_distance < 10):
+        while ((ref_cat.shape[0] > n_max_ref or min_distance < 10) and use_only_isolated_reference_stars):
             min_distance += 2
             ref_cat = pick_isolated_stars(ref_cat, radius=min_distance)
             if (create_debug_files): 
@@ -1580,18 +1804,20 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         #
         # Now perform the actual first step of WCS calibration
         #
+        numpy.savetxt("debug.src", src_cat)
+        numpy.savetxt("debug.ref", ref_cat)
         initial_guess, n_random_matches, contrast, all_results = \
                 find_best_guess(src_cat, ref_cat,
                                 center_ra, center_dec,
                                 pointing_error=(pointing_error/60.),
                                 angle_max=max_rotator_error, #[-2,2], #degrees
-                                d_angle=20, # arcmin
+                                d_angle=angle_steps, # arcmin
                                 allow_parallel=True
                 )
         if (create_debug_files): numpy.savetxt("ccmatch.allresults.%d" % (pointing_error), all_results)
 
         logger.debug("Found contrast = %.4f (minimum requirement is %.2f)" % (contrast, min_contrast))
-        
+
         return_value['contrasts'][i] = contrast
         return_value['max_pointing_error_searched'] = pointing_error
 
@@ -1659,6 +1885,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         #
         # If shift only is requested, no further improvement is necessary
         #
+        hdulist[0].header['WCS_MODE'] = 'shift'
+
         apply_correction_to_header(hdulist, initial_guess, verbose=False)
 
         return_value['hdulist'] = hdulist
@@ -1704,7 +1932,6 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     matched = kd_match_catalogs(src_rotated, ref_close, matching_radius=(2./3600.), max_count=1)
     if (create_debug_files): numpy.savetxt("ccmatch.after_shift+rot", matched)
 
-
     current_best_rotation = best_shift_rotation_solution[0]
     current_best_shift = best_shift_rotation_solution[1:3]
     n_matches = numpy.sum(numpy.isfinite(matched[:,2]))
@@ -1716,14 +1943,11 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     )
 
     logger.debug("Writing shift/rotation to output file")
-    for ext in range(len(hdulist)):
-        if (not is_image_extension(hdulist[ext])):
-            continue
-        ota_extension = hdulist[ext]
-        wcs_poly = header_to_polynomial(ota_extension.header)
-        wcs_poly = wcs_apply_rotation(wcs_poly, current_best_rotation)
-        wcs_poly = wcs_apply_shift(wcs_poly, current_best_shift)
-        wcs_wcspoly_to_header(wcs_poly, ota_extension.header)
+
+    #
+    # Apply best shift/rotation WCS correction to FITS header
+    #
+    apply_correction_to_header(hdulist, best_shift_rotation_solution, verbose=True)
 
     # For testing, apply correction to the input catalog, 
     # match it to the reference catalog and output both to file
@@ -1737,6 +1961,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # We only asked for rotation optimization, so 
     # end the processing right here
     if (mode == "rotation"):
+        hdulist[0].header['WCS_MODE'] = 'rotation'
+
         return_value['hdulist'] = hdulist
         return_value['transformation'] = best_shift_rotation_solution
         return_value['matched_src+2mass'] = matched
@@ -1777,6 +2003,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
 
 
     if (mode == "otashift"):
+        hdulist[0].header['WCS_MODE'] = "otashift"
         return_value['hdulist'] = hdulist
         return_value['transformation'] = best_shift_rotation_solution
         return_value['matched_src+2mass'] = matched_global
@@ -1806,6 +2033,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                          )
 
     if (mode == "otashear"):
+        hdulist[0].header['WCS_MODE'] = "otashear"
         return_value['hdulist'] = hdulist
         return_value['transformation'] = best_shift_rotation_solution
         return_value['matched_src+2mass'] = matched_global
@@ -2191,6 +2419,53 @@ if __name__ == "__main__":
             hdu_list.writeto(outfile, clobber=True)
 
         podi_logging.shutdown_logging(options)
+
+    elif (cmdline_arg_isset("-speedup")):
+
+        options = set_default_options()
+        podi_logging.setup_logging(options)
+
+        import time
+
+        src_cat = numpy.loadtxt(get_clean_cmdline()[1])
+        ref_cat = numpy.loadtxt(get_clean_cmdline()[2])
+
+        center_ra = numpy.median(src_cat[:,0])
+        center_dec = numpy.median(src_cat[:,1])
+        angle = float(get_clean_cmdline()[3])
+        src_rotated = rotate_shift_catalog(src_cat, (center_ra, center_dec), angle, None)
+
+        print "done loading catalogs, starting work"
+        # start_time = time.time()
+          
+#         import cProfile, pstats
+#         cProfile.run(
+# """n_matches, offset = count_matches(src_cat, ref_cat, 
+#                                           pointing_error=(15./60.), 
+#                                           matching_radius=(4./3600.), 
+#                                           debugangle=None)
+
+# """, "profiler")
+#         p = pstats.Stats("profiler")
+#         p.strip_dirs().sort_stats('time').print_stats()
+#         p.sort_stats('time').print_stats()
+
+        # n_matches, offset = count_matches(src_rotated, ref_cat, 
+        #                                   pointing_error=(15./60.), 
+        #                                   matching_radius=(4./3600.), 
+        #                                   debugangle=angle)
+
+        offset, final_significance, n_searched, _max, _mean, _std = \
+            count_matches(src_rotated, ref_cat, 
+                          pointing_error=(15./60.), 
+                          matching_radius=(4./3600.), 
+                          debugangle=angle)
+        
+
+        podi_logging.shutdown_logging(options)
+
+        # end_time = time.time()
+        # print "count_matches took",end_time-start_time,"seconds"
 
     else:
         mode = cmdline_arg_set_or_default('-mode', 'xxx')
