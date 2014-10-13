@@ -1318,12 +1318,21 @@ if __name__ == "__main__":
 
                 hdulist = pyfits.open(inputfile) #raw_frame)
 
-                try:
-                    filter_name = hdulist[0].header['FILTER']
-                except:
+                if (cmdline_arg_isset("-filter")):
                     filter_name = cmdline_arg_set_or_default('-filter', 'odi_r')
+                else:
+                    try:
+                        filter_name = hdulist[0].header['FILTER']
+                    except:
+                        #filter_name = 'odi_rcmdline_arg_set_or_default('-filter', 'odi_r')
+                        logger.error("Unable to determine filter")
+                        podi_logging.shutdown_logging(options)
+                        sys.exit(0)
 
-                exptime = 1.0
+                if (cmdline_arg_isset("-exptime")):
+                    exptime = float(cmdline_arg_set_or_default("-exptime", 1.0))
+                else:
+                    exptime = hdulist[0].header['EXPTIME']
 
                 try:
                     plottitle = "%(file)s\n%(object)s -- %(exptime).1f sec -- %(filter)s" % {
