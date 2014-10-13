@@ -33,6 +33,7 @@ import copy
 
 import podi_sitesetup as sitesetup
 
+output_debugfiles = False
 
 def parallel_sourceextractor(queue, dummy):
 
@@ -112,15 +113,28 @@ def make_catalogs(inputlist):
     return
 
 
+
+def my_replace(inp, key, insert):
+    out = ""+inp
+    while (out.find(key) >= 0):
+        begin_pos = out.find(key)
+        end_pos = begin_pos + len(key)
+        out = "%s%s%s" % (out[:begin_pos], insert, out[end_pos:])
+    return out
+
+
 RA = 0
 DEC = 1
 MJD = 2
 DRA = 3
 DDEC = 4
 
+name_tag = "%name"
+
 def differential_photometry(inputlist, source_coords, 
                             plot_title=None, plot_filename=None,
-                            reference_star_frame=None):
+                            reference_star_frame=None,
+                            output_catalog=None):
 
     logger = logging.getLogger("DiffPhot")
 
@@ -287,7 +301,7 @@ def differential_photometry(inputlist, source_coords,
     n_ref = 250
     phot_refs = ref_sorted[0:n_ref,0:2]
     print "Ra/Dec of 50 bright differential standards:\n", phot_refs[:,0:2]
-    numpy.savetxt("diff_stds.cat", phot_refs)
+    if (output_debugfiles): numpy.savetxt("diff_stds.cat", phot_refs)
 
     # Now go through all catalogs and find the source and the reference 
     # magnitudes
@@ -304,7 +318,7 @@ def differential_photometry(inputlist, source_coords,
     #
     # Create source catalogs for the source and n reference sources from each catalog
     #
-    numpy.savetxt("src_params", src_params)
+    if (output_debugfiles): numpy.savetxt("src_params", src_params)
     for i_cat in range(len(catalog)):
         # print "\n"*5
 
@@ -385,7 +399,7 @@ def differential_photometry(inputlist, source_coords,
                            (catalog[i_cat][:, SXcolumn['flags']] == 0)
         aperture_diffs = (catalog[i_cat][:,SXcolumn['mag_aper_12.0']] 
                           - catalog[i_cat][:, SXcolumn[src_aper_mag]])[valid_photometry]
-        numpy.savetxt("apercorr_%d" % (i_cat), aperture_diffs)
+        if (output_debugfiles): numpy.savetxt("apercorr_%d" % (i_cat), aperture_diffs)
 
         aperture_diff_filtered = three_sigma_clip(aperture_diffs)
         aperture_correction = numpy.median(aperture_diff_filtered)
@@ -474,7 +488,7 @@ def differential_photometry(inputlist, source_coords,
 
     # Dump all uncorrected source catalogs
     for src in range(target_source.shape[1]):
-        numpy.savetxt("src.cat.%d" % src, target_source[:,src,:])
+        if (output_debugfiles): numpy.savetxt("src.cat.%d" % src, target_source[:,src,:])
 
 
     all_cats_orig = all_cats.copy()
@@ -486,6 +500,10 @@ def differential_photometry(inputlist, source_coords,
     #############################################################################
     #############################################################################
     col_name = 'mag_aper_4.0'
+    mc = [SXcolumn['mag_aper_2.0'], SXcolumn['mag_aper_12.0']+1]
+    mec = [SXcolumn['mag_err_2.0'], SXcolumn['mag_err_12.0']+1]
+    all_mags = all_cats[:,:, mc[0]:mc[1]]
+
     for iteration in range(15):
 
         #############################################################################
@@ -493,18 +511,20 @@ def differential_photometry(inputlist, source_coords,
         # Now compute the median and filtered magnitude of each reference star
         #
         #############################################################################
+        print all_cats[:,:, mc[0]:mc[1]].shape
 
-        median_mags = bottleneck.nanmedian(all_cats[:,:, SXcolumn[col_name]], axis=0)
-        std_mags = bottleneck.nanstd(all_cats[:,:, SXcolumn[col_name]], axis=0)
-        numpy.savetxt("photcat_median_%d" % iteration, median_mags)
-        numpy.savetxt("photcat_std_%d" % iteration, std_mags)
+        median_mags = bottleneck.nanmedian(all_cats[:,:, mc[0]:mc[1]], axis=0)
+        std_mags = bottleneck.nanstd(all_cats[:,:, mc[0]:mc[1]], axis=0)
+        print "MED/STD:", median_mags.shape, std_mags.shape
+        if (output_debugfiles): numpy.savetxt("photcat_median_%d" % iteration, median_mags)
+        if (output_debugfiles): numpy.savetxt("photcat_std_%d" % iteration, std_mags)
 
-        numpy.savetxt("median_mags.input.%d" % (iteration), all_cats[:,:, SXcolumn[col_name]])
-        numpy.savetxt("median_mags.corr.%d" % (iteration), all_cats[:,:, SXcolumn[col_name]]-median_mags)
+        # numpy.savetxt("median_mags.input.%d" % (iteration), all_cats[:,:, SXcolumn[col_name]])
+        # numpy.savetxt("median_mags.corr.%d" % (iteration), all_cats[:,:, SXcolumn[col_name]]-median_mags[:,2])
 
         # all_cats[outlier, :] = numpy.NaN
 
-        # print all_cats[:,0, SXcolumn[col_name]]
+        # print all_cats[:,0, mc[0]:mc[1]]
         # print median_mags[0], std_mags[0]
 
         #
@@ -541,10 +561,10 @@ def differential_photometry(inputlist, source_coords,
                 dummy = numpy.append(dummy, numpy.ones((target_mjd.shape[0],1))*median_mags[s], axis=1)
                 dummy = numpy.append(dummy, numpy.ones((target_mjd.shape[0],1))*std_mags[s], axis=1)
 
-                numpy.savetxt("lightcurve_ref%03d.cat" % (s+1), dummy)
+                # numpy.savetxt("lightcurve_ref%03d.cat" % (s+1), dummy)
 
-        
-        median_corrected_mags = all_cats[:,:, SXcolumn[col_name]]-median_mags
+        median_corrected_mags = all_cats[:,:, mc[0]:mc[1]] - median_mags
+        if (output_debugfiles): numpy.savetxt("median_corrected_%d.ap2" % (iteration), median_corrected_mags[:,:,2])
 
         #
         # Now we have the differential magnitude correction for each individual star
@@ -552,26 +572,44 @@ def differential_photometry(inputlist, source_coords,
         # bulk of the other stars
         #
 
-        diffphot_correction = bottleneck.nanmedian(median_corrected_mags, axis=1)
-        
-        dp_corrected = (median_corrected_mags.T-diffphot_correction).T
+        diffphot_correction = bottleneck.nanmedian(median_corrected_mags, axis=1)\
+                                        .reshape((median_corrected_mags.shape[0], 1, median_corrected_mags.shape[2]))
+        if (output_debugfiles): numpy.savetxt("diffcorrection.%d" % (iteration), diffphot_correction[:,0,:])
+        print "diffphot_correction.shape = ",diffphot_correction.shape
+        print "all_mags.shape = ",all_mags.shape
 
-        numpy.savetxt("diffcorrection.%d" % (iteration), diffphot_correction)
-        numpy.savetxt("diffcorrected.%d" % (iteration), dp_corrected)
+        #diffphot_correction_3d = diffphot_correction
+        #    diffphot_correction.reshape((all_mags.shape[0], 1, all_mags.shape[2]))
+        #print "diffphot_correction_3d (pre-repeat)=",diffphot_correction_3d.shape
+        #diffphot_correction_3d = diffphot_correction_3d.repeat(all_mags.shape[1], axis=1)
+        #print "diffphot_correction_3d (post-repeat)=",diffphot_correction_3d.shape
+        #print "median_corrected_mags.shape=", median_corrected_mags.shape
+
+        dp_corrected = median_corrected_mags - diffphot_correction
+        # dp_corrected = (median_corrected_mags.T-diffphot_correction).T
+
+        for ap in range(dp_corrected.shape[2]):
+            if (output_debugfiles): numpy.savetxt("diffcorrected.%d.ap%d" % (iteration, ap), dp_corrected[:,:,ap])
         
         #
         # Now involve some magic to mask out all outliers
         #
-        dp_corr_std = bottleneck.nanstd(dp_corrected, axis=1)
-        numpy.savetxt("diffcorrection-std.%d" % (iteration), dp_corr_std)
+        dp_corr_std = bottleneck.nanstd(dp_corrected, axis=1)\
+                                .reshape((dp_corrected.shape[0],1,dp_corrected.shape[2]))
+        print "dp_corr_std.shape=",dp_corr_std.shape
+        if (output_debugfiles): numpy.savetxt("diffcorrection-std.%d" % (iteration), dp_corr_std[:,0,:])
         
         # Mask out all datapoints that exceed the standard deviation
-        outliers = numpy.fabs(dp_corrected) > 3*dp_corr_std.reshape(-1,1).repeat(dp_corrected.shape[1], axis=1)
+        # dp_corr_std_3d = dp_corr_std.reshape((all_mags.shape[0], 1, all_mags.shape[2])).repeat(all_mags.shape[1], axis=1)
+        # print dp_corr_std_3d.shape
+        outliers = numpy.fabs(dp_corrected) > 3*dp_corr_std
         
-        all_cats[:,:, SXcolumn[col_name]][outliers] = numpy.NaN
+        all_cats[:,:, mc[0]:mc[1]][outliers] = numpy.NaN
 
 
     print diffphot_correction
+
+    print  "\n"*5,"done with computing corrections","\n"*5
 
 #    return
 
@@ -635,39 +673,63 @@ def differential_photometry(inputlist, source_coords,
     target_corrected = target_source.copy()
 
     for i in range(target_corrected.shape[1]):
-        numpy.savetxt("target_source.prefixed.%d" % (i), target_corrected[:,i,:])
+        if (output_debugfiles): numpy.savetxt("target_source.prefixed.%d" % (i), target_corrected[:,i,:])
 
     # target_corrected[:, :, SXcolumn['mag_auto']] -= diffphot_correction
-    target_corrected[:, :, SXcolumn[col_name]] = \
-        (target_corrected[:, :, SXcolumn[col_name]].T-diffphot_correction).T
+    target_corrected[:, :, mc[0]:mc[1]] -= diffphot_correction
 
     # Also add the scatter of the diff.phot. correction to the 
     # photometric uncertainty of the source
 
-    mag_errors = target_corrected[:, :, SXcolumn['mag_err_4.0']]
-    mag_errors_2 = numpy.hypot(mag_errors.T, dp_corr_std)
-    target_corrected[:, :, SXcolumn['mag_err_4.0']] = mag_errors_2.T
+    print "\n"*5, "correcting uncertainties","\n"*2
+    mag_errors = target_corrected[:, :, mec[0]:mec[1]]
+    print mag_errors.shape, dp_corr_std.shape
+
+    mag_errors_2 = numpy.hypot(mag_errors, dp_corr_std)
+    target_corrected[:, :, mec[0]:mec[1]] = mag_errors_2
 
     for i in range(target_corrected.shape[1]):
-        numpy.savetxt("target_source.postfixed.%d" % (i), target_corrected[:,i,:])
+        if (output_debugfiles): numpy.savetxt("target_source.postfixed.%d" % (i), target_corrected[:,i,:])
 
 
     print target_corrected.shape
-#    return
+
+    #
+    # Write the outcome for each source to a text-file
+    # add a header to the top of each file
+    # also add MJD and some correction info to the output
+    #
+    output_file_line_labels = SXcolumn_descriptions
+    output_file_line_labels.append("MJD")
+    for i in range(len(SXapertures)):
+        output_file_line_labels.append("differential photometry correction, aperture size %.1f [mag]" % (SXapertures[i]))
+    for i in range(len(SXapertures)):
+        output_file_line_labels.append("scatter of differential photometry correction, aperture size %.1f [mag]" % (SXapertures[i]))
+    for i in range(target_corrected.shape[1]):
+
+        if (output_catalog == None):
+            filename = "target_source.postfixed.%d" % (i)
+        else:
+            filename = my_replace(output_catalog, name_tag, src_names[i])
+        print "putput catalog:", output_catalog, filename
+        filename = my_replace(filename, " ", "_")
+
+        fn = open(filename, "w")
+        for line in range(len(output_file_line_labels)):
+            print >>fn, "Line %02d: %s" % (line+1, output_file_line_labels[line])
+        _dum = target_corrected[:,i,:].copy()
+        print _dum.shape, target_mjd.shape, target_mjd.reshape((-1,1)).shape
+        _dum = numpy.append(_dum, target_mjd.reshape((-1,1))/24., axis=1)
+        _dum = numpy.append(_dum, diffphot_correction[:,0,:], axis=1)
+        _dum = numpy.append(_dum, dp_corr_std[:,0,:], axis=1)
+        numpy.savetxt(fn, _dum)
+        fn.close()
 
     #############################################################################
     #
     # Create some plots for the light curve before & after correction
     #
     #############################################################################
-
-    def my_replace(inp, key, insert):
-        out = ""+inp
-        while (out.find(key) >= 0):
-            begin_pos = out.find(key)
-            end_pos = begin_pos + len(key)
-            out = "%s%s%s" % (out[:begin_pos], insert, out[end_pos:])
-        return out
 
     print src_names
     for i_source in range(src_params.shape[0]):
@@ -691,10 +753,10 @@ def differential_photometry(inputlist, source_coords,
             if (not plot_title == None):
                 this_plot_title = plot_title
 
-                name_tag = "%name"
                 if (not src_names[i_source] == None):
                     print src_names[i_source] 
                     this_plot_title = my_replace(plot_title, name_tag, src_names[i_source])
+
                     # begin_pos = plot_title.find(name_tag)
                     # end_pos = begin_pos + len(name_tag)
                     # this_plot_title = "%s%s%s" % (plot_title[:begin_pos], src_names[i_source], plot_title[end_pos+1:])
@@ -740,8 +802,8 @@ def differential_photometry(inputlist, source_coords,
             # As bottom plot show correction amplitude
             #
             # Determine the plotting range
-            max_corr = numpy.nanmax(numpy.fabs(diffphot_correction)) * 1.35
-            ax_corr.plot(time, diffphot_correction, marker='o')
+            max_corr = numpy.nanmax(numpy.fabs(diffphot_correction[:,0,:])) * 1.35
+            ax_corr.plot(time, diffphot_correction[:, 0,:], marker='o')
             # ax_corr.set_ylim((-0.09,+0.09))
             ax_corr.set_ylim((-1*max_corr,+1*max_corr))
             ax_corr.axhline(y=0, linewidth=1, color='grey')
@@ -764,6 +826,7 @@ def differential_photometry(inputlist, source_coords,
                 fig.savefig(this_plot)
                 logger.info("Writing plot: %s"  % (this_plot))
         except:
+            podi_logging.log_exception()
             pass
 
     return
@@ -810,9 +873,12 @@ if __name__ == "__main__":
 
     reference_frame = cmdline_arg_set_or_default('-refframe', None)
 
+    output_catalog = cmdline_arg_set_or_default('-catout', None)
+
     data = differential_photometry(inputlist, source_coords=source_data,
                                    plot_title=title, plot_filename=plot_filename,
-                                   reference_star_frame=reference_frame
+                                   reference_star_frame=reference_frame,
+                                   output_catalog=output_catalog,
     )
 
     logger.info("Done, shutting down")
