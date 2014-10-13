@@ -117,6 +117,9 @@ def imarith(input_1, op, input_2, output):
             img1.data = rebin_image(img1.data, rebin_fac)
 
     # Now all the work is done, all final data is stored in img2, write results to new file                    
+    if (output == None):
+        return hdu_1
+
     stdout_write(" writing output ...")
     clobberfile(output)
     hdu_1.writeto(output)
