@@ -269,6 +269,7 @@ import podi_nonlinearity
 import podi_logging
 import podi_cosmicrays
 import podi_illumcorr
+import podi_almanach
 
 from astLib import astWCS
 
@@ -1786,6 +1787,7 @@ def collectcells(input, outputfile,
         stdout_write("After revision, output filename now is %s\n" % (outputfile))
 
     if (os.path.isfile(outputfile) and not options['clobber']):
+        logger.info("File %s already exists, skipping!" % (outputfile))
         print "#####################################################"
         print "#"
         print "# File %s already exists, skipping!" % (outputfile)
@@ -2996,6 +2998,12 @@ def collectcells(input, outputfile,
                                                                additional_reduction_files)
     assoc_table = create_association_table(master_reduction_files_used)
     ota_list.append(assoc_table)
+
+
+    #
+    # Add some almanach data to the current frame
+    #
+    podi_almanach.add_ephem_data_to_header(ota_list[0].header, None)
 
 
     #print "Waiting for a bit"
