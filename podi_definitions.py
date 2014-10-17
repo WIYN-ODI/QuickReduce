@@ -199,6 +199,7 @@ otas_to_normalize_ff = {
     "windowGlass": all_otas,
     "WRC3": central_2x2,
     "Harris_B": central_2x2,
+    "KPNO_815_v2": central_2x2,
     }	
 
 #
