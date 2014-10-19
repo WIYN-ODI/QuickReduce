@@ -46,7 +46,7 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
     filter = hdulist[0].header['FILTER']
     # print "This is filter",filter    # print "Using binning %d,%d" % (binning_x, binning_y)
 
-    if (filter in otas_to_normalize):
+    if (filter in otas_to_normalize_ff):
         list_of_otas_to_normalize = otas_to_normalize_ff[filter]
     else:
         list_of_otas_to_normalize = central_2x2
