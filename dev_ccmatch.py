@@ -1667,8 +1667,18 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     # compute the center of the field
     #
-    center_ra = hdulist[1].header['CRVAL1']
-    center_dec = hdulist[1].header['CRVAL2']
+    center_ra = None
+    center_dec = None
+    for ext in hdulist:
+        try:
+            center_ra = ext.header['CRVAL1']
+            center_dec = ext.header['CRVAL2']
+            break
+        except:
+            pass
+    if (center_ra == None or center_dec == None):
+        logger.info("Unable to find a field center")
+        return return_value
     logger.debug("field center at %f   %f" % (center_ra, center_dec))
 
     # 
@@ -1767,9 +1777,6 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     # Find 1st order best guess
     #
-    center_ra = hdulist[1].header['CRVAL1']
-    center_dec = hdulist[1].header['CRVAL2']
-
     use_only_isolated_reference_stars = False
 
     # max_pointing_error_list = numpy.array([numpy.max(numpy.array(max_pointing_error_list))])
