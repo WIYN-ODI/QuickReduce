@@ -117,7 +117,8 @@ def count_matches(src_cat, ref_cat,
     # and hopefully speed things up
     #
     chunksize = 50
-    n_chunks = int(math.ceil(src_cat.shape[0] / chunksize))
+    n_chunks = int(math.ceil(float(src_cat.shape[0]) / float(chunksize)))
+    logger.debug("splitting reference catalog into %d chunks" % (n_chunks))
 
     peak_position = []
     all_significance = []
