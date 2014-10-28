@@ -17,7 +17,6 @@ import scipy.stats
 import math
 import scipy.spatial
 import itertools
-import cStringIO
 
 from podi_definitions import *
 from podi_commandline import *
@@ -688,10 +687,6 @@ def find_best_guess(src_cat, ref_cat,
 
             all_results[cur_angle,1:3] = offset
             all_results[cur_angle,3] = n_matched
-
-        s = cStringIO.StringIO()
-        numpy.savetxt(s, all_results, "%10.3f %12.6f %12.6f % 8d")
-        logger.debug("Combined Results from ccmatch:\n     angle          dRA         dDec    count\n%s" % (s.getvalue()))
 
         # Join all processes to make sure they terminate alright 
         # without leaving zombie processes behind.
