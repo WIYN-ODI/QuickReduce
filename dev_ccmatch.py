@@ -724,9 +724,27 @@ def find_best_guess(src_cat, ref_cat,
             all_results[cur_angle,1:3] = offset
             all_results[cur_angle,3] = n_matches
 
-    logger.debug(all_results)
     if (create_debug_files): numpy.savetxt("ccmatch.allresults.%d" % (pointing_error), all_results)
 
+    def format_results_histogram(all_results):
+        nmax = numpy.max(all_results[:,3])
+        if (nmax < 10): nmax=10
+        rel = all_results[:,3]/nmax
+        rel[rel<0]=0
+        all = [
+            "% 49d % 100d" % (0, nmax),
+            "     angle    dRA [deg]   dDec [deg]   matches  |"+"-"*100+"|",
+        ]
+        for i in range(all_results.shape[0]):
+            a = "%10.3f %12.6f %12.6f  % 8d  |%-100s|" % (
+                all_results[i,0], 
+                all_results[i,1], 
+                all_results[i,2],
+                all_results[i,3], "*"*int(rel[i]*100))
+            all.append(a)
+        all.append(" "*48+"|"+"-"*100+"|")
+        return "\n".join(all)
+    logger.debug("Combined Results from ccmatch:\n\n%s\n" % (format_results_histogram(all_results)))
 
     #
     # Now find the best solution (the one with the highest matched star density)
