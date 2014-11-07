@@ -1719,6 +1719,8 @@ def collectcells(input, outputfile,
         stdout_write("Something is wrong here, can't find/open any of the files...")
         return -1
 
+    obsid = hdulist[0].header['OBSID']
+
     if (outputfile.find("%") >= 0):
         # The output filename contains special tags that should 
         # be replaced by values from the file header
@@ -1745,7 +1747,6 @@ def collectcells(input, outputfile,
             elif (outputfile[start:start+6] == "%OBSID"):
                 outputfile = outputfile[:start] + header['OBSID'] + outputfile[start+6:]
             elif (outputfile[start:start+7] == "%OBSSEQ"):
-                obsid = header['OBSID']
                 dot_position = obsid.find(".")
                 obs_sequence = obsid[:dot_position]
                 outputfile = outputfile[:start] + obs_sequence + outputfile[start+7:]
@@ -1899,6 +1900,8 @@ def collectcells(input, outputfile,
     logger.debug("list_of_otas_being_reduced=\n%s" % (str(list_of_otas_being_reduced)))
 
     logger.info("Performing instrumental detrending")
+    podi_logging.ppa_update_progress(obsid, 0, "Starting work", options)
+
     # Create all processes to handle the actual reduction and combination
     #print "Creating",number_cpus,"worker processes"
     if ('profile' in options or number_cpus == 0):
@@ -2033,6 +2036,8 @@ def collectcells(input, outputfile,
             return
 
         logger.debug("Received intermediate results from OTA-ID %02d" % (ota_id))
+        podi_logging.ppa_update_progress(obsid, int(50.*i/len(list_of_otas_being_reduced)), "Reducing", options)
+
         # Mark this ota as not fully complete. This is important later on when
         # we report intermediate results back for completion
         intermediate_results_sent[ota_id] = False
@@ -2326,6 +2331,7 @@ def collectcells(input, outputfile,
             # print "techdata for ota",ota_id,"\n",data_products['tech-header']
 
 
+    podi_logging.ppa_update_progress(obsid, 60, "Detrending done, starting calibration", options)
 
     #
     # Update the global gain variables
@@ -2616,6 +2622,8 @@ def collectcells(input, outputfile,
                                                    options=options,
                                                    also_plot_singleOTAs=options['otalevelplots'],
                                                    title_info=title_info)
+
+    podi_logging.ppa_update_progress(obsid, 70, "Astrometric calibration complete", options)
 
     #
     # Add some default photometric calibration keywords
@@ -3017,6 +3025,8 @@ def collectcells(input, outputfile,
     hdulist.verify()
 
     #print "hdulist=",hdulist
+
+    podi_logging.ppa_update_progress(obsid, 80, "Reduction and calibration complete", options)
 
     if (not batchmode):
         logger.debug("Complete, writing output file %s" % (outputfile))

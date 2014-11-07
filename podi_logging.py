@@ -105,6 +105,24 @@ def log_master_setup():
 
 
 
+PPA_PROGRESS_LEVEL = 19
+
+def ppa_update_progress(obsid, progress, message, options):
+
+    logger = logging.getLogger("PPAUpdate(%s)" % obsid)
+
+    jobid = int(cmdline_arg_set_or_default("-jobid", 0))
+
+    msg = "<Request><JobID>%(job_id)s</JobID><LogicalID>%(obsid)s</LogicalID><Status>RUNNING:%(progress)02d</Status><Note>%(note)s</Note></Request>" % {
+        "job_id": jobid,
+        "obsid": obsid,
+        "progress": progress,
+        "note": message,
+    }
+
+    logger.log(PPA_PROGRESS_LEVEL, msg) 
+
+    return
 
 
 ################################################################################
@@ -300,7 +318,20 @@ def log_master(queue, options):
                 #print "handling at debug level", record.msg
                 debug_logger.handle(record)
 
-            if ((record.levelno > logging.DEBUG) and
+            if (record.levelno == PPA_PROGRESS_LEVEL): # and enable_pika):
+                print "\n"*10, "sending update to PPA:\n"+str(record.msg),"\n"*5
+                # This message is sent via the update_ppa_progress command
+                try:
+                    channel.basic_publish(
+                        exchange='',
+                        routing_key=podi_pikasetup.jobstatus_queue,
+                        properties=pika.BasicProperties(delivery_mode = 2),#persistent                                                           
+                        body=str(record.msg)
+                    )
+                    # pass
+                except:
+                    pass
+            elif ((record.levelno > logging.DEBUG) and
                 (record.levelno <= logging.INFO) ):
                 info.handle(record)
                 #print "handling at info level"
