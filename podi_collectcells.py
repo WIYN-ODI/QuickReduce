@@ -2036,7 +2036,7 @@ def collectcells(input, outputfile,
             return
 
         logger.debug("Received intermediate results from OTA-ID %02d" % (ota_id))
-        podi_logging.ppa_update_progress(obsid, int(50.*i/len(list_of_otas_being_reduced)), "Reducing", options)
+        podi_logging.ppa_update_progress(obsid, int(50.*(i+1)/len(list_of_otas_being_reduced)), "Reducing", options)
 
         # Mark this ota as not fully complete. This is important later on when
         # we report intermediate results back for completion
