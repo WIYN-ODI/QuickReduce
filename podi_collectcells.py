@@ -1900,7 +1900,7 @@ def collectcells(input, outputfile,
     logger.debug("list_of_otas_being_reduced=\n%s" % (str(list_of_otas_being_reduced)))
 
     logger.info("Performing instrumental detrending")
-    podi_logging.ppa_update_progress(obsid, 0, "Starting work", options)
+    podi_logging.ppa_update_progress(0, "Starting work")
 
     # Create all processes to handle the actual reduction and combination
     #print "Creating",number_cpus,"worker processes"
@@ -2036,7 +2036,7 @@ def collectcells(input, outputfile,
             return
 
         logger.debug("Received intermediate results from OTA-ID %02d" % (ota_id))
-        podi_logging.ppa_update_progress(obsid, int(50.*(i+1)/len(list_of_otas_being_reduced)), "Reducing", options)
+        podi_logging.ppa_update_progress(int(50.*(i+1)/len(list_of_otas_being_reduced)), "Reducing")
 
         # Mark this ota as not fully complete. This is important later on when
         # we report intermediate results back for completion
@@ -2331,7 +2331,7 @@ def collectcells(input, outputfile,
             # print "techdata for ota",ota_id,"\n",data_products['tech-header']
 
 
-    podi_logging.ppa_update_progress(obsid, 60, "Detrending done, starting calibration", options)
+    podi_logging.ppa_update_progress(60, "Detrending done, starting calibration")
 
     #
     # Update the global gain variables
@@ -2623,7 +2623,7 @@ def collectcells(input, outputfile,
                                                    also_plot_singleOTAs=options['otalevelplots'],
                                                    title_info=title_info)
 
-    podi_logging.ppa_update_progress(obsid, 70, "Astrometric calibration complete", options)
+    podi_logging.ppa_update_progress(70, "Astrometric calibration complete")
 
     #
     # Add some default photometric calibration keywords
@@ -3026,7 +3026,7 @@ def collectcells(input, outputfile,
 
     #print "hdulist=",hdulist
 
-    podi_logging.ppa_update_progress(obsid, 80, "Reduction and calibration complete", options)
+    podi_logging.ppa_update_progress(80, "Reduction and calibration complete")
 
     if (not batchmode):
         logger.debug("Complete, writing output file %s" % (outputfile))

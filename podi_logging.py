@@ -107,15 +107,16 @@ def log_master_setup():
 
 PPA_PROGRESS_LEVEL = 19
 
-def ppa_update_progress(obsid, progress, message, options):
-
-    logger = logging.getLogger("PPAUpdate(%s)" % obsid)
+def ppa_update_progress(progress, message):
 
     jobid = int(cmdline_arg_set_or_default("-jobid", 0))
+    logical_id = os.getenv("LOGICAL_ID")
+    
+    logger = logging.getLogger("PPAUpdate(%s)" % logical_id)
 
-    msg = "<Request><JobID>%(job_id)s</JobID><LogicalID>%(obsid)s</LogicalID><Status>RUNNING:%(progress)02d</Status><Note>%(note)s</Note></Request>" % {
+    msg = "<Request><JobID>%(job_id)s</JobID><LogicalID>%(logical_id)s</LogicalID><Status>RUNNING:%(progress)02d</Status><Note>%(note)s</Note></Request>" % {
         "job_id": jobid,
-        "obsid": obsid,
+        "logical_id": logical_id,
         "progress": progress,
         "note": message,
     }
@@ -279,13 +280,21 @@ def log_master(queue, options):
         debug_logger.debug("Trying to establish PIKA connection")
         import pika
         import podi_pikasetup
-        credentials = pika.PlainCredentials(podi_pikasetup.user, podi_pikasetup.password)
-        connection = pika.BlockingConnection(
-            pika.ConnectionParameters( 
-                credentials=credentials, 
-                host=podi_pikasetup.host, 
-                virtual_host=podi_pikasetup.vhost)
-        )
+
+        amqp_uri = os.getenv('AMQP_URI')
+        if (not amqp_uri == None):
+            debug_logger.debug("Using credentials from AMQP_URI")
+            params = pika.connection.URLParameters(amqp_uri) 
+            connection = pika.BlockingConnection(params) 
+        else:
+            debug_logger.debug("Using credentials from pika_setup file")
+            credentials = pika.PlainCredentials(podi_pikasetup.user, podi_pikasetup.password)
+            connection = pika.BlockingConnection(
+                pika.ConnectionParameters( 
+                    credentials=credentials, 
+                    host=podi_pikasetup.host, 
+                    virtual_host=podi_pikasetup.vhost)
+            )
         channel = connection.channel()
         channel.queue_declare(queue=podi_pikasetup.jobstatus_queue, durable=True)
 
@@ -319,7 +328,7 @@ def log_master(queue, options):
                 debug_logger.handle(record)
 
             if (record.levelno == PPA_PROGRESS_LEVEL): # and enable_pika):
-                print "\n"*10, "sending update to PPA:\n"+str(record.msg),"\n"*5
+                # print "\n"*10, "sending update to PPA:\n"+str(record.msg),"\n"*5
                 # This message is sent via the update_ppa_progress command
                 try:
                     channel.basic_publish(
