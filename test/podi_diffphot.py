@@ -134,7 +134,8 @@ name_tag = "%name"
 def differential_photometry(inputlist, source_coords, 
                             plot_title=None, plot_filename=None,
                             reference_star_frame=None,
-                            output_catalog=None):
+                            output_catalog=None,
+                            skipotas=[]):
 
     logger = logging.getLogger("DiffPhot")
 
@@ -232,11 +233,24 @@ def differential_photometry(inputlist, source_coords,
                 continue
             cat_data.dump(dumpfile)
 
+        
         # Correct for the absolute zeropoint
         magzero = 25.
         hdu = astropy.io.fits.open(fitsfile)
         magzero = hdu[0].header['MAGZERO']
         magzero = hdu[0].header['PHOTZP_X']
+
+        # # Translate all extension numbers to proper OTAs
+        # extensions = set(cat_data[:, SXcolumn['ota']])
+        # for i in extensions:
+        #     ota = hdu[i].header['OTA']
+        #     cat_data[:, SXcolumn['ota']][cat_data[:, SXcolumn['ota']] == i] = ota
+
+        # # Now eliminate all sources in OTAs marked for omission
+        # if (not skipotas == []):
+        #     for ota in skipotas:
+        #         to_skip = cat_data[:, SXcolumn['ota']] == ota
+        #         cat_data = cat_data[~to_skip]
 
         cat_data[:, SXcolumn['mag_aper_2.0']:SXcolumn['mag_aper_12.0']+1] += (magzero - 25.0)
 
@@ -851,6 +865,14 @@ if __name__ == "__main__":
             coord_end = i
             break
 
+    skipota = []
+    _skipota = cmdline_arg_set_or_default("-skipota", None)
+    if (not _skipota == None):
+        items = _skipota.split(",")
+        for i in items:
+            skipota.append(int(i))
+    logger.info("Excluding all sources from these OTAs: %s" % (
+        ", ".join(skipota)))
     source_data = clean_cmdline[:coord_end]
     inputlist = clean_cmdline[coord_end+1:]
 
@@ -879,6 +901,7 @@ if __name__ == "__main__":
                                    plot_title=title, plot_filename=plot_filename,
                                    reference_star_frame=reference_frame,
                                    output_catalog=output_catalog,
+                                   skipotas=skipota,
     )
 
     logger.info("Done, shutting down")
