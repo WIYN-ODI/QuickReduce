@@ -30,10 +30,11 @@ import bottleneck
 import matplotlib.pyplot
 import multiprocessing
 import copy
+import podi_ephemerides
 
 import podi_sitesetup as sitesetup
 
-output_debugfiles = False
+output_debugfiles = True
 
 def parallel_sourceextractor(queue, dummy):
 
@@ -113,6 +114,257 @@ def make_catalogs(inputlist):
     return
 
 
+def sextract_and_load(jobqueue, resultqueue, skipotas, cos_declination):
+
+    logger = logging.getLogger("ParSEx")
+
+    while (True):
+
+        # Check if we received the termination signal
+        cmd = jobqueue.get()
+        logger.debug("Command received: %s"  % (str(cmd)))
+        if (cmd == None):
+            logger.debug("Received shutdown command")
+            jobqueue.task_done()
+            break
+
+        # Read the FITS filename to work on
+        fitsfile = cmd
+
+        # If the file does not exist there's nothing to do here
+        if (not os.path.isfile(fitsfile)):
+            # Don't do anything if the input file does not exist
+            logger.debug("File %s does not exist"  % (fitsfile))
+            resultqueue.put(None)
+            jobqueue.task_done()
+            continue
+
+        # Create the catalog filename
+        catfile = "%s.cat" % (fitsfile[:-5])
+
+        # If the catalog file does not yet exist, 
+        # run SourceExtractor and create it
+        if (not os.path.isfile(catfile)):
+
+            logger.debug("Ordering source catalog for %s" % (fitsfile))
+            sex_config_file = "%s/.config/diffphot.sex" % (sitesetup.exec_dir)
+            parameters_file = "%s/.config/diffphot.sexparam" % (sitesetup.exec_dir)
+
+            weightfile = fitsfile[:-5]+".weight.fits"
+            weightoption = ""
+            if (os.path.isfile(weightfile)):
+                weightoption = "-WEIGHT_IMAGE %s -WEIGHT_TYPE MAP_WEIGHT" % (weightfile)
+            sexcmd = "%(sex)s -c %(conf)s -PARAMETERS_NAME %(param)s -CATALOG_NAME %(cat)s %(weight)s %(fits)s" % {
+                "sex": sitesetup.sextractor, 
+                "conf": sex_config_file, 
+                "param": parameters_file, 
+                "cat": catfile, 
+                "weight": weightoption,
+                "fits": fitsfile,
+            }
+        
+            logger.info("Creating source catalog for %s" % (fitsfile))
+            start_time = time.time()
+            try:
+                ret = subprocess.Popen(sexcmd.split(), 
+                                       stdout=subprocess.PIPE, 
+                                       stderr=subprocess.PIPE)
+                (sex_stdout, sex_stderr) = ret.communicate()
+                #os.system(sexcmd)
+                if (ret.returncode != 0):
+                    logger.warning("Sextractor might have a problem, check the log")
+                    logger.debug("Stdout=\n"+sex_stdout)
+                    logger.debug("Stderr=\n"+sex_stderr)
+            except OSError as e:
+                podi_logging.log_exception()
+                print >>sys.stderr, "Execution failed:", e
+            end_time = time.time()
+            logger.debug("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
+        else:
+            logger.debug("No sextractor necessary!")
+
+        # Now we should have the catalog file, but better double check to be sure
+        if (not os.path.isfile(catfile)):
+            logger.debug("Catalog file %s does not exist"  % (catfile))
+            resultqueue.put(None)
+            jobqueue.task_done()
+            continue
+
+        # Read the catalog file
+        phot_ZP = 25.
+
+        logger.debug("Reading source catalog (%s)" % (catfile))
+        try:
+            cat_data = numpy.loadtxt(catfile)
+        except:
+            logger.error("Unable to load catalog file %s" % (catfile))
+            resultqueue.put(None)
+            jobqueue.task_done()
+            continue
+
+        logger.debug("Read %d sources from %s" % (cat_data.shape[0], catfile))
+
+        # Correct for the absolute zeropoint
+        hdulist = astropy.io.fits.open(fitsfile)
+        magzero = 25.
+        if ('MAGZERO'  in hdulist[0].header): magzero = hdulist[0].header['MAGZERO']
+        if ('PHOTZP_X' in hdulist[0].header): magzero = hdulist[0].header['PHOTZP_X']
+
+        #
+        # Skip sources in certain extensions, if requested
+        #
+        if (len(skipotas) > 0):
+            logger.debug("Eliminating all sources from OTAs %s" % ",".join(["%02d" % i for i in skipotas]))
+            # Translate all extension numbers to proper OTAs
+            extensions = set(numpy.array(cat_data[:, SXcolumn['ota']], dtype=numpy.int))
+            print extensions
+            for i in extensions:
+                ota = hdulist[i].header['OTA']
+                cat_data[:, SXcolumn['ota']][cat_data[:, SXcolumn['ota']] == i] = ota
+
+            # Now eliminate all sources in OTAs marked for omission
+            if (not skipotas == []):
+                for ota in skipotas:
+                    to_skip = cat_data[:, SXcolumn['ota']] == ota
+                    cat_data = cat_data[~to_skip]
+
+        # Apply the photometric zeropoint to all apertures
+        cat_data[:, SXcolumn['mag_aper_2.0']:SXcolumn['mag_aper_12.0']+1] += magzero
+
+        # Set all invalid magnitudes to NaN 
+        invalid = (cat_data[:, SXcolumn['mag_aper_2.0']:SXcolumn['mag_aper_12.0']+1] > 90) | \
+                  (cat_data[:, SXcolumn['mag_err_2.0' ]:SXcolumn['mag_err_12.0' ]+1] > 10)
+        cat_data[:, SXcolumn['mag_aper_2.0']:SXcolumn['mag_aper_12.0']+1][invalid] = numpy.NaN
+
+        # Account for cos(dec) distortion
+        cat_data[:, SXcolumn['ra']] *= cos_declination
+
+        if ("MJD-STRT" in hdulist[0].header and 
+            "MJD-END" in hdulist[0].header):
+            mjd_middle = 0.5* 24. * (hdulist[0].header['MJD-STRT'] + hdulist[0].header['MJD-END'])
+        else:
+            obs_mjd = hdulist[0].header['MJD-OBS']
+            exptime = hdulist[0].header['EXPTIME']
+            mjd_middle = (obs_mjd * 24.) + (exptime / 3600.)
+
+        logger.debug("MJD (%s) = %f" % (fitsfile,mjd_middle))
+
+        # print "XXX"
+        # # Do some preparing of the catalog
+        # good_photometry = cat_data[:, aperture_column] < 0
+        # cat_data = cat_data[good_photometry]
+
+        # # Apply photometric zeropoint to all magnitudes
+        # for key in SXcolumn_names:
+        #     if (key.startswith("mag_aper")):
+        #         cat_data[:, SXcolumn[key]] += phot_ZP
+
+        # Post all results to the resultqueue
+        results = (fitsfile, 
+                   cat_data,
+                   mjd_middle)
+        resultqueue.put(results)
+
+        # catalog_filelist.append(catalog_filename)
+        # catalog.append(cat_data)
+        # mjd_hours.append(mjd_middle)
+        # source_id.append(numpy.arange(cat_data.shape[0]))
+        # filters.append(filter_name)
+
+        # print catalog_filename, cat_data.shape
+
+        # logger.info("All catalog files created and read...")
+        # logger.debug("Cos(dec) correction = %.10f" % (cos_declination))
+
+        logger.info("Created and read source catalog for %s" % (fitsfile))
+        jobqueue.task_done()
+
+
+def create_load_catalogs(filelist, skipotas=[]):
+
+    # Derive the cos_declination correction factor from the reference frame
+    try:
+        ref_fits = filelist[-1]
+        ref_hdu = pyfits.open(ref_fits)
+        for ext in ref_hdu:
+            if ('CRVAL2' in ext.header):
+                cos_declination = math.cos(math.radians(ext.header['CRVAL2']))
+                break
+    except:
+        cos_declination = 1.0
+
+    # First of all make sure we only extract sources from each file once, 
+    # even if a file might be given multiple times
+    unique_filelist = set(filelist)
+
+    # Create a queue to hold all jobs
+    jobqueue = multiprocessing.JoinableQueue()
+    resultqueue = multiprocessing.Queue()
+    jobcount = 0
+
+    # Deal out all files
+    for fn in unique_filelist:
+        jobqueue.put((fn))
+        jobcount += 1
+
+    # Now start a number of processes to do the work
+    worker_args = (jobqueue, resultqueue, skipotas, cos_declination)
+    processes = []
+    for i in range(sitesetup.number_cpus):
+        p = multiprocessing.Process(target=sextract_and_load, args=worker_args)
+        p.start()
+        processes.append(p)
+        # also add a quit-command for each process
+        jobqueue.put(None)
+    
+    # store all results in a dictionary for now
+    all_results = {}
+    
+    # Receive the results
+    for i in range(jobcount):
+        res = resultqueue.get()
+        # print "XXX = ", res
+        if (not res == None):
+            fitsfile, cat_data, mjd_hours = res
+            all_results[fitsfile] = (cat_data, mjd_hours)
+
+    # Wait until all work is complete
+    jobqueue.join()
+
+    # Now sort all data by time, excluding the reference frame 
+    # (which is the last fitsfile in the input filelist)
+    raw_catalogs = [None] * len(filelist)
+    raw_mjds = [numpy.NaN] * len(filelist)
+    for idx, fitsfile in enumerate(filelist):
+        if (fitsfile in all_results):
+            (cat, mjd) = all_results[fitsfile]
+            raw_catalogs[idx] = cat
+            raw_mjds[idx] = mjd
+
+    # convert to numpy so we can sort 
+    np_mjds = numpy.array(raw_mjds)
+    # exclude the last MJD value - this is the reference frame
+    si = numpy.argsort(np_mjds[:-1])
+
+    # In this sorted MJD list, all invalid MJDs are at the end
+    clean_fitsfile = []
+    clean_catalogs = []
+    clean_mjds = []
+    for i in range(si.shape[0]):
+        if (not numpy.isfinite(np_mjds[si[i]])):
+            # only nans i.e. invalid files left
+            break
+        clean_fitsfile.append(filelist[si[i]])
+        clean_catalogs.append(raw_catalogs[si[i]])
+        clean_mjds.append(raw_mjds[si[i]])
+
+    # Lastly, extract and separate the data for the reference file
+    ref_catalog = raw_catalogs[-1]
+
+    logger.info("all catalogs created and read, moving on!")
+    return clean_fitsfile, clean_catalogs, clean_mjds, ref_catalog, cos_declination
+
+
 
 def my_replace(inp, key, insert):
     out = ""+inp
@@ -139,45 +391,45 @@ def differential_photometry(inputlist, source_coords,
 
     logger = logging.getLogger("DiffPhot")
 
-    src_params = []
-    src_names = []
-    # print source_coords
-    for src_coord in source_coords:
-        # interpret source_coords
-        try:
-            sc_items = src_coord.split(",")
-            src_ra = float(sc_items[0])
-            src_dec = float(sc_items[1])
+    # src_params = []
+    # src_names = []
+    # # print source_coords
+    # for src_coord in source_coords:
+    #     # interpret source_coords
+    #     try:
+    #         sc_items = src_coord.split(",")
+    #         src_ra = float(sc_items[0])
+    #         src_dec = float(sc_items[1])
 
-            src_dra, src_ddec, src_mjd = 0., 0., 0.
+    #         src_dra, src_ddec, src_mjd = 0., 0., 0.
 
-            src_name = None
-            if (len(sc_items) >= 5):
-                src_dra = float(sc_items[2])
-                src_ddec = float(sc_items[3])
-                if (os.path.isfile(sc_items[4])):
-                    hdu = astropy.io.fits.open(sc_items[4])
-                    src_mjd = hdu[0].header['MJD-OBS']
-                else:
-                    src_mjd = float(sc_items[4])
-            if (len(sc_items) >= 6):
-                src_name = sc_items[5].strip()
-            elif (len(sc_items) == 3):
-                src_name = sc_items[2].strip()
+    #         src_name = None
+    #         if (len(sc_items) >= 5):
+    #             src_dra = float(sc_items[2])
+    #             src_ddec = float(sc_items[3])
+    #             if (os.path.isfile(sc_items[4])):
+    #                 hdu = astropy.io.fits.open(sc_items[4])
+    #                 src_mjd = hdu[0].header['MJD-OBS']
+    #             else:
+    #                 src_mjd = float(sc_items[4])
+    #         if (len(sc_items) >= 6):
+    #             src_name = sc_items[5].strip()
+    #         elif (len(sc_items) == 3):
+    #             src_name = sc_items[2].strip()
 
-            if (not src_name == None):
-                logger.info("Found source identifier: %s" % (src_name))
+    #         if (not src_name == None):
+    #             logger.info("Found source identifier: %s" % (src_name))
 
-        except:
-            logger.error("ERROR: Problem with interpreting coordinate string: %s" % (src_coord))
-            logger.warning("Ignoring this source")
-            continue
-            pass
+    #     except:
+    #         logger.error("ERROR: Problem with interpreting coordinate string: %s" % (src_coord))
+    #         logger.warning("Ignoring this source")
+    #         continue
+    #         pass
 
-        src_params.append( [src_ra, src_dec, src_mjd, src_dra, src_ddec] )
-        src_names.append(src_name)
+    #     src_params.append( [src_ra, src_dec, src_mjd, src_dra, src_ddec] )
+    #     src_names.append(src_name)
 
-    src_params = numpy.array(src_params)
+    # src_params = numpy.array(src_params)
     # print "\n"*10,src_names,"\n"*10
 
     # print "source coordinate data:"
@@ -186,126 +438,261 @@ def differential_photometry(inputlist, source_coords,
     # print src_ra, src_dec, src_dra, src_ddec, src_mjd
 
     # Internally, all coordinates are corrected for cos(dec)
-    cos_declination = math.cos(math.radians(src_dec))
-    src_params[:,RA] *= cos_declination
+    #cos_declination = math.cos(math.radians(src_dec))
+    #src_params[:,RA] *= cos_declination
     # src_ra *= cos_declination 
 
+    #
     # Make sure to add the reference frame to the list of frames for 
     # which we need source catalogs
+    #
     logger.info("Using reference frame: %s" % (reference_star_frame))
+    full_filelist = copy.copy(inputlist)
     if (not reference_star_frame == None and
         not reference_star_frame in inputlist):
-        full_filelist = copy.copy(inputlist)
         full_filelist.append(reference_star_frame)
-        make_catalogs(full_filelist)
     else:
-        make_catalogs(inputlist)
+        full_filelist.append(full_filelist[0])
+
+#     #     make_catalogs(full_filelist)
+#     # else:
+#     #     make_catalogs(inputlist)
     
-#    return
+# #    return
 
-    catalog_filelist = []
-    catalog = []
-    mjd_hours = []
-    source_id = []
-    filters = []
+#     catalog_filelist = []
+#     catalog = []
+#     mjd_hours = []
+#     source_id = []
+#     filters = []
 
-    phot_ZP = 25.
+
+    #
+    # Create and load all source catalogs
+    #
+    cat_filelist, catalog, _mjd_hours, ref_stars, cos_declination = create_load_catalogs(full_filelist)
+    mjd_hours = numpy.array(_mjd_hours)
+    # print mjd_hours, mjd_hours.shape
+
+    #
+    # Now compute for all MJDs encountered in the dataset the position 
+    # of each of the sources
+    #
+    all_target_positions, all_target_names = [], []
+    for src_coord in source_coords:
+
+        target_positions = numpy.zeros((mjd_hours.shape[0], 2))
+        # print target_positions.shape
+
+        # interpret source_coords
+        sc_items = src_coord.split(",")
+
+        # trim off the name
+        target_name = sc_items[-1]
+        sc_items = sc_items[:-1]
+
+        #
+        # Need at least two values
+        #
+        if (len(sc_items) < 2):
+            # This is not allowed
+            logger.error("Invalid source position definition: %s" % (src_coords))
+            continue
+
+        #
+        # If the string starts with NASA, this is a ephemerides query
+        # For direct ephemerides, we need NASA,object name
+        #
+        elif (sc_items[0] == 'NASA'):
+            object_name = sc_items[1]
+            ephem = podi_ephemerides.get_ephemerides_for_object_from_filelist(
+                object_name = object_name,
+                filelist = full_filelist[:-1],
+                verbose=False,
+                session_log_file="NASA_horizons__%s.log" % (object_name),
+            )
+
+            ephem_data = ephem['data']
+            ra_from_mjd = scipy.interpolate.interp1d( ephem_data[:,0], ephem_data[:,1], kind='linear' )
+            dec_from_mjd = scipy.interpolate.interp1d( ephem_data[:,0], ephem_data[:,2], kind='linear' )
+
+            target_positions[:,0] = ra_from_mjd(mjd_hours/24.)
+            target_positions[:,1] = dec_from_mjd(mjd_hours/24.)
+
+            if (len(sc_items) == 5):
+                ref_ra = float(sc_items[2])
+                ref_dec = float(sc_items[3])
+                if (os.path.isfile(sc_items[4])):
+                    hdulist = pyfits.open(sc_items[4])
+                    ref_mjd = hdulist[0].header['MJD-MID']
+                else:
+                    try:
+                        ref_mjd = float(sc_items[4])
+                    except:
+                        logger.error("Unable to find reference MJD date (%s)" % (src_coord))
+                        continue
+
+                target_positions[:,0] = target_positions[:,0] - ra_from_mjd(ref_mjd) + ref_ra
+                target_positions[:,1] = target_positions[:,1] - dec_from_mjd(ref_mjd) + ref_dec
+            pass
+
+        #
+        # Accept simple Ra/Dec coordinates as well. This is used for stars
+        #
+        elif (len(sc_items) == 2):
+            target_positions[:,0] = float(sc_items[0])
+            target_positions[:,1] = float(sc_items[1])
+            pass
+
+        #
+        # Old-style mode, ra,dec,dra,ddecmjd_ref
+        #
+        elif (len(sc_items) == 5):
+            ref_ra = float(sc_items[0])
+            ref_dec = float(sc_items[1])
+            dra = float(sc_items[2])
+            ddec = float(sc_items[3])
+            if (os.path.isfile(sc_items[4])):
+                hdulist = pyfits.open(sc_items[4])
+                ref_mjd = hdulist[0].header['MJD-MID']
+            else:
+                try:
+                    ref_mjd = float(sc_items[4])
+                except:
+                    logger.error("Unable to find reference MJD date (%s)" % (src_coord))
+                    continue
+            target_positions[:,1] = ref_dec + ddec * 24. /3600. * (mjd_hours/24. - ref_mjd)
+            target_positions[:,0] = ref_ra  + dra  * 24. /3600. * (mjd_hours/24. - ref_mjd) / numpy.cos(numpy.radians(target_positions[:,1]))
+            pass
+
+
+        # numpy.savetxt(sys.stdout, target_positions)
+        # print "\n"*8
+
+        # Apply the cos(declination) correction
+        target_positions[:,0] *= cos_declination
+
+        all_target_positions.append(target_positions)
+        all_target_names.append(target_name)
+
+    all_target_positions = numpy.array(all_target_positions)
+
+    print all_target_names
+    print all_target_positions.shape
+
+    #
+    # Re-order all target positions to have positions for a given MJD 
+    # together, rather than the positions for a given object
+    #
+    pass
+
+
+    # phot_ZP = 25.
+
+    # # set apertures to use
+    # aperture_size = '4.0'
+    # aperture_column = SXcolumn["mag_aper_%s" % aperture_size]
+    # aperture_error_column = SXcolumn["mag_err_%s" % aperture_size]
+
+    # # Now open all files, get time-stamps etc
+    # for fitsfile in inputlist:
+
+    #     catalog_filename = fitsfile[:-5]+".cat"
+    #     dumpfile = fitsfile[:-5]+".catdump"
+    #     if (os.path.isfile(dumpfile)):
+    #         cat_data = numpy.load(dumpfile)
+    #         logger.debug("Read %d sources from %s" % (cat_data.shape[0], dumpfile))
+    #     else:
+    #         try:
+    #             cat_data = numpy.loadtxt(catalog_filename)
+    #             logger.debug("Read %d sources from %s" % (cat_data.shape[0], catalog_filename))
+    #         except:
+    #             pass
+    #             continue
+    #         cat_data.dump(dumpfile)
+
+        
+    #     # Correct for the absolute zeropoint
+    #     magzero = 25.
+    #     hdu = astropy.io.fits.open(fitsfile)
+    #     magzero = hdu[0].header['MAGZERO']
+    #     magzero = hdu[0].header['PHOTZP_X']
+
+    #     # # Translate all extension numbers to proper OTAs
+    #     # extensions = set(cat_data[:, SXcolumn['ota']])
+    #     # for i in extensions:
+    #     #     ota = hdu[i].header['OTA']
+    #     #     cat_data[:, SXcolumn['ota']][cat_data[:, SXcolumn['ota']] == i] = ota
+
+    #     # # Now eliminate all sources in OTAs marked for omission
+    #     # if (not skipotas == []):
+    #     #     for ota in skipotas:
+    #     #         to_skip = cat_data[:, SXcolumn['ota']] == ota
+    #     #         cat_data = cat_data[~to_skip]
+
+    #     cat_data[:, SXcolumn['mag_aper_2.0']:SXcolumn['mag_aper_12.0']+1] += (magzero - 25.0)
+
+    #     # Account for cos(dec) distortion
+    #     cat_data[:, SXcolumn['ra']] *= cos_declination
+
+    #     hdulist = astropy.io.fits.open(fitsfile)
+    #     obs_mjd = hdulist[0].header['MJD-OBS']
+    #     exptime = hdulist[0].header['EXPTIME']
+    #     mjd_middle = (obs_mjd * 24.) + (exptime / 3600.)
+    #     filter_name = hdulist[0].header['FILTER']
+
+    #     # Do some preparing of the catalog
+    #     good_photometry = cat_data[:, aperture_column] < 0
+    #     cat_data = cat_data[good_photometry]
+        
+    #     # Apply photometric zeropoint to all magnitudes
+    #     for key in SXcolumn_names:
+    #         if (key.startswith("mag_aper")):
+    #             cat_data[:, SXcolumn[key]] += phot_ZP
+
+    #     catalog_filelist.append(catalog_filename)
+    #     catalog.append(cat_data)
+    #     mjd_hours.append(mjd_middle)
+    #     source_id.append(numpy.arange(cat_data.shape[0]))
+    #     filters.append(filter_name)
+
+    #     print catalog_filename, cat_data.shape
+
+    # logger.info("All catalog files created and read...")
+    # logger.debug("Cos(dec) correction = %.10f" % (cos_declination))
+
+
 
     # set apertures to use
     aperture_size = '4.0'
     aperture_column = SXcolumn["mag_aper_%s" % aperture_size]
     aperture_error_column = SXcolumn["mag_err_%s" % aperture_size]
 
-    # Now open all files, get time-stamps etc
-    for fitsfile in inputlist:
 
-        catalog_filename = fitsfile[:-5]+".cat"
-        dumpfile = fitsfile[:-5]+".catdump"
-        if (os.path.isfile(dumpfile)):
-            cat_data = numpy.load(dumpfile)
-            logger.debug("Read %d sources from %s" % (cat_data.shape[0], dumpfile))
-        else:
-            try:
-                cat_data = numpy.loadtxt(catalog_filename)
-                logger.debug("Read %d sources from %s" % (cat_data.shape[0], catalog_filename))
-            except:
-                pass
-                continue
-            cat_data.dump(dumpfile)
+    # #############################################################################
+    # #
+    # # Open the reference star catalog and select a number of stars for 
+    # # the differential photometry reference
+    # #
+    # #############################################################################
+    # if (not reference_star_frame == None):
+    #     ref_star_cat_file = reference_star_frame[:-5]+".cat"
+    #     ref_stars = numpy.loadtxt(ref_star_cat_file)
+    #     ref_stars[:, SXcolumn['ra']] *= cos_declination
+    #     ref_stars[:, SXcolumn['mag_aper_2.0']:SXcolumn['mag_aper_12.0']+1] += 25. #(magzero - 25.0)
+    # else:
+    #     ref_stars = catalog[0]
 
-        
-        # Correct for the absolute zeropoint
-        magzero = 25.
-        hdu = astropy.io.fits.open(fitsfile)
-        magzero = hdu[0].header['MAGZERO']
-        magzero = hdu[0].header['PHOTZP_X']
-
-        # # Translate all extension numbers to proper OTAs
-        # extensions = set(cat_data[:, SXcolumn['ota']])
-        # for i in extensions:
-        #     ota = hdu[i].header['OTA']
-        #     cat_data[:, SXcolumn['ota']][cat_data[:, SXcolumn['ota']] == i] = ota
-
-        # # Now eliminate all sources in OTAs marked for omission
-        # if (not skipotas == []):
-        #     for ota in skipotas:
-        #         to_skip = cat_data[:, SXcolumn['ota']] == ota
-        #         cat_data = cat_data[~to_skip]
-
-        cat_data[:, SXcolumn['mag_aper_2.0']:SXcolumn['mag_aper_12.0']+1] += (magzero - 25.0)
-
-        # Account for cos(dec) distortion
-        cat_data[:, SXcolumn['ra']] *= cos_declination
-
-        hdulist = astropy.io.fits.open(fitsfile)
-        obs_mjd = hdulist[0].header['MJD-OBS']
-        exptime = hdulist[0].header['EXPTIME']
-        mjd_middle = (obs_mjd * 24.) + (exptime / 3600.)
-        filter_name = hdulist[0].header['FILTER']
-
-        # Do some preparing of the catalog
-        good_photometry = cat_data[:, aperture_column] < 0
-        cat_data = cat_data[good_photometry]
-
-        
-        # Apply photometric zeropoint to all magnitudes
-        for key in SXcolumn_names:
-            if (key.startswith("mag_aper")):
-                cat_data[:, SXcolumn[key]] += phot_ZP
-
-        catalog_filelist.append(catalog_filename)
-        catalog.append(cat_data)
-        mjd_hours.append(mjd_middle)
-        source_id.append(numpy.arange(cat_data.shape[0]))
-        filters.append(filter_name)
-
-        print catalog_filename, cat_data.shape
-
-    logger.info("All catalog files created and read...")
-    logger.debug("Cos(dec) correction = %.10f" % (cos_declination))
-
-    #############################################################################
-    #
-    # Open the reference star catalog and select a number of stars for 
-    # the differential photometry reference
-    #
-    #############################################################################
-    if (not reference_star_frame == None):
-        ref_star_cat_file = reference_star_frame[:-5]+".cat"
-        ref_stars = numpy.loadtxt(ref_star_cat_file)
-        ref_stars[:, SXcolumn['ra']] *= cos_declination
-        ref_stars[:, SXcolumn['mag_aper_2.0']:SXcolumn['mag_aper_12.0']+1] += 25. #(magzero - 25.0)
-    else:
-        ref_stars = catalog[0]
-
+    numpy.savetxt("dbg/ref_stars", ref_stars)
     print "top 25 reference star Ra/Dec:\n",ref_stars[:25,:2]
 
     # Now find sources that have good photometry in all frames that 
     # we can use as reference stars
-    small_errors = (ref_stars[:, aperture_error_column] < 0.05) & \
-                   (ref_stars[:, aperture_column] > 14)
+    small_errors = (ref_stars[:, aperture_error_column] < 0.05) # & \
+                   #(ref_stars[:, aperture_column] > 14)
     no_flags = ref_stars[:, SXcolumn['flags']] == 0
     ref_stars = ref_stars[(small_errors & no_flags)]
+    logger.info("%d valid reference stars in reference catalog" % (ref_stars.shape[0]))
 
     # Sort by magnitude and pick the 10 brightest stars
     si = numpy.argsort(ref_stars[:, aperture_column])
@@ -332,26 +719,35 @@ def differential_photometry(inputlist, source_coords,
     #
     # Create source catalogs for the source and n reference sources from each catalog
     #
-    if (output_debugfiles): numpy.savetxt("src_params", src_params)
+    #if (output_debugfiles): numpy.savetxt("src_params", src_params)
     for i_cat in range(len(catalog)):
         # print "\n"*5
 
         src_cat = catalog[i_cat]
+        numpy.savetxt("catdump.%d" % (i_cat+1), src_cat)
 
         # turn the catalog coordinates into a KDTree
         cat_tree = scipy.spatial.cKDTree(catalog[i_cat][:,0:2])
-        # print catalog[i_cat][:,0:2]
+        # # print catalog[i_cat][:,0:2]
 
-        # Search for the actual source
-        # add here: fudge with coordinates to account for motion
-        src_radec = src_params[:, RA:DEC+1] + (mjd_hours[i_cat]-src_params[:,MJD:MJD+1]*24.)*src_params[:, DRA:DDEC+1]/3600.
-        # print "source coordinates in frame %d" % (i_cat+1)
-        # numpy.savetxt(sys.stdout, src_radec)
+        # # Search for the actual source
+        # # add here: fudge with coordinates to account for motion
+        # src_radec = src_params[:, RA:DEC+1] + (mjd_hours[i_cat]-src_params[:,MJD:MJD+1]*24.)*src_params[:, DRA:DDEC+1]/3600.
+        # # print "source coordinates in frame %d" % (i_cat+1)
+        # # numpy.savetxt(sys.stdout, src_radec)
 
-        # src_radec = numpy.array([[src_ra, src_dec]]) + (mjd_hours[i_cat] - src_mjd*24.) * numpy.array([src_dra, src_ddec]) / 3600.
-        # print src_radec * numpy.array([1./cos_declination, 1.])
+        # # src_radec = numpy.array([[src_ra, src_dec]]) + (mjd_hours[i_cat] - src_mjd*24.) * numpy.array([src_dra, src_ddec]) / 3600.
+        # # print src_radec * numpy.array([1./cos_declination, 1.])
         
-        # print src_radec.shape, phot_refs.shape
+        # # print src_radec.shape, phot_refs.shape
+
+        #
+        # Gather the position of all sources in this frame based on the MJD
+        #
+        src_radec = all_target_positions[:,i_cat,:]
+        numpy.savetxt("targets.%d" % (i_cat+1), src_radec)
+        print "src positions:"
+        numpy.savetxt(sys.stdout, src_radec)
 
         #########################################################################
         #
@@ -724,7 +1120,7 @@ def differential_photometry(inputlist, source_coords,
         if (output_catalog == None):
             filename = "target_source.postfixed.%d" % (i)
         else:
-            filename = my_replace(output_catalog, name_tag, src_names[i])
+            filename = my_replace(output_catalog, name_tag, all_target_names[i])
         print "putput catalog:", output_catalog, filename
         filename = my_replace(filename, " ", "_")
 
@@ -745,8 +1141,8 @@ def differential_photometry(inputlist, source_coords,
     #
     #############################################################################
 
-    print src_names
-    for i_source in range(src_params.shape[0]):
+    print all_target_names #src_names
+    for i_source in range(len(all_target_names)):
 
         try:
             fig = matplotlib.pyplot.figure()
@@ -754,7 +1150,15 @@ def differential_photometry(inputlist, source_coords,
             #ax_raw = fig.add_subplot(312)
             #ax_corr = fig.add_subplot(313)
 
-            time = target_mjd  /24.
+            time = target_mjd / 24.
+            time_offset =  math.floor(numpy.min(target_mjd) / 24. - 19./24.)
+            #time = numpy.fmod(target_mjd / 24. - 0.5, 1.0) * 24.
+            time = (target_mjd / 24. - time_offset) * 24.
+
+            #time = (target_mjd / 24. (-19./24.)
+
+            time = numpy.fmod(target_mjd -19., 24.)
+
             #print time.shape
             #print target_source.shape
             #print target_source[0,:,0].shape
@@ -767,9 +1171,9 @@ def differential_photometry(inputlist, source_coords,
             if (not plot_title == None):
                 this_plot_title = plot_title
 
-                if (not src_names[i_source] == None):
-                    print src_names[i_source] 
-                    this_plot_title = my_replace(plot_title, name_tag, src_names[i_source])
+                if (not all_target_names[i_source] == None):
+                    print all_target_names[i_source] 
+                    this_plot_title = my_replace(plot_title, name_tag, all_target_names[i_source])
 
                     # begin_pos = plot_title.find(name_tag)
                     # end_pos = begin_pos + len(name_tag)
@@ -781,7 +1185,7 @@ def differential_photometry(inputlist, source_coords,
             nullfmt   = NullFormatter()         # no labels
             # no labels
             ax_final.xaxis.set_major_formatter(nullfmt)
-            ax_corr.set_xlabel("modified julian date")
+            ax_corr.set_xlabel("hours since last noon") #modified julian date ")
 
             #
             # Also plot the uncorrected light curve as crossed connected with a thin line
@@ -827,8 +1231,8 @@ def differential_photometry(inputlist, source_coords,
                 matplotlib.pyplot.show()
                 fig.show()
             else:
-                if (not src_names[i_source] == None and plot_filename.find('%name') >= 0):
-                    names_underscore = my_replace(src_names[i_source], " ", "_")
+                if (not all_target_names[i_source] == None and plot_filename.find('%name') >= 0):
+                    names_underscore = my_replace(all_target_names[i_source], " ", "_")
                     this_plot = my_replace(plot_filename, "%name", names_underscore)
                 elif (plot_filename.find('%name') >= 0):
                     name_id = "src_%d" % (i_source+1)
