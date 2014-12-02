@@ -1469,15 +1469,23 @@ def swarpstack(outputfile,
         # Add some additional headers
         hdustack[0].header['MAGZERO']  = (swarp_params['target_magzero'],
                                           "after flux-scaling each input exposure")
-        hdustack[0].header['BACKGSUB'] = ("yes" if swarp_params['subtract_back'] else "no",
+        hdustack[0].header['BACKGSUB'] = (swarp_params['subtract_back'] if swarp_params['subtract_back'] else "none",
                                           "was background subtracted?")
         hdustack[0].header['PIXLSCAL'] = (swarp_params['pixelscale'],
                                           "user-selected pixelscale")
         hdustack[0].header['REUSESGL'] = ("yes" if swarp_params['reuse_singles'] else "no",
                                           "reuse singles?")
-        hdustack[0].header['NONSIDRL'] = ("yes" if swarp_params['use_nonsidereal'] else "no",
-                                          "using non-sidereal correction?")
-        valid_nonsidereal_reference = False
+
+        #
+        # Store all configuration about non-sidereal / ephemerides corrections 
+        # that were applied during execution
+        #
+        nonsid_mode = 'none'
+        if (swarp_params['use_nonsidereal']): nonsid_mode = 'nonsidereal'
+        if ('ephemerides' in swarp_params and not swarp_params['ephemerides'] == None): nonsid_mode = "ephemerides"
+        hdustack[0].header['NONSIDRL'] = (nonsid_mode,
+                                          "Non-sidereal correction")
+        valid_nonsidereal_reference = None
         try:
             hdustack[0].header['NSID_RA']  = (options['nonsidereal']['dra'],
                                               "non-sidereal rate dRA*cosDec [arcsec/hr]")
@@ -1487,15 +1495,46 @@ def swarpstack(outputfile,
                                               "non-sidereal reference MJD")
             hdustack[0].header['NSID_RF']  = (options['nonsidereal']['ref'],
                                               "non-sidereal ref. from cmd line")
+
+            hdustack[0].header['NSREFMJD'] = options['nonsidereal']['ref_mjd']
+            hdustack[0].header['NSREFILE'] = os.path.abspath(options['nonsidereal']['ref'])
+            hdustack[0].header['NSREFOBS'] = options['nonsidereal']['ref_obsid']
+
             if (os.path.isfile(options['nonsidereal']['ref'])):
-                valid_nonsidereal_reference = True
+                valid_nonsidereal_reference = options['nonsidereal']['ref']
         except:
             pass
+
+        #
+        # Check if we use the ephem mode; if so add some more headers
+        #
+        try:
+            eph = swarp_params['ephemerides']
+            hdustack[0].header['EPHM-MJD'] = eph['ref-mjd']
+            hdustack[0].header['EPHM-REF'] = eph['ref']
+            hdustack[0].header['EPHMMODE'] = eph['mode']
+            hdustack[0].header['EPHMTRGT'] = eph['target']
+            hdustack[0].header['EPHMFILE'] = eph['datafile']
+            hdustack[0].header['NSREFMJD'] = eph['ref-mjd']
+            hdustack[0].header['NSREFILE'] = os.path.abspath(eph['ref'])
+            hdustack[0].header['NSREFOBS'] = eph['ref-obsid']
+
+            if (os.path.isfile(eph['ref'])):
+                valid_nonsidereal_reference = eph['ref']
+        except:
+            pass
+            
+        add_fits_header_title(hdustack[0].header, "Non-sidereal/ephemerides configuration", 'NONSIDRL')
+
+
         firsthdu.close()
         add_fits_header_title(hdustack[0].header, "SwarpStack parameters supplied by user", 'MAGZERO')
 
-        if (valid_nonsidereal_reference):
-            firsthdu = pyfits.open(options['nonsidereal']['ref'])
+        if (not valid_nonsidereal_reference == None):
+            master_reduction_files_used = \
+                collect_reduction_files_used(master_reduction_files_used, 
+                                             {"mjd-reference": valid_nonsidereal_reference})
+            firsthdu = pyfits.open(valid_nonsidereal_reference)
             try:
                 hdustack[0].header['NSR-OBST'] = (firsthdu[0].header['TIME-OBS'], 
                                                   "reference TIME-OBS")
@@ -1582,16 +1621,19 @@ def load_horizons_ephems(object_name, ref_file, ref_mjd, filelist, params):
         'data': results['data'],
         'ra': results['ra'],
         'dec': results['dec'],
+        'target': object_name,
     }
     return
 
 def get_reference_mjd(item):
 
+    ref_obsid = None
     try:
         ref_mjd = float(item)
     except:
         if (os.path.isfile(item)):
             hdulist = pyfits.open(item)
+            ref_obsid = hdulist[0].header['OBSID'] if 'OBSID' in hdulist[0].header else None
             for ext in hdulist:
                 if ('MJD-OBS' in ext.header):
                     ref_mjd = ext.header['MJD-OBS']
@@ -1603,7 +1645,7 @@ def get_reference_mjd(item):
         else:
             ref_mjd = None
 
-    return ref_mjd
+    return ref_mjd, ref_obsid
 
 
 def read_swarp_params(filelist):
@@ -1663,14 +1705,16 @@ def read_swarp_params(filelist):
                     # Use the first input frame as reference frame
                     ref_file = get_clean_cmdline()[2]
                 
-                ref_mjd = get_reference_mjd(ref_file)
+                ref_mjd, ref_obsid = get_reference_mjd(ref_file)
 
                 if (not ref_mjd == None):
                     object_name = items[1]
                     load_horizons_ephems(object_name, ref_file, ref_mjd, filelist, params)
+                    params['ephemerides']['mode'] = "telnet:horizons"
+                    params['ephemerides']['ref-obsid'] = ref_obsid
             elif (items[0] == 'file'):
                 ref_file = get_clean_cmdline()[2] if len(items) <=3 else items[2]
-                ref_mjd = get_reference_mjd(ref_file)
+                ref_mjd, ref_obsid = get_reference_mjd(ref_file)
                 if (not ref_mjd == None):
 
                     # Now read and process the datafile
@@ -1687,6 +1731,9 @@ def read_swarp_params(filelist):
                         'data': data,
                         'ra': ra,
                         'dec': dec,
+                        'mode': 'file:'+items[1],
+                        'target': "user-defined",
+                        'ref-obsid': ref_obsid,
                     }
             if (ref_mjd == None):
                 params['use_ephemerides'] = False
