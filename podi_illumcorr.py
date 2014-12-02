@@ -23,24 +23,36 @@
 
 """
 
-This module contains all functionality related to fringin in ODI frames, from
-creating the fringe templates, to finding the ideal fringe scaling factor to
-actually subtracting the fringe frame.
+This module contains all functionality related to illumincation corrections 
+for ODI frames, from creating the templates, to applying the correction to 
+individual files or a bunch of files.
 
 Standalone routines
 ----------------------
 
-* **-make_template**
+* **-create**
 
-  Create a fringe template from collectcells-reduced frames
+  Create an illumination correction from QR-reduced frames
 
-  ``./podi_fringing.py -make_template (-op=nanmedian.bn) output_template.fits file1.fits file2.fits``
+  ``./podi_illumcorr.py -create output.fits file1.fits file2.fits``
 
-* **-esomethod**
+* **-apply1**
 
-  Determine the optimal fringe scaling and perform fringe removal
+  Apply the fringe correction to a single frame
 
-  ``./podi_fringing.py -esomethod fringe_template.fits input.fits output.fits``
+  ``./podi_illumcorr.py -apply1 illumcorr_template.fits input.fits output.fits``
+
+
+* **-applyall**
+
+  Apply the finge correction to a bunch of files in one execution
+
+  ``./podi_illumcorr.py -applyall illumcorr_template.fits INSERT file1.fits file2.fits``
+
+  In this mode, the output file is created from the input file by inserting 
+  INSERT between the filename and the .fits extension. 
+
+  Example: file1.fits will be corrected ans saved as file1.INSERT.fits
 
 
 Methods
