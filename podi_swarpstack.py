@@ -1709,7 +1709,9 @@ def read_swarp_params(filelist):
 
                 if (not ref_mjd == None):
                     object_name = items[1]
-                    load_horizons_ephems(object_name, ref_file, ref_mjd, filelist, params)
+                    full_filelist = list(filelist)
+                    full_filelist.append(ref_file)
+                    load_horizons_ephems(object_name, ref_file, ref_mjd, full_filelist, params)
                     params['ephemerides']['mode'] = "telnet:horizons"
                     params['ephemerides']['ref-obsid'] = ref_obsid
             elif (items[0] == 'file'):
