@@ -279,6 +279,7 @@ Calibration data:
                 ns['ddec'] = float(items[1])
                 ns['ref'] = items[2]
                 ns['ref_mjd'] = None
+                ns['ref_obsid'] = None
                 try:
                     ns['ref_mjd'] = float(ns['ref'])
                     logger.debug("Found reference MJD (%f) on command line" % (ns['ref_mjd']))
@@ -287,6 +288,7 @@ Calibration data:
                         hdulist = pyfits.open(ns['ref'])
                         if ("MJD-OBS" in hdulist[0].header):
                             ns['ref_mjd'] = hdulist[0].header['MJD-OBS'] * 1.0
+                            ns['ref_obsid'] = hdulist[0].header['OBSID']
                             logger.debug("Found reference MJD (%f) in file %s" % (ns['ref_mjd'], ns['ref']))
                         hdulist.close()
                         del hdulist
