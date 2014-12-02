@@ -1714,6 +1714,10 @@ def read_swarp_params(filelist):
                     load_horizons_ephems(object_name, ref_file, ref_mjd, full_filelist, params)
                     params['ephemerides']['mode'] = "telnet:horizons"
                     params['ephemerides']['ref-obsid'] = ref_obsid
+                else:
+                    logger.critical("Unable to find MJD reference file (%s)" % (ref_file))
+                    raise RuntimeError("Unable to find MJD reference file (%s)" % (ref_file))
+
             elif (items[0] == 'file'):
                 ref_file = get_clean_cmdline()[2] if len(items) <=3 else items[2]
                 ref_mjd, ref_obsid = get_reference_mjd(ref_file)
@@ -1847,6 +1851,9 @@ if __name__ == "__main__":
 
     except KeyboardInterrupt, SystemExit:
         pass
+    except RuntimeError:
+        logger.critical("Encountered critical error, terminating execution! Please check command!")
+        logger.debug("Terminating after runtime error!")
     except:
         if (len(get_clean_cmdline()) < 3):
             logger.error("Not enough parameters have been specified, need at least output file and 1 input file")
