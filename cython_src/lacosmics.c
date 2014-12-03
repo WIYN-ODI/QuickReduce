@@ -218,7 +218,34 @@ double find_median(double *neighbors, int n)
 }
 
 
-
+int dumpbuffertofile(double* buf, int sx, int sy, char* filename)
+{
+    FILE* fp = fopen(filename, "w");
+    int x,y;
+    
+    for (y=0; y<sy; y++) {
+        for (x=0; x<sx; x++) {
+            fprintf(fp, "% 4d %4d %10.4f\n", x, y, buf[y + x*sy]);
+        }
+    }
+    fclose(fp);
+    return sx*sy;
+}
+int dumpbuffertofile_int(int* buf, int sx, int sy, char* filename)
+{
+    FILE* fp = fopen(filename, "w");
+    int x,y;
+    
+    for (y=0; y<sy; y++) {
+        for (x=0; x<sx; x++) {
+            fprintf(fp, "% 4d %4d % 8d\n", x, y, buf[y + x*sy]);
+        }
+    }
+    fclose(fp);
+    return sx*sy;
+}
+    
+    
 void lacosmics__cy(double* data,
                    double* out_cleaned, int* out_mask, int* out_saturated,
                    int sx, int sy,
@@ -256,7 +283,8 @@ void lacosmics__cy(double* data,
     double* firstsel = malloc(sx*sy*sizeof(double));                     // 16
     double* data_med3 = malloc(sx*sy*sizeof(double));                     // 16
 //    double* data_med7 = malloc(sx*sy*sizeof(double));                     // 16
-    double data_med7;
+    double* data_med7 /*RK*/= malloc(sx*sy*sizeof(double));
+    double* data_med7_tmpd /*RK*/= malloc(sx*sy*sizeof(double));
     double* gfirstsel = (double*)malloc(sx*sy*sizeof(double));           // 16
     double* finalsel = (double*)malloc(sx*sy*sizeof(double));            // 16
     double* data_filtered = (double*)malloc(sx*sy*sizeof(double));       // 16
@@ -269,7 +297,8 @@ void lacosmics__cy(double* data,
     //                                                               total: 32 Mpixel * 4 bytes ~ 128 MB
     
     double* neighbors = (double*)malloc(MAXMEDIAN*MAXMEDIAN*sizeof(double));
-
+    char filename[100];
+    
     int rerun_entirely = False;
     
     double laplace_kernel[3*3] = {  
@@ -320,6 +349,13 @@ void lacosmics__cy(double* data,
     for (iteration = 0; iteration < niter && crpix_found > 0; iteration++) {
         if (verbose) printf("\nStarting iteration %d (of %d)...\n\n", iteration+1, niter);
         
+        if (verbose) {
+            sprintf(filename, "data_input_%d.cat", iteration);
+            dumpbuffertofile(data, sx, sy, filename);
+            sprintf(filename, "pixelchanged_input_%d.cat", iteration);
+            dumpbuffertofile_int(pixel_changed, sx, sy, filename);
+        }
+
         // duplicate all pixels 2x2
         tracepx("### Trace pixel: input data = %f\n", data[tracepixel]);
         if (verbose) printf("Computing larger 2x2 blkrep array\n");
@@ -372,7 +408,12 @@ void lacosmics__cy(double* data,
                 
             }
         }
-
+        if (verbose) {
+            sprintf(filename, "laplace_%d.cat", iteration);
+            dumpbuffertofile(lapla_convolved, sx2, sy2, filename);
+        }
+        
+            
         if (verbose) printf("Running blkavg\n");
         for (_x = 0; _x<sx; _x++) {
             for (_y = 0; _y < sy; _y++) {
@@ -387,6 +428,10 @@ void lacosmics__cy(double* data,
                     );
                 }
             }
+        }
+        if (verbose) {
+            sprintf(filename, "deriv2_%d.cat", iteration);
+            dumpbuffertofile(deriv2, sx, sy, filename);
         }
         tracepx("### Trace pixel: deriv2 = %f\n", deriv2[tracepixel]);
         /* for (i=0; i<sx*sy; i++) { */
@@ -434,6 +479,14 @@ void lacosmics__cy(double* data,
         tracepx("### Trace pixel: data_med5 = %f\n", data_med5[tracepixel]);
         tracepx("### Trace pixel: sigmap = %f\n", sigmap[tracepixel]);
         tracepx("### Trace pixel: noise = %f\n", noise[tracepixel]);
+        if (verbose) {
+            sprintf(filename, "data_med5_%d.cat", iteration);
+            dumpbuffertofile(data_med5, sx, sy, filename);
+            sprintf(filename, "noise_%d.cat", iteration);
+            dumpbuffertofile(noise, sx, sy, filename);
+            sprintf(filename, "sigmap_%d.cat", iteration);
+            dumpbuffertofile(sigmap, sx, sy, filename);
+        }
     
 
         //
@@ -458,6 +511,10 @@ void lacosmics__cy(double* data,
                     }
                 }
             }
+        }
+        if (verbose) {
+            sprintf(filename, "saturated_%d.cat", iteration);
+            dumpbuffertofile(saturated, sx, sy, filename);
         }
         
         if (verbose) printf("removing large structure\n");
@@ -488,19 +545,29 @@ void lacosmics__cy(double* data,
         }
         tracepx("### Trace pixel: sigmap_med5 = %f\n", sigmap_med5[tracepixel]);
         tracepx("### Trace pixel: sigmap_prime = %f\n", sigmap_prime[tracepixel]);
-
+        if (verbose) {
+            sprintf(filename, "sigmap_med5_%d.cat", iteration);
+            dumpbuffertofile(sigmap_med5, sx, sy, filename);
+            sprintf(filename, "sigmap_prime_%d.cat", iteration);
+            dumpbuffertofile(sigmap_prime, sx, sy, filename);
+        }
+        
                 
         if (verbose) printf("Selecting candidate CRs\n");
         for (i=0; i<sx*sy; i++) {
             firstsel[i] = ((sigmap_prime[i] > sigclip) && (saturated[i] == 0)) ? 1 : 0;
         }
-    
+        if (verbose) {
+            sprintf(filename, "firstsel_x1_%d.cat", iteration);
+            dumpbuffertofile(firstsel, sx, sy, filename);
+        }
+   
         if (verbose) printf("subtract background and smooth component of objects\n");
         for (_x = 0; _x<sx; _x++) {
             for (_y = 0; _y < sy; _y++) {
                 i = _y + _x*sy;
 
-                if ((pixel_changed[i] || iteration == 0 || rerun_entirely)) {
+                if ((pixel_changed[i]==1 || iteration == 0 || rerun_entirely)) { // RK
                     //
                     // do 3x3 median filtering
                     //
@@ -520,17 +587,25 @@ void lacosmics__cy(double* data,
             }
         }
         tracepx("### Trace pixel: data_med3 = %f\n", data_med3[tracepixel]);
+        if (verbose) {
+            sprintf(filename, "data_med3_%d.cat", iteration);
+            dumpbuffertofile(data_med3, sx, sy, filename);
+        }
         
         /* for (i=0; i<sx*sy; i++) { */
         /*     out_cleaned[i] = data_med3[i]; */
         /* } */
         
         
+        if (verbose) {
+            sprintf(filename, "firstsel_xxxx_%d.cat", iteration);
+            dumpbuffertofile(firstsel, sx, sy, filename);
+        }
         for (_x = 0; _x<sx; _x++) {
             for (_y = 0; _y < sy; _y++) {
                 i = _y + _x*sy;
 
-                if ((pixel_changed[i] || iteration == 0 || rerun_entirely) && firstsel[i] > 0) {
+                if ((pixel_changed[i]==1 || iteration == 0 || rerun_entirely) && firstsel[i] > 0) { // RK
                     //
                     // do 7x7 median filtering
                     //
@@ -539,21 +614,41 @@ void lacosmics__cy(double* data,
                         for ( y = (_y-3); y < (_y+4); y++) {
                             ix = ( x+sx ) % sx;
                             iy = ( y+sy ) % sy;
+                            if (x<0 || x>=sx || y<0 || y >= sy) continue;
+                            // without this we have periodic boundary conditions
+                            
                             neighbors[n++] = data_med3[y + x*sy];
+                            //neighbors[n++] = data_med3[iy + ix*sy];
                         }
                     }
                     /* gsl_sort(neighbors, 1, n); */
                     /* data_med7[i] = gsl_stats_median_from_sorted_data(neighbors, 1, n); */
-                    data_med7 = find_median(neighbors, n);
+                    data_med7[i] = find_median(neighbors, n);
 
-                    tmpd = (data_med3[i] - data_med7) / noise[i];
-                    tmpd = tmpd < 0.01 ? 0.01 : tmpd;
+                    data_med7_tmpd[i] = (data_med3[i] - data_med7[i]) / noise[i];
+                    data_med7_tmpd[i] = data_med7_tmpd[i] < 0.01 ? 0.01 : data_med7_tmpd[i];
                     
                     // out_cleaned[i] = tmpd; // this is f in the python version
                     
                     // if (firstsel[i] > 0) {
-                    firstsel[i] = firstsel[i] > 0 && sigmap_prime[i] > (tmpd * objlim) ? 1 : 0;
+                    if (verbose) {
+                        //printf("%4d/%4d --> firstsel=%.0f &&  sigmap_prime=%10.4f > data_med7_tmpd=%10.4f * objlim=%4.1f",
+                        printf("%4d/%4d --> %.0f &&  %10.4f > %10.4f * %4.1f",
+                               _x, _y, firstsel[i], sigmap_prime[i], data_med7_tmpd[i], objlim);
+                    }
+                    
+                    firstsel[i] = firstsel[i] > 0 && sigmap_prime[i] > (data_med7_tmpd[i] * objlim) ? 1 : 0;
+
+                    if (verbose) {
+                        printf("  ===> %.0f\n", firstsel[i]);
+                    }
+                    
+                } else {
+                    // Mask as not a pixel
+                    firstsel[i] = 0;
                 }
+                
+                   
 
                 // Also reset the mask of CR pixels to 0
                 pixel_changed[i] = 0;
@@ -561,8 +656,20 @@ void lacosmics__cy(double* data,
                 
             }
         }
+        if (verbose) {
+            sprintf(filename, "firstsel_xxxy_%d.cat", iteration);
+            dumpbuffertofile(firstsel, sx, sy, filename);
+        }
         tracepx("### Trace pixel: firstsel = %f\n", firstsel[tracepixel]);
- 
+        if (verbose) {
+            sprintf(filename, "firstsel_x2_%d.cat", iteration);
+            dumpbuffertofile(firstsel, sx, sy, filename);
+            sprintf(filename, "data_med7_%d.cat", iteration);
+            dumpbuffertofile(data_med7, sx, sy, filename);
+            sprintf(filename, "data_med7_tmpd_%d.cat", iteration);
+            dumpbuffertofile(data_med7_tmpd, sx, sy, filename);
+        }
+
         if (verbose) printf("Growing mask and checking neighboring pixels\n");
         /* n=0; for(i=0; i<sx*sy; i++) if (firstsel[i] > 0.5) n++; printf("Initial #CRs: %d (>%f sigma)\n", n, sigclip); */
         convolve(firstsel, sx, sy, gfirstsel, growth_kernel, 3);
@@ -572,7 +679,11 @@ void lacosmics__cy(double* data,
         }
         /* n=0; for(i=0; i<sx*sy; i++) if (gfirstsel[i] > 0.5) n++; printf("remaining grown #CRs: %d\n", n); */
         tracepx("### Trace pixel: gfirstsel = %f\n", gfirstsel[tracepixel]);
-        
+        if (verbose) {
+            sprintf(filename, "gfirstsel_%d.cat", iteration);
+            dumpbuffertofile(gfirstsel, sx, sy, filename);
+        }
+       
     
         double sigcliplow = sigfrac * sigclip;
     
@@ -584,6 +695,10 @@ void lacosmics__cy(double* data,
         }
         /* n=0; for(i=0; i<sx*sy; i++) if (finalsel[i] > 0.5) n++; printf("final #CRs: %d (>%f sigma)\n", n, sigcliplow); */
         tracepx("### Trace pixel: finalsel = %f\n", finalsel[tracepixel]);
+        if (verbose) {
+            sprintf(filename, "finalsel_%d.cat", iteration);
+            dumpbuffertofile(finalsel, sx, sy, filename);
+        }
 
         /* for (i=0; i<sx*sy; i++) { */
         /*     out_cleaned[i] = finalsel[i]; */
@@ -647,6 +762,8 @@ void lacosmics__cy(double* data,
                               y++) {
 
                             pixel_changed[y + x*sy] = 1;
+                            //printf("Marking pixel as changed (%d): %d %d\n", iteration, x, y);
+                            
                         }
                     }
                     
@@ -657,6 +774,12 @@ void lacosmics__cy(double* data,
             }
         }
         if (verbose) printf("Done cleaning!\n");
+        if (verbose) {
+            sprintf(filename, "data_filtered_%d.cat", iteration);
+            dumpbuffertofile(data_filtered, sx, sy, filename);
+            sprintf(filename, "pixel_changed_%d.cat", iteration);
+            dumpbuffertofile_int(pixel_changed, sx, sy, filename);
+        }
         
         tracepx("### Trace pixel: data_filtered = %f\n", data_filtered[tracepixel]);
 
