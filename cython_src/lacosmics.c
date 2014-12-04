@@ -283,8 +283,7 @@ void lacosmics__cy(double* data,
     double* firstsel = malloc(sx*sy*sizeof(double));                     // 16
     double* data_med3 = malloc(sx*sy*sizeof(double));                     // 16
 //    double* data_med7 = malloc(sx*sy*sizeof(double));                     // 16
-    double* data_med7 /*RK*/= malloc(sx*sy*sizeof(double));
-    double* data_med7_tmpd /*RK*/= malloc(sx*sy*sizeof(double));
+    double data_med7;
     double* gfirstsel = (double*)malloc(sx*sy*sizeof(double));           // 16
     double* finalsel = (double*)malloc(sx*sy*sizeof(double));            // 16
     double* data_filtered = (double*)malloc(sx*sy*sizeof(double));       // 16
@@ -622,22 +621,16 @@ void lacosmics__cy(double* data,
                         }
                     }
                     /* gsl_sort(neighbors, 1, n); */
-                    /* data_med7[i] = gsl_stats_median_from_sorted_data(neighbors, 1, n); */
-                    data_med7[i] = find_median(neighbors, n);
+                    data_med7 = find_median(neighbors, n);
 
-                    data_med7_tmpd[i] = (data_med3[i] - data_med7[i]) / noise[i];
-                    data_med7_tmpd[i] = data_med7_tmpd[i] < 0.01 ? 0.01 : data_med7_tmpd[i];
+                    tmpd = (data_med3[i] - data_med7) / noise[i];
+                    tmpd = tmpd < 0.01 ? 0.01 : tmpd;
                     
                     // out_cleaned[i] = tmpd; // this is f in the python version
                     
                     // if (firstsel[i] > 0) {
-                    if (verbose) {
-                        //printf("%4d/%4d --> firstsel=%.0f &&  sigmap_prime=%10.4f > data_med7_tmpd=%10.4f * objlim=%4.1f",
-                        printf("%4d/%4d --> %.0f &&  %10.4f > %10.4f * %4.1f",
-                               _x, _y, firstsel[i], sigmap_prime[i], data_med7_tmpd[i], objlim);
-                    }
                     
-                    firstsel[i] = firstsel[i] > 0 && sigmap_prime[i] > (data_med7_tmpd[i] * objlim) ? 1 : 0;
+                    firstsel[i] = firstsel[i] > 0 && sigmap_prime[i] > (tmpd * objlim) ? 1 : 0;
 
                     if (verbose) {
                         printf("  ===> %.0f\n", firstsel[i]);
@@ -661,14 +654,6 @@ void lacosmics__cy(double* data,
             dumpbuffertofile(firstsel, sx, sy, filename);
         }
         tracepx("### Trace pixel: firstsel = %f\n", firstsel[tracepixel]);
-        if (verbose) {
-            sprintf(filename, "firstsel_x2_%d.cat", iteration);
-            dumpbuffertofile(firstsel, sx, sy, filename);
-            sprintf(filename, "data_med7_%d.cat", iteration);
-            dumpbuffertofile(data_med7, sx, sy, filename);
-            sprintf(filename, "data_med7_tmpd_%d.cat", iteration);
-            dumpbuffertofile(data_med7_tmpd, sx, sy, filename);
-        }
 
         if (verbose) printf("Growing mask and checking neighboring pixels\n");
         /* n=0; for(i=0; i<sx*sy; i++) if (firstsel[i] > 0.5) n++; printf("Initial #CRs: %d (>%f sigma)\n", n, sigclip); */
