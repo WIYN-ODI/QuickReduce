@@ -225,6 +225,10 @@ def update_sitesetup():
     changes = changes | ask_for_option('persistency_duration', 
                    "Maximum timescale that persistency affects the data in seconds", 
                    600, False, config_array)
+
+    changes = changes | ask_for_option('log_shell_output', 
+                   "Log output from external programs (e.g. SourceExtrator, SWarp) in debug log [True/False]?", 
+                   False, False, config_array)
     
     config_array.append("")
 
