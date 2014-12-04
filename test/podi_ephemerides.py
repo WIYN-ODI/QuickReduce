@@ -553,9 +553,9 @@ if __name__ == "__main__":
         objname = get_clean_cmdline()[1]
 
         get_ephemerides_for_object(objname, 
-                               start_datetime="2012-01-01",
-                               end_datetime="2014-01-01",
-                               time_interval="1d",
+                               start_datetime="2014-01-01",
+                               end_datetime="2015-01-01",
+                               time_interval="7d",
                                session_log_file='nasa_horizon.check',
                                verbose=True,
                                compute_interpolation=False)
