@@ -666,11 +666,17 @@ def get_list_of_saturation_tables(directory, mjd_catalog_list=None):
     value that we will later use to specify the amount of correct required.
     """
 
-    # Get a list of all files in the specified directory
-    filelist = os.listdir(directory)
+    logger = logging.getLogger("GetSatCats")
 
     if (mjd_catalog_list == None):
         mjd_catalog_list = {}
+
+    # Get a list of all files in the specified directory
+    if (not os.path.isdir(directory)):
+        logger.warning("Unable to find specified persistency-directory: %s" % (directory))
+        return mjd_catalog_list
+
+    filelist = os.listdir(directory)
 
     indexfile = "%s/index.cat" % (directory)
     mjd_catalog_list = load_saturation_table_list(indexfile, mjd_catalog_list)
