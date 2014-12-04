@@ -110,6 +110,15 @@ def removecosmics_mp(input_queue, return_queue):
     return
 
 
+def csv_to_list(x):
+    out = []
+    items = x.split(",")
+    for item in items:
+        out.append(float(item))
+    return out
+
+fwhm_to_sigma = 2 * math.sqrt(2 * math.log(2))
+
 if __name__ == "__main__":
 
     if (len(sys.argv) <= 1):
@@ -145,6 +154,202 @@ if __name__ == "__main__":
         outputfile = get_clean_cmdline()[2]
         hdulist.writeto(outputfile, clobber=True)
         podi_logging.shutdown_logging(options)
+
+    elif (cmdline_arg_isset("-check")):
+
+        bglevels = csv_to_list(cmdline_arg_set_or_default("-bg", '0'))
+        peaks = csv_to_list(cmdline_arg_set_or_default("-peak", '100'))
+        cosmicfluxes = csv_to_list(cmdline_arg_set_or_default("-crflux", '1000'))
+        fwhms = csv_to_list(cmdline_arg_set_or_default("-fwhm", '0.4,0.6'))
+        nrandom = int(cmdline_arg_set_or_default("-n", 100))
+        imagesize = int(cmdline_arg_set_or_default("-imgsize", 101))
+        if (imagesize % 2 == 0):
+            imagesize += 1
+        centering = float(cmdline_arg_set_or_default("-center", 0.2))
+        niter = int(cmdline_arg_set_or_default("-niter", 1))
+
+        sigclip = float(cmdline_arg_set_or_default("-sigclip", 5.0))
+        sigfrac = float(cmdline_arg_set_or_default("-sigfrac", 0.3))
+        objlim  = float(cmdline_arg_set_or_default("-objlim", 5.0))
+                                                        
+        readnoise = 8
+        gain = 1.3
+
+        primhdu = pyfits.PrimaryHDU()
+        hdulist_in = [primhdu]
+        hdulist_out = [primhdu]
+
+        # Allocate some memory to hold all the individual postage stamps
+        n_thumbs = int(math.ceil(math.sqrt(nrandom)))
+        tile_in = numpy.empty((n_thumbs*imagesize, n_thumbs*imagesize))
+        tile_out = numpy.empty((n_thumbs*imagesize, n_thumbs*imagesize))
+
+#        centering = 0.5
+
+        for fwhm in fwhms:
+            fwhm_pixels = fwhm / 0.11
+            #imagesize = int(20 * fwhm_pixels)+1
+            center = 0.5*(imagesize-1)
+
+            for peak in peaks:
+            
+                img = numpy.zeros((imagesize, imagesize))
+                print img.shape
+
+                # Now convolve the source with the gaussian PSF
+                gauss_sigma = fwhm_pixels / fwhm_to_sigma
+                _x, _y = numpy.indices(img.shape)
+                _x -= center
+                _y -= center
+                _r = numpy.hypot(_x,_y)
+                psf = numpy.exp(-_r**2/(2*gauss_sigma**2)) * peak
+
+                # img[center,center] = peak
+
+                # try:
+                #     psf = scipy.ndimage.filters.gaussian_filter(
+                #         input=img,
+                #         sigma = gauss_sigma,
+                #         order = 0,
+                #         mode = 'constant',
+                #         cval = 0,
+                #         truncate = 10
+                #     )
+                # except:
+                #     psf = scipy.ndimage.filters.gaussian_filter(
+                #         input=img,
+                #         sigma = gauss_sigma,
+                #         order = 0,
+                #         mode = 'constant',
+                #         cval = 0,
+                #     )
+                
+                for bg in bglevels:
+
+                    #
+                    # Create a fake image with the source at the center
+                    #
+                    with_bg = psf + bg
+
+                    for cosmicflux in cosmicfluxes:
+
+                        # Reset the output buffer
+                        tile_in[:,:] = numpy.NaN
+                        tile_out[:,:] = numpy.NaN
+
+                        print bg, peak, cosmicflux, fwhm
+                        
+                        #
+                        # Add poisson noise to the image
+                        #
+                        noise_level = numpy.sqrt(with_bg * gain + readnoise**2)
+                        print noise_level.shape
+
+                        # Now pick positions for the cosmics
+                        # cosmics will occupy a fraction of the central area of 
+                        # each postage stamp
+                        cr_pos = numpy.array(numpy.random.random((nrandom,2))
+                                             * centering * imagesize
+                                             + 0.5*(1.-centering)*imagesize,
+                                             dtype=numpy.int)
+
+                        for n in range(nrandom):
+
+                            # Compute some noise and add it to the PSF with background
+                            noise = numpy.random.randn(noise_level.shape[0], noise_level.shape[1]) * noise_level
+                            noisy_image = with_bg + noise
+
+                            # Add the cosmic
+                            noisy_image[cr_pos[n,0], cr_pos[n,1]] += cosmicflux
+
+                            # Save image for later
+                            tile_x = n % n_thumbs
+                            tile_y = int(math.floor(n/n_thumbs))
+
+                            tile_in[tile_x*imagesize:(tile_x+1)*imagesize, 
+                                    tile_y*imagesize:(tile_y+1)*imagesize] = noisy_image
+
+                            flux_in = numpy.sum(noisy_image)
+
+                            #
+                            # Run CRJ detection/rejection
+                            #
+                            if (not cmdline_arg_isset("-nx")):
+                                crj = podi_cython.lacosmics(noisy_image.astype(numpy.float64), 
+                                                            gain=gain, 
+                                                            readnoise=readnoise, 
+                                                            niter=niter, #int(n_iterations),
+                                                            sigclip=sigclip, 
+                                                            sigfrac=sigfrac, 
+                                                            objlim=objlim,
+                                                            saturation_limit=65000, #saturation_limit,
+                                                            verbose=cmdline_arg_isset("-verbose"))
+                                fixed, mask, cell_saturated = crj
+                            else:
+
+                                for i in range(niter):
+                                    crj = podi_cython.lacosmics(noisy_image.astype(numpy.float64), 
+                                                                gain=gain, 
+                                                                readnoise=readnoise, 
+                                                                niter=1, #niter, #int(n_iterations),
+                                                                sigclip=sigclip, 
+                                                                sigfrac=sigfrac, 
+                                                                objlim=objlim,
+                                                                saturation_limit=65000, #saturation_limit,
+                                                                verbose=False)
+                                    fixed, mask, cell_saturated = crj
+                                    noisy_image[:,:] = fixed[:,:]
+
+                            # fixed, mask = remove_cosmics(noisy_image, n_iterations=1, method='cy', 
+                            #                              gain=gain, 
+                            #                              readnoise=readnoise,
+                            #                              # These are the important parameters
+                            #                              sigclip = 5.0, 
+                            #                              sigfrac = 0.3, 
+                            #                              objlim = 5.0,
+                            #                              # ...
+                            #                              saturation_limit=65000.,
+                            #                              binning=1,
+                            #                              verbose=True)
+
+
+
+                            tile_out[tile_x*imagesize:(tile_x+1)*imagesize, 
+                                    tile_y*imagesize:(tile_y+1)*imagesize] = fixed
+
+                            # Compute how much flux we removed vs. 
+                            # how much flux is in the cosmic
+                            flux_out = numpy.sum(fixed)
+                            print "%7.1f %7.1f --> %7.1f == %6.3f" % (
+                                flux_in, flux_out, flux_in-flux_out, (flux_in-flux_out)/cosmicflux
+                            )
+
+                        #all_images = numpy.append(all_images, noisy_image, axis=0)
+                        imghdu = pyfits.ImageHDU(data=tile_in.copy())
+                        imghdu.header['OBJECT'] = "Input: bg %d, flux %.1f, fwhm=%.2f" % (bg, peak, fwhm)
+                        hdulist_in.append(imghdu)
+
+                        imghdu_fixed = pyfits.ImageHDU(data=tile_out.copy())
+                        imghdu.header['OBJECT'] = "CRJ fixed: bg %d, flux %.1f, fwhm=%.2f" % (bg, peak, fwhm)
+                        hdulist_out.append(imghdu_fixed)
+
+
+                        #
+                        # Check if the cosmic was found 
+                        #
+
+                    # for cosmicflux
+                # for bg
+            # for peak
+
+        # next fwhm
+
+        hdulist_in = pyfits.HDUList(hdulist_in)
+        hdulist_in.writeto("crj_debug_in.fits", clobber=True)
+
+        hdulist_out = pyfits.HDUList(hdulist_out)
+        hdulist_out.writeto("crj_debug_out.fits", clobber=True)
+            
 
     else:
 
