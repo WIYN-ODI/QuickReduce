@@ -387,7 +387,10 @@ def differential_photometry(inputlist, source_coords,
                             plot_title=None, plot_filename=None,
                             reference_star_frame=None,
                             output_catalog=None,
-                            skipotas=[]):
+                            skipotas=[],
+                            runname="diffphot", 
+                            write_regions=False
+                            ,):
 
     logger = logging.getLogger("DiffPhot")
 
@@ -688,8 +691,8 @@ def differential_photometry(inputlist, source_coords,
 
     # Now find sources that have good photometry in all frames that 
     # we can use as reference stars
-    small_errors = (ref_stars[:, aperture_error_column] < 0.05) # & \
-                   #(ref_stars[:, aperture_column] > 14)
+    small_errors = (ref_stars[:, aperture_error_column] < 0.05) & \
+                   (ref_stars[:, aperture_column] > 14)
     no_flags = ref_stars[:, SXcolumn['flags']] == 0
     ref_stars = ref_stars[(small_errors & no_flags)]
     logger.info("%d valid reference stars in reference catalog" % (ref_stars.shape[0]))
@@ -877,6 +880,28 @@ def differential_photometry(inputlist, source_coords,
         logger.debug("Added target sources from frame #%d" % (len(target_source)))
         target_mjd.append(mjd_hours[i_cat])
 
+        #
+        # Write some region files with info what stars are being used etc.
+        #
+        if (write_regions or True):
+            regionfile = "%s.%s.reg" % (cat_filelist[i_cat][:-5], runname)
+            logger.debug("Writing regions to %s" % (regionfile))
+            reg = open(regionfile, "w")
+            print >>reg, 'global color=red dashlist=8 3 width=1 font="helvetica 10 normal roman" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1'
+            print >>reg, 'fk5'
+            # Now write a small circle for each reference star
+            for i in range(phot_refs.shape[0]):
+                print >>reg, 'point(%f,%f) # point=circle color=%s' % (
+                    phot_refs[i,0] / cos_declination,
+                    phot_refs[i,1], 'blue')
+            # Now write circles for all targets
+            for i in range(src_radec.shape[0]):
+                ra = src_radec[i,0]/cos_declination
+                dec = src_radec[i,1]
+                print >>reg, "circle %f %f %f # color=white" % (
+                    ra, dec, 2./3600)
+                print >>reg, 'text %f %f {%s} # font="helvetica 16" color=white' % (ra, dec-2./3600, all_target_names[i])
+            reg.close()
 
     print "\n"*10
 
@@ -1301,11 +1326,15 @@ if __name__ == "__main__":
 
     output_catalog = cmdline_arg_set_or_default('-catout', None)
 
+    runname = cmdline_arg_set_or_default('-runname', None)
+    write_regions = cmdline_arg_isset("-writeregions")
+
     data = differential_photometry(inputlist, source_coords=source_data,
                                    plot_title=title, plot_filename=plot_filename,
                                    reference_star_frame=reference_frame,
                                    output_catalog=output_catalog,
                                    skipotas=skipota,
+                                   runname=runname, write_regions=write_regions,
     )
 
     logger.info("Done, shutting down")
