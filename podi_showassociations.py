@@ -87,7 +87,7 @@ if __name__ == "__main__":
 
     show_full_file = cmdline_arg_isset("-full")
 
-    for inputfile = get_clean_cmdline()[1:]:
+    for inputfile in get_clean_cmdline()[1:]:
         show_associations(inputfile, show_full_file)
     
 
