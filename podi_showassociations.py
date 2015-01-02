@@ -43,10 +43,7 @@ import numpy
 from podi_definitions import *
 from podi_commandline import *
 
-if __name__ == "__main__":
-
-    inputfile = get_clean_cmdline()[1]
-    show_full_file = cmdline_arg_isset("-full")
+def show_associations(inputfile, show_full_file):
 
     try:
         hdulist = pyfits.open(inputfile)
@@ -83,4 +80,14 @@ if __name__ == "__main__":
                 stdout_write("% 15s : %s\n" % (' ', assoc_filenames[i]))
 
     stdout_write("-------------------------------\n\n")
+
+    return
+
+if __name__ == "__main__":
+
+    show_full_file = cmdline_arg_isset("-full")
+
+    for inputfile = get_clean_cmdline()[1:]:
+        show_associations(inputfile, show_full_file)
+    
 
