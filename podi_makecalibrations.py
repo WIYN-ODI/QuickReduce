@@ -97,7 +97,7 @@ from podi_makeflatfield import *
 import podi_matchpupilghost
 import logging
 import podi_sitesetup as sitesetup
-
+import podi_focalplanelayout
 
 def strip_fits_extension_from_filename(filename):
     """
@@ -486,7 +486,10 @@ def compute_techdata(calib_biaslist, calib_flatlist, output_dir, options, n_fram
             #
             #print bias_construct
             #print flat_construct
-            list_of_otas_to_collect = available_ota_coords
+
+            fpl = podi_focalplanelayout.FocalPlaneLayout(flatlist[0])
+
+            list_of_otas_to_collect = fpl.available_ota_coords
             number_parallel_jobs = 0
             for (otax, otay) in list_of_otas_to_collect:
                 ota = otax * 10 + otay
