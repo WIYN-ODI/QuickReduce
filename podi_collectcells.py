@@ -270,6 +270,7 @@ import podi_logging
 import podi_cosmicrays
 import podi_illumcorr
 import podi_almanach
+import podi_focalplanelayout
 
 from astLib import astWCS
 
@@ -387,6 +388,9 @@ def collect_reduce_ota(filename,
 
         # podi_logging.podi_getlogger("%s - %s" % (obsid, extname), options['log_setup'])
         logger = logging.getLogger("%s - %s" % (obsid, extname))
+
+        fpl = podi_focalplanelayout.FocalPlaneLayout(hdulist[0])
+        logger.info("Focalplane Layout: %s" % (fpl.layout))
 
         # Now copy the headers from the original file into the new one
         cards = hdulist[0].header.cards
@@ -554,7 +558,7 @@ def collect_reduce_ota(filename,
 
 
             # Check if this is one of the broken cells
-            cellmode_id = get_cellmode(hdulist[0].header, hdulist[cell].header)
+            cellmode_id = get_cellmode(hdulist[0].header, hdulist[cell].header, fpl)
             if (not cellmode_id == 0):
                 # This means it either broken (id=-1) or in video-mode (id=1)
                 continue
@@ -1703,7 +1707,7 @@ def collectcells(input, outputfile,
         outputfile = "%s/%s.fits" % (directory, filebase)
 
     hdulist = None
-    for ota in all_otas:
+    for ota in range(89):
         filename = "%s/%s.%02d.fits" % (directory, filebase, ota)
         if (not os.path.isfile(filename)):
             filename = "%s/%s.%02d.fits.fz" % (directory, filebase, ota)
@@ -1718,6 +1722,9 @@ def collectcells(input, outputfile,
     if (hdulist == None):
         stdout_write("Something is wrong here, can't find/open any of the files...")
         return -1
+
+    fpl = podi_focalplanelayout.FocalPlaneLayout(hdulist[0])
+    logger.info("Focalplane Layout: %s" % (fpl.layout))
 
     obsid = hdulist[0].header['OBSID']
 
@@ -1800,14 +1807,14 @@ def collectcells(input, outputfile,
     #
     # Start assembling the new list of HDUs
     #
-    list_of_otas_to_collect = available_ota_coords
+    list_of_otas_to_collect = fpl.available_ota_coords
     if (options['central_only']):
-        list_of_otas_to_collect = central_array_ota_coords
+        list_of_otas_to_collect = fpl.central_array_ota_coords
     logger.debug("List of otas to collect: %s" % (str(list_of_otas_to_collect)))
 
     filtername = hdulist[0].header['FILTER']
-    if (filtername in blocked_out_otas):
-        exclude_ota = blocked_out_otas[filtername]
+    if (filtername in fpl.blocked_out_otas):
+        exclude_ota = fpl.blocked_out_otas[filtername]
         unblocked_otas = []
         for (ox, oy) in list_of_otas_to_collect:
             ota = ox * 10 + oy;
@@ -2104,7 +2111,7 @@ def collectcells(input, outputfile,
     # 
     logger.debug("Combining sky-samples from all OTAs into global sky value")
     sky_samples_global = None #numpy.empty(0)
-    valid_ext = otas_for_photometry[get_valid_filter_name(ota_list[0].header)]
+    valid_ext = fpl.otas_for_photometry[get_valid_filter_name(ota_list[0].header)]
     sky_global_median = -1.
     for ext in sky_samples:
         # print ext, valid_ext, int(ext[3:5])
