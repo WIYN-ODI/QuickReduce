@@ -77,6 +77,7 @@ import scipy
 import pywcs
 from astLib import astWCS
 import jdcal
+import itertools
 
 import time
 import multiprocessing
@@ -235,7 +236,7 @@ def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo
     first_fits_file = None
     ota_list = []
 
-    for (ota_x, ota_y) in available_ota_coords:
+    for (ota_x, ota_y) in itertools.product(range(8),repeat=2):
         ota = ota_x * 10 + ota_y
 
         filename = "%s/%s.%02d.fits" % (directory, basename, ota)
@@ -243,7 +244,6 @@ def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo
             filename = "%s/%s.%02d.fits.fz" % (directory, basename, ota)
             if (not os.path.isfile(filename)):
                 continue
-
 
         queue.put( (filename, saturation_limit) )
         number_jobs_queued += 1
