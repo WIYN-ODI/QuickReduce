@@ -429,7 +429,7 @@ def get_valid_filter_name(hdr):
 
 
 
-def get_cellmode(primhdr, cellhdr):
+def get_cellmode(primhdr, cellhdr, focalplanelayout):
     """
 
     Check if the specified cell, identified by OTA and CELL-ID, is either broken
@@ -446,13 +446,9 @@ def get_cellmode(primhdr, cellhdr):
 
     # Check if this is one of the permanently broken cells
     wm_cellx, wm_celly = cellhdr['WN_CELLX'], cellhdr['WN_CELLY']
-    broken = False
-    list_of_broken_cells = broken_ota_cells[ota_name]
-    for broken_cell in list_of_broken_cells:
-        x,y = broken_cell
-        if (wm_cellx == x and wm_celly == y):
-            return -1
-            break
+    broken = focalplanelayout.is_cell_broken(primhdr['OTA_ID'], wm_cellx, wm_celly)
+    if (broken):
+        return -1
 
     # It's not one of the broken cells, but it might still be a guide/video cell
     idx = wm_cellx + 8 * wm_celly
