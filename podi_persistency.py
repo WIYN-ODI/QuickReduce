@@ -1225,7 +1225,7 @@ def create_new_persistency_map(shape=None, write_fits=None):
     iraf_size_x, iraf_size_y = px+iraf_gap, py+iraf_gap
 
     stdout_write("Creating mask for OTA")
-    for ota_x,ota_y in available_ota_coords:
+    for ota_x,ota_y in itertools.product(range(8),repeat=2):
         ota = ota_x * 10 + ota_y
         stdout_write(" %02d" % (ota))
         
