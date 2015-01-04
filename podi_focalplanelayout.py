@@ -18,10 +18,11 @@ class FocalPlaneLayout(object):
         elif (type(inp) == pyfits.hdu.hdulist.HDUList):
             hdu = hdulist[0]
         elif (type(inp) == pyfits.hdu.image.ImageHDU or
-              type(inp) == pyfits.hdu.compressed.CompImageHDU):
+              type(inp) == pyfits.hdu.compressed.CompImageHDU or
+              type(inp) == pyfits.hdu.image.PrimaryHDU):
             hdu = inp
         else:
-            logger.error("Unrecognized type: %s" % (type(inp)))
+            self.logger.error("Unrecognized type: %s" % (type(inp)))
             return
 
         # Assume this focal plane layout is well determined
@@ -145,36 +146,36 @@ class FocalPlaneLayout(object):
             #
             # Full ODI filters
             #
-            "odi_g": non_vignetted,
-            "odi_i": non_vignetted,
-            "odi_r": non_vignetted,
-            "odi_z": non_vignetted,
+            "odi_g": self.non_vignetted,
+            "odi_i": self.non_vignetted,
+            "odi_r": self.non_vignetted,
+            "odi_z": self.non_vignetted,
             #
             # All other filters
             #
-            "823_v2": central_2x2,
-            "918R_v1": central_2x2,
-            "BATC_390": central_2x2,
-            "BATC_420": central_2x2,
-            "CTIO_Ha": central_2x2,
-            "CTIO_Ha_8nm": central_2x2,
-            "CTIO_OIII": central_2x2,
-            "Halpha_and_odiz": central_2x2,
-            "KPNO_815": central_2x2,
-            "mosaic_u": central_2x2,
-            "MosaicU_and_odir": central_2x2,
-            "OPEN": non_vignetted,
-            "s2_SII": central_2x2,
-            "CTIO_SII": central_2x2,
-            "sdss_u": central_2x2,
-            "UG5": central_2x2,
-            "unknown": central_2x2,
-            "UNKNOWN": central_2x2,
-            "Us_solid": central_2x2,
-            "windowGlass": all_otas,
-            "WRC3": central_2x2,
-            "Harris_B": central_2x2,
-            "KPNO_815_v2": central_2x2,
+            "823_v2": self.central_2x2,
+            "918R_v1": self.central_2x2,
+            "BATC_390": self.central_2x2,
+            "BATC_420": self.central_2x2,
+            "CTIO_Ha": self.central_2x2,
+            "CTIO_Ha_8nm": self.central_2x2,
+            "CTIO_OIII": self.central_2x2,
+            "Halpha_and_odiz": self.central_2x2,
+            "KPNO_815": self.central_2x2,
+            "mosaic_u": self.central_2x2,
+            "MosaicU_and_odir": self.central_2x2,
+            "OPEN": self.non_vignetted,
+            "s2_SII": self.central_2x2,
+            "CTIO_SII": self.central_2x2,
+            "sdss_u": self.central_2x2,
+            "UG5": self.central_2x2,
+            "unknown": self.central_2x2,
+            "UNKNOWN": self.central_2x2,
+            "Us_solid": self.central_2x2,
+            "windowGlass": self.all_otas,
+            "WRC3": self.central_2x2,
+            "Harris_B": self.central_2x2,
+            "KPNO_815_v2": self.central_2x2,
             }	
         
         #
@@ -185,35 +186,35 @@ class FocalPlaneLayout(object):
             #
             # Full ODI filters
             #
-            "odi_g": all_otas,
-            "odi_r": all_otas,
-            "odi_i": all_otas,
-            "odi_z": all_otas,
+            "odi_g": self.all_otas,
+            "odi_r": self.all_otas,
+            "odi_i": self.all_otas,
+            "odi_z": self.all_otas,
             #
             # All other filters
             #
-            "823_v2": central_3x3,
-            "918R_v1": central_3x3,
-            "BATC_390": central_3x3,
-            "BATC_420": central_3x3,
-            "CTIO_Ha": central_3x3,
-            "CTIO_Ha_8nm": central_3x3,
-            "CTIO_OIII": central_3x3,
-            "Halpha_and_odiz": central_3x3,
-            "KPNO_815": central_3x3,
-            "mosaic_u": central_3x3,
-            "MosaicU_and_odir": central_3x3,
-            "OPEN": all_otas,
-            "sdss_u": central_3x3,
-            "s2_SII": central_3x3,
-            "CTIO_SII": central_3x3,
-            "UG5": central_3x3,
-            "unknown": central_3x3,
-            "UNKNOWN": central_3x3,
-            "Us_solid": central_3x3,
-            "windowGlass": all_otas,
-            "WRC3": central_3x3,
-            "Harris_B": central_3x3,
+            "823_v2": self.central_3x3,
+            "918R_v1": self.central_3x3,
+            "BATC_390": self.central_3x3,
+            "BATC_420": self.central_3x3,
+            "CTIO_Ha": self.central_3x3,
+            "CTIO_Ha_8nm": self.central_3x3,
+            "CTIO_OIII": self.central_3x3,
+            "Halpha_and_odiz": self.central_3x3,
+            "KPNO_815": self.central_3x3,
+            "mosaic_u": self.central_3x3,
+            "MosaicU_and_odir": self.central_3x3,
+            "OPEN": self.all_otas,
+            "sdss_u": self.central_3x3,
+            "s2_SII": self.central_3x3,
+            "CTIO_SII": self.central_3x3,
+            "UG5": self.central_3x3,
+            "unknown": self.central_3x3,
+            "UNKNOWN": self.central_3x3,
+            "Us_solid": self.central_3x3,
+            "windowGlass": self.all_otas,
+            "WRC3": self.central_3x3,
+            "Harris_B": self.central_3x3,
             }	
 
         # this is for pODI 
