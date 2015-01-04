@@ -2900,54 +2900,56 @@ def collectcells(input, outputfile,
     # Also make sure to compute real Ra/Dec values from OTA, X, and Y
     #
     logger.debug("Creating the SKYLEVEL table extension")
-    sky_samples_final = numpy.empty((0,sky_samples_global.shape[1]))
-    sky_otas = set(sky_samples_global[:,-1])
-    # print sky_otas
-    for sky_ota in sky_otas:
-        sky_extname = "OTA%02d.SCI" % (sky_ota)
-        # find the right HDU extension to compute the WCS solution
-        for cur_ext in ota_list:
-            if ('EXTNAME' in cur_ext.header and
-                cur_ext.header['EXTNAME'] == sky_extname):
-                logger.debug("Computing Ra/Dec for sky-samples in %s" % (sky_extname))
-                # Found the right OTA
-                in_this_ota = (sky_samples_global[:, -1] == sky_ota)
-                if (numpy.sum(in_this_ota) <= 0):
-                    continue
-                sky_ota = sky_samples_global[in_this_ota]
-                wcs = astWCS.WCS(cur_ext.header, mode='pyfits')
-                ota_radec = numpy.array(wcs.pix2wcs(sky_ota[:,2]-1.0, sky_ota[:,3]-1.0))
-                # print ota_radec
-                sky_ota[:, 0:2] = ota_radec
-                sky_samples_final = numpy.append(sky_samples_final, sky_ota, axis=0)
-                break
-    sky_columns = [
-        pyfits.Column(name='RA', format='D', unit='degrees',
-                      array=sky_samples_final[:,0], disp='RA of box center'),
-        pyfits.Column(name='DEC', format='D', unit='degrees',
-                      array=sky_samples_final[:,1], disp='DEC of box center'),
-        pyfits.Column(name='X', format='D', unit='pixel',
-                      array=sky_samples_final[:,2], disp='X position of box center'),
-        pyfits.Column(name='Y', format='D', unit='pixel',
-                      array=sky_samples_final[:,3], disp='Y position of box center'),
-        pyfits.Column(name='INTENSITY', format='D', unit='counts',
-                      array=sky_samples_final[:,4], disp='median counts in box'),
-        pyfits.Column(name='MIN_D', format='D', unit='pixel',
-                      array=sky_samples_final[:,2], disp='distance to closest source'),
-        pyfits.Column(name='OTA', format='I2', unit='',
-                      array=sky_samples_final[:,2], disp='source OTA'),
-    ]
-    sky_coldefs = pyfits.ColDefs(sky_columns)
-    sky_tbhdu = pyfits.new_table(sky_coldefs, tbtype='BinTableHDU')
-    sky_tbhdu.update_ext_name("SKYLEVEL", comment=None)
-    # Copy a bunch of headers from the primary HDUu to the SKYLEVEL hdu
-    for key in [
-            "SKYLEVEL", "SKYBG", 'SKYBGCLP', 'SKYBGMIN', 'SKYBGSTD', 'SKYSMPLS',
-            'SKYL1SIG', 'SKYU1SIG', 'SKYL2SIG', 'SKYU2SIG', 'SKY_LO5P', 'SKY_LO5S',
-            ]:
-        sky_tbhdu.header[key] = ota_list[0].header[key]
-    ota_list.append(sky_tbhdu)
-    # numpy.savetxt("skyfinal", sky_samples_final)
+    if (not sky_samples_global == None):
+        sky_samples_final = numpy.empty((0,sky_samples_global.shape[1]))
+        sky_otas = set(sky_samples_global[:,-1])
+
+        # print sky_otas
+        for sky_ota in sky_otas:
+            sky_extname = "OTA%02d.SCI" % (sky_ota)
+            # find the right HDU extension to compute the WCS solution
+            for cur_ext in ota_list:
+                if ('EXTNAME' in cur_ext.header and
+                    cur_ext.header['EXTNAME'] == sky_extname):
+                    logger.debug("Computing Ra/Dec for sky-samples in %s" % (sky_extname))
+                    # Found the right OTA
+                    in_this_ota = (sky_samples_global[:, -1] == sky_ota)
+                    if (numpy.sum(in_this_ota) <= 0):
+                        continue
+                    sky_ota = sky_samples_global[in_this_ota]
+                    wcs = astWCS.WCS(cur_ext.header, mode='pyfits')
+                    ota_radec = numpy.array(wcs.pix2wcs(sky_ota[:,2]-1.0, sky_ota[:,3]-1.0))
+                    # print ota_radec
+                    sky_ota[:, 0:2] = ota_radec
+                    sky_samples_final = numpy.append(sky_samples_final, sky_ota, axis=0)
+                    break
+        sky_columns = [
+            pyfits.Column(name='RA', format='D', unit='degrees',
+                          array=sky_samples_final[:,0], disp='RA of box center'),
+            pyfits.Column(name='DEC', format='D', unit='degrees',
+                          array=sky_samples_final[:,1], disp='DEC of box center'),
+            pyfits.Column(name='X', format='D', unit='pixel',
+                          array=sky_samples_final[:,2], disp='X position of box center'),
+            pyfits.Column(name='Y', format='D', unit='pixel',
+                          array=sky_samples_final[:,3], disp='Y position of box center'),
+            pyfits.Column(name='INTENSITY', format='D', unit='counts',
+                          array=sky_samples_final[:,4], disp='median counts in box'),
+            pyfits.Column(name='MIN_D', format='D', unit='pixel',
+                          array=sky_samples_final[:,2], disp='distance to closest source'),
+            pyfits.Column(name='OTA', format='I2', unit='',
+                          array=sky_samples_final[:,2], disp='source OTA'),
+        ]
+        sky_coldefs = pyfits.ColDefs(sky_columns)
+        sky_tbhdu = pyfits.new_table(sky_coldefs, tbtype='BinTableHDU')
+        sky_tbhdu.update_ext_name("SKYLEVEL", comment=None)
+        # Copy a bunch of headers from the primary HDUu to the SKYLEVEL hdu
+        for key in [
+                "SKYLEVEL", "SKYBG", 'SKYBGCLP', 'SKYBGMIN', 'SKYBGSTD', 'SKYSMPLS',
+                'SKYL1SIG', 'SKYU1SIG', 'SKYL2SIG', 'SKYU2SIG', 'SKY_LO5P', 'SKY_LO5S',
+                ]:
+            sky_tbhdu.header[key] = ota_list[0].header[key]
+        ota_list.append(sky_tbhdu)
+        # numpy.savetxt("skyfinal", sky_samples_final)
 
     if (not options['nonsidereal'] == None):
         logger.info("Starting non-sidereal WCS modification")
