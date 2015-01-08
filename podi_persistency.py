@@ -676,7 +676,11 @@ def get_list_of_saturation_tables(directory, mjd_catalog_list=None):
         logger.warning("Unable to find specified persistency-directory: %s" % (directory))
         return mjd_catalog_list
 
-    filelist = os.listdir(directory)
+    try:
+        filelist = os.listdir(directory)
+    except OSError:
+        # something's weird here, directory exists but can't be accessed
+        return mjd_catalog_list
 
     indexfile = "%s/index.cat" % (directory)
     mjd_catalog_list = load_saturation_table_list(indexfile, mjd_catalog_list)
