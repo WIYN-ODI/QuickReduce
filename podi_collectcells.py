@@ -1089,31 +1089,9 @@ def collect_reduce_ota(filename,
 
         # Now add the canned WCS solution
         if (options['wcs_distortion'] != None):
-            #print "Adding header from WCS minifits (%s)" % (extname)
-            wcs = pyfits.open(options['wcs_distortion'])
-            wcs_header = wcs[extname].header
-
-            # Modify the WCS solution to properly represents the WCS solution of binned data
-            # print "Correcting the WCS solution for binning factor",binning,"..."
-            for hdr_name in ('CRPIX1', 'CRPIX2'):
-                wcs_header[hdr_name] /= binning
-            for hdr_name in ('CD1_1', 'CD1_2', 'CD2_1', 'CD2_2'):
-                wcs_header[hdr_name] *= binning
-
+            fpl.apply_wcs_distortion(options['wcs_distortion'], hdu)
             reduction_files_used['wcs'] = options['wcs_distortion']
 
-            cards = wcs_header.cards
-            for (keyword, value, comment) in cards:
-                if (keyword == 'CRVAL1'):
-                    hdu.header["CRVAL1"] -= wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
-                elif (keyword == "CRVAL2"):
-                    hdu.header['CRVAL2'] -= wcs_header['CRVAL2']
-                else:
-                    hdu.header[keyword] = (value, comment)
-
-            # Make sure to write RAs that are positive
-            if (hdu.header["CRVAL1"] < 0):
-                hdu.header['CRVAL1'] += 360.
                 
         #
         # If requested, perform cosmic ray rejection

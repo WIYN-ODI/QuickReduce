@@ -31,6 +31,11 @@ class FocalPlaneLayout(object):
         # Assume this focal plane layout is well determined
         self.valid = True
 
+        #
+        # Set internal values to a safe value
+        #
+        self.wcs = None
+
         self.setup_general()
         
         # Find date of exposure
@@ -335,3 +340,40 @@ class FocalPlaneLayout(object):
 
     def crosstalk_saturation_correction(self, extname):
         return podi_crosstalk.xtalk_saturated_correction
+
+
+    def apply_wcs_distortion(self, filename, outhdu):
+
+        try:
+            self.wcs = pyfits.open(filename)
+        except:
+            self.logger.error("Could not open WCS distortion model (%s)" % (filename))
+            return
+
+        extname = outhdu.header['EXTNAME']
+
+        try:
+            wcs_header = self.wcs[extname]
+
+            for hdr_name in ('CRPIX1', 'CRPIX2'):
+                wcs_header[hdr_name] /= binning
+            for hdr_name in ('CD1_1', 'CD1_2', 'CD2_1', 'CD2_2'):
+                wcs_header[hdr_name] *= binning
+
+            cards = wcs_header.cards
+            for (keyword, value, comment) in cards:
+                if (keyword == 'CRVAL1'):
+                    hdu.header["CRVAL1"] -= wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
+                elif (keyword == "CRVAL2"):
+                    hdu.header['CRVAL2'] -= wcs_header['CRVAL2']
+                else:
+                    hdu.header[keyword] = (value, comment)
+
+            # Make sure to write RAs that are positive
+            if (hdu.header["CRVAL1"] < 0):
+                hdu.header['CRVAL1'] += 360.
+        except:
+            self.logger.warning("Could not find distortion model for %s" % (extname))
+            pass
+
+        return
