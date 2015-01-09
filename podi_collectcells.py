@@ -427,6 +427,7 @@ def collect_reduce_ota(filename,
 
         # Now go through each of the 8 lines
         logger.debug("Starting crosstalk correction (%s)" % (extname))
+        xtalk_matrix = fpl.get_crosstalk_matrix(extname)
         for row in range(8):
             for column in range(8):
                 
@@ -442,10 +443,10 @@ def collect_reduce_ota(filename,
                     # the corrected cell content output
                     #print "Adding ",xy_name,"to ",extname, column, row, "(scaling",podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column],")"
 
-                    correction = hdulist[extname2id[xy_name]].data * podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column]
+                    correction = hdulist[extname2id[xy_name]].data * xtalk_matrix[row][xtalk_column][column]
                     if (column != xtalk_column):
-                        saturated = hdulist[extname2id[xy_name]].data >= podi_crosstalk.xtalk_saturation_limit
-                        correction[saturated] = -1 * podi_crosstalk.xtalk_saturated_correction
+                        saturated = hdulist[extname2id[xy_name]].data >= fpl.crosstalk_saturation_limit(extname)
+                        correction[saturated] = -1 * fpl.crosstalk_saturation_correction(extname)
 
                     xtalk_corr[column] += correction #hdulist[xy_name].data * podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column]
                     #print xtalk_corr[column][100,100]

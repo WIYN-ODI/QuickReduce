@@ -2,6 +2,9 @@
 
 import pyfits
 import logging
+import itertools
+
+import podi_crosstalk
 
 
 class FocalPlaneLayout(object):
@@ -37,10 +40,11 @@ class FocalPlaneLayout(object):
             # This exposure was obtained BEFORE 01/01/2015
             # --> use original pODI layout (3x3 + 4)
             self.setup_podi_layout()
+            self.fp_config = 'podi'
         else:
             # This is the refurbished, extended layout commissioned in 2015
             self.setup_5x6_layout()
-
+            self.fp_config = "odi_5x6"
         return
 
 
@@ -249,6 +253,22 @@ class FocalPlaneLayout(object):
         self.setup_podi_layout()
 
         self.layout = 'ODI_5x6'
+
+        self.available_ota_coords = itertools.product(range(1,7), repeat=2)# [
+            # (3,3),
+            # (3,4),
+            # (4,4),
+            # (4,3),
+            # (4,2),
+            # (3,2),
+            # (2,2),
+            # (2,3),
+            # (2,4),
+            # (5,5),
+            # (6,1),
+            # (1,6), 
+            # (0,0),
+            # ]
         pass
 
     
@@ -303,3 +323,15 @@ class FocalPlaneLayout(object):
 
 
 
+    def get_crosstalk_matrix(self, extname):
+
+        if (extname in podi_crosstalk.xtalk_matrix):
+            return podi_crosstalk.xtalk_matrix[extname]
+
+        return podi_crosstalk.xtalk_matrix['OTA33.SCI']
+
+    def crosstalk_saturation_limit(self, extname):
+        return podi_crosstalk.xtalk_saturation_limit
+
+    def crosstalk_saturation_correction(self, extname):
+        return podi_crosstalk.xtalk_saturated_correction
