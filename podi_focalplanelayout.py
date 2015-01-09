@@ -3,9 +3,10 @@
 import pyfits
 import logging
 import itertools
+import math
 
 import podi_crosstalk
-
+import podi_logging
 
 class FocalPlaneLayout(object):
 
@@ -324,9 +325,29 @@ class FocalPlaneLayout(object):
 
     def is_cell_broken(self, ota_id, cx, cy):
         cell_xy = (cx,cy)
+        # self.logger.debug("OTA-ID: %s, cell %d,%d -> %s" % (ota_id, cx, cy, str(cell_xy in self.broken_cells[ota_id])))
         return (cell_xy in self.broken_cells[ota_id])
 
-
+    def get_otaid_from_position(self, xy):
+        if (self.fp_config == 'podi'):
+            _fp = {00: 13838,
+                   16: 13880,
+                   22: 13835, 23: 13901, 24: 13968,
+                   32: 13974, 33: 13879, 34: 13923,
+                   42: 13792, 43: 13902, 44: 13947,
+                   55: 13946,
+                   61: 13837,
+              }
+        else:
+            _fp = {11:13968, 12:13974, 13:13923, 14:13901, 15:13837, 16:13946,
+                   21:17198, 22:17297, 23:17144, 24:17275, 25:13880, 26:13835, 
+                   31:17187, 32:17231, 33:17121, 34:17166, 35:13947, 36:13902, 
+                   41:17234, 42:17277, 43:17341, 44:17167, 45:13879, 46:13792,
+                   51:17253, 52:17190, 53:17278, 54:17122, 55:13838, 56:8101, 
+            }
+        if (xy in _fp):
+            return _fp[xy]
+        return -1
 
     def get_crosstalk_matrix(self, extname):
 
@@ -342,7 +363,7 @@ class FocalPlaneLayout(object):
         return podi_crosstalk.xtalk_saturated_correction
 
 
-    def apply_wcs_distortion(self, filename, outhdu):
+    def apply_wcs_distortion(self, filename, hdu, binning):
 
         try:
             self.wcs = pyfits.open(filename)
@@ -350,11 +371,15 @@ class FocalPlaneLayout(object):
             self.logger.error("Could not open WCS distortion model (%s)" % (filename))
             return
 
-        extname = outhdu.header['EXTNAME']
+        extname = hdu.header['EXTNAME']
 
         try:
-            wcs_header = self.wcs[extname]
+            wcs_header = self.wcs[extname].header
+        except:
+            self.logger.warning("Could not find distortion model for %s" % (extname))
+            return
 
+        try:
             for hdr_name in ('CRPIX1', 'CRPIX2'):
                 wcs_header[hdr_name] /= binning
             for hdr_name in ('CD1_1', 'CD1_2', 'CD2_1', 'CD2_2'):
@@ -373,7 +398,8 @@ class FocalPlaneLayout(object):
             if (hdu.header["CRVAL1"] < 0):
                 hdu.header['CRVAL1'] += 360.
         except:
-            self.logger.warning("Could not find distortion model for %s" % (extname))
-            pass
+            self.logger.critical("something went wrong while applying the WCS model")
+            podi_logging.log_exception()
 
+            
         return

@@ -390,7 +390,7 @@ def collect_reduce_ota(filename,
         logger = logging.getLogger("%s - %s" % (obsid, extname))
 
         fpl = podi_focalplanelayout.FocalPlaneLayout(hdulist[0])
-        logger.info("Focalplane Layout: %s" % (fpl.layout))
+        logger.debug("Focalplane Layout: %s" % (fpl.layout))
 
         # Now copy the headers from the original file into the new one
         cards = hdulist[0].header.cards
@@ -1089,7 +1089,7 @@ def collect_reduce_ota(filename,
 
         # Now add the canned WCS solution
         if (options['wcs_distortion'] != None):
-            fpl.apply_wcs_distortion(options['wcs_distortion'], hdu)
+            fpl.apply_wcs_distortion(options['wcs_distortion'], hdu, binning)
             reduction_files_used['wcs'] = options['wcs_distortion']
 
                 
