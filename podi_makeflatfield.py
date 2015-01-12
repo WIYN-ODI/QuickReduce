@@ -35,8 +35,12 @@ import scipy
 
 from podi_definitions import *
 from podi_commandline import *
+import podi_focalplanelayout
 
-def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=3, batchmode_hdu=None):
+def normalize_flatfield(filename, outputfile, 
+                        binning_x=8, binning_y=8, 
+                        repeats=3, 
+                        batchmode_hdu=None):
 
     if (not batchmode_hdu == None):
         hdulist = batchmode_hdu
@@ -44,12 +48,10 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
         hdulist = pyfits.open(filename)
 
     filter = hdulist[0].header['FILTER']
-    # print "This is filter",filter    # print "Using binning %d,%d" % (binning_x, binning_y)
 
-    if (filter in otas_to_normalize_ff):
-        list_of_otas_to_normalize = otas_to_normalize_ff[filter]
-    else:
-        list_of_otas_to_normalize = central_2x2
+    fpl = podi_focalplanelayout.FocalPlaneLayout(hdulist)
+
+    list_of_otas_to_normalize = fpl.get_science_area_otas(filter, include_vignetted=False)
 
     flatfield_data = numpy.zeros(shape=(13*4096*4096/(binning_x*binning_y)), dtype=numpy.float32)
     flatfield_data[:] = numpy.NaN

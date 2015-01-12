@@ -3,34 +3,42 @@
 import pyfits
 import logging
 import itertools
-import math
+import math, sys
 
 import podi_crosstalk
 import podi_logging
+import numpy
 
 class FocalPlaneLayout(object):
 
-    def __init__(self, inp):
+
+    def __init__(self, inp=None):
 
         self.logger = logging.getLogger("FocalPlaneLayout")
         self.valid = False
+        self.logger.debug("Creating focal plane from type %s" % (str(type(inp))))
 
         if (type(inp) == str):
             # Assume its a filename
             hdulist = pyfits.open(inp)
             hdu = hdulist[0]
         elif (type(inp) == pyfits.hdu.hdulist.HDUList):
-            hdu = hdulist[0]
+            hdu = inp[0]
         elif (type(inp) == pyfits.hdu.image.ImageHDU or
               type(inp) == pyfits.hdu.compressed.CompImageHDU or
               type(inp) == pyfits.hdu.image.PrimaryHDU):
             hdu = inp
+        elif (inp == None):
+            # This is a fall-back mode, creating a class that can not do 
+            # everything it could do otherwise
+            return
         else:
             self.logger.error("Unrecognized type: %s" % (type(inp)))
             return
 
         # Assume this focal plane layout is well determined
         self.valid = True
+        self.logger.debug("HDU type is now %s" % (str(type(hdu))))
 
         #
         # Set internal values to a safe value
@@ -403,3 +411,52 @@ class FocalPlaneLayout(object):
 
             
         return
+
+
+    def get_science_area_otas(self, filtername, include_vignetted=True):
+        
+        if (include_vignetted):
+            if (filtername in self.otas_for_photometry):
+                return self.otas_for_photometry[filtername]
+            else:
+                return self.central_2x2
+
+        if (filtername in self.otas_to_normalize_ff):
+            return self.otas_to_normalize_ff[filtername]
+        
+        return central_2x2
+
+
+
+
+    def create_radially_sorted_ota_list(self):
+        
+        # all_xy = []
+        
+        # for x,y in itertools.product(range(8),repeat=2):
+        
+        #     center_x = x * 4300 + 2000
+        #     center_y = y * 4300 + 2000
+
+        #     r = math.sqrt((17000 - center_x)**2 + (17000-center_y)**2)
+        
+        #     all_xy.append([x,y,r,center_x, center_y])
+
+        # all_xy = numpy.array(all_xy)
+    
+        # # sort by r
+        # si = numpy.argsort(all_xy[:,2])
+
+        # sortedxy = all_xy[si]
+
+        # # numpy.savetxt(sys.stdout, sortedxy, "% 2d % 2d %.0f % 6d % 6d")
+        # return list(numpy.array(sortedxy[:,0]*10+sortedxy[:,1], dtype=numpy.int))
+
+        #
+        # Compact version
+        #
+        y,x = numpy.indices((8,8))
+        r = numpy.hypot(17000-(4300*x[0:1,:]+2000), 17000-(4300*y[:,0:1]+2000))
+        si = numpy.argsort(r.ravel())
+        idx = x[0:1,:]*10+y[:,0:1]
+        return list(idx.ravel()[si])
