@@ -237,12 +237,9 @@ def wcsdiag_scatter(matched_radec_odi,
 
     # Now break down the plots by OTA
     if (also_plot_singleOTAs):
-        list_of_otas = available_ota_coords
-        if (options['central_only']):
-            list_of_otas = central_array_ota_coords
 
-        for (otax, otay) in list_of_otas:
-            this_ota = otax * 10 + otay
+        list_of_otas = set(ota)
+        for this_ota in list_of_otas:
             in_this_ota = (ota == this_ota)
             if (numpy.sum(in_this_ota) <= 0):
                 continue
@@ -507,12 +504,8 @@ def wcsdiag_shift(matched_radec_odi,
  
     # Now break down the plots by OTA
     if (also_plot_singleOTAs):
-        list_of_otas = available_ota_coords
-        if (options['central_only']):
-            list_of_otas = central_array_ota_coords
-
-        for (otax, otay) in list_of_otas:
-            this_ota = otax * 10 + otay
+        list_of_otas = set(ota)
+        for this_ota in list_of_otas:
             in_this_ota = (ota == this_ota)
             if (numpy.sum(in_this_ota) <= 0):
                 continue
@@ -1041,12 +1034,8 @@ def photocalib_zeropoint_map(details,
 
     # If requested, do the same for the individual OTAs
     if (also_plot_singleOTAs):
-        list_of_otas = available_ota_coords
-        if (options['central_only']):
-            list_of_otas = central_array_ota_coords
-
-        for (otax, otay) in list_of_otas:
-            this_ota = otax * 10 + otay
+        list_of_otas = set(details['odi_sdss_matched_smallerrors'][:, SXcolumn['ota']+2])
+        for this_ota in list_of_otas:
             in_this_ota = (details['odi_sdss_matched_smallerrors'][:, SXcolumn['ota']+2] == this_ota)
             if (numpy.sum(in_this_ota) <= 0):
                 continue
@@ -1225,12 +1214,8 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
 
     # If requested, do the same for the individual OTAs
     if (also_plot_singleOTAs):
-        list_of_otas = available_ota_coords
-        if (options['central_only']):
-            list_of_otas = central_array_ota_coords
-
-        for (otax, otay) in list_of_otas:
-            this_ota = otax * 10 + otay
+        list_of_otas = set(ota)
+        for this_ota in list_of_otas:
 
             in_this_ota = (ota == this_ota)
             if (numpy.sum(in_this_ota) <= 0):
@@ -1460,13 +1445,8 @@ def  diagplot_psfshape_map(ra, dec, elongation, angle, fwhm, ota,
 
     # If requested, do the same for the individual OTAs
     if (also_plot_singleOTAs):
-        list_of_otas = available_ota_coords
-        if (options['central_only']):
-            list_of_otas = central_array_ota_coords
-
-        for (otax, otay) in list_of_otas:
-            this_ota = otax * 10 + otay
-
+        list_of_otas = set(ota)
+        for this_ota in list_of_otas:
             in_this_ota = (ota == this_ota)
             if (numpy.sum(in_this_ota) <= 0):
                 continue
