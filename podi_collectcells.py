@@ -1680,13 +1680,11 @@ def collectcells(input, outputfile,
         stdout_write("Unable to open file %s, aborting!\n" % input)
         return
 
-    #print "Merging cells for frame %s" % (basename)
-
     if (outputfile == None):
         outputfile = "%s/%s.fits" % (directory, filebase)
 
     hdulist = None
-    for ota in range(89):
+    for ota in podi_focalplanelayout.FocalPlaneLayout().create_radially_sorted_ota_list():
         filename = "%s/%s.%02d.fits" % (directory, filebase, ota)
         if (not os.path.isfile(filename)):
             filename = "%s/%s.%02d.fits.fz" % (directory, filebase, ota)
