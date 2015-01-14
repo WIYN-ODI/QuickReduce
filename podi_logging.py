@@ -237,6 +237,7 @@ def log_master(queue, options):
             debug_logger.addHandler(h)
             debug_logger.propagate=False
         except:
+            print "#@#@#@#@#@# Unable to write to debug file: %s" % (debug_filename)
             pass
 
     #
@@ -487,11 +488,58 @@ def log_exception(name=None):
     return
 
 
-def setup_logging(options):
+def log_platform_debug_data():
+    logger = logging.getLogger("PLATFORM")
+    try:
+        import platform
+        logger.debug("Python version: %s" % (str(platform.python_version())))
+        logger.debug("Python compiler: %s" % (str(platform.python_compiler())))
+        logger.debug("Python build: %s" % (str(platform.python_build())))
+
+        logger.debug("OS version: %s" % (str(platform.platform())))
+
+        logger.debug("OS uname: %s" % (" ".join(platform.uname())))
+        logger.debug("OS system: %s" % (str(platform.system())))
+        logger.debug("OS node: %s" % (str(platform.node())))
+        logger.debug("OS release: %s" % (str(platform.release())))
+        logger.debug("OS version: %s" % (str(platform.version())))
+        logger.debug("OS machine: %s" % (str(platform.machine())))
+        logger.debug("OS processor: %s" % (str(platform.processor())))
+
+        logger.debug("interpreter: %s" % (" ".join(platform.architecture())))
+    except:
+        logger.debug("OS info not available, missing package platform")
+        pass
+
+    try:
+        import socket
+        logger.debug("Socket hostname: %s" % (socket.gethostname()))
+    except:
+        logger.debug("socket info not available, missing package socket")
+        pass
+
+    try:
+        import getpass
+        logger.debug("username: %s" % (getpass.getuser()))
+    except:
+        logger.debug("username not available, missing package getpass")
+        pass
+        
+    return
+
+
+def setup_logging(options=None):
+
+    if (options == None):
+        options = {}
+
     # Setup everything we need for logging
     log_master_info, log_setup = podi_log_master_start(options)
     options['log_setup'] = log_setup
     options['log_master_info'] = log_master_info
+
+    log_platform_debug_data()
+
     return options
     
 def shutdown_logging(options):
