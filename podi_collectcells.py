@@ -1576,10 +1576,159 @@ def collectcells_with_timeout(input, outputfile,
 
 
 
+def my_system(cmd):
+    logger = logging.getLogger("RunShellCmd")
+    start_time = time.time()
+    returncode = None
+    try:
+        logger.debug("Running %s" % (cmd))
+        ret = subprocess.Popen(cmd.split(), 
+                               stdout=subprocess.PIPE, 
+                               stderr=subprocess.PIPE)
+        (stdout, stderr) = ret.communicate()
+        end_time = time.time()
+        returncode = ret.returncode
+        logger.debug("Execution done after %.3f seconds" % (end_time-start_time))
+        # if (ret.returncode != 0):
+        #     logger.warning("Sextractor might have a problem, check the log")
+        #     logger.debug("Stdout=\n"+sex_stdout)
+        #     logger.debug("Stderr=\n"+sex_stderr)
+    except OSError as e:
+        #podi_logging.log_exception()
+        logger.debug("Error while executing: Err:%d - %s" % (e.errno, e.strerror))
+    except:
+        podi_logging.log_exception()
+        pass
+        
+    return
 
 
+def prestage_data(options, input):
+
+    logger = logging.getLogger("PreStage")
+    import shutil
+
+    logger.info("Prestaging data to scratch dir...")
+    staged = True
+    procs = []
+    if (os.path.isdir(input)):
+        logger.debug("Input is a directory: %s" % (input))
+
+        # This is a directory.
+        # Let's assume all files in this directory need to be prestaged
+        base, dirname = os.path.split(os.path.abspath(input))
+        print base, dirname
+        tmpdir = "%s/%s" % (sitesetup.scratch_dir, dirname)
+        # Create the directory
+        if (not os.path.isdir(tmpdir)):
+            os.mkdir(tmpdir)
+        # Now copy all .fits and .fits.fz files into the new directory
+        for fn in os.listdir(input):
+
+            filename = "%s/%s" % (input, fn)
+            if (not os.path.isfile(filename)):
+                # Not a file (probaby a directory) -> ignore it
+                continue
+
+            if (fn.endswith(".fits.fz")):
+                # This is a .fits.fz file -> run funpack
+                outfile = "%s/%s" % (tmpdir, fn[:-3])
+                if (os.path.isfile(outfile)):
+                    continue
+                logger.debug("Prestaging file w/ funpack: %s --> %s" % (filename, outfile))
+                # os.system("funpack -O %s %s" % (outfile, filename))
+                p = multiprocessing.Process(target=my_system,
+                                            kwargs={"cmd": "funpack -O %s %s" % (outfile, filename)}
+                                        )
+                p.start()
+                procs.append(p)
+            elif (fn.endswith(".fits")):
+                # This a fits file -> simply copy it
+                outfile = "%s/%s" % (tmpdir, fn)
+                if (os.path.isfile(outfile)):
+                    continue
+                logger.debug("Prestaging file w/ copy: %s --> %s" % (filename, outfile))
+                #shutil.copyfile(filename, outfile)
+         
+            
+    elif (os.path.isfile(input)):
+        logger.debug("input is filename")
+        # its a file
+        # find the basename of the file
+        dirname, filename = os.path.split(os.path.abspath(input))
+        if (filename.endswith(".fits.fz")):
+            base = filename[:-11]
+        elif (filename.endswith(".fits")):
+            base = filename[:-8]
+        else:
+            # not sure what this input is
+            return
+
+        tmpdir = "%s/%s" % (sitesetup.scratch_dir, base)
+        # Create the directory
+        if (not os.path.isdir(tmpdir)):
+            os.mkdir(tmpdir)
+        # Now copy all .fits and .fits.fz files into the new directory
+        for fn in os.listdir(dirname):
+
+            filename = "%s/%s" % (dirname, fn)
+            if (not os.path.isfile(filename) or not fn.beginswith(base)):
+                # Not a file (probaby a directory) -> ignore it
+                continue
+            
+            if (fn.endswith(".fits.fz")):
+                # This is a .fits.fz file -> run funpack
+                outfile = "%s/%s" % (tmpdir, fn[:-3])
+                print outfile
+                if (os.path.isfile(outfile)):
+                    continue
+                logger.debug("Prestaging file w/ funpack: %s --> %s" % (filename, outfile))
+                # os.system("funpack -O %s %s" % (outfile, filename))
+                p = multiprocessing.Process(target=my_system,
+                                            kwargs={"cmd": "funpack -O %s %s" % (outfile, filename)}
+                                        )
+                p.start()
+                procs.append(p)
+            elif (fn.endswith(".fits")):
+                # This a fits file -> simply copy it
+                outfile = "%s/%s" % (tmpdir, fn)
+                if (os.path.isfile(outfile)):
+                    continue
+                logger.debug("Prestaging file w/ copy: %s --> %s" % (filename, outfile))
+                #shutil.copyfile(filename, outfile)
+
+    else:
+        logger.error("Input (%s) is neither path nor file, can't prestage this!\n" % (input))
+        staged = False
+
+    for p in procs:
+        p.join()
+
+    logger.info("Done prestaging data !")
+    
+    return tmpdir, staged
 
 
+def unstage_data(options, staged, input):
+
+    logger = logging.getLogger("Unstage")
+
+    if (options['prestage'] and staged):
+        if (input.startswith(sitesetup.scratch_dir)):
+            files = os.listdir(input)
+            for f in files:
+                fn = "%s/%s" % (input, f)
+                if (fn.endswith(".fits")):
+                    logger.debug("deleting staged file: %s" % (fn))
+                    os.remove(fn)
+            try:
+                os.rmdir(input)
+                logger.debug("removing staging directory %s" % (input))
+            except:
+                logger.warning("Unable to remove staging directory %s" % (input))
+                pass
+
+    return
 
 def collectcells(input, outputfile,
                  process_tracker,
@@ -1669,6 +1818,11 @@ def collectcells(input, outputfile,
 
     # afw = podi_asyncfitswrite.async_fits_writer(1)
 
+    staged_data = False
+    if (options['prestage']):
+        input, staged_data = prestage_data(options, input)
+#        return
+
     if (os.path.isfile(input)):
         logger.debug("Input is a file: %s" % (input))
         # Assume this is one of the fits files in the right directory
@@ -1708,6 +1862,7 @@ def collectcells(input, outputfile,
                 part_path, os.path.isdir(part_path), os.path.isfile(part_path)))
             # print "BACKTRACKING: %-100s is a path/dir? %-5s / %-5s" % (
             #     part_path, os.path.isdir(part_path), os.path.isfile(part_path))
+        unstage_data(options, staged_data, input)
         return
 
     #print "Merging cells for frame %s" % (basename)
@@ -1730,6 +1885,7 @@ def collectcells(input, outputfile,
 
     if (hdulist == None):
         stdout_write("Something is wrong here, can't find/open any of the files...")
+        unstage_data(options, staged_data, input)
         return -1
 
     obsid = hdulist[0].header['OBSID']
@@ -1808,6 +1964,7 @@ def collectcells(input, outputfile,
         print "#"
         print "#####################################################"
         print "\n"
+        unstage_data(options, staged_data, input)
         return
 
     #
@@ -2046,6 +2203,7 @@ def collectcells(input, outputfile,
             while (not return_queue.empty()):
                 return_queue.get()
             raise
+            unstage_data(options, staged_data, input)
             return
 
         logger.debug("Received intermediate results from OTA-ID %02d" % (ota_id))
@@ -2299,6 +2457,7 @@ def collectcells(input, outputfile,
             while (not return_queue.empty()):
                 return_queue.get()
             raise
+            unstage_data(options, staged_data, input)
             return
 
         # We received a final answer, so if necessary send off another intermediate results
@@ -3052,6 +3211,8 @@ def collectcells(input, outputfile,
         return hdulist
 
     # afw.finish(userinfo=True)
+
+    unstage_data(options, staged_data, input)
 
     return 0
 
