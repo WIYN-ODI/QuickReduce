@@ -238,6 +238,19 @@ def log_master(queue, options):
             debug_logger.propagate=False
         except:
             print "#@#@#@#@#@# Unable to write to debug file: %s" % (debug_filename)
+            print "#@#@#@#@#@# Routing all debug output to stderr"
+            debug_logger = logging.getLogger('debug')
+            try:
+                h = logging.StreamHandler(stream=sys.stderr)
+            except TypeError:
+                h = logging.StreamHandler(strm=sys.stderr)
+            except:
+                raise
+            f = logging.Formatter('%(asctime)s -- %(levelname)-8s [ %(filename)30s : %(lineno)4s - %(funcName)30s() in %(processName)-12s] %(name)30s :: %(message)s')
+            h.setFormatter(f)
+            debug_logger.addHandler(h)
+            debug_logger.propagate=False
+            
             pass
 
     #
