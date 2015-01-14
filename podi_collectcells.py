@@ -1670,6 +1670,7 @@ def collectcells(input, outputfile,
     # afw = podi_asyncfitswrite.async_fits_writer(1)
 
     if (os.path.isfile(input)):
+        logger.debug("Input is a file: %s" % (input))
         # Assume this is one of the fits files in the right directory
         # In that case, extract the FILENAME header and convert it into 
         # the filebase we need to construct the filenames of all OTA fits files.
@@ -1692,9 +1693,21 @@ def collectcells(input, outputfile,
 
         basedir, filebase = os.path.split(input)
         directory = input
+        logger.debug("Input is a directory: %s --> %s / %s" % (input, basedir, filebase))
 
     else:
-        stdout_write("Unable to open file %s, aborting!\n" % input)
+        logger.error("Input (%s) is neither path nor file, aborting!\n" % (input))
+        #
+        # Try tracing back item by item where we stop loosing the path
+        #
+        fp = os.path.abspath(input)
+        items = fp.split("/")
+        for i in range(1, len(items)):
+            part_path = "/".join(items[:i+1])
+            logger.debug("BACKTRACKING: %s is a path? %s is file? %s" % (
+                part_path, os.path.isdir(part_path), os.path.isfile(part_path)))
+            # print "BACKTRACKING: %-100s is a path/dir? %-5s / %-5s" % (
+            #     part_path, os.path.isdir(part_path), os.path.isfile(part_path))
         return
 
     #print "Merging cells for frame %s" % (basename)
