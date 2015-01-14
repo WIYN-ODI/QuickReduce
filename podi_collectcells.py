@@ -1618,7 +1618,7 @@ def prestage_data(options, input):
         # Let's assume all files in this directory need to be prestaged
         base, dirname = os.path.split(os.path.abspath(input))
         print base, dirname
-        tmpdir = "%s/%s" % (sitesetup.scratch_dir, dirname)
+        tmpdir = "%s/%s" % (sitesetup.staging_dir, dirname)
         # Create the directory
         if (not os.path.isdir(tmpdir)):
             os.mkdir(tmpdir)
@@ -1664,7 +1664,7 @@ def prestage_data(options, input):
             # not sure what this input is
             return
 
-        tmpdir = "%s/%s" % (sitesetup.scratch_dir, base)
+        tmpdir = "%s/%s" % (sitesetup.staging_dir, base)
         # Create the directory
         if (not os.path.isdir(tmpdir)):
             os.mkdir(tmpdir)
@@ -1714,7 +1714,7 @@ def unstage_data(options, staged, input):
     logger = logging.getLogger("Unstage")
 
     if (options['prestage'] and staged):
-        if (input.startswith(sitesetup.scratch_dir)):
+        if (input.startswith(sitesetup.staging_dir)):
             files = os.listdir(input)
             for f in files:
                 fn = "%s/%s" % (input, f)
