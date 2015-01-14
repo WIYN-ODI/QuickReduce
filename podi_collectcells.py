@@ -1155,8 +1155,8 @@ def collect_reduce_ota(filename,
                 tmphdulist = pyfits.HDUList([pyfits.PrimaryHDU(header=hdu.header, data=hdu.data)])
                 obsid = tmphdulist[0].header['OBSID']
                 process_id = os.getpid()
-                fitsfile = "%s/tmp.pid%d.%s_OTA%02d.fits" % (sitesetup.scratch_dir, process_id, obsid, ota)
-                catfile = "%s/tmp.pid%d.%s_OTA%02d.cat" % (sitesetup.scratch_dir, process_id, obsid, ota)
+                fitsfile = "%s/tmp.pid%d.%s_OTA%02d.fits" % (sitesetup.sextractor_cache_dir, process_id, obsid, ota)
+                catfile = "%s/tmp.pid%d.%s_OTA%02d.cat" % (sitesetup.sextractor_cache_dir, process_id, obsid, ota)
                 tmphdulist.writeto(fitsfile, clobber=True)
                 sex_config_file = "%s/.config/wcsfix.sex" % (sitesetup.exec_dir)
                 parameters_file = "%s/.config/wcsfix.sexparam" % (sitesetup.exec_dir)
@@ -1608,7 +1608,7 @@ def prestage_data(options, input):
     logger = logging.getLogger("PreStage")
     import shutil
 
-    logger.info("Prestaging data to scratch dir...")
+    logger.info("Prestaging data to staging dir...")
     staged = True
     procs = []
     if (os.path.isdir(input)):

@@ -233,6 +233,9 @@ def update_sitesetup():
     changes = changes | ask_for_option('staging_dir', 
                    "Directory to hold staged/cached input files", 
                    "/tmp/", True, config_array)
+    changes = changes | ask_for_option('sextractor_cache_dir', 
+                   "Directory to hold temporary files for use by sextractor", 
+                   "/tmp/", True, config_array)
     
     config_array.append("")
 
