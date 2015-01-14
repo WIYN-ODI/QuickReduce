@@ -1704,7 +1704,7 @@ def collectcells(input, outputfile,
         items = fp.split("/")
         for i in range(1, len(items)):
             part_path = "/".join(items[:i+1])
-            logger.debug("BACKTRACKING: %s is a path? %s is file? %s" % (
+            logger.debug("BACKTRACKING: %-100s is a path/dir? %-5s / %-5s" % (
                 part_path, os.path.isdir(part_path), os.path.isfile(part_path)))
             # print "BACKTRACKING: %-100s is a path/dir? %-5s / %-5s" % (
             #     part_path, os.path.isdir(part_path), os.path.isfile(part_path))
