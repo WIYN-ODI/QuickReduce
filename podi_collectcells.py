@@ -1151,13 +1151,14 @@ def collect_reduce_ota(filename,
                                                    max_starcount=150,
                                                    extension_id=ota)
             else:
-                logger.debug("Running SourceExtractor")
+                logger.debug("Preparing source catalog")
                 tmphdulist = pyfits.HDUList([pyfits.PrimaryHDU(header=hdu.header, data=hdu.data)])
                 obsid = tmphdulist[0].header['OBSID']
                 process_id = os.getpid()
                 fitsfile = "%s/tmp.pid%d.%s_OTA%02d.fits" % (sitesetup.sextractor_cache_dir, process_id, obsid, ota)
                 catfile = "%s/tmp.pid%d.%s_OTA%02d.cat" % (sitesetup.sextractor_cache_dir, process_id, obsid, ota)
                 tmphdulist.writeto(fitsfile, clobber=True)
+                logger.debug("Wrote temp file to %s" % (fitsfile))
                 sex_config_file = "%s/.config/wcsfix.sex" % (sitesetup.exec_dir)
                 parameters_file = "%s/.config/wcsfix.sexparam" % (sitesetup.exec_dir)
                 sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s" % (
@@ -1165,6 +1166,7 @@ def collect_reduce_ota(filename,
                     fitsfile)
                 if (options['verbose']): print sexcmd
 
+                logger.debug("Running SourceExtractor")
                 start_time = time.time()
                 try:
                     ret = subprocess.Popen(sexcmd.split(), 
