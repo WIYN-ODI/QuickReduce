@@ -110,8 +110,8 @@ PPA_PROGRESS_LEVEL = 19
 def ppa_update_progress(progress, message):
 
     jobid = int(cmdline_arg_set_or_default("-jobid", 0))
-    logical_id = os.getenv("LOGICAL_ID")
-    
+    logical_id = cmdline_arg_set_or_default("-logicalid", "???")
+
     logger = logging.getLogger("PPAUpdate(%s)" % logical_id)
 
     msg = "<Request><JobID>%(job_id)s</JobID><LogicalID>%(logical_id)s</LogicalID><Status>RUNNING:%(progress)02d</Status><Note>%(note)s</Note></Request>" % {
