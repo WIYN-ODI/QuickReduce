@@ -42,7 +42,44 @@ numpy.seterr(divide='ignore', invalid='ignore')
 # - make sure every star is only part of a single tracklet
 #
 #
+ds9_colors = {'new': '#7cfc00', #{lawn green}',
+              'known': '#1e90ff', #{dodger blue}'
+              'multiple': 'magenta',
+              '?': 'white',
+              'very-desirable': '#FA5858',
+              'desirable': 'orange',
+              'impractical': 'yellow',
+              'leave-for-survey': 'orchid',
+              'PHA': '#FF0000',
+              'NEO': '#FF0000',
+              'comet': "#0040FF",
+              'Cen': "#D0FA58",
+}
 
+def detection_class_from_comment(comment):
+
+    if (comment.find("Direct recovery using small-field telescope probably impractical") == 0):
+        detection_class = 'impractical'
+    elif (comment.find("Desirable between") == 0):
+        detection_class = 'desirable'
+    elif (comment.find("Very desirable") == 0):
+        detection_class = 'very-desirable'
+    elif (comment.find("Leave for survey recovery") == 0):
+        detection_class = 'leave-for-survey'
+    elif (comment.find("PHA") == 0):
+        detection_class = 'PHA'
+    elif (comment.find("NEO") == 0):
+        detection_class = 'NEO'
+    elif (comment.find("None needed at this time") == 0):
+        detection_class = 'known'
+    elif (comment.find("(r =") == 0):
+        detection_class = 'comet'
+    elif (comment.find("Cen") == 0):
+        detection_class = 'NEO'
+    else:
+        detection_class = '?'
+
+    return detection_class
 
 def format_source(src_entry, mjd, magname, filter_name='V', discovery=False, designation='ODI1'):
 
@@ -918,16 +955,6 @@ fk5\
         n_likelies = numpy.sum(likely_id)
         logger.info("This is candidate # %d ..." % (cand_id+1))
 
-        ds9_colors = {'new': '#7cfc00', #{lawn green}',
-                      'known': '#1e90ff', #{dodger blue}'
-                      'multiple': 'magenta',
-                      '?': 'white',
-                      'very-desirable': 'red',
-                      'desirable': 'orange',
-                      'impractical': 'yellow',
-                      'leave_for_survey': 'orchid',
-                  }
-
         counterpart_name = 'new'
         comment = "none"
         designation = ""
@@ -969,16 +996,7 @@ fk5\
                 # Also check if this is an object of interest. 
                 # If so, mark it in a different color
                 # 
-                if (comment.find("Direct recovery using small-field telescope probably impractical") >= 0):
-                    detection_class = 'impractical'
-                elif (comment.find("Desirable between") >= 0):
-                    detection_class = 'desirable'
-                elif (comment.find("Very desirable") >= 0):
-                    detection_class = 'very-desirable'
-                elif (comment.find("Leave for survey recovery") >= 0):
-                    detection_class = 'leave-for-survey'
-                else:
-                    detection_class = 'known'
+                detection_class = detection_class_from_comment(comment)
 
                 if (not detection_class == 'known'):
                     for i in range(cand['sex'].shape[0]):
@@ -1095,11 +1113,15 @@ if __name__ == "__main__":
         ref_file = get_clean_cmdline()[1]
         region_file = get_clean_cmdline()[2]
 
-        with open("asteroidmetry.pickle", "rb") as pf:
+        pickle_file = cmdline_arg_set_or_default("-pickle", "asteroidmetry.pickle")
+        with open(pickle_file, "rb") as pf:
             candidates = pickle.load(pf)
 
-        for cand in candidates:
-            print cand['rate']
+        draw_points = cmdline_arg_isset("-points")
+        draw_lines = cmdline_arg_isset("-lines")
+        label_point = cmdline_arg_isset("-labelpoint")
+        # for cand in candidates:
+        #     print cand['rate']
 
         ds9_reg = open(region_file, "w")
         print >>ds9_reg, """\
@@ -1118,7 +1140,15 @@ if __name__ == "__main__":
         for cand in candidates:
             
             d_mjd_hours = (cand['mjd'] - rel_mjd) * 24.
-            
+
+            #
+            # Sort by time
+            #
+            si = numpy.argsort(d_mjd_hours)
+            cand['mjd'] = cand['mjd'][si]
+            cand['sex'] = cand['sex'][si]
+            #cand['tracklet'] = cand['tracklet'][si]
+
             dra = (rel_ra * d_mjd_hours) 
             ddec = (rel_dec * d_mjd_hours)
             if (not 'name' in cand):
@@ -1133,9 +1163,17 @@ if __name__ == "__main__":
             ra_fixed = cand['sex'][:,0] - (dra / numpy.cos(numpy.radians(dec_fixed))) / 3600.
             
             # Draw a circle for each detection
-            for i in range(cand['sex'].shape[0]):
-                print >>ds9_reg, 'point(%f,%f) # point=circle' % (ra_fixed[i], dec_fixed[i])
-            
+            if (draw_points):
+                for i in range(cand['sex'].shape[0]):
+                    print >>ds9_reg, 'point(%f,%f) # point=circle' % (ra_fixed[i], dec_fixed[i])
+            if (draw_lines):
+                for i in range(1, cand['sex'].shape[0]):
+                    print >>ds9_reg, 'line %f %f %f %f' % (ra_fixed[i-1], dec_fixed[i-1], ra_fixed[i], dec_fixed[i])
+                    #print >>ds9_reg, 'point(%f,%f) # point=circle' % (ra_fixed[i], dec_fixed[i])
+            if (label_point):
+                for i in range(cand['sex'].shape[0]):
+                    print >>ds9_reg, '# text(%f,%f) text={%d} font="times 24"' % (ra_fixed[i], dec_fixed[i], i+1)
+
             # Add some label with the name
             # Use the coordinates of the first recorded point, and correct 
             # it to the MJD reference of the reference frame
@@ -1147,6 +1185,8 @@ if __name__ == "__main__":
 
             try:
                 print >>ds9_reg, '# text(%f,%f) text={%s}' % (ra0, dec0, cand['name'])
+                if (draw_lines):
+                    print >>ds9_reg, 'line %f %f %f %f' % (ra_fixed[0], dec_fixed[0], ra0, dec0)
             except:
                 pass
         ds9_reg.close()
