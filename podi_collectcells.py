@@ -269,7 +269,7 @@ import podi_nonlinearity
 import podi_logging
 import podi_cosmicrays
 import podi_illumcorr
-import podi_almanach
+import podi_almanac
 
 from astLib import astWCS
 
@@ -3183,9 +3183,9 @@ def collectcells(input, outputfile,
 
 
     #
-    # Add some almanach data to the current frame
+    # Add some almanac data to the current frame
     #
-    podi_almanach.add_ephem_data_to_header(ota_list[0].header, None)
+    podi_almanac.add_ephem_data_to_header(ota_list[0].header, None)
 
 
     #print "Waiting for a bit"
