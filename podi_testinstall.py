@@ -31,7 +31,7 @@ for a full list of currently required packages.
 
 """
 
-
+import subprocess
 
 def check_package(name):
     """
@@ -339,26 +339,41 @@ if __name__ == "__main__":
     """
 
     print "\nChecking cython-optimized package for pODI"
-    if (not check_package('podi_cython')):
-        print """\
+    done_checking_cython = False
+    while (not done_checking_cython):
+        if (not check_package('podi_cython')):
+            print """\
  There was a problem import podi_cython. This module contains optimized
  code that needs to be compiled first. To do so, simply run:
 
  python setup.py build_ext --inplace
 
 """
-    else:
-        # print "Checking podi_cython components:"
-        import podi_cython
-        all_found = True
-        all_found = all_found and check_component(podi_cython, "sigma_clip_mean")
-        all_found = all_found and check_component(podi_cython, "sigma_clip_median")
-        all_found = all_found and check_component(podi_cython, "lacosmics")
-        if (all_found):
-            print "All routines found"
+             
+            try:
+                answer = raw_input("Do you want to compile this module now? (y/n)")
+            except KeyboardInterrupt:
+                print "\nTerminating\n"
+                sys.exit(0)
+            if (answer in ['y', 'Y']):
+                subprocess.call("python setup.py build_ext --inplace".split())
+                continue
+            else:
+                break
         else:
-            print "Some podi-cython routines could not be found!"
-            print "Please re-compile via python setup.py build_ext --python"
+            # print "Checking podi_cython components:"
+            import podi_cython
+            all_found = True
+            all_found = all_found and check_component(podi_cython, "sigma_clip_mean")
+            all_found = all_found and check_component(podi_cython, "sigma_clip_median")
+            all_found = all_found and check_component(podi_cython, "lacosmics")
+            if (all_found):
+                print "All routines found"
+                done_checking_cython = True
+                break
+            else:
+                print "Some podi-cython routines could not be found!"
+                print "Please re-compile via python setup.py build_ext --python"
     
     print "\nCheck done!\n"
 
