@@ -165,7 +165,7 @@ R.M.S. %(RMS-RA)0.3f'' / %(RMS-DEC)0.3f''
         for ext in extension_list:
             fig.set_size_inches(8,6)
             logger.debug("saving file: %s.%s" % (filename, ext))
-            fig.savefig(filename+"."+ext, dpi=100)
+            fig.savefig(filename+"."+ext, dpi=100,bbox_inches='tight')
 
     matplotlib.pyplot.close()
 
@@ -419,7 +419,7 @@ def plot_wcsdiag_shift(radec, d_radec,
         for ext in extension_list:
             logger.debug("saving file: %s.%s" % (filename, ext))
             fig.set_size_inches(8,6)
-            fig.savefig(filename+"."+ext, dpi=100)
+            fig.savefig(filename+"."+ext, dpi=100,bbox_inches='tight')
 
     matplotlib.pyplot.close()
     logger.debug("done!")
@@ -830,7 +830,7 @@ def photocalib_zeropoint(output_filename,
             maxx = numpy.max(full_cat[:, details['photref_col_mag']])
             slopefit_x = numpy.linspace(minx-0.1*(maxx-minx), maxx+0.1*(maxx-minx), 100)
             slopefit_y = fit[0] + fit[1] * slopefit_x
-            ax.plot(slopefit_x, slopefit_y, "k-", label="fit ZP(%s-ODI)" % (details['catalog']))
+            # ax.plot(slopefit_x, slopefit_y, "k-", label="fit ZP(%s-ODI)" % (details['catalog']))
 
     ax.grid(True)
     ax.legend(loc='upper left', borderaxespad=0.5, prop={'size':9})
@@ -867,10 +867,10 @@ def photocalib_zeropoint(output_filename,
         if (not options == None):
             for ext in options['plotformat']:
                 if (ext != ''):
-                    fig.savefig(output_filename+"."+ext, dpi=100)
+                    fig.savefig(output_filename+"."+ext, bbox_inches='tight')
                     logger.info("plot saved as %s.%s" % (output_filename, ext))
         else:
-            fig.savefig(output_filename+".png", dpi=100)
+            fig.savefig(output_filename+".png", dpi=100,bbox_inches='tight')
 
     matplotlib.pyplot.close()
     logger.debug("done!")
@@ -978,7 +978,7 @@ def plot_zeropoint_map(details, ota_select, ota_outlines, output_filename, optio
         if (not options == None):
             for ext in options['plotformat']:
                 if (ext != ''):
-                    fig.savefig(output_filename+"."+ext, dpi=100)
+                    fig.savefig(output_filename+"."+ext, dpi=100, bbox_inches='tight')
                     logger.debug("saving plot to %s.%s" % (output_filename, ext))
         else:
             fig.savefig(output_filename+".png", dpi=100)
@@ -1154,7 +1154,7 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
         if (not options == None):
             for ext in options['plotformat']:
                 if (ext != ''):
-                    fig.savefig(output_filename+"."+ext, dpi=100)
+                    fig.savefig(output_filename+"."+ext, dpi=100,bbox_inches='tight')
                     logger.debug("saving plot to %s.%s" % (output_filename, ext))
         else:
             fig.savefig(output_filename+".png", dpi=100)
@@ -1390,10 +1390,10 @@ def plot_psfshape_map(ra, dec, elongation, angle, fwhm,
         if (not options == None):
             for ext in options['plotformat']:
                 if (ext != ''):
-                    fig.savefig(output_filename+"."+ext, dpi=100)
+                    fig.savefig(output_filename+"."+ext, dpi=100,bbox_inches='tight')
                     logger.debug("saving plot to %s.%s" % (output_filename, ext))
         else:
-            fig.savefig(output_filename+".png", dpi=100)
+            fig.savefig(output_filename+".png", dpi=100,bbox_inches='tight')
 
     matplotlib.pyplot.close()
     logger.debug("done!")
