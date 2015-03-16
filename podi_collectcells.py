@@ -2548,11 +2548,15 @@ def collectcells(input, outputfile,
     #
     # Update the global gain variables
     #
-    ota_list[0].header['GAIN'] = ((global_gain_sum / global_gain_count), "global average gain [e-/ADU]")
-    ota_list[0].header['NGAIN'] = (global_gain_count, "number of cells contribution to gain")
+    ota_list[0].header['GAIN'] = (-1, "global average gain [e-/ADU]")
+    ota_list[0].header['NGAIN'] = (0, "number of cells contribution to gain")
+
+    if (global_gain_count > 0):
+        ota_list[0].header['GAIN'] = global_gain_sum / global_gain_count
+        ota_list[0].header['NGAIN'] = global_gain_count
 
     # Compute the noise of the sky-level based on gain and readnoise XXXXXXX
-    if (sky_global_median > 0):
+    if (sky_global_median > 0 and global_gain_count > 0):
         ota_list[0].header["SKYNOISE"] = (math.sqrt( 8.**2 + sky_global_median*ota_list[0].header['GAIN'] ), 
                                           "noise level of sky background")
     else:
