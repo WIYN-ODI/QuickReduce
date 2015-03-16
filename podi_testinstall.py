@@ -230,6 +230,13 @@ def update_sitesetup():
                    "Log output from external programs (e.g. SourceExtrator, SWarp) in debug log [True/False]?", 
                    False, False, config_array)
     
+    changes = changes | ask_for_option('staging_dir', 
+                   "Directory to hold staged/cached input files", 
+                   "/tmp/", True, config_array)
+    changes = changes | ask_for_option('sextractor_cache_dir', 
+                   "Directory to hold temporary files for use by sextractor", 
+                   "/tmp/", True, config_array)
+    
     config_array.append("")
 
     # print config_array

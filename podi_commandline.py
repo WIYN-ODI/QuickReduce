@@ -322,6 +322,8 @@ Calibration data:
     if (cmdline_arg_isset("-keepsex")):
         sitesetup.sex_delete_tmps = False
 
+    options['prestage'] = cmdline_arg_isset("-prestage")
+
     return options
 
 
@@ -426,6 +428,8 @@ def set_default_options(options_in=None):
     options['crj_method'] = "cy"
 
     options['illumcorr_dir'] = None
+
+    options['prestage'] = False
 
     return options
 

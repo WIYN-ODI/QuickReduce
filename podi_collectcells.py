@@ -1088,10 +1088,9 @@ def collect_reduce_ota(filename,
 
 
         # Now add the canned WCS solution
-        if (options['wcs_distortion'] != None):
-            fpl.apply_wcs_distortion(options['wcs_distortion'], hdu, binning)
-            reduction_files_used['wcs'] = options['wcs_distortion']
-
+        # if (options['wcs_distortion'] != None):
+        #     wcsdistort = fpl.apply_wcs_distortion(options['wcs_distortion'], hdu, binning)
+        #     reduction_files_used['wcs'] = options['wcs_distortion']
                 
         #
         # If requested, perform cosmic ray rejection
@@ -1134,13 +1133,14 @@ def collect_reduce_ota(filename,
                                                    max_starcount=150,
                                                    extension_id=ota)
             else:
-                logger.debug("Running SourceExtractor")
+                logger.debug("Preparing source catalog")
                 tmphdulist = pyfits.HDUList([pyfits.PrimaryHDU(header=hdu.header, data=hdu.data)])
                 obsid = tmphdulist[0].header['OBSID']
                 process_id = os.getpid()
-                fitsfile = "%s/tmp.pid%d.%s_OTA%02d.fits" % (sitesetup.scratch_dir, process_id, obsid, ota)
-                catfile = "%s/tmp.pid%d.%s_OTA%02d.cat" % (sitesetup.scratch_dir, process_id, obsid, ota)
+                fitsfile = "%s/tmp.pid%d.%s_OTA%02d.fits" % (sitesetup.sextractor_cache_dir, process_id, obsid, ota)
+                catfile = "%s/tmp.pid%d.%s_OTA%02d.cat" % (sitesetup.sextractor_cache_dir, process_id, obsid, ota)
                 tmphdulist.writeto(fitsfile, clobber=True)
+                logger.debug("Wrote temp file to %s" % (fitsfile))
                 sex_config_file = "%s/.config/wcsfix.sex" % (sitesetup.exec_dir)
                 parameters_file = "%s/.config/wcsfix.sexparam" % (sitesetup.exec_dir)
                 sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s" % (
@@ -1148,6 +1148,7 @@ def collect_reduce_ota(filename,
                     fitsfile)
                 if (options['verbose']): print sexcmd
 
+                logger.debug("Running SourceExtractor")
                 start_time = time.time()
                 try:
                     ret = subprocess.Popen(sexcmd.split(), 
@@ -1559,10 +1560,159 @@ def collectcells_with_timeout(input, outputfile,
 
 
 
+def my_system(cmd):
+    logger = logging.getLogger("RunShellCmd")
+    start_time = time.time()
+    returncode = None
+    try:
+        logger.debug("Running %s" % (cmd))
+        ret = subprocess.Popen(cmd.split(), 
+                               stdout=subprocess.PIPE, 
+                               stderr=subprocess.PIPE)
+        (stdout, stderr) = ret.communicate()
+        end_time = time.time()
+        returncode = ret.returncode
+        logger.debug("Execution done after %.3f seconds" % (end_time-start_time))
+        # if (ret.returncode != 0):
+        #     logger.warning("Sextractor might have a problem, check the log")
+        #     logger.debug("Stdout=\n"+sex_stdout)
+        #     logger.debug("Stderr=\n"+sex_stderr)
+    except OSError as e:
+        #podi_logging.log_exception()
+        logger.debug("Error while executing: Err:%d - %s" % (e.errno, e.strerror))
+    except:
+        podi_logging.log_exception()
+        pass
+        
+    return
 
 
+def prestage_data(options, input):
+
+    logger = logging.getLogger("PreStage")
+    import shutil
+
+    logger.info("Prestaging data to staging dir...")
+    staged = True
+    procs = []
+    if (os.path.isdir(input)):
+        logger.debug("Input is a directory: %s" % (input))
+
+        # This is a directory.
+        # Let's assume all files in this directory need to be prestaged
+        base, dirname = os.path.split(os.path.abspath(input))
+        print base, dirname
+        tmpdir = "%s/%s" % (sitesetup.staging_dir, dirname)
+        # Create the directory
+        if (not os.path.isdir(tmpdir)):
+            os.mkdir(tmpdir)
+        # Now copy all .fits and .fits.fz files into the new directory
+        for fn in os.listdir(input):
+
+            filename = "%s/%s" % (input, fn)
+            if (not os.path.isfile(filename)):
+                # Not a file (probaby a directory) -> ignore it
+                continue
+
+            if (fn.endswith(".fits.fz")):
+                # This is a .fits.fz file -> run funpack
+                outfile = "%s/%s" % (tmpdir, fn[:-3])
+                if (os.path.isfile(outfile)):
+                    continue
+                logger.debug("Prestaging file w/ funpack: %s --> %s" % (filename, outfile))
+                # os.system("funpack -O %s %s" % (outfile, filename))
+                p = multiprocessing.Process(target=my_system,
+                                            kwargs={"cmd": "funpack -O %s %s" % (outfile, filename)}
+                                        )
+                p.start()
+                procs.append(p)
+            elif (fn.endswith(".fits")):
+                # This a fits file -> simply copy it
+                outfile = "%s/%s" % (tmpdir, fn)
+                if (os.path.isfile(outfile)):
+                    continue
+                logger.debug("Prestaging file w/ copy: %s --> %s" % (filename, outfile))
+                #shutil.copyfile(filename, outfile)
+         
+            
+    elif (os.path.isfile(input)):
+        logger.debug("input is filename")
+        # its a file
+        # find the basename of the file
+        dirname, filename = os.path.split(os.path.abspath(input))
+        if (filename.endswith(".fits.fz")):
+            base = filename[:-11]
+        elif (filename.endswith(".fits")):
+            base = filename[:-8]
+        else:
+            # not sure what this input is
+            return
+
+        tmpdir = "%s/%s" % (sitesetup.staging_dir, base)
+        # Create the directory
+        if (not os.path.isdir(tmpdir)):
+            os.mkdir(tmpdir)
+        # Now copy all .fits and .fits.fz files into the new directory
+        for fn in os.listdir(dirname):
+
+            filename = "%s/%s" % (dirname, fn)
+            if (not os.path.isfile(filename) or not fn.beginswith(base)):
+                # Not a file (probaby a directory) -> ignore it
+                continue
+            
+            if (fn.endswith(".fits.fz")):
+                # This is a .fits.fz file -> run funpack
+                outfile = "%s/%s" % (tmpdir, fn[:-3])
+                print outfile
+                if (os.path.isfile(outfile)):
+                    continue
+                logger.debug("Prestaging file w/ funpack: %s --> %s" % (filename, outfile))
+                # os.system("funpack -O %s %s" % (outfile, filename))
+                p = multiprocessing.Process(target=my_system,
+                                            kwargs={"cmd": "funpack -O %s %s" % (outfile, filename)}
+                                        )
+                p.start()
+                procs.append(p)
+            elif (fn.endswith(".fits")):
+                # This a fits file -> simply copy it
+                outfile = "%s/%s" % (tmpdir, fn)
+                if (os.path.isfile(outfile)):
+                    continue
+                logger.debug("Prestaging file w/ copy: %s --> %s" % (filename, outfile))
+                #shutil.copyfile(filename, outfile)
+
+    else:
+        logger.error("Input (%s) is neither path nor file, can't prestage this!\n" % (input))
+        staged = False
+
+    for p in procs:
+        p.join()
+
+    logger.info("Done prestaging data !")
+    
+    return tmpdir, staged
 
 
+def unstage_data(options, staged, input):
+
+    logger = logging.getLogger("Unstage")
+
+    if (options['prestage'] and staged):
+        if (input.startswith(sitesetup.staging_dir)):
+            files = os.listdir(input)
+            for f in files:
+                fn = "%s/%s" % (input, f)
+                if (fn.endswith(".fits")):
+                    logger.debug("deleting staged file: %s" % (fn))
+                    os.remove(fn)
+            try:
+                os.rmdir(input)
+                logger.debug("removing staging directory %s" % (input))
+            except:
+                logger.warning("Unable to remove staging directory %s" % (input))
+                pass
+
+    return
 
 def collectcells(input, outputfile,
                  process_tracker,
@@ -1652,7 +1802,13 @@ def collectcells(input, outputfile,
 
     # afw = podi_asyncfitswrite.async_fits_writer(1)
 
+    staged_data = False
+    if (options['prestage']):
+        input, staged_data = prestage_data(options, input)
+#        return
+
     if (os.path.isfile(input)):
+        logger.debug("Input is a file: %s" % (input))
         # Assume this is one of the fits files in the right directory
         # In that case, extract the FILENAME header and convert it into 
         # the filebase we need to construct the filenames of all OTA fits files.
@@ -1675,9 +1831,22 @@ def collectcells(input, outputfile,
 
         basedir, filebase = os.path.split(input)
         directory = input
+        logger.debug("Input is a directory: %s --> %s / %s" % (input, basedir, filebase))
 
     else:
-        stdout_write("Unable to open file %s, aborting!\n" % input)
+        logger.error("Input (%s) is neither path nor file, aborting!\n" % (input))
+        #
+        # Try tracing back item by item where we stop loosing the path
+        #
+        fp = os.path.abspath(input)
+        items = fp.split("/")
+        for i in range(1, len(items)):
+            part_path = "/".join(items[:i+1])
+            logger.debug("BACKTRACKING: %-100s is a path/dir? %-5s / %-5s" % (
+                part_path, os.path.isdir(part_path), os.path.isfile(part_path)))
+            # print "BACKTRACKING: %-100s is a path/dir? %-5s / %-5s" % (
+            #     part_path, os.path.isdir(part_path), os.path.isfile(part_path))
+        unstage_data(options, staged_data, input)
         return
 
     if (outputfile == None):
@@ -1698,6 +1867,7 @@ def collectcells(input, outputfile,
 
     if (hdulist == None):
         stdout_write("Something is wrong here, can't find/open any of the files...")
+        unstage_data(options, staged_data, input)
         return -1
 
     fpl = podi_focalplanelayout.FocalPlaneLayout(hdulist[0])
@@ -1779,6 +1949,7 @@ def collectcells(input, outputfile,
         print "#"
         print "#####################################################"
         print "\n"
+        unstage_data(options, staged_data, input)
         return
 
     #
@@ -2017,6 +2188,7 @@ def collectcells(input, outputfile,
             while (not return_queue.empty()):
                 return_queue.get()
             raise
+            unstage_data(options, staged_data, input)
             return
 
         logger.debug("Received intermediate results from OTA-ID %02d" % (ota_id))
@@ -2049,8 +2221,9 @@ def collectcells(input, outputfile,
 
 
         header = data_products['header']
-
+        
         if (header == None):
+            logger.info("OTA %d reporting empty header, ignoring" %(ota_id))
             ota_missing_empty.append(ota_id)
             continue
         
@@ -2245,24 +2418,56 @@ def collectcells(input, outputfile,
     
     # Send off the initial bunch of results to the worker threads
     # logger.debug("Intermediate results:\n%s" % (str(intermediate_results_sent)))
+    logger.info("Received %d intermediate results!" % (len(intermediate_results)))
+
+    n_intermed_results_sent = 0
     for i in range(number_cpus):
         
-        if (i < len(intermediate_results)):
+        #if (i < len(intermediate_results)):
+        for j in range(len(intermediate_results)):
 
-            target_ota_id = intermediate_results[i]['ota-id']
-            if (target_ota_id in ota_missing_empty):
+            if (intermediate_results[j]['sent']):
                 continue
 
-            pipe_send = intermediate_results[i]['pipe-send']
+            target_ota_id = intermediate_results[j]['ota-id']
+            if (target_ota_id in ota_missing_empty):
+                logger.info("OTA %d is listed as missing" % (target_ota_id))
+                continue
+
+            pipe_send = intermediate_results[j]['pipe-send']
 
             # Sent the intermediate results
-            logger.debug("Sending finalization data back to ota-id %02d" % (target_ota_id))
+            logger.info("Sending finalization data back to ota-id %02d" % (target_ota_id))
             pipe_send.send(intermed_results)
-            intermediate_results[i]['sent'] = True
+            intermediate_results[j]['sent'] = True
+            n_intermed_results_sent += 1
+            break
 
         else:
             break
+    logger.info("Sent off %d intermediate results back to workers!" % (n_intermed_results_sent))
 
+
+    #
+    # Finish off work
+    #
+    # logger.debug("Original OTA list: %s" % (" - ".join(["%d%d"% (x,y) for (x,y) in list_of_otas_being_reduced])))
+    # logger.debug("Known faulty/missing: %s" % (" - ".join(ota_missing_empty)))
+    print "---------"
+    print "expected:",list_of_otas_being_reduced
+    print "missing:", ota_missing_empty
+    print "missing_x",
+    for x in ota_missing_empty:
+        try:
+            print list_of_otas_being_reduced[x],
+        except:
+            print "XXX",
+            pass
+    print
+    # print "missing_x: ", [list_of_otas_being_reduced[x] for x in ota_missing_empty]
+    print "---------"
+
+    n_expected_results = len(list_of_otas_being_reduced) - len(ota_missing_empty)
     for i in range(len(list_of_otas_being_reduced) - len(ota_missing_empty)):
         try:
             ota_id, data_products = return_queue.get()
@@ -2270,22 +2475,45 @@ def collectcells(input, outputfile,
             while (not return_queue.empty()):
                 return_queue.get()
             raise
+            unstage_data(options, staged_data, input)
             return
 
         # We received a final answer, so if necessary send off another intermediate results
-        logger.debug("received final answer from OTA-ID %02d" % (ota_id))
+        try:
+            logger.info("received final answer from OTA-ID %02d [c=%d, FP=%s], expecting %d [%d] more" % (
+                ota_id, i, str(list_of_otas_being_reduced[ota_id]), n_expected_results-(i+1), n_expected_results))
+        except:
+            print "Error with logger.info statement"
+            pass
+
         for j in range(len(intermediate_results)):
-            if (not intermediate_results[j]['sent']):
-                target_ota_id = intermediate_results[j]['ota-id']
-                pipe_send = intermediate_results[j]['pipe-send']
-                pipe_send.send(intermed_results)
-                intermediate_results[j]['sent'] = True
-                # logger.info("sending new instructions:\nIntermed results sent:\n%s" % (str(intermediate_results_sent)))
-                break
+            if (intermediate_results[j]['sent']):
+                continue
+            target_ota_id = intermediate_results[j]['ota-id']
+            if (target_ota_id in ota_missing_empty):
+                #logger.info("OTA %d is listed as missing" % (target_ota_id))
+                continue
+            pipe_send = intermediate_results[j]['pipe-send']
+            # Sent the intermediate results
+            logger.info("Sending finalization data back to ota-id %02d" % (target_ota_id))
+            pipe_send.send(intermed_results)
+            intermediate_results[j]['sent'] = True
+            n_intermed_results_sent += 1
+            break
+
+        # for j in range(len(intermediate_results)):
+        #     if (not intermediate_results[j]['sent']):
+        #         target_ota_id = intermediate_results[j]['ota-id']
+        #         pipe_send = intermediate_results[j]['pipe-send']
+        #         pipe_send.send(intermed_results)
+        #         intermediate_results[j]['sent'] = True
+        #         logger.info("sending new instructions:\nIntermed results sent:\n%s" % (str(intermediate_results_sent)))
+        #         break
 
         for j in range(len(intermediate_results)): 
             if (intermediate_results[j]['ota-id'] == ota_id):
                 # Close the communication pipes
+                logger.info("Closing intermediate results pipe for ota %d" % (ota_id))
                 intermediate_results[j]['pipe-send'].close()
                 intermediate_results[j]['pipe-recv'].close()
         
@@ -3025,6 +3253,8 @@ def collectcells(input, outputfile,
         return hdulist
 
     # afw.finish(userinfo=True)
+
+    unstage_data(options, staged_data, input)
 
     return 0
 
