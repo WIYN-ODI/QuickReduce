@@ -1088,9 +1088,9 @@ def collect_reduce_ota(filename,
 
 
         # Now add the canned WCS solution
-        # if (options['wcs_distortion'] != None):
-        #     wcsdistort = fpl.apply_wcs_distortion(options['wcs_distortion'], hdu, binning)
-        #     reduction_files_used['wcs'] = options['wcs_distortion']
+        if (options['wcs_distortion'] != None):
+            wcsdistort = fpl.apply_wcs_distortion(options['wcs_distortion'], hdu, binning)
+            reduction_files_used['wcs'] = options['wcs_distortion']
                 
         #
         # If requested, perform cosmic ray rejection
