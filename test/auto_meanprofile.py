@@ -6,6 +6,8 @@ import numpy
 import math
 import scipy
 import os, sys
+import time
+import warnings
 
 _dir, _ = os.path.split(os.path.abspath(sys.argv[0]))
 sys.path.append(_dir+"/../")
@@ -13,7 +15,7 @@ sys.path.append(_dir+"/../")
 import matplotlib.pyplot
 
 from podi_commandline import *
-from podi_definitions import clobberfile
+from podi_definitions import *
 from profile import *
 from meanprofile import *
 import podi_logging
@@ -33,7 +35,7 @@ def write_readme_file(hdulist, readme_file, infilename, starcat):
   collection of stars in a few selected magnitude ranges.
 
   The format of each filename is as follows:
-  profile__XXX.XX--YYY.YY.asc
+  profile__XXX.XX--YYY.YY.dat
   where XXX.XX and YYY.YY mark the minimum and maximum magnitude range of stars 
   contributing to each profile.
 
@@ -92,9 +94,10 @@ if __name__ == "__main__":
     #
     # Create an output directory to hold output files
     #
-    output_dir, _ = os.path.split(os.path.abspath(infilename))
+    _, output_dir = os.path.split(infilename)
+    # output_dir, _ = os.path.split(os.path.abspath(infilename))
     if (infilename.endswith(".fits")):
-        output_dir = infilename[:-5]
+        output_dir = output_dir[:-5]
     try:
         os.mkdir(output_dir)
     except:
@@ -103,18 +106,84 @@ if __name__ == "__main__":
     # Open the file
     logger.info("Opening input file %s" % (infilename))
     hdulist = pyfits.open(infilename)
-
-    # Catalog of ODI sources
-    table = hdulist['CAT.ODI']
-    # convert table into a n-D numpy catalog, with ra/dec, x/y, and magnitudes 
-    n_sources = table.data.field(0).shape[0]
-    logger.info("Found %d stars in catalog" %(n_sources))
+    is_odi_frame = ('INSTRUME' in hdulist[0].header and
+                    hdulist[0].header['INSTRUME'] == 'podi')
 
     columns = ['RA', 'DEC', 'X', 'Y', 'OTA', 'BACKGROUND', 'FLAGS', 'MAG_D60']
     col_format = ['%11.6f', '%11.6f', '%8.2f', '%8.2f', '%3d', '%8.2f', '%6x', '%7.3f']
-    starcat = numpy.empty((n_sources, len(columns)))
-    for idx, colname in enumerate(columns):
-        starcat[:,idx] = table.data.field(colname)
+    if (is_odi_frame):
+        logger.info("This frame IS a ODI frame!")
+        # Catalog of ODI sources
+        table = hdulist['CAT.ODI']
+        # convert table into a n-D numpy catalog, with ra/dec, x/y, and magnitudes 
+        n_sources = table.data.field(0).shape[0]
+        logger.info("Found %d stars in catalog" %(n_sources))
+
+        starcat = numpy.empty((n_sources, len(columns)))
+        for idx, colname in enumerate(columns):
+            starcat[:,idx] = table.data.field(colname)
+
+    else:
+        # If it's not a ODI frame, we need to run source extractor first
+        logger.info("This is not a ODI frame, running source extractor")
+        fitsfile = infilename 
+        catfile = infilename[:-5]+".cat" 
+        sex_config_file = "%s/.config/wcsfix.sex" % (sitesetup.exec_dir)
+        parameters_file = "%s/.config/wcsfix.sexparam" % (sitesetup.exec_dir)
+        sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s" % (
+            sitesetup.sextractor, sex_config_file, parameters_file, catfile, 
+            fitsfile)
+        logger.debug("Sextractor command:\n%s" % (sexcmd))
+
+        if (not os.path.isfile(catfile)):
+            logger.debug("Running SourceExtractor")
+            start_time = time.time()
+            try:
+                ret = subprocess.Popen(sexcmd.split(), 
+                                       stdout=subprocess.PIPE, 
+                                       stderr=subprocess.PIPE)
+                (sex_stdout, sex_stderr) = ret.communicate()
+                #os.system(sexcmd)
+                if (ret.returncode != 0):
+                    logger.warning("Sextractor might have a problem, check the log")
+                    logger.debug("Stdout=\n"+sex_stdout)
+                    logger.debug("Stderr=\n"+sex_stderr)
+            except OSError as e:
+                podi_logging.log_exception()
+                print >>sys.stderr, "Execution failed:", e
+                end_time = time.time()
+                logger.debug("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
+        else:
+            logger.debug("Reusing existing source catalog!")
+
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                source_cat = numpy.loadtxt(catfile)
+        except IOError:
+            logger.error("The Sextractor catalog is empty, ignoring this OTA")
+            sys.exit(0)
+            
+        # Now translate the raw sextractor catalog into the format we need here
+        columns = ['RA', 'DEC', 'X', 'Y', 'OTA', 'BACKGROUND', 'FLAGS', 'MAG_D60']
+        raw_cols = ['ra', 'dec', 'x', 'y', 'ota', 'background', 'flags', 'mag_aper_6.0']
+        n_sources = source_cat.shape[0]
+        starcat = numpy.empty((n_sources, len(raw_cols)))
+        for idx, colname in enumerate(raw_cols):
+            starcat[:,idx] = source_cat[:, SXcolumn[colname]]
+
+        # Write fake header to file
+        # assume zeropoint of 25 mag, corrected for exposure time
+        # find brightest star, assume its 12th mag
+        hdulist[0].header['PHOTZP_X'] = 10. - numpy.min(starcat[:,-1])
+        print hdulist[0].header['PHOTZP_X']
+        #
+        # Also assing ODI-compatible extension names
+        #
+        for ext in range(1, len(hdulist)):
+            hdulist[ext].name = "OTA%02d.SCI" % (ext)
+        hdulist.info()
+
 
     # Convert all instrumental magnitudes into calibrated ones
     starcat[:,-1] += hdulist[0].header['PHOTZP_X'] # no correction for exptime etc.
@@ -131,7 +200,7 @@ if __name__ == "__main__":
     #
     mag_ranges = [(14,15), (15,16), (16,17)] #(18,18.5), (20,20.5)]
 
-    exclude_outlying_otas = True
+    exclude_outlying_otas = is_odi_frame
     if (exclude_outlying_otas):
         exclude = (starcat[:,columns.index('OTA')] < 22) | \
                   (starcat[:,columns.index('OTA')] > 44)
@@ -147,7 +216,7 @@ if __name__ == "__main__":
         in_mag_range = (starcat[:,-1] >= mag_min) & (starcat[:,-1] <= mag_max)
         n_stars_in_mag_range = numpy.sum(in_mag_range)
 
-        if (n_stars_in_mag_range < 5):
+        if (n_stars_in_mag_range < 0):
             logger.warning("too few stars (%d) in magnitude range %.2f -- %.2f, skipping" % (
                 n_stars_in_mag_range, mag_min, mag_max))
             continue
@@ -191,9 +260,14 @@ if __name__ == "__main__":
 
             in_this_ota = selected_cat[:,columns.index('OTA')] == ota
             ota_cat = selected_cat[in_this_ota]
-
+            
             ota_extname = "OTA%02d.SCI" % (ota)
             data = hdulist[ota_extname].data.T
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                wcs = astWCS.WCS(hdulist[ota_extname].header, mode='pyfits')
+                pixelscale = wcs.getPixelSizeDeg() * 3600 # this is arcsec per pixel
 
             for star in range(ota_cat.shape[0]):
                 star_id += 1
@@ -221,10 +295,15 @@ if __name__ == "__main__":
                     ota_cat[star,columns.index('X')], ota_cat[star,columns.index('Y')], ota_cat[star,columns.index('OTA')])
                 
                 within_width = r < width
-                good_r = (r[within_width]).reshape(-1,1)
-                good_data = (cutout[within_width]).reshape(-1,1)
-                numpy.savetxt(profile_file,  
-                              numpy.append(good_r, good_data, axis=1))
+                good_r = r[within_width]
+                good_data = cutout[within_width]
+                good_arcsec = good_r * pixelscale
+                buffer = numpy.empty((good_r.shape[0], 3))
+                buffer[:,0] = good_r
+                buffer[:,1] = good_data
+                buffer[:,2] = good_arcsec
+                numpy.savetxt(profile_file, buffer)
+                              # numpy.append(good_r, good_data, axis=1))
                               #numpy.append([within_width], cutout.reshape(-1,1)[within_width], axis=1))
                 print >>profile_file
 
