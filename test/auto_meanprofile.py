@@ -26,6 +26,9 @@ def write_readme_file(hdulist, readme_file, infilename, starcat):
     
     readme = open(readme_file, "w")
     print >>readme,  """\
+
+  (c) 2015 WIYN Observatory, All Rights Reserved
+
   This directory contains a list of stellar profiles, created from a 
   collection of stars in a few selected magnitude ranges.
 
