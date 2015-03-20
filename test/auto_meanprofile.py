@@ -67,29 +67,8 @@ def write_readme_file(hdulist, readme_file, infilename, starcat):
     return readme
 
 
-if __name__ == "__main__":
 
-    options = {}
-    podi_logging.setup_logging(options)
-    logger = logging.getLogger("AutoMP")
-
-
-    # We only support radial profiles
-    radial_mode = True
-
-    savefile = cmdline_arg_set_or_default("-save", None)
-    if (not savefile == None):
-        clobberfile(savefile)
-
-    infilename = get_clean_cmdline()[1]
-
-
-    fig = matplotlib.pyplot.figure()
-    ax = fig.add_subplot(111)
-
-    dz2_limit = float(cmdline_arg_set_or_default("-dz2", 0.5))
-    max_radius = float(cmdline_arg_set_or_default("-maxr", 5.0))
-    width = 50
+def create_psf_profiles(infilename, outdir_base, width):
 
     #
     # Create an output directory to hold output files
@@ -98,6 +77,8 @@ if __name__ == "__main__":
     # output_dir, _ = os.path.split(os.path.abspath(infilename))
     if (infilename.endswith(".fits")):
         output_dir = output_dir[:-5]
+    output_dir = "%s/%s" % (outdir_base, output_dir)
+
     try:
         os.mkdir(output_dir)
     except:
@@ -109,8 +90,10 @@ if __name__ == "__main__":
     is_odi_frame = ('INSTRUME' in hdulist[0].header and
                     hdulist[0].header['INSTRUME'] == 'podi')
 
-    columns = ['RA', 'DEC', 'X', 'Y', 'OTA', 'BACKGROUND', 'FLAGS', 'MAG_D60']
-    col_format = ['%11.6f', '%11.6f', '%8.2f', '%8.2f', '%3d', '%8.2f', '%6x', '%7.3f']
+    # columns = ['RA', 'DEC', 'X', 'Y', 'OTA', 'BACKGROUND', 'FLAGS', 'MAG_D60']
+    columns = ['RA', 'DEC', 'X', 'Y', 'OTA', 'FWHM_IMAGE', 'BACKGROUND', 'FLAGS', 'MAG_D60']
+    raw_cols = ['ra', 'dec', 'x', 'y', 'ota', 'fwhm_image', 'background', 'flags', 'mag_aper_6.0']
+    col_format = ['%11.6f', '%11.6f', '%8.2f', '%8.2f', '%3d', '%6.2f', '%8.2f', '%6x', '%7.3f']
     if (is_odi_frame):
         logger.info("This frame IS a ODI frame!")
         # Catalog of ODI sources
@@ -165,8 +148,6 @@ if __name__ == "__main__":
             sys.exit(0)
             
         # Now translate the raw sextractor catalog into the format we need here
-        columns = ['RA', 'DEC', 'X', 'Y', 'OTA', 'BACKGROUND', 'FLAGS', 'MAG_D60']
-        raw_cols = ['ra', 'dec', 'x', 'y', 'ota', 'background', 'flags', 'mag_aper_6.0']
         n_sources = source_cat.shape[0]
         starcat = numpy.empty((n_sources, len(raw_cols)))
         for idx, colname in enumerate(raw_cols):
@@ -194,6 +175,18 @@ if __name__ == "__main__":
 
     # Print the top of the catalog just for illustrative purposes
     numpy.savetxt(sys.stdout, starcat[:5,:], col_format)
+
+    #
+    # try to isolate non-stellar sources.
+    # this likely only works if most sources are stars, i.e. not in galaxy clusters
+    #
+    fwhms = starcat[:, columns.index('FWHM_IMAGE')]
+    filtered_fwhm, is_star = three_sigma_clip(fwhms, return_mask=True)
+    #print "All sources:\n",starcat[:,columns.index('FWHM_IMAGE')]
+    #print "\n\nFWHM like stars:\n",starcat[:,columns.index('FWHM_IMAGE')][is_star]
+    #print "\n\nFWHM not stars:\n",starcat[:,columns.index('FWHM_IMAGE')][~is_star]
+    # Apply star-only selection
+    starcat = starcat[is_star]
 
     #
     # Now select average profiles for each of the magitude ranges
@@ -235,13 +228,13 @@ if __name__ == "__main__":
         print >>readme, """
   ==> Magnitude range %6.2f to %.2f mag (source count: %d):
   ---------------------------------------------------------------------------------
-          Ra          Dec          X          Y   OTA  Background  Flags  Magnitude
+          Ra          Dec          X          Y   OTA  FWHM Background  Flags  Magnitude
   ---------------------------------------------------------------------------------\
 """ % (
       mag_min, mag_max, selected_cat.shape[0])
 
         numpy.savetxt(readme, selected_cat, [
-            '%12.6f', '%12.6f', '%10.3f', '%10.3f', '%5d', '%11.3f', '%6x', '%10.4f'])
+            '%12.6f', '%12.6f', '%10.3f', '%10.3f', '%5d', '%6.2f', '%11.3f', '%6x', '%10.4f'])
         print >>readme, "  ================================================================================="
 
         #
@@ -310,6 +303,35 @@ if __name__ == "__main__":
         profile_file.close()
 
     readme.close()
+
+if __name__ == "__main__":
+
+    options = {}
+    podi_logging.setup_logging(options)
+    logger = logging.getLogger("AutoMP")
+
+
+    # We only support radial profiles
+    radial_mode = True
+
+    savefile = cmdline_arg_set_or_default("-save", None)
+    if (not savefile == None):
+        clobberfile(savefile)
+
+    outdir_base = cmdline_arg_set_or_default("-outdir", ".")
+
+
+
+    # fig = matplotlib.pyplot.figure()
+    # ax = fig.add_subplot(111)
+
+    dz2_limit = float(cmdline_arg_set_or_default("-dz2", 0.5))
+    max_radius = float(cmdline_arg_set_or_default("-maxr", 5.0))
+    width = 50
+
+    for infilename in get_clean_cmdline()[1:]:
+        # infilename = get_clean_cmdline()[1]
+        create_psf_profiles(infilename, outdir_base, width)
 
 
     podi_logging.shutdown_logging(options)
