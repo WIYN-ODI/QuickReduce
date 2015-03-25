@@ -20,6 +20,8 @@ from profile import *
 from meanprofile import *
 import podi_logging
 import logging
+import scipy
+import scipy.spatial
 
 from astLib import astWCS
 
@@ -100,7 +102,7 @@ def create_psf_profiles(infilename, outdir_base, width):
         table = hdulist['CAT.ODI']
         # convert table into a n-D numpy catalog, with ra/dec, x/y, and magnitudes 
         n_sources = table.data.field(0).shape[0]
-        logger.info("Found %d stars in catalog" %(n_sources))
+        #logger.info("Found %d stars in catalog" %(n_sources))
 
         starcat = numpy.empty((n_sources, len(columns)))
         for idx, colname in enumerate(columns):
@@ -168,6 +170,33 @@ def create_psf_profiles(infilename, outdir_base, width):
 
     # Convert all instrumental magnitudes into calibrated ones
     starcat[:,-1] += hdulist[0].header['PHOTZP_X'] # no correction for exptime etc.
+    logger.info("Found a total of %4d stars" % (starcat.shape[0]))
+
+    #
+    # Eliminate all stars with nearby sources
+    #
+    pixelscale_center = 0.1/3600.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        wcs = astWCS.WCS(hdulist[1].header, mode='pyfits')
+        pixelscale_center = wcs.getPixelSizeDeg() * 3600. # this is arcsec per pixel
+    within_range_pixels = 5.0 / pixelscale_center
+    logger.debug("nearby stars: if within %.2f pixels" % (within_range_pixels))
+    kdtree = scipy.spatial.cKDTree(starcat[:,2:4]) # use x/y 
+    # need to look for at least 2 neighbors, since every source also shows up as its one neighbor
+    nearest_neighbor, i = kdtree.query(x=starcat[:,2:4], k=2, p=2, 
+                                       distance_upper_bound=within_range_pixels)
+    numpy.savetxt("nn.dump", nearest_neighbor)
+    neighbor_count = numpy.sum(numpy.isfinite(nearest_neighbor), axis=1) - 1.0
+    numpy.savetxt("nnc.dump", neighbor_count, '%d')
+    
+    # now only pick stars with no neighbor star within 5 arcsec
+    starcat = starcat[neighbor_count < 1]
+    logger.info("Eliminating % 4d stars due to nearby neighbors" % (numpy.sum(neighbor_count >= 1)))
+
+    #print nearest_neighbor
+
+    
 
     # Now exclude all stars with flags, indicating something might be wrong
     starcat = starcat[starcat[:,-2] == 0]
