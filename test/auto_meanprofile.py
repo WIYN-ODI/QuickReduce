@@ -306,6 +306,17 @@ def create_psf_profiles(infilename, outdir_base, width):
 
 if __name__ == "__main__":
 
+    if (len(sys.argv) <= 1):
+        print """\
+
+ How to use auto_meanprofile:
+
+ auto_manprofile.py -outdir=/some/dir files_*.fits
+
+"""
+        sys.exit(0)
+
+
     options = {}
     podi_logging.setup_logging(options)
     logger = logging.getLogger("AutoMP")
