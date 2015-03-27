@@ -383,7 +383,7 @@ def collect_reduce_ota(filename,
         # Save the fppos as name for this extension
         ota_name = "OTA%02d" % ota
         extname = "OTA%02d.SCI" % ota
-        hdu.update_ext_name(extname)
+        hdu.name = extname
         hdu.header['OTA'] = (ota, "OTA designation")
 
         # podi_logging.podi_getlogger("%s - %s" % (obsid, extname), options['log_setup'])
