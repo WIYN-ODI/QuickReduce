@@ -238,6 +238,7 @@ ucac_photometric_column = {"UCAC_Red": 2,
 cellmode_ids = {
     "S": 0,
     "V": 1,
+    "D": 1,
     # Add other cellmodes and some numerical representation here
 }
 
