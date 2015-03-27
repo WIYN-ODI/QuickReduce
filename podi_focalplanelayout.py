@@ -329,7 +329,18 @@ class FocalPlaneLayout(object):
             '17167': [],                                                 #  --   44
             '17122': [(5,0),(6,0),(7,0)],                                #  --   54
             '8101' : [],                                                 #  --   56
+            #
+            # These are added, but should not exist
+            #
+            '17189': [],
             }
+
+        #
+        # For testing, disable all broken cells
+        #
+        for ota in self.broken_cells:
+            self.broken_cells[ota] = []
+
 
     def is_cell_broken(self, ota_id, cx, cy):
         cell_xy = (cx,cy)
