@@ -117,6 +117,8 @@ def printWCS ():
             imghdu.header['CTYPE2'] = 'DEC--TAN'
             imghdu.header['CRVAL1'] = 0.0
             imghdu.header['CRVAL2'] = 0.0
+            imghdu.header['CUNIT1']  = ('deg     ', 'Axis unit')
+            imghdu.header['CUNIT2']  = ('deg     ', 'Axis unit')
             imghdu.header['CD1_1'] = 3.11588947907302E-5
             imghdu.header['CD2_2'] = 3.11503811254695E-5
             imghdu.header['CD1_2'] = -4.9413159234116E-8
