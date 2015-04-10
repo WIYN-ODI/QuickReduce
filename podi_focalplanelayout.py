@@ -283,6 +283,9 @@ class FocalPlaneLayout(object):
             # (1,6), 
             # (0,0),
             # ]
+
+        self.central_array_ota_coords = self.available_ota_coords
+
         pass
 
     
