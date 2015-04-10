@@ -8,6 +8,7 @@ import math, sys
 import podi_crosstalk
 import podi_logging
 import numpy
+import os
 
 class FocalPlaneLayout(object):
 
@@ -70,6 +71,8 @@ class FocalPlaneLayout(object):
     def setup_podi_layout(self):
 
         self.layout = 'pODI'
+
+        self.wcs_default = "2mass_distort5.fits"
 
         # this is for pODI 
         self.available_ota_coords = [
@@ -267,6 +270,7 @@ class FocalPlaneLayout(object):
         self.setup_podi_layout()
 
         self.layout = 'ODI_5x6'
+        self.wcs_default = "wcs_5x6_skeleton.fits"
 
         self.available_ota_coords = itertools.product(range(1,7), repeat=2)# [
             # (3,3),
@@ -386,6 +390,12 @@ class FocalPlaneLayout(object):
 
 
     def apply_wcs_distortion(self, filename, hdu, binning):
+
+        if (os.path.isdir(filename)):
+            # We received a directory instead of a filename
+            # ==> use the default filename in this directory
+            self.logger.info("Choosing default WCS solution")
+            filename = "%s/%s" % (filename, self.wcs_default)
 
         try:
             self.wcs = pyfits.open(filename)
