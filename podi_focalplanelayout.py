@@ -394,8 +394,8 @@ class FocalPlaneLayout(object):
         if (os.path.isdir(filename)):
             # We received a directory instead of a filename
             # ==> use the default filename in this directory
-            self.logger.info("Choosing default WCS solution")
             filename = "%s/%s" % (filename, self.wcs_default)
+            self.logger.debug("Choosing default WCS solution --> %s" % (filename))
 
         try:
             self.wcs = pyfits.open(filename)
