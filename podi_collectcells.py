@@ -1346,7 +1346,6 @@ def parallel_collect_reduce_ota(queue, return_queue,
             return
 
         filename, ota_id, wrapped_pipe = task
-        x = open("/tmp/ota%02d.id" % ota_id, "w")
         logger = logging.getLogger("WorkManager(OTA%02d)" % (ota_id))
 
         # Do the work
