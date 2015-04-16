@@ -731,7 +731,7 @@ def collect_reduce_ota(filename,
                         # If normalizing with the flat-field, overwrite the gain
                         # keyword with the average gain value of the flatfield.
                         ff_gain = flatfield[0].header['GAIN'] \
-                                  if 'GAIN' in flatfield[0].header else 1.3
+			    if ('GAIN' in flatfield[0].header and flatfield[0].header['GAIN'] > 0) else -1.
                         gain_from_flatfield = ff_gain
                         
                         logger.debug("Checking if extension has PGAFCTD keyword: %s" % (str('PGAFCTD' in ff_ext.header)))
