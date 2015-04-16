@@ -154,7 +154,7 @@ def normalize_flatfield(filename, outputfile,
     # compute the global gain value and store it in primary header
     # 
     global_gain = gain_sum / gain_count
-    hdulist[0].header['GAIN'] = global_gain
+    hdulist[0].header['GAIN'] = global_gain if (gain_count > 0) else -1.
     hdulist[0].header['NGAIN'] = gain_count
 
     stdout_write(" writing results ...")
