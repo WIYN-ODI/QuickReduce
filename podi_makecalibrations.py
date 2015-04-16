@@ -546,14 +546,31 @@ def compute_techdata(calib_biaslist, calib_flatlist, output_dir, options, n_fram
                     ids4 = "%02d%d%d" % (ota, cx, cy)
                     label = "OTA%02d,cell%d%d" % (ota, cx, cy)
 
-                    techhdu.header["GN__%s" % ids4] = (avg[0, cx,cy], "gain, %s" % (label))
-                    techhdu.header["GN_E%s" % ids4] = (std[0, cx,cy], "gain std.dev., %s" % (label))
+                    # Set all headers to some default value and add the comments
+                    techhdu.header["GN__%s" % ids4] = (-1., "gain, %s" % (label))
+                    techhdu.header["GN_E%s" % ids4] = (-1., "gain std.dev., %s" % (label))
+                    techhdu.header["RN__%s" % ids4] = (-1., "readnoise [counts], %s" % (label))
+                    techhdu.header["RN_E%s" % ids4] = (-1., "readnoise std.dev. [counts], %s" % (label))
+                    techhdu.header["RNE_%s" % ids4] = (-1., "readnoise [e-], %s" % (label))
+                    techhdu.header["RNEE%s" % ids4] = (-1., "readnoise std.dev. [e-], %s" % (label))
 
-                    techhdu.header["RN__%s" % ids4] = (avg[1, cx,cy], "readnoise [counts], %s" % (label))
-                    techhdu.header["RN_E%s" % ids4] = (std[1, cx,cy], "readnoise std.dev. [counts], %s" % (label))
+                    try:
+                        techhdu.header["GN__%s" % ids4] = avg[0, cx,cy]
+                        techhdu.header["GN_E%s" % ids4] = std[0, cx,cy]
+                    except:
+                        pass
 
-                    techhdu.header["RNE_%s" % ids4] = (avg[2, cx,cy], "readnoise [e-], %s" % (label))
-                    techhdu.header["RNEE%s" % ids4] = (std[2, cx,cy], "readnoise std.dev. [e-], %s" % (label))
+                    try:
+                        techhdu.header["RN__%s" % ids4] = avg[1, cx,cy]
+                        techhdu.header["RN_E%s" % ids4] = std[1, cx,cy]
+                    except:
+                        pass
+
+                    try:
+                        techhdu.header["RNE_%s" % ids4] = avg[2, cx,cy]
+                        techhdu.header["RNEE%s" % ids4] = std[2, cx,cy]
+                    except:
+                        pass
 
                 # next cell
             # next OTA
