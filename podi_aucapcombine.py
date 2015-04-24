@@ -43,11 +43,15 @@ import scipy
 
 gain_correct_frames = False
 from podi_definitions import *
-
+import podi_sitesetup as sitesetup
 
 do_not_copy_headers = ("NAXIS", "NAXIS1", "NAXIS2")
 
 verbose = False
+
+delete_headers = [
+    'RSPRA', 'RSPDEC',
+]
 
 if __name__ == "__main__":
 
@@ -64,14 +68,36 @@ if __name__ == "__main__":
         tmpfile = None
         if (filename.endswith(".fz")):
             _, fn = os.path.split(filename)
-            tmpfile = "/N/dc2/scratch/odiuser/aucap_tiles/%s" % (fn[:-3])
+            tmpfile = "%s/%s" % (sitesetup.staging_dir, fn[:-3])
             os.system("funpack -O %s %s" % (tmpfile, filename))
             hdulist = pyfits.open(tmpfile)
         else:
             hdulist = pyfits.open(filename)
         print "Adding in",filename
-        ota_list.append(pyfits.ImageHDU(header=hdulist[0].header,
-                                        data=hdulist[0].data))
+
+        #
+        # Delete some headers that are not FITS conform
+        #
+        for hdr in delete_headers:
+            if (hdr in hdulist[0].header):
+                del hdulist[0].header[hdr]
+
+        #
+        # Create new ImageHDU ...
+        #
+        imghdu = pyfits.ImageHDU(header=hdulist[0].header,
+                                        data=hdulist[0].data)
+
+        #
+        # translate FPPOS into OTA
+        #
+        fppos = 'xy00' if 'FPPOS' not in hdulist[0].header else hdulist[0].header['FPPOS']
+        ota = int(fppos[2:4])
+        imghdu.name = 'OTA%02d.SCI' % (ota)
+
+        # ... and add to existing list
+        ota_list.append(imghdu)
+
         # translate FPPOS into OTA
         fppos = 'xy00' if 'FPPOS' not in hdulist[0].header else hdulist[0].header['FPPOS']
         ota = int(fppos[2:4])
