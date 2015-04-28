@@ -58,7 +58,7 @@ def normalize_flatfield(filename, outputfile,
     fpl = podi_focalplanelayout.FocalPlaneLayout(hdulist)
 
     list_of_otas_to_normalize = fpl.get_science_area_otas(filter, include_vignetted=False)
-    logger.debug("Using these OTAs to normalize overall flux:\n%s" % (", ".join(list_of_otas_to_normalize)))
+    logger.debug("Using these OTAs to normalize overall flux:\n%s" % (", ".join(["%02d" % ota for ota in list_of_otas_to_normalize])))
 
     flatfield_data = numpy.zeros(
         shape=(len(list_of_otas_to_normalize)*4096*4096/(binning_x*binning_y)), 
