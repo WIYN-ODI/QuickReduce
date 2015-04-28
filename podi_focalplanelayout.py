@@ -46,10 +46,12 @@ class FocalPlaneLayout(object):
         #
         self.wcs = None
 
+        self.logger.debug("Setting up general properties!")
         self.setup_general()
         
         # Find date of exposure
-        mjd_obs = hdu.header['MJD-OBS']
+        mjd_obs = hdu.header['MJD-OBS'] if ('MJD-OBS' in hdu.header) else -9999.99
+        self.logger.debug("Found MJD OBS date: %f" % (mjd_obs))
 
         if (mjd_obs < 57023):
             # This exposure was obtained BEFORE 01/01/2015
