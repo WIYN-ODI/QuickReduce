@@ -3130,20 +3130,27 @@ def collectcells(input, outputfile,
                     sky_samples_final = numpy.append(sky_samples_final, sky_ota, axis=0)
                     break
         sky_columns = [
+            # RA of box center
             pyfits.Column(name='RA', format='D', unit='degrees',
-                          array=sky_samples_final[:,0], disp='RA of box center'),
+                          array=sky_samples_final[:,0], disp='F10.6'),
+            # DEC of box center
             pyfits.Column(name='DEC', format='D', unit='degrees',
-                          array=sky_samples_final[:,1], disp='DEC of box center'),
+                          array=sky_samples_final[:,1], disp='F10.6'),
+            # X position of box center
             pyfits.Column(name='X', format='D', unit='pixel',
-                          array=sky_samples_final[:,2], disp='X position of box center'),
+                          array=sky_samples_final[:,2], disp='F10.4'),
+            # Y position of box center
             pyfits.Column(name='Y', format='D', unit='pixel',
-                          array=sky_samples_final[:,3], disp='Y position of box center'),
+                          array=sky_samples_final[:,3], disp='F10.4'),
+            # median counts in box
             pyfits.Column(name='INTENSITY', format='D', unit='counts',
-                          array=sky_samples_final[:,4], disp='median counts in box'),
+                          array=sky_samples_final[:,4], disp='E12.5E2'),
+            # distance to closest source
             pyfits.Column(name='MIN_D', format='D', unit='pixel',
-                          array=sky_samples_final[:,2], disp='distance to closest source'),
+                          array=sky_samples_final[:,2], disp='F8.3'),
+            # source OTA
             pyfits.Column(name='OTA', format='I2', unit='',
-                          array=sky_samples_final[:,2], disp='source OTA'),
+                          array=sky_samples_final[:,2], disp='I2.2'),
         ]
         sky_coldefs = pyfits.ColDefs(sky_columns)
         sky_tbhdu = pyfits.new_table(sky_coldefs, tbtype='BinTableHDU')
