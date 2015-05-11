@@ -533,65 +533,79 @@ def compute_techdata(calib_biaslist, calib_flatlist, output_dir, options, n_fram
             # Prepare the Tech-HDU
             techhdu = pyfits.ImageHDU(name='TECHDATA')
 
+            # Start assembling the full TECHDATA file
+            prim_header = pyfits.PrimaryHDU()
+            techdata_hdu_ = [prim_header]
+
+            # Create the extensions that store the TECHDATA as images, with one 
+            # pixel per OTA cell
+
+            techdata_extnames = ['GAIN', 'READNOISE', 'READNOISE_E']
+            techdata_extnames_var = ['%s.VAR' % (n) for n in techdata_extnames]
+ 
+            for extnames in itertools.chain(techdata_extnames,
+                                            techdata_extnames_var):
+
+                # set all image data to 64x64 pixels filled with NaNs
+                img_raw = numpy.zeros((64,64))
+                img_raw[:,:] = numpy.NaN
+
+                # Create one ImageHDU to hold the image 
+                value_hdu = pyfits.ImageHDU(data=img_raw)
+                value_hdu.name = extnames
+                techdata_hdu_.append(value_hdu)
+                logger.debug("Creating TECHDATA extension %s" % (extnames))
+
+            # open any of the files to get some info about filter, etc.
+            assoc_hdu = create_association_table(association_table, verbose=False)
+            techdata_hdu_.append(assoc_hdu)
+
+            #
+            # Create the full HDU so we can access individual extensions 
+            # via their extension names
+            #
+            techdata_hdu = pyfits.HDUList(techdata_hdu_)
+
             # Receive all results 
             for i in range(number_parallel_jobs):
                 results = result_queue.get()
                 if (results == None):
                     continue
                 ota, avg, std = results
-                logger.debug("Adding results for OTA %02d to tech-hdu" % (ota))
+                logger.info("Adding results for OTA %02d to tech-hdu" % (ota))
 
-                for cx, cy in itertools.product(range(8), range(8)):
+                ota_x, ota_y = int(numpy.floor(ota/10.)), int(ota%10)
 
-                    ids4 = "%02d%d%d" % (ota, cx, cy)
-                    label = "OTA%02d,cell%d%d" % (ota, cx, cy)
+                #
+                # Now we have the data for a single OTA, so all we need to do is
+                # to copy the data into the appropriate TECHDATA HDU image
+                #
+                #logger.info
+                try:
+                    for idx, extname in enumerate(techdata_extnames):
+                        techdata_hdu[extname].data[ota_y*8:(ota_y+1)*8,
+                                                   ota_x*8:(ota_x+1)*8] = avg[idx].T[::-1,:]
+                    
 
-                    # Set all headers to some default value and add the comments
-                    techhdu.header["GN__%s" % ids4] = (-1., "gain, %s" % (label))
-                    techhdu.header["GN_E%s" % ids4] = (-1., "gain std.dev., %s" % (label))
-                    techhdu.header["RN__%s" % ids4] = (-1., "readnoise [counts], %s" % (label))
-                    techhdu.header["RN_E%s" % ids4] = (-1., "readnoise std.dev. [counts], %s" % (label))
-                    techhdu.header["RNE_%s" % ids4] = (-1., "readnoise [e-], %s" % (label))
-                    techhdu.header["RNEE%s" % ids4] = (-1., "readnoise std.dev. [e-], %s" % (label))
+                    for idx, extname in enumerate(techdata_extnames_var):
+                        techdata_hdu[extname].data[ota_y*8:(ota_y+1)*8,
+                                                   ota_x*8:(ota_x+1)*8] = std[idx].T[::-1,:]
 
-                    try:
-                        techhdu.header["GN__%s" % ids4] = avg[0, cx,cy]
-                        techhdu.header["GN_E%s" % ids4] = std[0, cx,cy]
-                    except:
-                        pass
+                except:
+                    logger.critical("Could not extract results for OTA %02d" % (ota))
+                    pass
 
-                    try:
-                        techhdu.header["RN__%s" % ids4] = avg[1, cx,cy]
-                        techhdu.header["RN_E%s" % ids4] = std[1, cx,cy]
-                    except:
-                        pass
-
-                    try:
-                        techhdu.header["RNE_%s" % ids4] = avg[2, cx,cy]
-                        techhdu.header["RNEE%s" % ids4] = std[2, cx,cy]
-                    except:
-                        pass
-
-                # next cell
             # next OTA
 
             
             #
             # Construct a filename and write the techdata hdu to file
             #
-            logger.info("Assembling output file")
-            prim_header = pyfits.PrimaryHDU()
-
-            # open any of the files to get some info about filter, etc.
-
-            assoc_hdu = create_association_table(association_table, verbose=False)
-
+            logger.info("Assembling TECHDATA output file")
             out_filename = "%s/techdata_%s_bin%d.fits" % (output_dir, filtername, binning)
-            out_hdulist = pyfits.HDUList([prim_header, techhdu, assoc_hdu])
-
             clobberfile(out_filename)
-            out_hdulist.writeto(out_filename, clobber=True)
-            logger.info("wrote output to file: %s" % (out_filename))
+            techdata_hdu.writeto(out_filename, clobber=True)
+            logger.info("wrote TECHDATA output to file: %s" % (out_filename))
 
         # next filter
 
