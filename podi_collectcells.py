@@ -291,6 +291,27 @@ else:
 
 
 
+def read_techdata(techdata_hdulist, ota_x, ota_y, wm_cellx, wm_celly):
+
+    logger = logging.getLogger("ReadTechData")
+    #logger.info("Reading from %s" % (str(techdata_hdulist)))
+
+    gain, readnoise, readnoise_e = None, None, None
+    cellidx_x = ota_x*8+wm_cellx
+    cellidx_y = ota_y*8+(7-wm_celly)
+
+
+    try:
+        gain = techdata_hdulist['GAIN'].data[cellidx_y, cellidx_x]
+        readnoise = techdata_hdulist['READNOISE'].data[cellidx_y, cellidx_x]
+        readnoise_e = techdata_hdulist['READNOISE_E'].data[cellidx_y, cellidx_x]
+    except:
+        logger.error("TECHDATA file is likely corrupted!")
+        pass
+
+    return gain, readnoise, readnoise_e
+
+
 def collect_reduce_ota(filename,
                        verbose=False,
                        options=None):
@@ -516,23 +537,13 @@ def collect_reduce_ota(filename,
             if (os.path.isfile(techfile)):
                 logger.debug("Reading techdata from file %s" % (techfile))
                 techhdulist = pyfits.open(techfile)
-                try:
-                    techdata = techhdulist['TECHDATA'].header
-                    reduction_files_used['techdata'] = techfile
-                except:
-                    pass
-                techhdulist.close()
+                reduction_files_used['techdata'] = techfile
             else:
                 techfile = "%s/techdata.fits" % (sitesetup.exec_dir)
                 if (os.path.isfile(techfile)):
                     logger.debug("Reading techdata from file %s" % (techfile))
                     techhdulist = pyfits.open(techfile)
-                    try:
-                        techdata = techhdulist['TECHDATA'].header
-                        reduction_files_used['techdata'] = techfile
-                    except:
-                        pass
-                    techhdulist.close()
+                    reduction_files_used['techdata'] = techfile
                 else:
                     logger.debug("Was looking for techfile %s but couldn't find it" % (techfile))
 
@@ -601,21 +612,19 @@ def collect_reduce_ota(filename,
             # the tech-header by copying the information from the input techdata 
             # to the output techdata
             #
-            if (not techdata == None):
-                ids = "%02d%d%d" % (ota, wm_cellx, wm_celly)
-                for keybase in techdata_keywords:
-                    keyword = keybase+ids
-                    if (keyword in techdata):
-                        key, val, com = techdata.cards[keyword]
-                        tech_header[key] = (val, com)
+            if (not techhdulist == None):
+                gain, readnoise, readnoise_e = read_techdata(
+                    techhdulist, ota_c_x, ota_c_y, wm_cellx, wm_celly)
+                logger.debug("Using tech-data for gain & readnoise: %f %f" % (gain, readnoise))
+
                 # Also set the gain and readnoise values to be used later for the gain correction
                 all_gains[wm_cellx, wm_celly] = \
-                    techdata['GN__'+ids] if ('GN__'+ids in techdata) else \
-                        hdulist[cell].header['GAIN'] if 'GAIN' in hdulist[cell].header else backup_gain
+                    gain if not gain == None else \
+                    hdulist[cell].header['GAIN'] if 'GAIN' in hdulist[cell].header else backup_gain
                 all_readnoise[wm_cellx, wm_celly] = \
-                    techdata['RN__'+ids] if 'RN__'+ids in techdata else backup_readnoise
+                    readnoise if not gain == None else backup_readnoise 
                 all_readnoise_electrons[wm_cellx, wm_celly] = \
-                    techdata['RNE_'+ids] if 'RNE_'+ids in techdata else backup_readnoise_electrons
+                    readnoise_e if not readnoise_e == None else backup_readnoise_electrons
             else:
                 all_gains[wm_cellx, wm_celly] = \
                     hdulist[cell].header['GAIN'] if 'GAIN' in hdulist[cell].header else backup_gain
@@ -625,7 +634,6 @@ def collect_reduce_ota(filename,
             # work on next cell
 
         logger.debug("Collected all cells for OTA %02d of %s" % (ota, obsid))
-        # for c in tech_header: print tech_header.cards[c]
 
         # 
         # At this point we have a 4x4 Kpixel array with all cells merged
@@ -3210,20 +3218,8 @@ def collectcells(input, outputfile,
 
 
     #
-    # Prepare the Tech-HDU and add it to output HDU
-    #
-    techhdu = pyfits.ImageHDU(name='TECHDATA')
-    # Now add all tech-data to the techhdu
-    for techhdr in all_tech_headers:
-        for (key, value, comment) in techhdr.cards:
-            techhdu.header[key] = (value, comment)
-    ota_list.append(techhdu)
-
-
-    #
     # Create an association table from the master reduction files used.
     # 
-    
     master_reduction_files_used = collect_reduction_files_used(master_reduction_files_used, 
                                                                additional_reduction_files)
     assoc_table = create_association_table(master_reduction_files_used)
