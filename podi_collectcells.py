@@ -2746,7 +2746,7 @@ def collectcells(input, outputfile,
                                      array=odi_2mass_cat[:, 8], disp='source OTA'),
             ]
             coldefs = pyfits.ColDefs(columns)
-            matchedhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
+            matchedhdu = pyfits.BinTableHDU.from_columns(coldefs)
             matchedhdu.name = "CAT.ODI+2MASS"
             matchedhdu.header['MATCHRAD'] = (2., "matching radius in arcsec")
             ota_list.append(matchedhdu)
@@ -3162,7 +3162,7 @@ def collectcells(input, outputfile,
                           array=sky_samples_final[:,2], disp='I2.2'),
         ]
         sky_coldefs = pyfits.ColDefs(sky_columns)
-        sky_tbhdu = pyfits.new_table(sky_coldefs, tbtype='BinTableHDU')
+        sky_tbhdu = pyfits.BinTableHDU.from_columns(sky_coldefs)
         sky_tbhdu.name = "SKYLEVEL"
         # Copy a bunch of headers from the primary HDUu to the SKYLEVEL hdu
         for key in [
@@ -3542,7 +3542,7 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
     )
 
     coldefs = pyfits.ColDefs(columns)
-    tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
+    tbhdu = pyfits.BinTableHDU.from_columns(coldefs)
     tbhdu.name = "CAT.PHOTCALIB"
 
     return tbhdu
@@ -3576,7 +3576,7 @@ def twomasscat_to_tablehdu(catalog):
         ]
 
     coldefs = pyfits.ColDefs(columns)
-    tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
+    tbhdu = pyfits.BinTableHDU.from_columns(coldefs)
 
     tbhdu.name = "CAT.2MASS"
     return tbhdu
@@ -3689,7 +3689,7 @@ def odi_sources_to_tablehdu(source_cat):
         )
 
     coldefs = pyfits.ColDefs(columns)
-    tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
+    tbhdu = pyfits.BinTableHDU.from_columns(coldefs)
 
     tbhdu.name = "CAT.ODI"
     return tbhdu

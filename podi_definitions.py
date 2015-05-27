@@ -1319,9 +1319,9 @@ def create_association_table(master, verbose=False):
         ]
 
     coldefs = pyfits.ColDefs(columns)
-    tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
+    tbhdu = pyfits.BinTableHDU.from_columns(coldefs)
 
-    tbhdu.update_ext_name("ASSOCIATIONS", comment=None)
+    tbhdu.name = "ASSOCIATIONS"
 
     return tbhdu
 
