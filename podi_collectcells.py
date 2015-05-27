@@ -520,6 +520,7 @@ def collect_reduce_ota(filename,
         # TECHDATA extension that holds GAINS and readout noises for each cell. 
         #
         techdata = None
+        techhdulist = None
         if (not options['techdata'] == None):
             techfile = None
 
