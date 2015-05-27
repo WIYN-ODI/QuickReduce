@@ -3115,7 +3115,7 @@ def collectcells(input, outputfile,
     # Also make sure to compute real Ra/Dec values from OTA, X, and Y
     #
     logger.debug("Creating the SKYLEVEL table extension")
-    if (not sky_samples_global == None):
+    if (not type(sky_samples_global) == type(None)):
         sky_samples_final = numpy.empty((0,sky_samples_global.shape[1]))
         sky_otas = set(sky_samples_global[:,-1])
 
