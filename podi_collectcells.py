@@ -246,6 +246,7 @@ import ctypes
 import time
 import logging
 import itertools
+import bottleneck
 
 from podi_plotting import *
 
@@ -1314,7 +1315,49 @@ def collect_reduce_ota(filename,
 
 
 
+def apply_software_binning(hdu, softbin):
 
+    logger = logging.getLogger("Softbin")
+
+    logger.info("Applying software binning of x%d to ext %s" %
+                (softbin, hdu.name))
+
+    # for software binning, bin data
+    data = hdu.data
+    # data_4d = data.reshape(data.shape[0]/softbin, softbin, softbin, data.shape[1]/softbin)
+    # data_binned_3 = bottleneck.nanmean(data_4d, axis=-1)
+    # data_binned_2 = bottleneck.nanmean(data_binned_3, axis=1)
+    # hdu.data = data_binned_2
+    hdu.data = rebin_image(data, softbin, operation=bottleneck.nanmean)
+
+    # also modify all WCS relevant headers
+    for hdrname in ['CD1_1', 'CD1_2', 'CD2_1', 'CD2_2']:
+        hdu.header[hdrname] *= softbin
+
+    for hdrname in [
+            'CRPIX1', 'CRPIX2',
+            ]:
+        hdu.header[hdrname] /= softbin
+
+    # also modify the DETSEC keyword so we can properly display the frame as 
+    # IRAF mosaic
+    detsec_str = hdu.header['DETSEC'][1:-1] # strip the [ and ]
+    n = []
+    for xy in detsec_str.split(","):
+        for from_to in xy.split(":"):
+            n.append(int(from_to))
+    n = numpy.array(n) / softbin
+    new_detsec = "[%d:%d,%d:%d]" % (n[0],n[1],n[2],n[3])
+    logger.debug(new_detsec)
+    hdu.header['DETSEC'] = new_detsec 
+
+    hdu.header['SOFTBIN'] = (softbin, "software binning")
+
+    #
+    # Add here: appropriate treatment for photometric zeropoint, etc
+    #
+
+    return hdu
 
 
 
@@ -1445,6 +1488,17 @@ def parallel_collect_reduce_ota(queue, return_queue,
         except:
             podi_logging.log_exception()
             pass
+
+        ##################
+        #
+        # Now that actual reduction is done, apply software binning
+        #
+        ##################
+        if (not options['softbin'] == 0):
+            # check if its a multiple of 2
+            if (options['softbin'] in [2,4,8]):
+                return_hdu = apply_software_binning(return_hdu, options['softbin'])
+                
 
         # Add the complete ImageHDU to the return data stream
         data_products['hdu'] = return_hdu

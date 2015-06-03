@@ -325,6 +325,8 @@ Calibration data:
 
     options['prestage'] = cmdline_arg_isset("-prestage")
 
+    options['softbin'] = int(cmdline_arg_set_or_default("-softbin", 0))
+
     return options
 
 
@@ -432,6 +434,7 @@ def set_default_options(options_in=None):
 
     options['prestage'] = False
 
+    options['softbin'] = 0
     return options
 
 
