@@ -1206,7 +1206,7 @@ def collect_reduce_ota(filename,
         # This is necessary both for the pupil ghost correction AND the fringing correction
         #
         starcat = None
-        if (source_cat != None):
+        if (not type(source_cat) == type(None)):
             ota_x, ota_y = source_cat[:,2], source_cat[:,3]
             starcat = (ota_x, ota_y)
         # Now sample the background, excluding regions close to known sources
@@ -2336,7 +2336,7 @@ def collectcells(input, outputfile,
             # We don't know about this OTA, skip it
             continue
 
-        if (sky_samples[ext] == None):
+        if (type(sky_samples[ext]) == type(None)):
             logger.debug("Found empty sky-sample list: %s" % (ota_name))
             continue
 
@@ -2345,13 +2345,13 @@ def collectcells(input, outputfile,
         sky_plus_ota[:, -1] = ota_number
 
         not_a_guiding_ota = ota_headers[ota_name]['CELLMODE'].find("V") < 0
-        if (ota_number in valid_ext and not_a_guiding_ota and not sky_samples[ext] == None):
+        if (ota_number in valid_ext and not_a_guiding_ota and not type(sky_samples[ext]) == type(None)):
             if (sky_samples_global == None):
                 sky_samples_global = sky_plus_ota 
             else:
                 sky_samples_global = numpy.append(sky_samples_global, sky_plus_ota, axis=0)
         
-        if (sky_samples_global == None):
+        if (type(sky_samples_global) == type(None)):
             continue
         logger.debug("Entire list of sky-samples now contains % 4d entries" % (sky_samples_global.shape[0]))
 
@@ -2596,7 +2596,7 @@ def collectcells(input, outputfile,
         global_gain_sum += (hdu.header['GAIN'] * hdu.header['NGAIN'])
         global_gain_count += hdu.header['NGAIN']
 
-        if (not data_products['sourcecat'] == None):
+        if (not type(data_products['sourcecat']) == type(None)):
             global_source_cat = data_products['sourcecat'] if (global_source_cat == None) \
                 else numpy.append(global_source_cat, data_products['sourcecat'], axis=0)
 
@@ -2717,7 +2717,7 @@ def collectcells(input, outputfile,
     ota_list[0].header['ASTRMCAT'] = ("", "astrometric reference catalog")
     add_fits_header_title(ota_list[0].header, "World Coordinate System", 'WCSFIXED')
 
-    enough_stars_for_fixwcs = not global_source_cat == None \
+    enough_stars_for_fixwcs = not type(global_source_cat) == type(None) \
                               and global_source_cat.shape[0]>3
     if (options['fixwcs']):
         if (enough_stars_for_fixwcs):
