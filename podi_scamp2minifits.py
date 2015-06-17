@@ -124,7 +124,7 @@ def scamp_header_to_minifits(filename, minifits_outputname, reference_fits,
 
         # Copy all headers to the new HDU
         for key in values_list[ota]:
-            hdu.header.update(key, values_list[ota][key], comments_list[ota][key])
+            hdu.header[key] = (values_list[ota][key], comments_list[ota][key])
 
         # And add the HDU to the list that will form the minifits
         extlist.append(hdu)
@@ -138,7 +138,7 @@ def scamp_header_to_minifits(filename, minifits_outputname, reference_fits,
             continue
         extname = refhdu[ext].header['EXTNAME']
         if (extname == reference_extension): ota33_found = True
-        extlist[ext].update_ext_name(extname)
+        extlist[ext].name = extname
 
     # Create a proper HDUList from the list of new HDUs
     minifits_hdulist = pyfits.HDUList(extlist)
