@@ -22,7 +22,8 @@ def compute_mean_profile(filename,
                          mode='radial',
                          mot_xy=(0.,0.),
                          dz2_limit=None,
-                         max_radius=5.0
+                         max_radius=5.0,
+                         save_tmp=True
                          ):
 
     
@@ -45,10 +46,14 @@ def compute_mean_profile(filename,
         all_data = numpy.array([])
 
         for fxy in fxy_list:
-            items = fxy.split(",")
-            print fxy, items
-            fx = float(items[0]) - 1.
-            fy = float(items[1]) - 1.
+            if (type(fxy) == numpy.ndarray):
+                fx = fxy[0] - 1.
+                fy = fxy[1] - 1.
+            else:
+                items = fxy.split(",")
+                print fxy, items
+                fx = float(items[0]) - 1.
+                fy = float(items[1]) - 1.
 
             r, cutout = get_profile(data, center_x=fx, center_y=fy, 
                                     mx=mot_x,  my=mot_y, width=width, 
@@ -58,8 +63,9 @@ def compute_mean_profile(filename,
             all_r = numpy.append(all_r,r)
             all_data = numpy.append(all_data,cutout)
 
-            numpy.savetxt("radial__%.2f__%.2f.dump" % (fx,fy), 
-                          numpy.append(r.reshape(-1,1), cutout.reshape(-1,1), axis=1))
+            if (save_tmp):
+                numpy.savetxt("radial__%.2f__%.2f.dump" % (fx,fy), 
+                              numpy.append(r.reshape(-1,1), cutout.reshape(-1,1), axis=1))
 
         # Sort by radius
         si = numpy.argsort(all_r)
