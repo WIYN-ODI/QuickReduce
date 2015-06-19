@@ -811,7 +811,7 @@ def is_image_extension(hdu):
         type(hdu) == pyfits.hdu.compressed.CompImageHDU):
 
         try:
-            if (hdu.data == None):
+            if (type(hdu.data) == type(None)):
                 return False
         except:
             # Can't access the .data block, hence this can't be an image extension
