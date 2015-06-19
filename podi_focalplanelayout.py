@@ -290,6 +290,7 @@ class FocalPlaneLayout(object):
             # (0,0),
             # ]
 
+        self.available_ota_coords = self.create_radially_sorted_ota_list(mode=2)
         self.central_array_ota_coords = self.available_ota_coords
 
         pass
@@ -455,7 +456,7 @@ class FocalPlaneLayout(object):
 
 
 
-    def create_radially_sorted_ota_list(self):
+    def create_radially_sorted_ota_list(self, mode=1):
         
         # all_xy = []
         
@@ -484,5 +485,17 @@ class FocalPlaneLayout(object):
         y,x = numpy.indices((8,8))
         r = numpy.hypot(17000-(4300*x[0:1,:]+2000), 17000-(4300*y[:,0:1]+2000))
         si = numpy.argsort(r.ravel())
-        idx = x[0:1,:]*10+y[:,0:1]
-        return list(idx.ravel()[si])
+
+        if (mode == 1):
+            idx = x[0:1,:]*10+y[:,0:1]
+            return list(idx.ravel()[si])
+
+        elif (mode == 2):
+            #
+            # Also compute the 2-element (x,y) version
+            #
+            si2 = numpy.unravel_index(si, (8,8))
+            xy_2d = numpy.append(x.reshape((8,8,1)), y.reshape((8,8,1)), axis=2)
+            idx_2 = xy_2d[si2]
+            return idx_2
+
