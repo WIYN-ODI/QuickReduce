@@ -441,7 +441,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
             print "This catalog name is not known"
             return None
 
-        if (type(full_catalog) == None):
+        if (type(full_catalog) == type(None)):
             full_catalog = array_to_add
         else:
             full_catalog = numpy.append(full_catalog, array_to_add, axis=0)
