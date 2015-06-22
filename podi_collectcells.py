@@ -1092,9 +1092,9 @@ def collect_reduce_ota(filename,
                 logger.debug("Adding offset to Ra/Dec: %s --> %s" % (str(numpy.array(options['offset_pointing'])), str(offset_total)))
             if (options['offset_dither'] != None):
                 offset_total += numpy.array(options['offset_dither'])
-            logger.debug("Adding user's WCS offset (ra: %f, dec: %f degrees)" % (offset_total[0], offset_total[1]))
-            hdu.header['CRVAL1'] += offset_total[0] 
-            hdu.header['CRVAL2'] += offset_total[1]
+            logger.debug("Adding user's WCS offset (ra: %f, dec: %f arc-seconds)" % (offset_total[0], offset_total[1]))
+            hdu.header['CRVAL2'] += offset_total[1] / 3600.
+            hdu.header['CRVAL1'] += offset_total[0] / 3600. / math.cos(math.radians(hdu.header['CRVAL2']))
 
 
         # Now add the canned WCS solution
