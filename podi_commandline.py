@@ -189,7 +189,7 @@ Calibration data:
         tmp = get_cmdline_arg("-wcsoffset")
         items = tmp.split(',')
         options['offset_pointing'] = [float(items[0]), float(items[1])]
-        logger.info("Applying a user-defined WCS offset of %.3f, %.3f degrees\n" % (options['offset_pointing'][0], options['offset_pointing'][1]))
+        logger.info("Applying a user-defined WCS offset of %.3f, %.3f arcseconds\n" % (options['offset_pointing'][0], options['offset_pointing'][1]))
 
     #
     # Read all offsets from command line
