@@ -91,30 +91,45 @@ if __name__ == "__main__":
     ref_point = bottleneck.nanmean(radec_ref, axis=0)
     print "REF:",ref_point
 
-    #ref_point -= wcs_offset
+    crval = numpy.array([hdulist[1].header['CRVAL1'], hdulist[1].header['CRVAL2']])
+
+    d_crval = ref_point - crval
+    print "current CRVAL:", hdulist[1].header['CRVAL1'], hdulist[1].header['CRVAL2']
+
 
     #
-    # Now go through each OTA and correct the CRPIX values accordingly 
-    # to match the new CRVAL values we just computed
+    # Now go through each OTA and shift the CRVALs to have values of 0 at the 
+    # center of the focalplane
     #
-    for idx, ext in enumerate(out_hdulist):
+    for idx, ext in enumerate(hdulist):
         if (not type(ext)== pyfits.hdu.image.ImageHDU):
             continue
+        hdulist[idx].header['CRVAL1'] -= d_crval[0] #ref_point[0]
+        hdulist[idx].header['CRVAL2'] -= d_crval[1] #ref_point[1]
 
-        # Create WCS system for this OTA
-        hdr = pyfits.Header(ext.header)
-        hdr['NAXIS'] = 2
-        hdr['NAXIS1'] = 4096
-        hdr['NAXIS2'] = 4096
-        wcs = astWCS.WCS(hdr, mode='pyfits')
-        
-        # compute the pixel position of the reference Ra/Dec point
-        #
-        #print ref_point[0], ref_point[1]
-        print ext.name, wcs.wcs2pix(ref_point[0], ref_point[1])
 
-#    sys.exit(0)
+    # #
+    # # Now go through each OTA and correct the CRPIX values accordingly 
+    # # to match the new CRVAL values we just computed
+    # #
+    # for idx, ext in enumerate(out_hdulist):
+    #     if (not type(ext)== pyfits.hdu.image.ImageHDU):
+    #         continue
 
+    #     # Create WCS system for this OTA
+    #     hdr = pyfits.Header(ext.header)
+    #     hdr['NAXIS'] = 2
+    #     hdr['NAXIS1'] = 4096
+    #     hdr['NAXIS2'] = 4096
+    #     wcs = astWCS.WCS(hdr, mode='pyfits')
+
+    #     #
+    #     # compute the pixel position of the reference Ra/Dec point
+    #     #
+    #     #print ref_point[0], ref_point[1]
+    #     print ext.name, wcs.wcs2pix(ref_point[0], ref_point[1])
+
+    
 
 
     for ext in range(1, len(hdulist)):
@@ -122,6 +137,7 @@ if __name__ == "__main__":
             continue
 
         extname = hdulist[ext].name
+        print extname
 
         # Read input WCS
         hdulist[ext].header['NAXIS'] = 2
@@ -135,17 +151,17 @@ if __name__ == "__main__":
         # generate random coordinates
         xy = numpy.random.random((n_stars,2))*4096
 
-        print xy[:10]
+        #print xy[:10]
 
         # convert to Ra/Dec
         radec = numpy.array(in_wcs.pix2wcs(xy[:,0], xy[:,1]))
-        print radec[:10]
+        #print radec[:10]
         
 #        continue
 
         #break
 
-        print "------------------\n"*5
+        #print "------------------\n"*5
         # continue
 
         # now change the initial PV values to 1/0, and prepare re-fitting
@@ -165,8 +181,8 @@ if __name__ == "__main__":
         n_parameters = 2*max_pv + 4
         p_start = numpy.zeros(n_parameters)
 
-        header_names = ['CRVAL1', 'CRVAL2', 'CD1_1', 'CD1_2', 'CD2_1', 'CD2_2']
-#        header_names = ['CRPIX1', 'CRPIX2', 'CD1_1', 'CD1_2', 'CD2_1', 'CD2_2']
+#        header_names = ['CRVAL1', 'CRVAL2', 'CD1_1', 'CD1_2', 'CD2_1', 'CD2_2']
+        header_names = ['CRPIX1', 'CRPIX2', 'CD1_1', 'CD1_2', 'CD2_1', 'CD2_2']
         for i in range(2,max_pv):
             header_names.append('PV1_%d' % i)
             header_names.append('PV2_%d' % i)
@@ -186,7 +202,7 @@ if __name__ == "__main__":
         #     if kw in out_wcs.header:
         #         print kw, out_wcs.header[kw]
 
-        print max_pv, p_start
+        #print max_pv, p_start
 
         # Now prepare for re-fitting the WCS with the updated PV values
         fit_args = (xy, radec, out_wcs, header_names)
@@ -194,7 +210,7 @@ if __name__ == "__main__":
             fit = scipy.optimize.leastsq(minimize_wcs_error,
                                          p_start, 
                                          args=fit_args,
-                                         #maxfev=1000,
+                                         maxfev=50,
                                          full_output=1)
             #print fit
             p_final = fit[0]
@@ -214,6 +230,9 @@ if __name__ == "__main__":
         numpy.savetxt("XY_%s" % extname, xy)
         numpy.savetxt("RADEC_IN_%s" % extname, radec)
         numpy.savetxt("RADEC_OUT_%s" % extname, out_radec)
+
+        out_hdulist[ext].header['CRVAL1'] -= d_crval[0] #ref_point[0]
+        out_hdulist[ext].header['CRVAL2'] -= d_crval[1] #ref_point[1]
 
         out_hdulist[ext].header['PV1_0'] = 0.0
         out_hdulist[ext].header['PV1_1'] = 1.0
