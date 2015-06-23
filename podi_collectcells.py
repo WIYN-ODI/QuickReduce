@@ -1092,9 +1092,9 @@ def collect_reduce_ota(filename,
                 logger.debug("Adding offset to Ra/Dec: %s --> %s" % (str(numpy.array(options['offset_pointing'])), str(offset_total)))
             if (options['offset_dither'] != None):
                 offset_total += numpy.array(options['offset_dither'])
-            logger.debug("Adding user's WCS offset (ra: %f, dec: %f arc-seconds)" % (offset_total[0], offset_total[1]))
-            hdu.header['CRVAL2'] += offset_total[1] / 3600.
-            hdu.header['CRVAL1'] += offset_total[0] / 3600. / math.cos(math.radians(hdu.header['CRVAL2']))
+            logger.debug("Adding user's WCS offset (ra: %f, dec: %f degrees)" % (offset_total[0], offset_total[1]))
+            hdu.header['CRVAL1'] += offset_total[0] 
+            hdu.header['CRVAL2'] += offset_total[1]
 
 
         # Now add the canned WCS solution
@@ -1131,6 +1131,23 @@ def collect_reduce_ota(filename,
         hdu.data = merged
 
 
+        # #
+        # # Return data as shared memory
+        # #
+        # # Allocate shared memory
+        # shmem_buffer = multiprocessing.RawArray(ctypes.c_float, merged.size)
+        # shmem_image = shmem_as_ndarray(shmem_buffer).reshape(merged.shape)
+        # # insert reduced image data into shared memory buffer
+        # shmem_image[:,:] = merged[:,:]
+
+        # #
+        # # Now set HDU properties and store the shared memory image
+        # #
+        # hdu.header['NAXIS1'] = merged.shape[1]
+        # hdu.header['NAXIS2'] = merged.shape[0]
+        # hdu.data = None #shmem_buffer
+        # data_products['shmem_image'] = shmem_buffer
+
         source_cat = None
         if (options['fixwcs']):
             # Create source catalog
@@ -1144,7 +1161,7 @@ def collect_reduce_ota(filename,
                                                    extension_id=ota)
             else:
                 logger.debug("Preparing source catalog")
-                tmphdulist = pyfits.HDUList([pyfits.PrimaryHDU(header=hdu.header, data=hdu.data)])
+                tmphdulist = pyfits.HDUList([pyfits.PrimaryHDU(header=hdu.header, data=merged)])
                 obsid = tmphdulist[0].header['OBSID']
                 process_id = os.getpid()
                 fitsfile = "%s/tmp.pid%d.%s_OTA%02d.fits" % (sitesetup.sextractor_cache_dir, process_id, obsid, ota)
@@ -1363,7 +1380,10 @@ def apply_software_binning(hdu, softbin):
 
 
 def parallel_collect_reduce_ota(queue, return_queue,
-                                options=None):
+                                options=None,
+                                shmem=None,
+                                shmem_dim=None,
+                                shmem_id=-1):
     """
     A minimal wrapper handling the parallel execution of collectcells.
 
@@ -1426,7 +1446,7 @@ def parallel_collect_reduce_ota(queue, return_queue,
             else:
                 logger.critical("OTA did not return any data, empty/faulty file (%s)?" % (filename))
 
-            return_queue.put( (ota_id, data_products) )
+            return_queue.put( (ota_id, data_products, shmem_id) )
 
             queue.task_done()
             continue
@@ -1452,7 +1472,7 @@ def parallel_collect_reduce_ota(queue, return_queue,
 
         # Send the results from this OTA to the main process handler
         logger.debug("Sending results back to main process")
-        return_queue.put( (ota_id, data_products) )
+        return_queue.put( (ota_id, data_products, shmem_id) )
 
         # Now unpack the communication pipe
         logger.debug("Preparing communication pipe ...")
@@ -1469,6 +1489,10 @@ def parallel_collect_reduce_ota(queue, return_queue,
 
         #
         # Finish work: fringe subtraction and pupilghost removal
+        #
+
+        #
+        # XXX: UNPACK SHMEM AND REPACK WHEN DONE
         #
 
         try:
@@ -1500,12 +1524,27 @@ def parallel_collect_reduce_ota(queue, return_queue,
                 return_hdu = apply_software_binning(return_hdu, options['softbin'])
                 
 
+        #
+        #
+        # Pack the image data into shared memory to bring down communication times
+        #
+        #
+        wx,wy = shmem_dim
+        shmem_image = shmem_as_ndarray(shmem).reshape((wy,wx))
+        logger.debug("Packing image return into shared memory (%d x %d)" % (wx, wy))
+        if (return_hdu.data.shape[1] > wx or
+            return_hdu.data.shape[0] > wy):
+            logger.critical("Image size exceeds allocated shared memory")
+        else:
+            shmem_image[:return_hdu.data.shape[0], :return_hdu.data.shape[1]] = return_hdu.data[:,:]
+            return_hdu.data = numpy.array(return_hdu.data.shape)
+
         # Add the complete ImageHDU to the return data stream
         data_products['hdu'] = return_hdu
 
         # Add the results to the return_queue so the master process can assemble the result file
         logger.debug("Adding results for OTA %02d to return queue" % (ota_id))
-        return_queue.put( (ota_id, data_products) )
+        return_queue.put( (ota_id, data_products, shmem_id) )
 
         pipe.close()
 
@@ -2061,7 +2100,15 @@ def collectcells(input, outputfile,
     processes = []
 
     worker_args = (queue, return_queue, options)
-
+    shmem_dims = (4096, 4096)
+    kw_worker_args= {
+        'queue': queue,
+        'return_queue': return_queue,
+        'options': options,
+        'shmem': None,
+        'shmem_dim': shmem_dims,
+    }
+    shmem_list = []
     number_extensions = 0
 
     list_of_otas_being_reduced = []
@@ -2148,7 +2195,15 @@ def collectcells(input, outputfile,
     else:
         for i in range(number_cpus):
             logger.debug("Starting a new process...")
-            p = multiprocessing.Process(target=parallel_collect_reduce_ota, args=worker_args)
+            #p = multiprocessing.Process(target=parallel_collect_reduce_ota, args=worker_args)
+
+            # Allocate shared memory for data return
+            new_shmem = multiprocessing.RawArray(ctypes.c_float, 4096*4096)
+            kw_worker_args['shmem'] = new_shmem
+            kw_worker_args['shmem_id'] = len(shmem_list)
+            shmem_list.append(new_shmem)
+
+            p = multiprocessing.Process(target=parallel_collect_reduce_ota, kwargs=kw_worker_args)
             p.start()
             processes.append(p)
             if (not process_tracker == None):
@@ -2245,7 +2300,7 @@ def collectcells(input, outputfile,
     for i in range(len(list_of_otas_being_reduced)):
         #hdu, ota_id, wcsfix_data = return_queue.get()
         try:
-            ota_id, data_products = return_queue.get()
+            ota_id, data_products, shmem_id = return_queue.get()
         except (KeyboardInterrupt, SystemExit):
             while (not return_queue.empty()):
                 return_queue.get()
@@ -2270,7 +2325,14 @@ def collectcells(input, outputfile,
         # 
         if (len(processes) < len(list_of_otas_being_reduced)):
             # We don't have enough processes yet, start another one
-            p = multiprocessing.Process(target=parallel_collect_reduce_ota, args=worker_args)
+
+            # Allocate shared memory for data return
+            new_shmem = multiprocessing.RawArray(ctypes.c_float, 4096*4096)
+            kw_worker_args['shmem'] = new_shmem
+            kw_worker_args['shmem_id'] = len(shmem_list)
+            shmem_list.append(new_shmem)
+
+            p = multiprocessing.Process(target=parallel_collect_reduce_ota, kwargs=kw_worker_args)
             p.start()
             processes.append(p)
             logger.debug("Starting another process for another OTA")
@@ -2529,10 +2591,11 @@ def collectcells(input, outputfile,
     # print "missing_x: ", [list_of_otas_being_reduced[x] for x in ota_missing_empty]
     print "---------"
 
+    recv_start = time.time()
     n_expected_results = len(list_of_otas_being_reduced) - len(ota_missing_empty)
     for i in range(len(list_of_otas_being_reduced) - len(ota_missing_empty)):
         try:
-            ota_id, data_products = return_queue.get()
+            ota_id, data_products, shmem_id = return_queue.get()
         except (KeyboardInterrupt, SystemExit):
             while (not return_queue.empty()):
                 return_queue.get()
@@ -2543,7 +2606,7 @@ def collectcells(input, outputfile,
         # We received a final answer, so if necessary send off another intermediate results
         try:
             logger.info("received final answer from OTA-ID %02d [c=%d, FP=%s], expecting %d [%d] more" % (
-                ota_id, i, str(list_of_otas_being_reduced[ota_id]), n_expected_results-(i+1), n_expected_results))
+                ota_id, i, str(list_of_otas_to_collect[ota_id]), n_expected_results-(i+1), n_expected_results))
         except:
             print "Error with logger.info statement"
             pass
@@ -2582,8 +2645,18 @@ def collectcells(input, outputfile,
         hdu = data_products['hdu']
         if (hdu == None):
             continue
-        
+
+        #
+        # Unpack shared memory buffer using the information from the fits header
+        #
+        wx, wy = hdu.data[0], hdu.data[1]
+        logger.debug("Unpacking shared memory: (ID: %d, %d x %d)" % (shmem_id, wx,wy))
+        shmem_buffer = shmem_list[shmem_id]
+        shmem_image = shmem_as_ndarray(shmem_buffer).reshape(shmem_dims)
+        hdu.data = numpy.copy(shmem_image[:wy,:wx])
+
         ota_list[ota_id] = hdu
+
         extname = hdu.header['EXTNAME']
 
         wcsfix_data = data_products['wcsdata']
@@ -2605,6 +2678,9 @@ def collectcells(input, outputfile,
             # print "techdata for ota",ota_id,"\n",data_products['tech-header']
 
 
+    recv_end = time.time()
+    logger.debug("RECEIVING: %f" % ((recv_end - recv_start)))
+    
     podi_logging.ppa_update_progress(60, "Detrending done, starting calibration")
 
     #
