@@ -2577,19 +2577,19 @@ def collectcells(input, outputfile,
     #
     # logger.debug("Original OTA list: %s" % (" - ".join(["%d%d"% (x,y) for (x,y) in list_of_otas_being_reduced])))
     # logger.debug("Known faulty/missing: %s" % (" - ".join(ota_missing_empty)))
-    print "---------"
-    print "expected:",list_of_otas_being_reduced
-    print "missing:", ota_missing_empty
-    print "missing_x",
-    for x in ota_missing_empty:
-        try:
-            print list_of_otas_being_reduced[x],
-        except:
-            print "XXX",
-            pass
-    print
-    # print "missing_x: ", [list_of_otas_being_reduced[x] for x in ota_missing_empty]
-    print "---------"
+    # print "---------"
+    # print "expected:",list_of_otas_being_reduced
+    # print "missing:", ota_missing_empty
+    # print "missing_x",
+    # for x in ota_missing_empty:
+    #     try:
+    #         print list_of_otas_being_reduced[x],
+    #     except:
+    #         print "XXX",
+    #         pass
+    # print
+    # # print "missing_x: ", [list_of_otas_being_reduced[x] for x in ota_missing_empty]
+    # print "---------"
 
     recv_start = time.time()
     n_expected_results = len(list_of_otas_being_reduced) - len(ota_missing_empty)
@@ -2885,8 +2885,10 @@ def collectcells(input, outputfile,
             # This also writes to the Primary and OTA-level headers
             wcs_quality = dev_ccmatch.global_wcs_quality(odi_2mass_cat, ota_list)
             # print "WCS quality =",wcs_quality
-            ota_list[0].header['WCSXRMS'] = wcs_quality['full']['RMS-RA']
-            ota_list[0].header['WCSYRMS'] = wcs_quality['full']['RMS-DEC']
+            ota_list[0].header['WCSXRMS'] = \
+                wcs_quality['full']['RMS-RA'] if numpy.isfinite(wcs_quality['full']['RMS-RA']) else -1.
+            ota_list[0].header['WCSYRMS'] = \
+                wcs_quality['full']['RMS-DEC'] if numpy.isfinite(wcs_quality['full']['RMS-DEC']) else -1.
 
         # Compute the image quality using all detected sources
         # Make sure to only include round source (elongation < 1.3) and decent 
