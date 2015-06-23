@@ -24,6 +24,7 @@ def minimize_wcs_error(p, xy, ref_radec, astwcs, optimize_header_keywords):
         astwcs.header[optimize_header_keywords[i]] = p[i]
     # and update astWCS so the changes take effect
     astwcs.updateFromHeader()
+#    print astwcs.header
 
     # Now compute all Ra/Dec values based on the new WCS solution
     src_radec = numpy.array(astwcs.pix2wcs(xy[:,0], xy[:,1]))
@@ -73,10 +74,10 @@ if __name__ == "__main__":
     for idx, ota in enumerate(corners):
         try:
             ext = hdulist[ota]
+            ext.header['NAXIS'] = 2
+            ext.header['NAXIS1'] = 4096
+            ext.header['NAXIS2'] = 4096
             wcs = astWCS.WCS(ext.header, mode='pyfits')
-            wcs.header['NAXIS'] = 2
-            wcs.header['NAXIS1'] = 4096
-            wcs.header['NAXIS2'] = 4096
             wcs.updateFromHeader()
             x,y = corners[ota]
             print numpy.array(wcs.pix2wcs(x,y))
@@ -96,16 +97,32 @@ if __name__ == "__main__":
     d_crval = ref_point - crval
     print "current CRVAL:", hdulist[1].header['CRVAL1'], hdulist[1].header['CRVAL2']
 
+    #
+    #
+    #
+    #
+    #
+    # wcs44 = astWCS.WCS(hdulist['OTA44.SCI'].header, mode='pyfits')
+    # xy44 = wcs44.wcs2pix(ref_point[0], ref_point[1])
+    # print xy44
+    # print wcs44.header
 
-    #
-    # Now go through each OTA and shift the CRVALs to have values of 0 at the 
-    # center of the focalplane
-    #
-    for idx, ext in enumerate(hdulist):
-        if (not type(ext)== pyfits.hdu.image.ImageHDU):
-            continue
-        hdulist[idx].header['CRVAL1'] -= d_crval[0] #ref_point[0]
-        hdulist[idx].header['CRVAL2'] -= d_crval[1] #ref_point[1]
+    # hdulist['OTA44.SCI'].header['CRPIX1'] = xy44[0]
+    # hdulist['OTA44.SCI'].header['CRPIX2'] = xy44[1]
+
+#    sys.exit(0)
+
+
+    
+    # #
+    # # Now go through each OTA and shift the CRVALs to have values of 0 at the 
+    # # center of the focalplane
+    # #
+    # for idx, ext in enumerate(hdulist):
+    #     if (not type(ext)== pyfits.hdu.image.ImageHDU):
+    #         continue
+    #     hdulist[idx].header['CRVAL1'] -= d_crval[0] #ref_point[0]
+    #     hdulist[idx].header['CRVAL2'] -= d_crval[1] #ref_point[1]
 
 
     # #
@@ -135,6 +152,8 @@ if __name__ == "__main__":
     for ext in range(1, len(hdulist)):
         if (not type(hdulist[ext])== pyfits.hdu.image.ImageHDU):
             continue
+        #if (not hdulist[ext].name == "OTA44.SCI"):
+        #    continue
 
         extname = hdulist[ext].name
         print extname
@@ -157,52 +176,36 @@ if __name__ == "__main__":
         radec = numpy.array(in_wcs.pix2wcs(xy[:,0], xy[:,1]))
         #print radec[:10]
         
-#        continue
-
-        #break
-
-        #print "------------------\n"*5
-        # continue
-
         # now change the initial PV values to 1/0, and prepare re-fitting
         out_wcs = astWCS.WCS(hdulist[ext].header, mode='pyfits')
         out_wcs.header['PV1_0'] = 0.0
         out_wcs.header['PV1_1'] = 1.0
         out_wcs.header['PV2_0'] = 0.0
         out_wcs.header['PV2_1'] = 1.0
+
+        out_wcs.header['CRVAL1'] -= d_crval[0]
+        out_wcs.header['CRVAL2'] -= d_crval[1]
+
         out_wcs.updateFromHeader()
 
         max_pv = 0
         for i in range(0,50):
-            if "PV1_%d" % (i) in out_wcs.header:
+            if (("PV1_%d" % (i) in out_wcs.header) or
+                ("PV2_%d" % (i) in out_wcs.header)):
                 max_pv = i
 
         # Load initial values
-        n_parameters = 2*max_pv + 4
-        p_start = numpy.zeros(n_parameters)
 
-#        header_names = ['CRVAL1', 'CRVAL2', 'CD1_1', 'CD1_2', 'CD2_1', 'CD2_2']
         header_names = ['CRPIX1', 'CRPIX2', 'CD1_1', 'CD1_2', 'CD2_1', 'CD2_2']
         for i in range(2,max_pv):
             header_names.append('PV1_%d' % i)
             header_names.append('PV2_%d' % i)
 
+        n_parameters = len(header_names)
+        p_start = numpy.zeros(n_parameters)
+
         for idx, kw in enumerate(header_names):
             p_start[idx] = out_wcs.header[kw] if kw in out_wcs.header else 0.0
-        # p_start[0] = out_wcs.header['CD1_1']
-        # p_start[1] = out_wcs.header['CD1_2']
-        # p_start[2] = out_wcs.header['CD2_1']
-        # p_start[3] = out_wcs.header['CD2_2']
-
-        # for i in range(2,max_pv):
-        #     kw = 'PV1_%d' % i
-        #     p_start[2*i]   = out_wcs.header[kw] if kw in out_wcs.header else 0.0
-        #     kw = 'PV2_%d' % i
-        #     p_start[2*i+1] = out_wcs.header[kw] if kw in out_wcs.header else 0.0
-        #     if kw in out_wcs.header:
-        #         print kw, out_wcs.header[kw]
-
-        #print max_pv, p_start
 
         # Now prepare for re-fitting the WCS with the updated PV values
         fit_args = (xy, radec, out_wcs, header_names)
@@ -210,7 +213,7 @@ if __name__ == "__main__":
             fit = scipy.optimize.leastsq(minimize_wcs_error,
                                          p_start, 
                                          args=fit_args,
-                                         maxfev=50,
+                                         maxfev=500,
                                          full_output=1)
             #print fit
             p_final = fit[0]
@@ -225,14 +228,14 @@ if __name__ == "__main__":
         for idx, kw in enumerate(header_names):
             out_wcs.header[kw] = p_final[idx]
         out_wcs.updateFromHeader()
-        out_radec = numpy.array(in_wcs.pix2wcs(xy[:,0], xy[:,1]))
+        out_radec = numpy.array(out_wcs.pix2wcs(xy[:,0], xy[:,1]))
 
         numpy.savetxt("XY_%s" % extname, xy)
         numpy.savetxt("RADEC_IN_%s" % extname, radec)
         numpy.savetxt("RADEC_OUT_%s" % extname, out_radec)
 
-        out_hdulist[ext].header['CRVAL1'] -= d_crval[0] #ref_point[0]
-        out_hdulist[ext].header['CRVAL2'] -= d_crval[1] #ref_point[1]
+        out_hdulist[ext].header['CRVAL1'] -= d_crval[0]
+        out_hdulist[ext].header['CRVAL2'] -= d_crval[1]
 
         out_hdulist[ext].header['PV1_0'] = 0.0
         out_hdulist[ext].header['PV1_1'] = 1.0
