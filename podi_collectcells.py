@@ -2698,7 +2698,6 @@ def collectcells(input, outputfile,
     if (sky_global_median > 0 and global_gain_count > 0 and ota_list[0].header['GAIN'] > 0):
         ota_list[0].header["SKYNOISE"] = math.sqrt( 8.**2 + sky_global_median*ota_list[0].header['GAIN'])
 
-
     logger.debug("all data received from worker processes!")
     logger.info("Starting post-processing")
     additional_reduction_files = {}
@@ -2781,6 +2780,25 @@ def collectcells(input, outputfile,
 
     add_fits_header_title(ota_list[0].header, "Exposure- and instrument-specific data", first_inherited_header)
 
+    #
+    # Correct all pixel coordinates by the softbin factor to keep things consistent
+    #
+    if (not options['softbin'] == 0):
+        # check if its a multiple of 2
+        sb = options['softbin']
+        if (sb in [2,4,8]):
+            # We did some software binning
+            
+            #
+            # Correct all source positions given in pixels
+            #
+            headers = ['x', 'y', 'fwhm_image']
+            for h in headers:
+                global_source_cat[:,SXcolumn[h]] /= sb
+
+            # Correct the sky sampling positions and box sizes
+            
+                       
 
     #
     # Fix the WCS if requested
