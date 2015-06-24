@@ -2542,7 +2542,7 @@ def collectcells(input, outputfile,
     
     # Send off the initial bunch of results to the worker threads
     # logger.debug("Intermediate results:\n%s" % (str(intermediate_results_sent)))
-    logger.info("Received %d intermediate results!" % (len(intermediate_results)))
+    logger.debug("Received %d intermediate results!" % (len(intermediate_results)))
 
     n_intermed_results_sent = 0
     for i in range(number_cpus):
@@ -2569,7 +2569,7 @@ def collectcells(input, outputfile,
 
         else:
             break
-    logger.info("Sent off %d intermediate results back to workers!" % (n_intermed_results_sent))
+    logger.debug("Sent off %d intermediate results back to workers!" % (n_intermed_results_sent))
 
 
     #
@@ -2605,7 +2605,7 @@ def collectcells(input, outputfile,
 
         # We received a final answer, so if necessary send off another intermediate results
         try:
-            logger.info("received final answer from OTA-ID %02d [c=%d, FP=%s], expecting %d [%d] more" % (
+            logger.debug("received final answer from OTA-ID %02d [c=%d, FP=%s], expecting %d [%d] more" % (
                 ota_id, i, str(list_of_otas_to_collect[ota_id]), n_expected_results-(i+1), n_expected_results))
         except:
             print "Error with logger.info statement"
@@ -2620,7 +2620,7 @@ def collectcells(input, outputfile,
                 continue
             pipe_send = intermediate_results[j]['pipe-send']
             # Sent the intermediate results
-            logger.info("Sending finalization data back to ota-id %02d" % (target_ota_id))
+            logger.debug("Sending finalization data back to ota-id %02d" % (target_ota_id))
             pipe_send.send(intermed_results)
             intermediate_results[j]['sent'] = True
             n_intermed_results_sent += 1
@@ -2638,7 +2638,7 @@ def collectcells(input, outputfile,
         for j in range(len(intermediate_results)): 
             if (intermediate_results[j]['ota-id'] == ota_id):
                 # Close the communication pipes
-                logger.info("Closing intermediate results pipe for ota %d" % (ota_id))
+                logger.debug("Closing intermediate results pipe for ota %d" % (ota_id))
                 intermediate_results[j]['pipe-send'].close()
                 intermediate_results[j]['pipe-recv'].close()
         
