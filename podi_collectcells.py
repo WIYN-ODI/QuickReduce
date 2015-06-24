@@ -2561,7 +2561,7 @@ def collectcells(input, outputfile,
             pipe_send = intermediate_results[j]['pipe-send']
 
             # Sent the intermediate results
-            logger.info("Sending finalization data back to ota-id %02d" % (target_ota_id))
+            logger.debug("Sending finalization data back to ota-id %02d" % (target_ota_id))
             pipe_send.send(intermed_results)
             intermediate_results[j]['sent'] = True
             n_intermed_results_sent += 1
