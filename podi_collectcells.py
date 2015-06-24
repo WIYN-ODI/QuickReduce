@@ -2792,9 +2792,10 @@ def collectcells(input, outputfile,
             #
             # Correct all source positions given in pixels
             #
-            headers = ['x', 'y', 'fwhm_image']
-            for h in headers:
-                global_source_cat[:,SXcolumn[h]] /= sb
+            if (not type(global_source_cat) == type(None)):
+                headers = ['x', 'y', 'fwhm_image']
+                for h in headers:
+                    global_source_cat[:,SXcolumn[h]] /= sb
 
             # Correct the sky sampling positions and box sizes
             
