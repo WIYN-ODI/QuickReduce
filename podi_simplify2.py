@@ -135,8 +135,9 @@ if __name__ == "__main__":
     for ext in range(1, len(hdulist)):
         if (not type(hdulist[ext])== pyfits.hdu.image.ImageHDU):
             continue
-        if (not hdulist[ext].name in ["OTA44.SCI", "OTA33.SCI"]):
-           continue
+        # if (not hdulist[ext].name in ["OTA44.SCI", "OTA33.SCI",
+        #                               "OTA34.SCI", "OTA43.SCI"]):
+        #    continue
 
         extname = hdulist[ext].name
         print extname
@@ -248,8 +249,43 @@ if __name__ == "__main__":
         out_hdulist[ext].header['CRVAL1'] -= wcs_offset[0]
         out_hdulist[ext].header['CRVAL2'] -= wcs_offset[1]
 
-    out_hdulist.writeto(output_wcs, clobber=True)
+    #
+    # Now that all OTAs have re-computed WCS distortions, re-set the CRVAL 
+    # values to have the center of the WCS system be close to the center of 
+    # the focal plane
+    # 
+    radec_ref[:,:] = numpy.NaN
+    for idx, ota in enumerate(corners):
+        try:
+            hdr = pyfits.Header(out_hdulist[ota].header)
+            hdr['NAXIS'] = 2
+            hdr['NAXIS1'] = 4096
+            hdr['NAXIS2'] = 4096
+            wcs = astWCS.WCS(hdr, mode='pyfits')
+            wcs.updateFromHeader()
+            x,y = corners[ota]
+            print numpy.array(wcs.pix2wcs(x,y))
+            radec_ref[idx,:] = numpy.array(wcs.pix2wcs(x,y))
+        except:
+            # ignore OTAs that are missing
+            # this implies we need at least ONE of the 4 central OTAs to 
+            # make this correction
+            podi_logging.log_exception()
+            pass
 
+    ref_point = bottleneck.nanmean(radec_ref, axis=0)
+
+    print ref_point
+    
+    # Now go through each OTA and subtract the reference position
+    for idx, ext in enumerate(out_hdulist):
+        if (not type(ext)== pyfits.hdu.image.ImageHDU):
+            continue
+        out_hdulist[idx].header['CRVAL1'] -= ref_point[0]
+        out_hdulist[idx].header['CRVAL2'] -= ref_point[1]
+
+    # Finally, write the new WCS file to disk
+    out_hdulist.writeto(output_wcs, clobber=True)
 
     sys.exit(0)
 
