@@ -13,3 +13,6 @@
 56582.0 nonlinearity_datafrom2013nov19.fits
 # 56582.0 nonlinearity_gain_20131119.fits
 56750.3 nonlinearity_april2014.fits
+#
+# setting upgraded ODI phase to begin 2015-June-01
+57174.0 nonlinearity_odi56__20150602.fits
