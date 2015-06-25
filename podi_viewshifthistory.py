@@ -97,46 +97,72 @@ def view_shift_history(filename):
         fig.canvas.set_window_title("podi_viewshifthistory: Shift history for: %s" % (name))
         fig.suptitle("Shift history for: %s  --  #shifts = %d" % (name, n_shifts ))
 
-        little_scatter_x = numpy.random.rand(n_shifts)/2-0.5
-        little_scatter_y = numpy.random.rand(n_shifts)/2-0.5
+        little_scatter_x = numpy.random.rand(n_shifts)/3-(0.5/3)#0.25
+        little_scatter_y = numpy.random.rand(n_shifts)/3-(0.5/3)#0.25
+
+        # find range for framenum
+        x_value = 'shift_complete' #'framenum'
+        x_label = 'exposure time' # "frame number"
+        _fn_min = numpy.min(shift_history.field(x_value))
+        _fn_max = numpy.max(shift_history.field(x_value))
+        x_offset = numpy.min(shift_history.field(x_value))
+        fn_min = _fn_min - 0.03*(_fn_max-_fn_min) - x_offset
+        fn_max = _fn_max + 0.03*(_fn_max-_fn_min) - x_offset
 
         # Draw the two plots on the left, bototm one first
-        plot.axes([0.05,0.1, 0.38,.35])
-        plot.scatter(shift_history.field('framenum'), shift_history.field('shift2')+little_scatter_y)
-        plot.grid(True)
-        plot.xlabel("frame number")
-        plot.ylabel("shift y")
+        ax = plot.axes([0.05,0.1, 0.38,.35])
+        print ax
+        ax.scatter(shift_history.field(x_value)-x_offset, shift_history.field('shift2')+little_scatter_y)
+        ax.set_xlim((fn_min, fn_max))
+        #plot.scatter(shift_history.field(x_value), shift_history.field('shift2')+little_scatter_y)
+        ax.grid(True)
+        ax.set_xlabel(x_label)
+        ax.set_ylabel("shift y")
         
         #plot.subplot(2,1,2)
-        plot.axes([0.05,0.55, 0.38,0.35])
-        plot.scatter(shift_history.field('framenum'), shift_history.field('shift1')+little_scatter_x)
-        plot.grid(True)
-        plot.xlabel("frame number")
-        plot.ylabel("shift x")
+        ax2 = plot.axes([0.05,0.55, 0.38,0.35])
+        ax2.scatter(shift_history.field(x_value)-x_offset, shift_history.field('shift1')+little_scatter_x)
+        #ax2.plot(shift_history.field(x_value), shift_history.field('shift1')+little_scatter_x, 'b-')
+        ax2.set_xlim((fn_min, fn_max))
+        ax2.grid(True)
+        ax2.set_xlabel(x_label)
+        ax2.set_ylabel("shift x")
 
 
         # Now draw the 2-d histogram pn the right
+        # Find the maximum shift in either direction
+        max_shift = numpy.max(numpy.append(shift_history.field('shift1'), shift_history.field('shift2')))
+        print "max ot shift:", max_shift
 
-        count, xedges, yedges = numpy.histogram2d(shift_history.field('shift1'), shift_history.field('shift2'),
-                                                  bins=[20,20], range=[[-10,10], [-10,10]])
+        max_shift += 1
+        n_bins = 2*(max_shift)+1
+        
+        count, xedges, yedges = numpy.histogram2d(shift_history.field('shift1'), 
+                                                  shift_history.field('shift2'),
+                                                  bins=[n_bins,n_bins], 
+                                                  range=[[-max_shift-0.5,max_shift+0.5], [-max_shift-0.5,max_shift+0.5]])
 
-        plot.axes([0.5,0.1,0.5,0.8])
-        img = plot.imshow(count, interpolation='nearest', extent=(xedges[0],xedges[-1],yedges[0],yedges[-1]),origin='lower')
+#        count, xedges, yedges = numpy.histogram2d(shift_history.field('shift1'), shift_history.field('shift2'),
+#                                                  bins=[20,20], range=[[-10,10], [-10,10]])
+
+        ax3 = plot.axes([0.5,0.1,0.5,0.8])
+        img = ax3.imshow(count, interpolation='nearest', extent=(xedges[0],xedges[-1],yedges[0],yedges[-1]),origin='lower')
         fig.colorbar(img)
 
         maxcount = numpy.max(count)
         for x in range(count.shape[0]):
             for y in range(count.shape[1]):
                 color = "#000000" #if count[x,y] < 0.3*maxcount else "black"
-                plot.text(0.5*(xedges[x]+xedges[x+1]), 0.5*(yedges[y]+yedges[y+1]), "%d" % count[y,x], ha='center', va='center', color=color)
+                ax3.text(0.5*(xedges[x]+xedges[x+1]), 0.5*(yedges[y]+yedges[y+1]), "%d" % count[y,x], ha='center', va='center', color=color)
 
-        plot.xlabel("shift_x")
-        plot.ylabel("shift_y")
+        ax3.set_xlabel("shift_x")
+        ax3.set_ylabel("shift_y")
  
 
         
         plot.show()
-        
+        fig.savefig("shift.png")
+
     print 
     
 
