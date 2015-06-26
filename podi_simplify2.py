@@ -147,7 +147,7 @@ if __name__ == "__main__":
         hdulist[ext].header['NAXIS1'] = 4096
         hdulist[ext].header['NAXIS2'] = 4096
         hdulist[ext].header['CRVAL1'] += wcs_offset[0]
-        hdulist[ext].header['CRVAL1'] += wcs_offset[1]
+        hdulist[ext].header['CRVAL2'] += wcs_offset[1]
 
      
         #
