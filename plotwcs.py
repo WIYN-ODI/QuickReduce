@@ -53,7 +53,8 @@ if __name__ == "__main__":
         # compute coords of the 4 corners
         
         radec = numpy.array(wcs.pix2wcs(corners[:,0], corners[:,1]))
-        print radec, radec.shape
+        radec -= wcs_offset
+        #print radec, radec.shape
 
         # coll = matplotlib.collections.PolyCollection(
         #     radec,
@@ -65,7 +66,7 @@ if __name__ == "__main__":
         ax.plot(radec[:,0], radec[:,1], "b-")
         
         center = numpy.average(radec[:-1,:], axis=0)
-        print center
+        #print center
         ax.text(center[0], center[1], ext.name, ha='center', va='center', color='black')
 
         #break
