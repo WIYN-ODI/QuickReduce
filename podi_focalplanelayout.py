@@ -424,6 +424,7 @@ class FocalPlaneLayout(object):
             for (keyword, value, comment) in cards:
                 if (keyword == 'CRVAL1'):
                     hdu.header["CRVAL1"] -= wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
+                    # print "change crval1 by",wcs_header['CRVAL1'], wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
                 elif (keyword == "CRVAL2"):
                     hdu.header['CRVAL2'] -= wcs_header['CRVAL2']
                 else:
@@ -432,6 +433,9 @@ class FocalPlaneLayout(object):
             # Make sure to write RAs that are positive
             if (hdu.header["CRVAL1"] < 0):
                 hdu.header['CRVAL1'] += 360.
+            elif (hdu.header['CRVAL1'] > 360.):
+                hdu.header['CRVAL1'] = math.fmod(hdu.header['CRVAL1'], 360.0)
+
         except:
             self.logger.critical("something went wrong while applying the WCS model")
             podi_logging.log_exception()
