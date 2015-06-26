@@ -56,12 +56,40 @@ if __name__ == "__main__":
         radec -= wcs_offset
         #print radec, radec.shape
 
-        # coll = matplotlib.collections.PolyCollection(
-        #     radec,
-        #     facecolor='none',edgecolor='#808080', 
-        #     linestyle='-')
 
-        # ax.add_collection(coll)
+        # Compute all individual cell coordinates
+        x,y = numpy.indices((8,8))
+
+        x1 = (x * 508).reshape((-1,1))
+        x2 = x1+480
+        y1 = (505*(7-y)).reshape((-1,1))
+        y2 = y1 + 494
+
+        c1 = numpy.append(x1,y1,axis=1)
+        c2 = numpy.append(x1,y2,axis=1)
+        c3 = numpy.append(x2,y2,axis=1)
+        c4 = numpy.append(x2,y1,axis=1)
+
+        radec_c1 = numpy.array(wcs.pix2wcs(x1,y1))
+        radec_c2 = numpy.array(wcs.pix2wcs(x1,y2))
+        radec_c3 = numpy.array(wcs.pix2wcs(x2,y2))
+        radec_c4 = numpy.array(wcs.pix2wcs(x2,y1))
+
+        cell_corners = numpy.empty((64,5,2))
+        cell_corners[:,0,:] = radec_c1
+        cell_corners[:,1,:] = radec_c2
+        cell_corners[:,2,:] = radec_c3
+        cell_corners[:,3,:] = radec_c4
+        cell_corners[:,4,:] = radec_c1
+        cell_corners -= wcs_offset
+
+        coll = matplotlib.collections.PolyCollection(
+            cell_corners,
+            facecolor='none',
+            edgecolor='#808080',
+            linestyle='-'
+        )
+        ax.add_collection(coll)
 
         ax.plot(radec[:,0], radec[:,1], "b-")
         
@@ -69,7 +97,7 @@ if __name__ == "__main__":
         #print center
         ax.text(center[0], center[1], ext.name, ha='center', va='center', color='black')
 
-        #break
+#        break
 
     fig.show()
     matplotlib.pyplot.show()
