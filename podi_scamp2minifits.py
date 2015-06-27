@@ -159,6 +159,9 @@ def scamp_header_to_minifits(filename, minifits_outputname, reference_fits,
     else:
         d_ra, d_dec = 0, 0
 
+    # fix potential problems with d_ra > 360 or d_ra < 0
+    d_ra = d_ra - math.floor(d_ra/360.)*360
+
     for ext in range(1, len(minifits_hdulist)):
         minifits_hdulist[ext].header['CRVAL1'] = d_ra
         minifits_hdulist[ext].header['CRVAL2'] = d_dec
