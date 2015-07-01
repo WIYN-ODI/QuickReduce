@@ -327,6 +327,17 @@ Calibration data:
 
     options['softbin'] = int(cmdline_arg_set_or_default("-softbin", 0))
 
+    if (cmdline_arg_isset("-selectota")):
+        str_otas = cmdline_arg_set_or_default("-selectota", "33")
+        otas = str_otas.split(",")
+        options['selectota'] = [None] * len(otas)
+        for idx, ota in enumerate(otas):
+            x = int(ota[0])
+            y = int(ota[1])
+            options['selectota'][idx] = (x,y)
+        
+#    options['selectota'] = int(cmdline_arg_set_or_default("-selectota", None))
+
     return options
 
 
@@ -435,6 +446,8 @@ def set_default_options(options_in=None):
     options['prestage'] = False
 
     options['softbin'] = 0
+    options['selectota'] = None
+
     return options
 
 

@@ -1068,6 +1068,7 @@ def collect_reduce_ota(filename,
 
         # Write the CRVALs with the pointing information
         #print numpy.degrees(coord_j2000.ra), numpy.degrees(coord_j2000.dec)  
+        print coord_j2000.ra, coord_j2000.dec
         hdu.header['CRVAL1'] = numpy.degrees(coord_j2000.ra)  
         hdu.header['CRVAL2'] = numpy.degrees(coord_j2000.dec) 
 
@@ -1101,7 +1102,9 @@ def collect_reduce_ota(filename,
         if (options['wcs_distortion'] != None):
             wcsdistort = fpl.apply_wcs_distortion(options['wcs_distortion'], hdu, binning)
             reduction_files_used['wcs'] = options['wcs_distortion']
-                
+
+        print hdu.header['CRVAL1'], hdu.header['CRVAL2']
+
         #
         # If requested, perform cosmic ray rejection
         #
@@ -2059,7 +2062,10 @@ def collectcells(input, outputfile,
     list_of_otas_to_collect = fpl.available_ota_coords
     if (options['central_only']):
         list_of_otas_to_collect = fpl.central_array_ota_coords
-    logger.debug("List of otas to collect: %s" % (str(list_of_otas_to_collect)))
+    if (not type(options['selectota']) == type(None)):
+        list_of_otas_to_collect = options['selectota']
+
+    logger.info("List of otas to collect: %s" % (str(list_of_otas_to_collect)))
 
     filtername = hdulist[0].header['FILTER']
     if (filtername in fpl.blocked_out_otas):
