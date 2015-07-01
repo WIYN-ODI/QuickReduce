@@ -13,6 +13,7 @@ from podi_wcs import *
 import bottleneck
 import podi_logging
 
+from podi_commandline import *
 
 
 
@@ -41,13 +42,41 @@ def minimize_wcs_error(p, xy, ref_radec, astwcs, optimize_header_keywords):
 
 if __name__ == "__main__":
 
+    zero_crval = True
 
-    input_wcs = sys.argv[1]
+    if (cmdline_arg_isset("-merge")):
+        recompute_distortions = False
+        zero_crval = cmdline_arg_isset("-zero")
 
-    output_wcs = sys.argv[2]
+        hdus = [pyfits.PrimaryHDU()]
+        extname_list = []
 
-    hdulist = pyfits.open(input_wcs)
-    out_hdulist = pyfits.open(input_wcs)
+        for fn in get_clean_cmdline()[1:-1]:
+            print "Adding", fn
+            hdulist = pyfits.open(fn)
+            for ext in hdulist:
+                if (not type(ext)== pyfits.hdu.image.ImageHDU):
+                    continue
+                extname = ext.name
+                if (extname in extname_list):
+                    # this is a duplicate OTA
+                    pass
+                else:
+                    if (not cmdline_arg_isset("-keepdata")):
+                        ext.data = None
+                    hdus.append(ext)
+                    extname_list.append(extname)
+        hdulist = pyfits.HDUList(hdus)
+        out_hdulist = pyfits.HDUList(hdus)
+ 
+        output_wcs = get_clean_cmdline()[-1]
+    else:
+        input_wcs = get_clean_cmdline()[1]
+        output_wcs = get_clean_cmdline()[2]
+        hdulist = pyfits.open(input_wcs)
+        out_hdulist = pyfits.open(input_wcs)
+        recompute_distortions = True #False
+
     
     d_crval1, d_crval2 = None, None
 
@@ -141,7 +170,7 @@ if __name__ == "__main__":
     #     print ext.name, wcs.wcs2pix(ref_point[0], ref_point[1])
 
 
-    recompute_distortions = True #False
+    #recompute_distortions = True #False
     if (recompute_distortions):
 
         for ext in range(len(hdulist)):
@@ -315,14 +344,15 @@ if __name__ == "__main__":
     ref_point = bottleneck.nanmean(radec_ref, axis=0) - wcs_offset
 
     print ref_point 
-    
-    # Now go through each OTA and subtract the reference position
-    for idx, ext in enumerate(out_hdulist):
-        if (not type(ext)== pyfits.hdu.image.ImageHDU):
-            continue
-        crval = out_hdulist[idx].header['CRVAL1'] - ref_point[0]
-        out_hdulist[idx].header['CRVAL1'] = math.fmod((crval - math.floor(crval/360.)/360), 360.0)
-        out_hdulist[idx].header['CRVAL2'] -= ref_point[1]
+
+    if (zero_crval):
+        # Now go through each OTA and subtract the reference position
+        for idx, ext in enumerate(out_hdulist):
+            if (not type(ext)== pyfits.hdu.image.ImageHDU):
+                continue
+            crval = out_hdulist[idx].header['CRVAL1'] - ref_point[0]
+            out_hdulist[idx].header['CRVAL1'] = math.fmod((crval - math.floor(crval/360.)/360), 360.0)
+            out_hdulist[idx].header['CRVAL2'] -= ref_point[1]
 
     # Finally, write the new WCS file to disk
     out_hdulist.writeto(output_wcs, clobber=True)
