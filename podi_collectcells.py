@@ -2065,7 +2065,7 @@ def collectcells(input, outputfile,
     if (not type(options['selectota']) == type(None)):
         list_of_otas_to_collect = options['selectota']
 
-    logger.info("List of otas to collect: %s" % (str(list_of_otas_to_collect)))
+    logger.debug("List of otas to collect: %s" % (str(list_of_otas_to_collect)))
 
     filtername = hdulist[0].header['FILTER']
     if (filtername in fpl.blocked_out_otas):
@@ -2391,6 +2391,11 @@ def collectcells(input, outputfile,
     # 
     logger.debug("Combining sky-samples from all OTAs into global sky value")
     sky_samples_global = None #numpy.empty(0)
+    print "\n"*10,ota_list[0].header,"\n"*10
+    logger.info("Filtername: %s (%s)" % (
+        ota_list[0].header['FILTER'] if 'FILTER' in ota_list[0].header else "<NO FILTER KEYWORD>",
+        ota_list[0].header['FILTERID'] if 'FILTERID' in ota_list[0].header else "<NO FILTERID KEYWORD>"
+        ))
     valid_ext = fpl.otas_for_photometry[get_valid_filter_name(ota_list[0].header)]
     sky_global_median = -1.
     for ext in sky_samples:
