@@ -342,8 +342,15 @@ if __name__ == "__main__":
 
     print radec_ref
     ref_point = bottleneck.nanmean(radec_ref, axis=0) - wcs_offset
+    print "computed ref-point:", ref_point 
 
-    print ref_point 
+
+    if (cmdline_arg_isset("-offset")):
+        _off = get_cmdline_arg("-offset").split(",")
+        ref_point[0] = float(_off[0])
+        ref_point[1] = float(_off[1])
+        print "overwriting ref-point:", ref_point 
+
 
     if (zero_crval):
         # Now go through each OTA and subtract the reference position
