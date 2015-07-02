@@ -293,6 +293,53 @@ class FocalPlaneLayout(object):
         self.available_ota_coords = self.create_radially_sorted_ota_list(mode=2)
         self.central_array_ota_coords = self.available_ota_coords
 
+        # this is for pODI 
+        self.all_otas = [16,26,36,46,56,
+                         15,25,35,45,55,
+                         14,24,34,44,54,
+                         13,23,33,43,53,
+                         12,22,32,42,52,
+                         11,21,31,41,51,]
+        self.central_2x2 = [22,23,32,33]
+        self.central_3x3 = [22,23,24,32,33,34,42,43,44]
+        self.non_vignetted = self.central_2x2
+
+        self.otas_for_photometry = {
+            #
+            # Full ODI filters
+            #
+            "odi_g": self.all_otas,
+            "odi_r": self.all_otas,
+            "odi_i": self.all_otas,
+            "odi_z": self.all_otas,
+            #
+            # All other filters
+            #
+            "823_v2": self.central_3x3,
+            "918R_v1": self.central_3x3,
+            "BATC_390": self.central_3x3,
+            "BATC_420": self.central_3x3,
+            "CTIO_Ha": self.central_3x3,
+            "CTIO_Ha_8nm": self.central_3x3,
+            "CTIO_OIII": self.central_3x3,
+            "Halpha_and_odiz": self.central_3x3,
+            "KPNO_815": self.central_3x3,
+            "mosaic_u": self.central_3x3,
+            "MosaicU_and_odir": self.central_3x3,
+            "OPEN": self.all_otas,
+            "sdss_u": self.central_3x3,
+            "s2_SII": self.central_3x3,
+            "CTIO_SII": self.central_3x3,
+            "UG5": self.central_3x3,
+            "unknown": self.central_3x3,
+            "UNKNOWN": self.central_3x3,
+            "Us_solid": self.central_3x3,
+            "windowGlass": self.all_otas,
+            "WRC3": self.central_3x3,
+            "Harris_B": self.central_3x3,
+            }	
+#        self.otas_for_photometry = self.available_ota_coords
+
         pass
 
     
@@ -423,10 +470,10 @@ class FocalPlaneLayout(object):
             cards = wcs_header.cards
             for (keyword, value, comment) in cards:
                 if (keyword == 'CRVAL1'):
-                    hdu.header["CRVAL1"] -= wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
+                    hdu.header["CRVAL1"] += wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
                     print "change crval1 by",wcs_header['CRVAL1'], wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
                 elif (keyword == "CRVAL2"):
-                    hdu.header['CRVAL2'] -= wcs_header['CRVAL2']
+                    hdu.header['CRVAL2'] += wcs_header['CRVAL2']
                 else:
                     hdu.header[keyword] = (value, comment)
 
