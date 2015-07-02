@@ -361,7 +361,34 @@ if __name__ == "__main__":
             out_hdulist[idx].header['CRVAL1'] = math.fmod((crval - math.floor(crval/360.)/360), 360.0)
             out_hdulist[idx].header['CRVAL2'] -= ref_point[1]
 
+    #
+    # Cleanup the FITS headers, and remove all headers that are not WCS-related
+    #
+    wcs_related = [
+        'CRVAL', 'CRPIX', 'CTYPE',
+        'CD', 'PV',
+        'EQUINOX',
+        'CUNIT',
+        'ASTIRMS', 'ASTRRMS'
+        ]
+    fake_wcs_headers = ['CDETTEM']
+    for idx, ext in enumerate(out_hdulist):
+        if (not type(ext)== pyfits.hdu.image.ImageHDU):
+            continue
+        new_hdr = pyfits.ImageHDU().header
+        for key in ext.header:
+            for wcs_rel in wcs_related:
+                if key.startswith(wcs_rel) and not key in fake_wcs_headers:
+                    new_hdr[key] = ext.header[key]
+
+        new_hdr['EXTNAME'] = ext.name
+        ext.header = new_hdr
+        # print new_hdr
+
+
+
     # Finally, write the new WCS file to disk
+    clobberfile(output_wcs)
     out_hdulist.writeto(output_wcs, clobber=True)
 
     sys.exit(0)
