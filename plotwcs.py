@@ -99,6 +99,8 @@ if __name__ == "__main__":
 
 #        break
 
+    ax.set_title(filename)
+
     fig.show()
     matplotlib.pyplot.show()
 
