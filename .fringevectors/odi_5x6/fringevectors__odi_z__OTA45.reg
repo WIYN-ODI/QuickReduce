@@ -1,0 +1,42 @@
+# Region file format: DS9 version 4.1
+# Filename: /ssd/fringing/fringe__odi_z.fits[OTA33.SCI]
+global color=green dashlist=8 3 width=1 font="helvetica 10 normal roman" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1
+image
+# vector(1663,1779,140.91132,353.4802) vector=1
+# vector(915,687,152.21038,176.98721) vector=1
+# vector(431,1791,142.04225,260.27242) vector=1
+# vector(887,3151,310.4384,138.91825) vector=1
+# vector(1731,3213,50,163.7398) vector=1
+# vector(1735,3001,75.392307,201.80141) vector=1
+# vector(1655,3855,144.80331,32.592581) vector=1
+# vector(1921,3593,508.01575,180.45114) vector=1
+# vector(2638,3902,390.04102,188.25475) vector=1
+# vector(3287,3369,457.1083,334.33187) vector=1
+# vector(3127,3309,256.5307,190.7843) vector=1
+# vector(3683,2971,542.44631,182.32438) vector=1
+# vector(2770,2744,185.69868,131.06982) vector=1
+# vector(3264,2320,199.44924,291.16126) vector=1
+# vector(2390,2440,182.77855,246.80141) vector=1
+# vector(3823,1613,375.11065,119.02493) vector=1
+# vector(3619,1589,386.12433,284.39614) vector=1
+# vector(3748,896,123.48279,245.09523) vector=1
+# vector(3383,639,372.39227,317.82981) vector=1
+# vector(3199,289,201.44478,335.97975) vector=1
+# vector(2683,389,189.84204,258.45331) vector=1
+# vector(2937,631,317.6539,249.73951) vector=1
+# vector(2230,198,144.89997,110.1858) vector=1
+# vector(1828,776,467.20017,241.35039) vector=1
+# vector(370,160,136.01471,90.842524) vector=1
+# vector(834,1182,366.19667,251.86192) vector=1
+# vector(3820,3818,109.41663,239.21585) vector=1
+# vector(1253,2381,174.95142,10.539184) vector=1
+# vector(1559,2477,190.70396,279.65989) vector=1
+# vector(2928,1270,533.05534,101.68937) vector=1
+# vector(2818,2132,238.66294,256.42957) vector=1
+# vector(298.5,2339.5,32.310989,158.19859) vector=1
+# vector(743.5,2705.5,112.28535,4.0856168) vector=1
+# vector(1414,1936,338.21295,177.96668) vector=1
+# vector(1266,1416,171.41762,7.3737664) vector=1
+# vector(1962,1110,156.81837,127.74681) vector=1
+# vector(2300,1838,130.23056,169.38034) vector=1
+# vector(3140,936,309.48344,190.80162) vector=1

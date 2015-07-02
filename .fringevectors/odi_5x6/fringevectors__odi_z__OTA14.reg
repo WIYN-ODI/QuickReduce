@@ -1,0 +1,178 @@
+# Region file format: DS9 version 4.1
+# Filename: fringe__odi_z.fits[OTA23.SCI]
+global color=green dashlist=8 3 width=1 font="helvetica 10 normal roman" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1
+image
+# vector(407.5,384,78.294317,204.92847) vector=1
+# vector(891.5,407,138.29317,273.7314) vector=1
+# vector(807.5,410,241.56987,284.38139) vector=1
+# vector(711.5,51,120.21647,44.325963) vector=1
+# vector(889.5,27,66.007575,89.131949) vector=1
+# vector(603.5,888,73.498299,303.90628) vector=1
+# vector(607.5,742,66.098411,259.54009) vector=1
+# vector(862.5,912,49.497475,351.8699) vector=1
+# vector(840.5,842,66.400301,307.04247) vector=1
+# vector(1106.5,749,129.24396,68.198591) vector=1
+# vector(1168.5,756,106.88779,79.215702) vector=1
+# vector(1362.5,782,80.062476,297.52523) vector=1
+# vector(1390.5,814,44.94441,339.14554) vector=1
+# vector(1296.5,165,181.39735,56.923167) vector=1 color=red
+# vector(1175.5,315,102.5768,29.814163) vector=1 color=red
+# vector(1431.5,641,114.33722,168.39524) vector=1 color=red
+# vector(1636,699,73.925638,59.96672) vector=1 color=red
+# vector(1695,646,91.923882,67.619865) vector=1 color=red
+# vector(1819,762,122.72327,75.850524) vector=1 color=red
+# vector(1708,824,114.56003,45.707319) vector=1 color=red
+# vector(1910,619,158.4929,79.824489) vector=1 color=red
+# vector(1674,322,95.587656,312.03177) vector=1 color=red
+# vector(1659,260,196.98731,318.70463) vector=1 color=red
+# vector(1947,353,110.05908,208.19498) vector=1 color=red
+# vector(2100.5,663,128.80994,64.230672) vector=1 color=red
+# vector(2393.5,746,134.4061,197.76091) vector=1 color=red
+# vector(2413.5,942,111.75867,226.45022) vector=1 color=red
+# vector(2232.5,376,61.611687,125.75389) vector=1 color=red
+# vector(2202.5,285,399.55225,86.987212) vector=1 color=red
+# vector(2380.5,135,76.10519,183.01279) vector=1 color=red
+# vector(2384.5,184,145.78409,71.192199) vector=1 color=red
+# vector(2729,745,85.708809,262.62623) vector=1 color=red
+# vector(2612,725,77.801028,322.83553) vector=1 color=red
+# vector(2616,227,96.337947,350.4399) vector=1 color=red
+# vector(2642,289,111.01802,358.96776) vector=1 color=red
+# vector(2642,336,208.38666,6.6134605) vector=1 color=red
+# vector(2804,195,159.84993,58.29857) vector=1 color=red
+# vector(2761,142,100.12492,182.86241) vector=1 color=red
+# vector(3125,223,99.408249,5.1944289) vector=1 color=red
+# vector(3392,183,197.31447,136.0267) vector=1 color=red
+# vector(3280,99,196.1632,106.58734) vector=1 color=red
+# vector(3761.5,385,78.102497,357.06433) vector=1 color=red
+# vector(3799.5,665,79.120162,20.725559) vector=1 color=red
+# vector(3700.5,843,95.587656,312.03177) vector=1 color=red
+# vector(3635.5,809,71.021124,260.27242) vector=1 color=red
+# vector(3660,1359,79.981248,42.466441) vector=1 color=red
+# vector(3753,1356,46.065171,27.121303) vector=1 color=red
+# vector(3759,1865,116.49893,258.11134) vector=1 color=red
+# vector(3626,1870,116.76472,298.10135) vector=1 color=red
+# vector(3341,1860,112.1606,201.99113) vector=1 color=red
+# vector(3110,1944,103.31505,295.82099) vector=1 color=red
+# vector(3344,1656,87.464278,149.03624) vector=1 color=red
+# vector(3679,1213,698.20484,139.76364) vector=1 color=red
+# vector(3380,1276,114.69089,222.17288) vector=1 color=red
+# vector(3118,1109,99.809819,24.25392) vector=1 color=red
+# vector(3366,1169,176.85305,159.82314) vector=1 color=red
+# vector(2926.5,1953,61.032778,214.99202) vector=1 color=red
+# vector(2928.5,1797,64.513564,198.99665) vector=1 color=red
+# vector(2939.5,1595,108.24047,106.09082) vector=1 color=red
+# vector(2847.5,1548,139.97857,164.67308) vector=1 color=red
+# vector(2588.5,1566,104.89042,41.134539) vector=1 color=red
+# vector(2641.5,1348,91.241438,117.40758) vector=1 color=red
+# vector(2927.5,1439,67.052218,197.35402) vector=1 color=red
+# vector(2955.5,1344,81.932899,199.98311) vector=1 color=red
+# vector(2951.5,1217,66.760767,163.46516) vector=1 color=red
+# vector(2358,1886,121.16518,163.21017) vector=1 color=red
+# vector(2341,1779,78.108898,161.33309) vector=1 color=red
+# vector(2278,1600,74.431176,120.69972) vector=1 color=red
+# vector(2287,1443,59.413803,43.636072) vector=1 color=red
+# vector(2138,1314,106.47065,241.99082) vector=1 color=red
+# vector(2213,1158,245.36707,352.03501) vector=1 color=red
+# vector(1729.5,1786,245.32631,254.15085) vector=1 color=red
+# vector(1630.5,1700,319.30706,272.51294) vector=1 color=red
+# vector(1202,1202,285.32963,23.330426) vector=1 color=red
+# vector(1353,1226,120.03333,10.561011) vector=1 color=red
+# vector(1163,1225,108.10296,74.163808) vector=1 color=red
+# vector(1119,1672,264.09279,289.4641) vector=1 color=red
+# vector(1146,1723,92.26592,94.351078) vector=1 color=red
+# vector(821.5,1455,172.9046,240.17292) vector=1 color=red
+# vector(945.5,1307,265.66332,15.501022) vector=1 color=red
+# vector(409,1345,245.65219,278.42697) vector=1
+# vector(266,2953,337.81652,303.40782) vector=1 color=red
+# vector(370,2456,125.60255,307.23483) vector=1 color=red
+# vector(738,2718,112.1606,111.99113) vector=1 color=red
+# vector(797,2794,156.54073,107.85622) vector=1 color=red
+# vector(773,2724,149.48244,8.0758963) vector=1 color=red
+# vector(677,2461,178.33115,42.72755) vector=1 color=red
+# vector(910,2346,73.661387,138.30187) vector=1 color=red
+# vector(1227,2967,204.0098,0.56170533) vector=1 color=red
+# vector(909,2315,301.8377,30.898648) vector=1 color=red
+# vector(1154,2288,62.936476,315.64375) vector=1 color=red
+# vector(1216,2366,103.12129,2.7791669) vector=1 color=red
+# vector(1399,2135,218.12382,77.556666) vector=1 color=red
+# vector(1655,2316,196.41283,118.26124) vector=1 color=red
+# vector(1738,2377,139.3126,129.17366) vector=1 color=red
+# vector(1863,2196,88.814413,277.76517) vector=1 color=red
+# vector(1632,2905,304.76548,258.83755) vector=1 color=red
+# vector(1678,2902,201.2486,272.84819) vector=1 color=red
+# vector(1707,2930,366.72197,273.59583) vector=1 color=red
+# vector(1835,2339,330.09696,91.388717) vector=1 color=red
+# vector(1236,2727,614.36308,7.5761549) vector=1 color=red
+# vector(2333.5,2809,59.033889,63.868999) vector=1 color=red
+# vector(2271.5,2933,55.470713,62.049031) vector=1 color=red
+# vector(2375.5,2603,194.28072,194.60847) vector=1 color=red
+# vector(2108.5,2666,116.559,350.61849) vector=1 color=red
+# vector(2285.5,2461,80.65358,197.31165) vector=1 color=red
+# vector(2172.5,2228,139.71399,76.75948) vector=1 color=red
+# vector(2381.5,2224,97.73945,199.73269) vector=1 color=red
+# vector(2385.5,2138,86.579443,173.36749) vector=1 color=red
+# vector(2324.5,2068,84.899941,164.98164) vector=1 color=red
+# vector(2693.5,2464,149.28161,226.90011) vector=1 color=red
+# vector(2860.5,2406,183.06829,204.18493) vector=1 color=red
+# vector(2884.5,2351,232.10773,194.21585) vector=1 color=red
+# vector(2867.5,2229,172.56883,175.34665) vector=1 color=red
+# vector(2834.5,2081,200.19241,150.36162) vector=1 color=red
+# vector(2594,2744,108.01852,268.93909) vector=1 color=red
+# vector(2648,2755,91.787799,293.77235) vector=1 color=red
+# vector(2687,2776,108.06017,348.79405) vector=1 color=red
+# vector(3152,2715,156.02884,322.0284) vector=1 color=red
+# vector(3211,2735,122.61321,322.28895) vector=1 color=red
+# vector(3261,2754,129.06587,79.73486) vector=1 color=red
+# vector(3114,2130,125.57468,72.863725) vector=1 color=red
+# vector(3181,2102,153.88307,81.027373) vector=1 color=red
+# vector(3266,2188,101.49384,95.654421) vector=1 color=red
+# vector(3670.5,2826,84.528102,259.08887) vector=1 color=red
+# vector(3664.5,2930,204.46271,292.42586) vector=1 color=red
+# vector(3623.5,3416,90.708324,284.03624) vector=1 color=red
+# vector(3769.5,3303,54.671748,129.80557) vector=1 color=red
+# vector(3685.5,3733,98.979796,29.673082) vector=1 color=red
+# vector(3181.5,3743,87.709749,61.38954) vector=1 color=red
+# vector(3253.5,3724,65.734314,56.79343) vector=1 color=red
+# vector(3285.5,3683,84.581322,24.443955) vector=1 color=red
+# vector(3218.5,3331,87.31552,110.09523) vector=1 color=red
+# vector(3126.5,3329,71.700767,98.017093) vector=1 color=red
+# vector(3244.5,3301,114.14026,11.113041) vector=1 color=red
+# vector(2656.5,3743,79.056942,304.69515) vector=1 color=red
+# vector(2739.5,3768,75.66373,277.59464) vector=1 color=red
+# vector(2158.5,3638,197.23083,337.33544) vector=1 color=red
+# vector(2305.5,3715,123.40583,322.57295) vector=1 color=red
+# vector(2198.5,3762,120.30794,27.204011) vector=1 color=red
+# vector(2158.5,3745,339.53203,266.79209) vector=1 color=red
+# vector(2093.5,3329,93.005376,286.87626) vector=1 color=red
+# vector(2194.5,3379,89.140339,273.21548) vector=1 color=red
+# vector(2405.5,3364,135.38464,202.58731) vector=1 color=red
+# vector(2634.5,3428,175.51353,287.91878) vector=1 color=red
+# vector(2704.5,3365,82.540899,289.09349) vector=1 color=red
+# vector(2602.5,3316,205.13898,316.58017) vector=1 color=red
+# vector(2310.5,3186,160.58954,226.76627) vector=1 color=red
+# vector(1946,3567,287.02787,143.9286) vector=1 color=red
+# vector(1749,3583,218.34377,229.08562) vector=1 color=red
+# vector(1878,3594,321.21021,237.20047) vector=1 color=red
+# vector(1817,3238,96.25487,122.69946) vector=1 color=red
+# vector(1734,3089,99.959992,160.11483) vector=1 color=red
+# vector(1170.5,3621,139.51702,123.00665) vector=1 color=red
+# vector(1219.5,3648,141.03191,128.08877) vector=1 color=red
+# vector(1213.5,3626,111.11256,357.42085) vector=1 color=red
+# vector(1199.5,3159,105.60303,142.69605) vector=1 color=red
+# vector(1264.5,3205,171.29215,97.042039) vector=1 color=red
+# vector(1233.5,3188,188.78824,115.0719) vector=1 color=red
+# vector(813.5,3640,57.271284,102.09476) vector=1 color=red
+# vector(740.5,3387,94.005319,0.60950658) vector=1 color=red
+# vector(657.5,3382,92.200868,323.37867) vector=1 color=red
+# vector(625.5,3353,152.0296,268.86931) vector=1 color=red
+# vector(617.5,3396,358.1522,310.58394) vector=1 color=red
+# vector(897.5,3263,166.43317,274.13467) vector=1 color=red
+# vector(314,3684,161.07762,88.2212) vector=1 color=red
+# vector(296,3670,156.00321,180.36728) vector=1 color=red
+# vector(363,3640,223.23306,138.81407) vector=1 color=red
+# vector(205,3340,81.215762,37.998732) vector=1 color=red
+# vector(332,3209,46.043458,145.61966) vector=1 color=red
+# vector(390,3235,98,90) vector=1 color=red
+# vector(378,3159,231.25095,347.76681) vector=1 color=red
+# vector(587,1890,112.89818,57.295266) vector=1 color=red
+# vector(676,1853,119.2686,56.976132) vector=1 color=red
