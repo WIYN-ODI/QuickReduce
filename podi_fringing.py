@@ -78,6 +78,9 @@ avg_sky_countrates = {
 }
 
 number_cpus = 4
+import podi_focalplanelayout
+import podi_logging
+import logging
 
 def make_fringing_template(input_filelist, outputfile, return_hdu=False, 
                            skymode='local', operation="nanmedian.bn"):
@@ -114,6 +117,7 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False,
     # Create the primary extension of the output file
     ref_hdulist = hdu_filelist[0]
     primhdu = pyfits.PrimaryHDU(header=ref_hdulist[0].header)
+    fpl = podi_focalplanelayout.FocalPlaneLayout(ref_hdulist)
 
     # Add PrimaryHDU to list of OTAs that go into the output file
     out_hdulist = [primhdu]
@@ -136,8 +140,8 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False,
             continue
         extname = ref_hdulist[cur_ext].header['EXTNAME']
 
-        if (filtername in otas_for_photometry):
-            useful_otas = otas_for_photometry[filtername]
+        if (filtername in fpl.otas_for_photometry):
+            useful_otas = fpl.otas_for_photometry[filtername]
             ota_id = int(extname[3:5])
             if (not ota_id in useful_otas):
                 continue
@@ -468,6 +472,9 @@ def get_fringe_scaling(data, fringe, region_file):
 
 if __name__ == "__main__":
 
+    options = read_options_from_commandline(None)
+    podi_logging.setup_logging(options)
+
     if (cmdline_arg_isset("-singles")):
         for filename in get_clean_cmdline()[1:]:
             outputfile = filename[:-5]+".fringe.fits"
@@ -502,9 +509,6 @@ if __name__ == "__main__":
             out_hdulist.writeto(outputfile, clobber=True)
             stdout_write(" done!\n\n")
 
-        sys.exit(0)
-                               
-    
     elif (cmdline_arg_isset("-make_template")):
         outputfile = get_clean_cmdline()[1]
         filelist = get_clean_cmdline()[2:]
@@ -512,8 +516,6 @@ if __name__ == "__main__":
         operation = cmdline_arg_set_or_default("-op", "nanmedian.bn")
         print "Using imcombine with __%s__ operation" % (operation)
         make_fringing_template(filelist, outputfile, operation=operation)
-
-        sys.exit(0)
 
     elif (cmdline_arg_isset("-samplesky")):
         import podi_fitskybackground
@@ -718,9 +720,6 @@ if __name__ == "__main__":
 
         datahdu.writeto("corrected.fits", clobber=True)
 
-        sys.exit(0)
-
-
 
     elif (cmdline_arg_isset("-rmfringe")):
         dataframe = get_clean_cmdline()[1]
@@ -790,10 +789,6 @@ if __name__ == "__main__":
 
 
         #datahdu.writeto("corrected.fits", clobber=True)
-
-        sys.exit(0)
-
-
 
 
     elif (cmdline_arg_isset("-matchsubtract")):
@@ -869,3 +864,10 @@ if __name__ == "__main__":
             data_hdulist[extname].data -= (fringe_hdulist[extname].data * final_scaling)
 
         data_hdulist.writeto(output_filename, clobber=True)
+
+
+    else:
+
+        print "No comprendo!"
+
+    podi_logging.shutdown_logging(options)
