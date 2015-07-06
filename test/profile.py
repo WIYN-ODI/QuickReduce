@@ -55,10 +55,11 @@ def get_profile(data, center_x, center_y, mx, my, width, mode='radial',
         # out[:,1] = (cutout.ravel())[si]
 
         
+        norm_factor = data[0]
         if (normalize):
-            data /= data[0]
+            data /= norm_factor
 
-        return r, data
+        return r, data, norm_factor
 
     elif (mode == 'crosscut'):
 
@@ -83,14 +84,15 @@ def get_profile(data, center_x, center_y, mx, my, width, mode='radial',
         _a2b2 = math.sqrt(_a**2+_b**2)
         distance_z2 = numpy.fabs(_a*idxx + idxy + _c)/_a2b2
 
+        norm_factor = numpy.max(cutout)
         if (normalize):
-            cutout /= numpy.max(cutout)
+            cutout /= norm_factor
 
         if (not dz2_limit == None):
             within_limit = distance_z2 < dz2_limit
-            return distance_z[within_limit], distance_z2[within_limit], cutout[within_limit]
+            return distance_z[within_limit], distance_z2[within_limit], cutout[within_limit], norm_factor
 
-        return distance_z, distance_z2, cutout
+        return distance_z, distance_z2, cutout, norm_factor
 
 if __name__ == "__main__":
 

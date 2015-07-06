@@ -55,7 +55,7 @@ def compute_mean_profile(filename,
                 fx = float(items[0]) - 1.
                 fy = float(items[1]) - 1.
 
-            r, cutout = get_profile(data, center_x=fx, center_y=fy, 
+            r, cutout, nf = get_profile(data, center_x=fx, center_y=fy, 
                                     mx=mot_x,  my=mot_y, width=width, 
                                     mode='radial', 
                                     normalize=True,
@@ -90,7 +90,7 @@ def compute_mean_profile(filename,
             fx = float(items[0]) - 1.
             fy = float(items[1]) - 1.
 
-            distance_z, distance_z2, cutout = get_profile(
+            distance_z, distance_z2, cutout, nf = get_profile(
                 data, center_x=fx, center_y=fy, 
                 mx=mot_x,  my=mot_y, width=width, 
                 mode='crosscut', 
