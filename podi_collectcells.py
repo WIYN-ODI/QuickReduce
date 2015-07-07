@@ -1013,7 +1013,7 @@ def collect_reduce_ota(filename,
                         if (options['verbose']): print "Working on fringe scaling for",extname
                         fringe_scaling = podi_fringing.get_fringe_scaling(merged, ext.data, fringe_vector_file)
                         data_products['fringe-template'] = ext.data
-                        if (not fringe_scaling == None):
+                        if (not type(fringe_scaling) == type(None)):
                             good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])
                             fringe_scaling_median = numpy.median(good_scalings)
                             fringe_scaling_std    = numpy.std(good_scalings)
@@ -1025,7 +1025,7 @@ def collect_reduce_ota(filename,
             #print "FRNG_STD", fringe_scaling_std
             hdu.header["FRNG_SCL"] = fringe_scaling_median
             hdu.header["FRNG_STD"] = fringe_scaling_std
-            hdu.header["FRNG_OK"] = (fringe_scaling != None)
+            hdu.header["FRNG_OK"] = (type(fringe_scaling) != type(None))
 
         # Insert the DETSEC header so IRAF understands where to put the extensions
         start_x = ota_c_x * size_x #4096
@@ -1035,28 +1035,28 @@ def collect_reduce_ota(filename,
         detsec_str = "[%d:%d,%d:%d]" % (start_x, end_x, start_y, end_y)
         hdu.header["DETSEC"] = (detsec_str, "position of OTA in focal plane")
                 
-        if (cmdline_arg_isset("-simplewcs") or options['wcs_distortion'] != None):
-            logger.debug("Clearing existing WCS solution")
-            #
-            # Fudge with the WCS headers, largely undoing what's in the fits file right now,
-            # and replacing it with a simpler version that hopefully works better
-            #
-            hdu.header['CTYPE1'] = "RA---TAN"
-            hdu.header['CTYPE2'] = "DEC--TAN"
-            del hdu.header['WAT0_001']
-            del hdu.header['WAT1_001']
-            del hdu.header['WAT1_002']
-            del hdu.header['WAT1_003']
-            del hdu.header['WAT1_004']
-            del hdu.header['WAT1_005']
-            del hdu.header['WAT2_001']
-            del hdu.header['WAT2_002']
-            del hdu.header['WAT2_003']
-            del hdu.header['WAT2_004']
-            del hdu.header['WAT2_005']
-        # in any case, add the CUNIT headers that are missing by default
-        hdu.header["CUNIT1"] = ("deg", "")
-        hdu.header["CUNIT2"] = ("deg", "")
+        # if (cmdline_arg_isset("-simplewcs") or options['wcs_distortion'] != None):
+        #     logger.debug("Clearing existing WCS solution")
+        #     #
+        #     # Fudge with the WCS headers, largely undoing what's in the fits file right now,
+        #     # and replacing it with a simpler version that hopefully works better
+        #     #
+        #     hdu.header['CTYPE1'] = "RA---TAN"
+        #     hdu.header['CTYPE2'] = "DEC--TAN"
+        #     del hdu.header['WAT0_001']
+        #     del hdu.header['WAT1_001']
+        #     del hdu.header['WAT1_002']
+        #     del hdu.header['WAT1_003']
+        #     del hdu.header['WAT1_004']
+        #     del hdu.header['WAT1_005']
+        #     del hdu.header['WAT2_001']
+        #     del hdu.header['WAT2_002']
+        #     del hdu.header['WAT2_003']
+        #     del hdu.header['WAT2_004']
+        #     del hdu.header['WAT2_005']
+        # # in any case, add the CUNIT headers that are missing by default
+        # hdu.header["CUNIT1"] = ("deg", "")
+        # hdu.header["CUNIT2"] = ("deg", "")
 
         logger.debug("Converting coordinates to J2000")
         coord_j2000 = ephem.Equatorial(hdu.header['RA'], hdu.header['DEC'], epoch=ephem.J2000)
@@ -1068,10 +1068,9 @@ def collect_reduce_ota(filename,
 
         # Write the CRVALs with the pointing information
         #print numpy.degrees(coord_j2000.ra), numpy.degrees(coord_j2000.dec)  
-        print coord_j2000.ra, coord_j2000.dec
         hdu.header['CRVAL1'] = numpy.degrees(coord_j2000.ra)  
         hdu.header['CRVAL2'] = numpy.degrees(coord_j2000.dec) 
-
+        
         # Compute total offsets as the sum from pointing and dither offset
         # Now add the pointing and dither offsets
         #print offset_total[0] / 3600. / numpy.cos(numpy.radians(hdu.header['CRVAL2']))
@@ -1102,8 +1101,6 @@ def collect_reduce_ota(filename,
         if (options['wcs_distortion'] != None):
             wcsdistort = fpl.apply_wcs_distortion(options['wcs_distortion'], hdu, binning)
             reduction_files_used['wcs'] = options['wcs_distortion']
-
-        print hdu.header['CRVAL1'], hdu.header['CRVAL2']
 
         #
         # If requested, perform cosmic ray rejection
