@@ -418,7 +418,11 @@ def get_fringe_scaling(data, fringe, region_file):
     if (not os.path.isfile(region_file)):
         return None
 
+    logger = logging.getLogger("FringeScaling")
+
     # Read the region file
+    logger.info("Reading fringe vectors from %s" % (region_file))
+
     regfile = open(region_file, "r")
     entries = regfile.readlines()
     regfile.close()
@@ -459,11 +463,14 @@ def get_fringe_scaling(data, fringe, region_file):
 
         data_diff = data_light - data_dark
         fringe_diff = fringe_light - fringe_dark
-        scaling = data_diff / fringe_diff
-        #print data_light, data_dark, fringe_light, fringe_dark, data_diff, fringe_diff, scaling
+        #logger.info("data: %f / fringe: %f" % (data_diff, fringe_diff))
 
-        one_vector = [data_light, data_dark, fringe_light, fringe_dark, data_diff, fringe_diff, scaling]
-        all_vectors.append(one_vector)
+        if (data_diff != 0 and fringe_diff != 0):
+            scaling = data_diff / fringe_diff
+            #print data_light, data_dark, fringe_light, fringe_dark, data_diff, fringe_diff, scaling
+            
+            one_vector = [data_light, data_dark, fringe_light, fringe_dark, data_diff, fringe_diff, scaling]
+            all_vectors.append(one_vector)
 
     vecs = numpy.array(all_vectors)
 
