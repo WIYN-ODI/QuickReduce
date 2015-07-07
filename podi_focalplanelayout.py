@@ -64,7 +64,6 @@ class FocalPlaneLayout(object):
             self.fp_config = "odi_5x6"
         return
 
-
     #############################################################################
     #
     # The information below was formerly stored in the podi_definitions.py file
@@ -505,6 +504,8 @@ class FocalPlaneLayout(object):
         return central_2x2
 
 
+    def get_layout(self):
+        return self.fp_config
 
 
     def create_radially_sorted_ota_list(self, mode=1):
