@@ -35,7 +35,11 @@ if __name__ == "__main__":
     fig = matplotlib.pyplot.figure()
     ax = fig.add_subplot(111)
 
-    
+    try:
+        extname = sys.argv[2]
+    except:
+        extname = None
+
     for idx, ext in enumerate(hdulist):
         if (not type(ext)== pyfits.hdu.image.ImageHDU):
             continue
@@ -54,6 +58,8 @@ if __name__ == "__main__":
         
         radec = numpy.array(wcs.pix2wcs(corners[:,0], corners[:,1]))
         radec -= wcs_offset
+        if (not extname == None and ext.name == extname):
+            print "\n",radec[:4,:]
         #print radec, radec.shape
 
 
