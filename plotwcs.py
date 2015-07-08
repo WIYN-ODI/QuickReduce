@@ -55,8 +55,10 @@ if __name__ == "__main__":
         wcs = astWCS.WCS(ext.header, mode='pyfits')
 
         # compute coords of the 4 corners
-        
-        radec = numpy.array(wcs.pix2wcs(corners[:,0], corners[:,1]))
+        softbin = ext.header['SOFTBIN'] if 'SOFTBIN' in ext.header else 1
+        # correct OTA-corner positions for software binning
+        _corners = corners / softbin
+        radec = numpy.array(wcs.pix2wcs(_corners[:,0], _corners[:,1]))
         radec -= wcs_offset
         if (not extname == None and ext.name == extname):
             print "\n",radec[:4,:]
@@ -71,15 +73,13 @@ if __name__ == "__main__":
         y1 = (505*(7-y)).reshape((-1,1))
         y2 = y1 + 494
 
-        c1 = numpy.append(x1,y1,axis=1)
-        c2 = numpy.append(x1,y2,axis=1)
-        c3 = numpy.append(x2,y2,axis=1)
-        c4 = numpy.append(x2,y1,axis=1)
+        # correct cell-corner positions for software binning
+        _x1, _x2, _y1, _y2 = x1/softbin, x2/softbin, y1/softbin, y2/softbin
 
-        radec_c1 = numpy.array(wcs.pix2wcs(x1,y1))
-        radec_c2 = numpy.array(wcs.pix2wcs(x1,y2))
-        radec_c3 = numpy.array(wcs.pix2wcs(x2,y2))
-        radec_c4 = numpy.array(wcs.pix2wcs(x2,y1))
+        radec_c1 = numpy.array(wcs.pix2wcs(_x1,_y1))
+        radec_c2 = numpy.array(wcs.pix2wcs(_x1,_y2))
+        radec_c3 = numpy.array(wcs.pix2wcs(_x2,_y2))
+        radec_c4 = numpy.array(wcs.pix2wcs(_x2,_y1))
 
         cell_corners = numpy.empty((64,5,2))
         cell_corners[:,0,:] = radec_c1
