@@ -1810,6 +1810,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             logger.critical("This should not happen. Please report this problem to the")
             logger.critical("author (kotulla@uwm.edu) and attach the debug.log file. Thanks!")
             logger.debug("Falling back to using the full sample.")
+            numpy.savetxt("wcs_rescue.src", src_raw)
+            numpy.savetxt("wcs_rescue.ref", ref_raw)
 
         if (create_debug_files): numpy.savetxt("ccmatch.matched_ref_cat.%d" % (pointing_error), ref_close)
 
