@@ -2864,7 +2864,33 @@ def collectcells(input, outputfile,
         ota_list[0].header['WCSMINQ']  = (sitesetup.min_wcs_quality,
                                           "Minimum WCS quality for successful calibration")
         ota_list[0].header['WCSCAL'] = ccmatched['valid_wcs_solution']
-        
+
+        #
+        # Now add some headers to visualize the WCS quality (i.e. number of 
+        # matched sources for each OTA)
+        #
+        ota_list[0].header['WCSDETAL'] = "     0     1     2     3     4     5     6     7"
+        matched_cat = ccmatched['matched_src+2mass']
+        numpy.savetxt("xx.dump", matched_cat)
+        for otay in range(8)[::-1]:
+            wcs_qual_string = ""
+            for otax in range(8):
+
+                _ota = otax * 10 + otay
+
+                n_src_odi = numpy.sum((global_source_cat[:,SXcolumn['ota']] == _ota))
+                n_matched = numpy.sum((matched_cat[:, SXcolumn['ota']] == _ota))
+
+                if (n_src_odi <= 0):
+                    wcs_qual_string += "     ."
+                elif (n_matched >= 1e5):
+                    wcs_qual_string += " +++++"
+                else:
+                    wcs_qual_string += " %5d" % (n_matched)
+            
+            logger.debug("WCSDTL_%d --> %s" % (otay, wcs_qual_string))
+            ota_list[0].header["WCSDTL_%d" % otay] = wcs_qual_string
+                
         if (not ccmatched['valid_wcs_solution']):
 
             # This disabled the photometric calibration afterwards
