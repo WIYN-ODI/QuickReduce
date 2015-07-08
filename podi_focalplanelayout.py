@@ -271,7 +271,7 @@ class FocalPlaneLayout(object):
         self.setup_podi_layout()
 
         self.layout = 'ODI_5x6'
-        self.wcs_default = "wcs_5x6_skeleton.fits"
+        self.wcs_default = ".wcs/wcs_zero2.fits" #ls wcs_5x6_skeleton.fits"
 
         self.available_ota_coords = itertools.product(range(1,7), repeat=2)# [
             # (3,3),
@@ -438,14 +438,20 @@ class FocalPlaneLayout(object):
         return podi_crosstalk.xtalk_saturated_correction
 
 
+    def get_wcs_distortion_file(self, wcs_distort):
+        if (os.path.isfile(wcs_distort)):
+            # if a file is given, use this file
+            return wcs_distort
+        elif (os.path.isdir(wcs_distort)):
+            # For a directory, append the default wcs filename
+            return "%s/%s" % (wcs_distort, self.wcs_default)
+        else:
+            return None
+
+
     def apply_wcs_distortion(self, filename, hdu, binning):
 
-        if (os.path.isdir(filename)):
-            # We received a directory instead of a filename
-            # ==> use the default filename in this directory
-            filename = "%s/%s" % (filename, self.wcs_default)
-            self.logger.debug("Choosing default WCS solution --> %s" % (filename))
-
+        filename = self.get_wcs_distortion_file(filename)
         try:
             self.wcs = pyfits.open(filename)
         except:
