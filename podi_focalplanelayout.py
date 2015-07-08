@@ -474,13 +474,15 @@ class FocalPlaneLayout(object):
 
             cards = wcs_header.cards
             for (keyword, value, comment) in cards:
-                if (keyword == 'CRVAL1'):
-                    hdu.header["CRVAL1"] += wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
-                    print "change crval1 by",wcs_header['CRVAL1'], wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
-                elif (keyword == "CRVAL2"):
-                    hdu.header['CRVAL2'] += wcs_header['CRVAL2']
-                else:
+                if (keyword not in ['CRVAL1', 'CRVAL2']):
                     hdu.header[keyword] = (value, comment)
+
+            d_crval1 = wcs_header['CRVAL1']
+            if (d_crval1 > 180):
+                d_crval1 -= 360
+            hdu.header['CRVAL2'] += wcs_header['CRVAL2']
+            hdu.header["CRVAL1"] += d_crval1 / math.cos(math.radians(hdu.header['CRVAL2']))
+            print "change crval1 by",wcs_header['CRVAL1'], d_crval1, wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
 
             # Make sure to write RAs that are positive
             if (hdu.header["CRVAL1"] < 0):
