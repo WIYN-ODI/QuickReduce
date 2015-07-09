@@ -271,7 +271,7 @@ class FocalPlaneLayout(object):
         self.setup_podi_layout()
 
         self.layout = 'ODI_5x6'
-        self.wcs_default = ".wcs/wcs_zero2.fits" #ls wcs_5x6_skeleton.fits"
+        self.wcs_default = ".wcs/odi56__2mass_level3.fits"
 
         self.available_ota_coords = itertools.product(range(1,7), repeat=2)# [
             # (3,3),
