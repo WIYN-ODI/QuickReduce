@@ -358,9 +358,13 @@ if __name__ == "__main__":
             if (not type(ext)== pyfits.hdu.image.ImageHDU):
                 continue
             crval = out_hdulist[idx].header['CRVAL1'] - ref_point[0]
-            out_hdulist[idx].header['CRVAL1'] = math.fmod((crval - math.floor(crval/360.)/360), 360.0)
+            out_hdulist[idx].header['CRVAL1'] = math.fmod((crval - math.floor(crval/360.)*360), 360.0)
             out_hdulist[idx].header['CRVAL2'] -= ref_point[1]
-
+            print "%s %18.15f %18.15f" % (
+                out_hdulist[idx].name, 
+                out_hdulist[idx].header['CRVAL1'], 
+                out_hdulist[idx].header['CRVAL2']
+            )
     #
     # Cleanup the FITS headers, and remove all headers that are not WCS-related
     #
