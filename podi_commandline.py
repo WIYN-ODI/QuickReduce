@@ -163,7 +163,7 @@ Calibration data:
     options['fixwcs'] = cmdline_arg_isset("-fixwcs")
 
     # For now assume that the WCS template file is located in the same directory as the executable
-    options['wcs_distortion'] = sitesetup.exec_dir + "/2mass_distort5.fits"
+    options['wcs_distortion'] = sitesetup.exec_dir + "/"
     options['wcs_distortion'] = cmdline_arg_set_or_default("-wcs", options['wcs_distortion'])
     if (not os.path.isfile(options['wcs_distortion']) and 
         not os.path.isdir(options['wcs_distortion'])):
