@@ -985,19 +985,20 @@ def get_pupilghost_scaling(science_frame, pupilghost_frame,
 
 if __name__ == "__main__":
 
+    options = read_options_from_commandline(None)
+    podi_logging.setup_logging(options)
+
     if (len(sys.argv) <= 1 or sys.argv[1] == "-help"):
         #print help('podi_matchpupilghost')
         import podi_matchpupilghost as me
         print me.__doc__
-        sys.exit(0)
 
-    if (cmdline_arg_isset("-makeradial")):
+    elif (cmdline_arg_isset("-makeradial")):
         inputframe = get_clean_cmdline()[1]
         outputframe = get_clean_cmdline()[2]
         create_azimuthal_template(inputframe, outputframe)
-        sys.exit(0)
 
-    if (cmdline_arg_isset("-getscaling")):
+    elif (cmdline_arg_isset("-getscaling")):
         science_frame = get_clean_cmdline()[1]
         pupilghost_frame = get_clean_cmdline()[2]
         #get_scaling(science_frame, pupilghost_frame)
@@ -1005,9 +1006,8 @@ if __name__ == "__main__":
         sci_hdu = pyfits.open(science_frame)
         pg_hdu = pyfits.open(pupilghost_frame)
         get_pupilghost_scaling(sci_hdu, pg_hdu)
-        sys.exit(0)
-
-    if (cmdline_arg_isset("-cleanpupilghost")):
+      
+    elif (cmdline_arg_isset("-cleanpupilghost")):
         science_frame = get_clean_cmdline()[1]
         pupilghost_frame = get_clean_cmdline()[2]
         output_frame = get_clean_cmdline()[3]
@@ -1020,31 +1020,32 @@ if __name__ == "__main__":
         
         sci_hdu.writeto(output_frame, clobber=True)
 
-        sys.exit(0)
+    else:
+        # Read filenames from command line
+        inputframe = sys.argv[1]
+        pupilghost_template = sys.argv[2]
 
-    # Read filenames from command line
-    inputframe = sys.argv[1]
-    pupilghost_template = sys.argv[2]
+        # and open all fits files
+        input_hdu = pyfits.open(inputframe)
+        pupil_hdu = pyfits.open(pupilghost_template)
 
-    # and open all fits files
-    input_hdu = pyfits.open(inputframe)
-    pupil_hdu = pyfits.open(pupilghost_template)
+        scaling = 1.0
+        if (len(sys.argv) > 4):
+            scaling = float(sys.argv[4])
+        print "using scaling factor",scaling
 
-    scaling = 1.0
-    if (len(sys.argv) > 4):
-        scaling = float(sys.argv[4])
-    print "using scaling factor",scaling
+        subtract_pupilghost(input_hdu, pupil_hdu, scaling=scaling, 
+                            source_center_coords='precomp',
+                            rotate=False)
 
-    subtract_pupilghost(input_hdu, pupil_hdu, scaling=scaling, 
-                        source_center_coords='precomp',
-                        rotate=False)
-
-    # Now, using the rotation angle given in the input frame, 
-    # rotate and extract the pupil ghost sections for each of the OTAs.
-    # And finally apply the correction
-    #hdu_matched = subtract_pupilghost(input_hdu, pupil_hdu, scaling)
+        # Now, using the rotation angle given in the input frame, 
+        # rotate and extract the pupil ghost sections for each of the OTAs.
+        # And finally apply the correction
+        #hdu_matched = subtract_pupilghost(input_hdu, pupil_hdu, scaling)
 
 
-    output_filename = sys.argv[3]
-    input_hdu.writeto(output_filename, clobber=True)
+        output_filename = sys.argv[3]
+        input_hdu.writeto(output_filename, clobber=True)
 
+    # Shutdown logging to shutdown cleanly
+    podi_logging.shutdown_logging(options)
