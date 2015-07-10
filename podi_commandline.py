@@ -155,7 +155,7 @@ Calibration data:
 
     options["update_persistency_only"] = cmdline_arg_isset("-update_persistency_only")
 
-    options['fringe_dir'] = cmdline_arg_set_or_default('-fringe', None)
+    options['fringe_dir'] = cmdline_arg_set_or_default('-fringe', "auto")
     options['fringe_vectors'] = cmdline_arg_set_or_default("-fringevectors", options['fringe_vectors'])
 
     options['pupilghost_dir'] = cmdline_arg_set_or_default('-pupilghost', None)
@@ -381,7 +381,7 @@ def set_default_options(options_in=None):
     options['max_persistency_time'] = sitesetup.persistency_duration
 
     options['fringe_dir'] = None
-    options['fringe_vectors'] = "%s/.fringevectors/" % (options['exec_dir'])
+    options['fringe_vectors'] = None #"%s/.fringevectors/" % (options['exec_dir'])
 
     options['pupilghost_dir'] = None
 

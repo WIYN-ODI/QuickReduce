@@ -991,12 +991,12 @@ def collect_reduce_ota(filename,
         fringe_scaling = None
         fringe_scaling_median, fringe_scaling_std = -1, -1
         if (options['fringe_dir'] != None):
-            fringe_filename = check_filename_directory(options['fringe_dir'], "fringe__%s.fits" % (filter_name))
-            fringe_vector_file = "%s/fringevectors__%s__OTA%02d.reg" % (options['fringe_vectors'], filter_name, ota)
+            fringe_filename = fpl.get_fringe_filename(options['fringe_dir'])
+            fringe_vector_file = fpl.get_fringevector_regionfile(options['fringe_vectors'], ota)
             reduction_files_used['fringemap'] = fringe_filename
             reduction_files_used['fringevector'] = fringe_vector_file
-            logger.debug("fringe file %s found: %s" % (fringe_filename, os.path.isfile(fringe_filename)))
-            logger.debug("fringe vector %s found: %s" % (fringe_vector_file, os.path.isfile(fringe_vector_file)))
+            logger.info("fringe file %s found: %s" % (fringe_filename, os.path.isfile(fringe_filename)))
+            logger.info("fringe vector %s found: %s" % (fringe_vector_file, os.path.isfile(fringe_vector_file)))
             if (options['verbose']):
                 print "fringe file:",fringe_filename, "    found:",os.path.isfile(fringe_filename)
                 print "fringe vector:",fringe_vector_file, "    found:",os.path.isfile(fringe_vector_file)

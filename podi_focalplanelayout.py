@@ -13,22 +13,26 @@ import os
 class FocalPlaneLayout(object):
 
 
-    def __init__(self, inp=None):
+    def __init__(self, inp=None, binning=0):
 
         self.logger = logging.getLogger("FocalPlaneLayout")
         self.valid = False
         self.logger.debug("Creating focal plane from type %s" % (str(type(inp))))
 
+        self.hdu = None
+        self.hdulist = None
+
         if (type(inp) == str):
             # Assume its a filename
-            hdulist = pyfits.open(inp)
-            hdu = hdulist[0]
+            self.hdulist = pyfits.open(inp)
+            self.hdu = self.hdulist[0]
         elif (type(inp) == pyfits.hdu.hdulist.HDUList):
-            hdu = inp[0]
+            self.hdulist = inp
+            self.hdu = self.hdulist[0]
         elif (type(inp) == pyfits.hdu.image.ImageHDU or
               type(inp) == pyfits.hdu.compressed.CompImageHDU or
               type(inp) == pyfits.hdu.image.PrimaryHDU):
-            hdu = inp
+            self.hdu = inp
         elif (inp == None):
             # This is a fall-back mode, creating a class that can not do 
             # everything it could do otherwise
@@ -39,7 +43,7 @@ class FocalPlaneLayout(object):
 
         # Assume this focal plane layout is well determined
         self.valid = True
-        self.logger.debug("HDU type is now %s" % (str(type(hdu))))
+        self.logger.debug("HDU type is now %s" % (str(type(self.hdu))))
 
         #
         # Set internal values to a safe value
@@ -48,9 +52,25 @@ class FocalPlaneLayout(object):
 
         self.logger.debug("Setting up general properties!")
         self.setup_general()
-        
+
+        self.filter_name = self.hdu.header['FILTER']
+        self.logger.info("Found filter name: %s" % (self.filter_name))
+
+        if (binning > 0):
+            self.hw_binning = binning
+        elif (not self.hdulist == None):
+            # We have a proper HDUList, so we can likely extract the data from 
+            # the first image extension
+            self.hw_binning = get_binning(self.hdulist[1].header)
+        elif (not self.hdu == None and 'BINNING' in self.hdu.header):
+            # Also can use the header if already set
+            self.hw_binning = self.hdu.header['BINNING']
+        else:
+            # If nothing else works, default binning to 1
+            self.hw_binning = 1
+
         # Find date of exposure
-        mjd_obs = hdu.header['MJD-OBS'] if ('MJD-OBS' in hdu.header) else -9999.99
+        mjd_obs = self.hdu.header['MJD-OBS'] if ('MJD-OBS' in self.hdu.header) else -9999.99
         self.logger.debug("Found MJD OBS date: %f" % (mjd_obs))
 
         if (mjd_obs < 57023):
@@ -559,3 +579,42 @@ class FocalPlaneLayout(object):
             idx_2 = xy_2d[si2]
             return idx_2
 
+
+    def get_hardware_binning(self):
+        return self.hw_binning
+
+    def get_fringevector_directory(self, userinput):
+        
+        if (not userinput == None and os.path.isdir(userinput)):
+            return userinput
+        else:
+            import podi_sitesetup as sitesetup
+            basedir = sitesetup.exec_dir
+
+            return "%(base)s/.fringevectors/%(conf)s" % {
+                'base': sitesetup.exec_dir,
+                'conf': self.get_layout(),
+            }
+
+    def get_fringevector_regionfile(self, userinput, ota):
+        dirname = self.get_fringevector_directory(userinput)
+        return "%s/fringevectors__%s__OTA%02d.reg" % (
+            dirname, self.filter_name, ota)
+
+    def get_fringe_filename(self, userinput):
+
+        if (os.path.isfile(userinput)):
+            return userinput
+        else:
+
+            filename = "fringe__%s__%s_bin%d.fits" % (
+                self.filter_name, 
+                self.get_layout(),
+                self.get_hardware_binning(),
+            )
+
+            if (os.path.isdir(userinput)):
+                return "%s/%s" % (userinput, filename)
+            else:
+                import podi_sitesetup as sitesetup
+                return "%s/%s" % (sitesetup.exec_dir, filename)
