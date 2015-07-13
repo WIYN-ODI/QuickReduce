@@ -725,7 +725,7 @@ podi_makecalibrations.py input.list calib-directory
 
     tmp_directory = cmdline_arg_set_or_default("-tmpdir", output_directory + "/tmp")
 
-    if (not os.path.isfile(filelist_filename)):
+    if (not os.path.isfile(filelist_filename) and not filelist_filename == "from_cmdline"):
         logger.critical("Unable to open input filelist %s" % (filelist_filename))
         podi_logging.shutdown_logging(options)
         sys.exit(-1)
@@ -762,7 +762,12 @@ podi_makecalibrations.py input.list calib-directory
     flat_list = []
 
     stdout_write("####################\n#\n# Sighting input data\n#\n####################\n")
-    _list = open(filelist_filename, "r")
+    if (filelist_filename == "from_cmdline"):
+        input_file_list = get_clean_cmdline()[2:]
+    else:
+        _list = open(filelist_filename, "r")
+        input_file_list = _list.readlines()
+        
     calib_file_list = []
     binning_list = []
     filter_list = []
@@ -771,7 +776,7 @@ podi_makecalibrations.py input.list calib-directory
     calib_dark_list = {}
     calib_flat_list = {}
 
-    for full_filename in _list.readlines():
+    for full_filename in input_file_list:
         if (len(full_filename)<=1):
             continue
         if (full_filename[0] == "#"):
