@@ -101,6 +101,21 @@ import podi_sitesetup as sitesetup
 from podi_definitions import *
 
 
+def read_comma_separated_list(inp):
+
+    print "INPINPINP",inp
+    ret_list = []
+    if (type(inp) == list):
+        return inp
+    elif (not inp == None):
+        for _in in inp.split(","):
+            if (os.path.isdir(_in) or os.path.isfile(_in)):
+                ret_list.append(_in)
+    print ret_list
+    return ret_list
+
+
+    
 def read_options_from_commandline(options=None, ignore_errors=False):
     """
     Read all command line options and store them in the options dictionary.
@@ -116,9 +131,10 @@ def read_options_from_commandline(options=None, ignore_errors=False):
 
     # Handle all reduction flags from command line
     if (cmdline_arg_isset("-cals")):
-        cals_dir = get_cmdline_arg("-cals")
-        if (not os.path.isdir(cals_dir)):
-            logger.critical("The specified cals-directory (%s) does not exist!!!" % (cals_dir))
+        cals_dir = read_comma_separated_list(get_cmdline_arg("-cals"))
+        if (cals_dir == []):
+            logger.critical("The specified cals-directory (%s) does not exist!!!" % (
+                get_cmdline_arg("-cals")))
             if (not ignore_errors):
                 sys.exit(0)
 
@@ -130,9 +146,12 @@ def read_options_from_commandline(options=None, ignore_errors=False):
 
         options['illumcorr_dir'] = cals_dir
 
-    options['bias_dir'] = cmdline_arg_set_or_default("-bias", options['bias_dir'])
-    options['dark_dir'] = cmdline_arg_set_or_default("-dark", options['dark_dir'])
-    options['flat_dir'] = cmdline_arg_set_or_default("-flat", options['flat_dir'])
+    options['bias_dir'] = read_comma_separated_list(
+        cmdline_arg_set_or_default("-bias", options['bias_dir']))
+    options['dark_dir'] = read_comma_separated_list(
+        cmdline_arg_set_or_default("-dark", options['dark_dir']))
+    options['flat_dir'] = read_comma_separated_list(
+        cmdline_arg_set_or_default("-flat", options['flat_dir']))
 
     options['bpm_dir']  = cmdline_arg_set_or_default("-bpm", options['bpm_dir'])
     if (options['bpm_dir'] == "auto"):

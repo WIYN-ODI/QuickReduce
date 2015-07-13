@@ -534,7 +534,7 @@ def collect_reduce_ota(filename,
 
             else:
                 techfile= check_filename_directory(options['techdata'], "techdata_%s_bin%d.fits" % (filter_name, binning))
-                
+
             # Check if the specified file exists and read the data if possible
             if (os.path.isfile(techfile)):
                 logger.debug("Reading techdata from file %s" % (techfile))
@@ -617,7 +617,10 @@ def collect_reduce_ota(filename,
             if (not techhdulist == None):
                 gain, readnoise, readnoise_e = read_techdata(
                     techhdulist, ota_c_x, ota_c_y, wm_cellx, wm_celly)
-                logger.debug("Using tech-data for gain & readnoise: %f %f" % (gain, readnoise))
+                if (not gain == None and not readnoise == None):
+                    logger.debug("Using tech-data for gain & readnoise: %f %f" % (gain, readnoise))
+                else:
+                    logger.debug("No gain/readnoise data available")
 
                 # Also set the gain and readnoise values to be used later for the gain correction
                 all_gains[wm_cellx, wm_celly] = \
@@ -3931,10 +3934,19 @@ def check_filename_directory(given, default_filename):
 
     if (given == None):
         return None
-    elif (os.path.isfile(given)):
-        return given
-    elif (os.path.isdir(given)):
-        return "%s/%s" % (given, default_filename)
+
+    if (not type(given) == list):
+        _g = [given]
+    else:
+        _g = given
+
+    for g in _g:
+        if (os.path.isfile(g)):
+            return g
+        else:
+            fn = "%s/%s" % (g, default_filename)
+            if (os.path.isfile(fn)):
+                return fn
 
     return ""
 
