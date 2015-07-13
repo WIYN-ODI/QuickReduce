@@ -1000,6 +1000,9 @@ def create_client(metadata, wait=0):
         # Also define a new listener to listen to incoming qr.stack commands
         cli1.bindReceiveMessage("qr.stack", handle_qr_stack_request)
 
+        # Also define a new listener to listen to incoming qr.stack commands
+        cli1.bindReceiveMessage("qr.mastercal", handle_qr_mastercals_request)
+
     except:
         print "Problem with bindReceiveMessage"
 
