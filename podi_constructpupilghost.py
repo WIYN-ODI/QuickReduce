@@ -61,6 +61,45 @@ def get_median_level(data, radii, ri, ro):
 
 
 
+def fit_spline_background(radii, flux):
+
+    # data = numpy.loadtxt("/home/work/odi_commissioning/pupilghost/radial__x")
+    bad = numpy.isnan(radii) | numpy.isnan(flux)
+    exclude = (radii > 1150) & (radii < 3950)
+    r = radii.copy()[~bad & ~exclude]
+    f = flux.copy()[~bad & ~exclude]
+    _min, _max = numpy.min(r), numpy.max(r)
+    print "min/max:", _min, _max
+
+    t = numpy.arange(_min+50,_max-50, 100)
+    exclude = (t > 1100) & (t < 4000)
+    t = numpy.sort(numpy.append(t[~exclude], [1101,1102, 4001, 4002]))
+    print "t:", t
+
+    # Now fit a spline to the data
+    print "R:",r
+    spl = scipy.interpolate.LSQUnivariateSpline(x=r, y=f, t=t)
+
+    # generate a smooth curve for plotting & debugging
+    xxx = numpy.arange(_min,_max,10)
+    numpy.savetxt("radial.spline",
+                  numpy.append(xxx.reshape((-1,1)),
+                               spl(xxx).reshape((-1,1)), axis=1))
+
+
+    numpy.savetxt("radial.t",
+                  numpy.append(t.reshape((-1,1)),
+                               spl(t).reshape((-1,1)), axis=1))
+
+    # now take the original profile, and normalize/background subtract it
+    f_spline = spl(radii)
+    f_fixed = (flux-f_spline) / f_spline
+    numpy.savetxt("radial.fixed",
+                  numpy.append(radii.reshape((-1,1)),
+                               f_fixed.reshape((-1,1)), axis=1))
+
+    return spl
+
 
 def get_radii_angles(data_fullres, center, binfac, verbose=False):
 
@@ -187,6 +226,7 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
 
             hdulist.append(imghdu)
 
+            #break
 
     HDUlist = pyfits.HDUList(hdulist)
     HDUlist.writeto(output_filename, clobber=True)
@@ -275,40 +315,50 @@ def subtract_background(data, radius, angle, radius_range, binfac):
     print "normalization flux =", normalize_flux
 
     #
-    # Subtract background and normalize all measurements
+    # Use the profile and fit a spline to the underlying shape
     #
-    background_levels = (background_levels - normalize_flux) / normalize_flux
+    spl = fit_spline_background(radii, background_levels)
 
-    fitfunc = lambda p, x: p[0] + p[1] * x
-    errfunc = lambda p, x, y, err: (y - fitfunc(p, x)) / err
+    # #
+    # # Subtract background and normalize all measurements
+    # #
+    # background_levels = (background_levels - normalize_flux) / normalize_flux
 
-    bg_for_fit = background_levels
-    #bg_for_fit[numpy.isnan(background_levels)] = 0
-    bg_for_fit[((radii > ri) & (radii < ro))] = 0
-    pinit = [0.0, 0.0] # Assume no slope and constant level of 0
-    out = scipy.optimize.leastsq(errfunc, pinit,
-                           args=(radii, background_levels, background_level_errors), full_output=1)
+    # fitfunc = lambda p, x: p[0] + p[1] * x
+    # errfunc = lambda p, x, y, err: (y - fitfunc(p, x)) / err
 
-    pfinal = out[0]
-    covar = out[1]
-    stdout_write(" best-fit: %.2e + %.3e * x\n" % (pfinal[0], pfinal[1]))
-    #print pfinal
-    #print covar
+    # bg_for_fit = background_levels
+    # #bg_for_fit[numpy.isnan(background_levels)] = 0
+    # bg_for_fit[((radii > ri) & (radii < ro))] = 0
+    # pinit = [0.0, 0.0] # Assume no slope and constant level of 0
+    # out = scipy.optimize.leastsq(errfunc, pinit,
+    #                        args=(radii, background_levels, background_level_errors), full_output=1)
 
-    #
-    # Now we have the fit for the background, compute the 2d background 
-    # image and subtract it out
-    #
-    x = numpy.linspace(0, max_radius, 100)
-    y_fit = radii * pfinal[1] + pfinal[0]
-    background = pfinal[0] + pfinal[1] * radius
+    # pfinal = out[0]
+    # covar = out[1]
+    # stdout_write(" best-fit: %.2e + %.3e * x\n" % (pfinal[0], pfinal[1]))
+    # #print pfinal
+    # #print covar
+
+    # #
+    # # Now we have the fit for the background, compute the 2d background 
+    # # image and subtract it out
+    # #
+    # x = numpy.linspace(0, max_radius, 100)
+    # y_fit = radii * pfinal[1] + pfinal[0]
+    # background = pfinal[0] + pfinal[1] * radius
     
-    bg_sub = ((data - normalize_flux) / normalize_flux) - background
+    # bg_sub = ((data - normalize_flux) / normalize_flux) - background
 
-    bg_sub_profile = background_levels - (pfinal[0] + pfinal[1]*radii)
-    numpy.savetxt("radial__%s" % ("bgsub"),
-                  numpy.append(radii.reshape((-1,1)),
-                               bg_sub_profile.reshape((-1,1)), axis=1))
+    # bg_sub_profile = background_levels - (pfinal[0] + pfinal[1]*radii)
+    # numpy.savetxt("radial__%s" % ("bgsub"),
+    #               numpy.append(radii.reshape((-1,1)),
+    #                            bg_sub_profile.reshape((-1,1)), axis=1))
+
+    background_1d = spl(radius.flatten())
+    background_2d = background_1d.reshape(radius.shape)
+
+    bg_sub = (data - background_2d) / background_2d
     
     #if (write_intermediate):
     #    bgsub_hdu = pyfits.PrimaryHDU(data=bg_sub)
@@ -458,6 +508,13 @@ if __name__ == "__main__":
         radial_opts = (r_inner, r_outer, dr)
 
         create_radial_pupilghost(filename, outputfile, radial_opts)
+
+    elif (cmdline_arg_isset("-spline")):
+
+        data = numpy.loadtxt(get_clean_cmdline()[1])
+
+        spl = fit_spline_background(data[:,0], data[:,1])
+
     else:
         r_inner = float(cmdline_arg_set_or_default("-ri",  700))
         r_outer = float(cmdline_arg_set_or_default("-ro", 4000))
