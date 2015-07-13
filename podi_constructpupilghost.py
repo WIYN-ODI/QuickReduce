@@ -100,7 +100,7 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
     #combined_file = "pg_combined_%+04d.fits" % numpy.around(rotator_angle)
     #print "combined-file:",combined_file
 
-    output_filename = "pg_%+04d.fits" % (rotator_angle)
+    output_filename = "pg_%+04d.fits" % (numpy.round(rotator_angle))
     if (os.path.isfile(output_filename) and not clobber):
         stdout_write("output filename %s already exists, skipping\n" % (output_filename))
         return None
@@ -116,7 +116,8 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
     for i in range(1, len(hdu_ref)):
 
         extname = hdu_ref[i].header['EXTNAME']
-
+        
+        pupilghost_centers = ['OTA33.SCI', 'OTA34.SCI', 'OTA43.SCI', 'OTA44.SCI']
         if (extname in pupilghost_centers):
             print "\n\n\n\n\n",extname
 
@@ -186,6 +187,7 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
 
             hdulist.append(imghdu)
 
+
     HDUlist = pyfits.HDUList(hdulist)
     HDUlist.writeto(output_filename, clobber=True)
 
@@ -241,9 +243,9 @@ def subtract_background(data, radius, angle, radius_range, binfac):
             ro = numpy.min([ro, r_inner])
         elif (ro > r_outer):
             ri = numpy.max([ri, r_outer])
-        else:
-            # Skip the rings within the pupil ghost range for now
-            continue
+#        else:
+#            # Skip the rings within the pupil ghost range for now
+#            continue
         
         #print i, ri, ro
         median, count = get_median_level(data, radius, ri, ro)
@@ -254,11 +256,35 @@ def subtract_background(data, radius, angle, radius_range, binfac):
     # only linearly (if at all) with radius
     # define our (line) fitting function
     
+    print "XXXXXXX", radii.shape, background_levels.shape
+    numpy.savetxt("radial__%s" % ("x"),
+                  numpy.append(radii.reshape((-1,1)),
+                               background_levels.reshape((-1,1)), axis=1))
+    print "saved"
+
+    # Find average intensity at the largest radii
+    avg_level = bottleneck.nanmedian(background_levels[radii>4000])
+    print "avg_level=",avg_level
+
+    #
+    # Normalize profile
+    #
+    normalize_region = ((radii < 1100) & (radii > 600)) |  \
+                       ((radii > 4000) & (radii < 4600))
+    normalize_flux = numpy.mean(background_levels[normalize_region])
+    print "normalization flux =", normalize_flux
+
+    #
+    # Subtract background and normalize all measurements
+    #
+    background_levels = (background_levels - normalize_flux) / normalize_flux
+
     fitfunc = lambda p, x: p[0] + p[1] * x
     errfunc = lambda p, x, y, err: (y - fitfunc(p, x)) / err
 
     bg_for_fit = background_levels
-    bg_for_fit[numpy.isnan(background_levels)] = 0
+    #bg_for_fit[numpy.isnan(background_levels)] = 0
+    bg_for_fit[((radii > ri) & (radii < ro))] = 0
     pinit = [0.0, 0.0] # Assume no slope and constant level of 0
     out = scipy.optimize.leastsq(errfunc, pinit,
                            args=(radii, background_levels, background_level_errors), full_output=1)
@@ -277,8 +303,13 @@ def subtract_background(data, radius, angle, radius_range, binfac):
     y_fit = radii * pfinal[1] + pfinal[0]
     background = pfinal[0] + pfinal[1] * radius
     
-    bg_sub = data - background
+    bg_sub = ((data - normalize_flux) / normalize_flux) - background
 
+    bg_sub_profile = background_levels - (pfinal[0] + pfinal[1]*radii)
+    numpy.savetxt("radial__%s" % ("bgsub"),
+                  numpy.append(radii.reshape((-1,1)),
+                               bg_sub_profile.reshape((-1,1)), axis=1))
+    
     #if (write_intermediate):
     #    bgsub_hdu = pyfits.PrimaryHDU(data=bg_sub)
     #    bgsub_hdu.writeto("bgsub.fits", clobber=True)
