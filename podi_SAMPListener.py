@@ -664,9 +664,9 @@ def handle_qr_stack_request(private_key, sender_id, msg_id, mtype, params, extra
 #################################################################################
 #
 #
-# QR swarp-stack functionality
+# QR Mastercal functionality
 #
-# this uses the qr.stack message
+# this uses the qr.mastercal message
 #
 #
 #################################################################################
@@ -674,7 +674,7 @@ def handle_qr_stack_request(private_key, sender_id, msg_id, mtype, params, extra
 # define a message queue to handle remote executions
 mastercals_queue = multiprocessing.JoinableQueue()
 
-def handle_mastercal_request(params, logger):
+def handle_mastercals_request(params, logger, options):
 
     # print "\n================"*3,params,"\n================"*3
 
@@ -682,7 +682,6 @@ def handle_mastercal_request(params, logger):
     logger.debug("Received 'filelist': %s" % (str_filelist))
 
     print str_filelist
-    return
 
 
     # print "starting work on file",str_filelist
@@ -708,193 +707,86 @@ def handle_mastercal_request(params, logger):
 
     # We need at least one file to work on
     if (len(filelist) <= 0):
-        logger.info("No valid files for stacking found!")
+        logger.info("No valid files found to create MasterCalibrations!")
         return
-        # queue.task_done()
-        # continue
-
-    # print datetime.datetime.now().strftime("%H:%M:%S.%f")
-    # print filelist
-    # print tracking_rate
-    # print extra
 
     logger.info("Input filelist:\n%s" % ("\n".join([" --> %s" % fn for fn in filelist])))
-    #("\n".join(filelist)))
+
+    # Find name of output directory
+    print options['calib_dir']
+    if (options['calib_dir'] == []):
+        # No cals directory given, this is no longer allowed!!!
+        logger.error("Need a -cals directory to support the make_calibrations mode")
+        return
 
     #
-    # Open the first file in the list, get the object name
+    # Just to be safe, translate the first -cals directory name from local to remote
     #
-    firsthdu = pyfits.open(filelist[0])
-    object_name = firsthdu[0].header['OBJECT']  \
-        if 'OBJECT' in firsthdu[0].header else "unknown"
-    filter_name = firsthdu[0].header['FILTER']  \
-        if 'FILTER' in firsthdu[0].header else"unknown"
-    firsthdu.close()
-    logger.debug("Reference data: object:%s, filter:%s" % (
-        object_name, filter_name))
-
-    # Create a ODI-like timestamp
-    formatted_timestamp = params['timestamp'].strftime("%Y%m%dT%H%M%S")
-    logger.debug("Formatted timestamp for output file: %s" % (formatted_timestamp))
-
-    # instead of the number in the dither sequence, 
-    # use the number of frames in this stack
-    number_of_frames = len(filelist)
-
-    # Assemble the entire filename
-    output_filename = "stack%s.%d__%s__%s.fits" % (
-        formatted_timestamp, number_of_frames, object_name, filter_name
-    )
-    output_filename = escape_characters(output_filename)
-    remote_output_filename = "%(outputdir)s/%(output_filename)s" % {
-        "outputdir": setup.output_dir,
-        "output_filename": output_filename,
-        }
-    logger.debug("Setting output filename: %s" % (output_filename))
+    remote_out_dirname = setup.translate_filename_local2remote(options['calib_dir'][0])
+    logger.info("Storing user-generated master calibration products in %s" % (
+        remote_out_dirname))
 
 
     #
-    # Re-format the input filelist to point to valid files 
-    # on the remote filesystem
+    # Now translate the directory/filenames of all input files as well
     #
-    # Important: The input files specified are RAW files, but 
-    # we need to stack based on the reduced files
-    #
-    remote_filelist = []
+    filelist_remote = []
     for fn in filelist:
-        remote_filename = format_filename(fn, setup.output_format)
-        remote_filelist.append(remote_filename)
-        #remote_filelist.append(setup.translate_filename_local2remote(fn))
+        filelist_remote.append(setup.translate_filename_local2remote(fn))
+        
+    logger.info("Input files:\n-- %s" % ("\n-- ".join(filelist_remote)))
 
-    logger.debug("Filelist on remote filesystem:\n%s" % ("".join(["  --> %s\n" % fn for fn in remote_filelist])))
-    # "\n  --> "+"\n  --> ".join(remote_filelist)))
-
-    # If the non-sidereal option is set, use the tracking rate and 
-    # configure the additional command-line flag for swarpstack
-    nonsidereal_option = ""
-    if (not tracking_rate == 'none'):
-        items = tracking_rate.split(",")
-        if (len(items) == 2):
-            track_ra = float(items[0])
-            track_dec = float(items[1])
-            if (track_ra != 0 or track_dec != 0):
-                # This fulfills all criteria for a valid non-sidereal command
-                # Use first frame as MJD reference frame
-                mjd_ref_frame = remote_filelist[0]
-                nonsidereal_option = "-nonsidereal=%(ra)s,%(dec)s,%(refframe)s" % {
-                    'ra': items[0],
-                    'dec': items[1],
-                    'refframe': mjd_ref_frame,
-                    }
-    logger.debug("Non-sidereal setup: %s" % (nonsidereal_option))
 
     #
     # Now we have the list of input files, and the output filename, 
     # lets go and initate the ssh request and get to work
     #
+    qr_command = """
 
-    # Set options (bgsub, pixelscale) etc.
-    options = "%s" % (nonsidereal_option)
+    %(qrdir)s/podi_makecalibrations.py
+    from_cmdline
+    %(outdir)s
+    -nonlinearity
+    -redo
+    %(filelist)s
 
-    if ("bgsub" in params and params['bgsub'] == 'yes'):
-        options += " -bgsub"
+    """ % {
+        "qrdir": setup.remote_podi_dir,
+        "outdir": remote_out_dirname,
+        "filelist": " ".join(filelist_remote),
+        }
 
-    if ('pixelscale' in params):
-        try:
-            pixelscale = float(params['pixelscale'])
-            print "setting pixelscale"
-            if (pixelscale >= 0.1):
-                options += " -pixelscale=%s" % params['pixelscale']
-        except:
-            pass
-
-    if ('skipota' in params):
-        otas = params['skipota'].split(",")
-        ota_list = []
-        for ota in otas:
-            try:
-                ota_d = int(ota)
-                ota_list.append("%02d" % ota_d)
-            except:
-                pass
-        if (len(ota_list) > 0):
-            options += " -skipota=%s" % (",".join(ota_list))
-
-    # get the special swarp-settings command line
-    if (cmdline_arg_isset("-swarpopts")):
-        swarp_opts = cmdline_arg_set_or_default("-swarpopts", None)
-        # print "\n"*5,swarp_opts,"\n"*5
-        items = swarp_opts.split(":")
-        for item in items:
-            options += " -%s" % (item)
-
-    # Disabled for now, until we can properly handle different 
-    # weight types to forward them to ds9
-    if ('combine' in params):
-        combine_mode = params['combine']
-        options += " -combine=%s" % (combine_mode.split(",")[0])
-
-    logger.info("Stacking %d frames, output in %s" % (len(filelist), output_filename))
-
-    # print "options=",options
-    ssh_command = "ssh %(username)s@%(host)s %(swarpnice)s \
-                      %(podidir)s/podi_swarpstack.py \
-                      %(remote_output_filename)s %(options)s %(remote_inputlist)s" % {
+    logger.info("Executing\n\n\n%s\n" % (" ".join(qr_command.split())))
+    
+    ssh_command = "ssh %(username)s@%(host)s %(qr_command)s" % {
         'username': setup.ssh_user,
         'host': setup.ssh_host,
-        'swarpnice': setup.swarp_nicelevel,
-        'podidir': setup.remote_podi_dir,
-        'remote_output_filename': remote_output_filename,
-        'outputdir': setup.output_dir,
-        'output_filename': output_filename,
-        'options': options,
-        'remote_inputlist': " ".join(remote_filelist)
-        }
-    logger.debug("SSH command:\n%s" % (" ".join(ssh_command.split())))
+        'qr_command': qr_command,
+    }
+    logger.info("SSH command:\n%s" % (" ".join(ssh_command.split())))
 
     #
     # Now execute the actual swarpstack command
     #
     if (not cmdline_arg_isset("-dryrun")):
-        logger.info("Running swarpstack remotely on %s" % (setup.ssh_host))
+        logger.info("Creating calibrations remotely on %s" % (setup.ssh_host))
         start_time = time.time()
         process = subprocess.Popen(ssh_command.split(), 
                                    stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE)
         _stdout, _stderr = process.communicate()
         logger.info(str(_stdout))
-        # print _stdout
-        # print _stderr
         end_time = time.time()
-        logger.info("swarpstack has completed successfully (%.2f seconds)" % (end_time - start_time))
+        logger.info("Master Calibrations completed successfully (%.2f seconds)" % (end_time - start_time))
     else:
         logger.info("Skipping execution (-dryrun given):\n\n%s\n\n" % (" ".join(ssh_command.split())))
 
-    # 
-    # Once we are here, we have the output file created
-    # If requested, send it to ds9 to display
-    #
-    if (not cmdline_arg_isset("-dryrun") and
-        cmdline_arg_isset("-forward2ds9")):
-        local_filename = setup.translate_filename_remote2local(None, remote_output_filename)
-        # adjust the combine mode part of the filename
-        local_filename = local_filename[:-5]+".WEIGHTED.fits"
-        logger.debug("Commanding ds9 to display %s ..." % (local_filename))
-        cmd = "fits %s" % (local_filename)
-        try:
-            # print "\n"*5,"sending msg to ds9",local_filename,"\n"*5
-            cli_ds9 = sampy.SAMPIntegratedClient(metadata = metadata)
-            cli_ds9.connect()
-            cli_ds9.enotifyAll(mtype='ds9.set', cmd=cmd)
-            cli_ds9.disconnect()
-            logger.info("Sent command to display new stacked frame to ds9 (%s)" % (local_filename))
-        except:
-            logger.warning("Problems sending message to ds9")
-            pass
+    return
 
 
 
-def workerprocess___qr_mastercals(queue):
+
+def workerprocess___qr_mastercals(queue, options):
     print "QR MasterCals worker process started, ready for action..."
 
     logger = logging.getLogger("QRMasterCals")
@@ -920,7 +812,7 @@ def workerprocess___qr_mastercals(queue):
         # print params
 
         try:
-            handle_swarp_request(params, logger)
+            handle_mastercals_request(params, logger, options)
         except:
             podi_logging.log_exception()
             pass
@@ -946,6 +838,8 @@ def handle_qr_mastercals_request(private_key, sender_id, msg_id, mtype, params, 
     # print "\n"*5
     # print params
     str_filelist = params['filelist']
+    print params
+    print str_filelist
 
     # print "adding timestamp"
     params['timestamp'] = datetime.datetime.now()
@@ -1055,14 +949,18 @@ def SAMPListener():
     )
     qr_stacking_process.start()
 
+
     #
-    # Also setup the QR stacking worker process
+    # Also setup the QR MasterCals worker process
     # 
     print "Starting execution process..."
+    options = read_options_from_commandline(ignore_errors=True)
+    print options
     qr_mastercals_process = multiprocessing.Process(
         target=workerprocess___qr_mastercals,
         kwargs={
             'queue': mastercals_queue,
+            'options': options,
             }
     )
     qr_mastercals_process.start()
