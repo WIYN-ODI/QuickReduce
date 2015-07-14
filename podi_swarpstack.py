@@ -472,16 +472,18 @@ def prepare_input(inputlist, swarp_params, options):
         #
         # Frame needs to have valid WCS solution
         if ('WCSCAL' in hdulist[0].header and
-            not hdulist[0].header['WCSCAL']):
-            inputlist[i] = None
+            not hdulist[0].header['WCSCAL'] and 
+            not swarp_params['ignore_quality_checks']):
             logger.info("Excluding frame (%s) due to faulty WCS calibration" % (inputlist[i]))
+            inputlist[i] = None
             continue
         # and proper photometric calibration
         if ('MAGZERO' in hdulist[0].header and
             hdulist[0].header['MAGZERO'] <= 0 and
-            not swarp_params['no-fluxscale']):
-            inputlist[i] = None
+            not swarp_params['no-fluxscale'] and
+            not swarp_params['ignore_quality_checks']):
             logger.info("Excluding frame (%s) due to missing photometric calibration" % (inputlist[i]))
+            inputlist[i] = None
             continue
 
         in_queue.put((inputlist[i],i+1))
