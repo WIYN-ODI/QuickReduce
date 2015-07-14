@@ -101,7 +101,7 @@ import podi_sitesetup as sitesetup
 from podi_definitions import *
 
 
-def read_comma_separated_list(inp):
+def read_comma_separated_list(inp, ignore_errors=True):
 
     print "INPINPINP",inp
     ret_list = []
@@ -109,7 +109,7 @@ def read_comma_separated_list(inp):
         return inp
     elif (not inp == None):
         for _in in inp.split(","):
-            if (os.path.isdir(_in) or os.path.isfile(_in)):
+            if (os.path.isdir(_in) or os.path.isfile(_in) or ignore_errors):
                 ret_list.append(_in)
     print ret_list
     return ret_list
@@ -131,12 +131,14 @@ def read_options_from_commandline(options=None, ignore_errors=False):
 
     # Handle all reduction flags from command line
     if (cmdline_arg_isset("-cals")):
-        cals_dir = read_comma_separated_list(get_cmdline_arg("-cals"))
+        cals_dir = read_comma_separated_list(get_cmdline_arg("-cals"), ignore_errors)
         if (cals_dir == []):
             logger.critical("The specified cals-directory (%s) does not exist!!!" % (
                 get_cmdline_arg("-cals")))
             if (not ignore_errors):
                 sys.exit(0)
+
+        options['calib_dir'] = cals_dir
 
         options['bias_dir'] = cals_dir
         options['dark_dir'] = cals_dir
@@ -357,6 +359,8 @@ Calibration data:
         
 #    options['selectota'] = int(cmdline_arg_set_or_default("-selectota", None))
 
+    options['simple-tan-wcs'] = cmdline_arg_isset("-tanwcs")
+
     return options
 
 
@@ -467,6 +471,8 @@ def set_default_options(options_in=None):
     options['softbin'] = 0
     options['selectota'] = None
 
+    options['simple-tan-wcs'] = False
+ 
     return options
 
 

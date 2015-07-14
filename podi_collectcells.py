@@ -1104,6 +1104,9 @@ def collect_reduce_ota(filename,
         if (options['wcs_distortion'] != None):
             wcsdistort = fpl.apply_wcs_distortion(options['wcs_distortion'], hdu, binning)
             reduction_files_used['wcs'] = fpl.get_wcs_distortion_file(options['wcs_distortion'])
+            if (options['simple-tan-wcs']):
+                hdu.header['CTYPE1'] = "RA---TAN"
+                hdu.header['CTYPE2'] = "DEC--TAN"
 
         #
         # If requested, perform cosmic ray rejection
