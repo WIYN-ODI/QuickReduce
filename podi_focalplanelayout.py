@@ -61,7 +61,13 @@ class FocalPlaneLayout(object):
         elif (not self.hdulist == None):
             # We have a proper HDUList, so we can likely extract the data from 
             # the first image extension
-            self.hw_binning = get_binning(self.hdulist[1].header)
+
+            if ('CCDBIN1' in self.hdulist[1].header):
+                self.hw_binning = self.hdulist[1].header['CCDBIN1']
+            elif ('CCDSUM' in self.hdulist[1].header):
+                self.hw_binning = int(self.hdulist[1].header['CCDSUM'].split()[0])
+            else:
+                self.hw_binning = 1
         elif (not self.hdu == None and 'BINNING' in self.hdu.header):
             # Also can use the header if already set
             self.hw_binning = self.hdu.header['BINNING']
