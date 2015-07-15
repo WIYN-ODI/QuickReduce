@@ -103,7 +103,6 @@ from podi_definitions import *
 
 def read_comma_separated_list(inp, ignore_errors=True):
 
-    print "INPINPINP",inp
     ret_list = []
     if (type(inp) == list):
         return inp
@@ -111,7 +110,6 @@ def read_comma_separated_list(inp, ignore_errors=True):
         for _in in inp.split(","):
             if (os.path.isdir(_in) or os.path.isfile(_in) or ignore_errors):
                 ret_list.append(_in)
-    print ret_list
     return ret_list
 
 
