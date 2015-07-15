@@ -273,6 +273,7 @@ import podi_illumcorr
 import podi_almanach
 import podi_focalplanelayout
 import podi_guidestars
+import podi_shifthistory
 
 from astLib import astWCS
 
@@ -2327,7 +2328,6 @@ def collectcells(input, outputfile,
     hdulist.close()
     del hdulist
 
-
     ############################################################
     #
     # In this loop:
@@ -3451,7 +3451,7 @@ def collectcells(input, outputfile,
 
     #
     # Create an association table from the master reduction files used.
-    # 
+    #
     master_reduction_files_used = collect_reduction_files_used(master_reduction_files_used, 
                                                                additional_reduction_files)
     assoc_table = create_association_table(master_reduction_files_used)
@@ -3462,6 +3462,33 @@ def collectcells(input, outputfile,
     # Add some almanach data to the current frame
     #
     podi_almanach.add_ephem_data_to_header(ota_list[0].header, None)
+
+    #
+    # Check if we find a shift-history, and if so, create the shift history plot
+    #
+    used_ot_shifting = False
+    for _ox, _oy in fpl.available_ota_coords:
+        _ota = _ox * 10 + _oy
+        shift_history_file = "%s/%s.%02d_shift.fits" % (directory, filebase, _ota)
+        if (os.path.isfile(shift_history_file)):
+            used_ot_shifting = True
+            break
+        else:
+            shift_history_file += ".fz"
+            if (os.path.isfile(shift_history_file)):
+                used_ot_shifting = True
+                break
+    if (used_ot_shifting):
+        logger.info("Creating shift-history plot from %s" % (shift_history_file))
+        plottitle = "Shift-history for %(OBSID)s (%(OBJECT)s, %(FILTER)s, %(EXPTIME)ds, #shifts=%%(nshifts)d)" \
+                    % ota_list[0].header
+#            obsid, object, , exptime)
+        podi_shifthistory.view_shift_history(
+            filename=shift_history_file,
+            plot_filename=outputfile[:-5]+".otshift",
+            extension_list=options['plotformat'],
+            title=plottitle,)
+
 
 
     #print "Waiting for a bit"
