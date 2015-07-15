@@ -3,6 +3,7 @@
 
 import pyfits, os, sys
 import numpy
+import itertools
 
 import matplotlib
 import matplotlib.pyplot as plot
@@ -22,13 +23,29 @@ from scipy.stats import gaussian_kde
 limit_fwhm_max = 3.5
 
 
+def get_guidephotom_filelist(directory, filebase):
+    
+    filelist = []
+    for l,n in itertools.product(['A', 'B', 'C', 'F', 'G', 'H'], range(1,5)):
+        
+        filename = "%s/expVideo/%s.odi%s%d.photom.fits" % (
+            directory, filebase, l, n)
+        #print filename
+
+        if (os.path.isfile(filename)):
+            filelist.append(filename)
+
+    return filelist
+
+
+
 
 def draw_guidestarplot(filelist, title=None, plot_filename=None):
     #
     # Start plot
     #
     fig = plot.figure()
-    fig.set_facecolor('#d0d0d0')
+    fig.set_facecolor('#e0e0e0')
     fig.canvas.set_window_title(
         title if not title == None else "Guide Star details")
     fig.suptitle(
@@ -52,7 +69,7 @@ def draw_guidestarplot(filelist, title=None, plot_filename=None):
     # Top panel
     ax_flux.grid(True)
     #ax_flux.set_xlabel("time [seconds]")
-    ax_flux.set_ylabel("flux [ADU]")
+    ax_flux.set_ylabel("normalized flux")
     ax_flux.xaxis.set_major_formatter(null_fmt)
     ax_fwhm.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter("%.1f"))
     
@@ -72,7 +89,7 @@ def draw_guidestarplot(filelist, title=None, plot_filename=None):
     # currentAxis.add_patch(Rectangle((0, 0), 1, 0.10, facecolor="white", fill=True))
 
     global_min_flux = 1e9
-    shutter_delay = 1.0
+    shutter_delay = 1.25
     pixelscale = 0.118
 
     max_time = -1.
@@ -227,6 +244,7 @@ def draw_guidestarplot(filelist, title=None, plot_filename=None):
             'flux_max': max_flux,
             'flux_1sigma': sigma1,
             'flux_3sigma': sigma3,
+            'n_guide_samples': fwhm.shape[0]
         }
         guidestats[infile] = one_return
 
@@ -258,7 +276,7 @@ def draw_guidestarplot(filelist, title=None, plot_filename=None):
 
     if (not plot_filename == None):
         fig.set_size_inches(8,6)
-        fig.savefig("guide.png", dpi=100,
+        fig.savefig(plot_filename, dpi=100,
                     facecolor=fig.get_facecolor(), edgecolor='none')
     else:
         pass

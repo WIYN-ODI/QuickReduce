@@ -272,6 +272,7 @@ import podi_cosmicrays
 import podi_illumcorr
 import podi_almanach
 import podi_focalplanelayout
+import podi_guidestars
 
 from astLib import astWCS
 
@@ -2024,6 +2025,7 @@ def collectcells(input, outputfile,
     input_header = hdulist[0].header
 
     binning = get_binning(hdulist[0].header)
+    obsid = hdulist[0].header['OBSID']
 
     # Check if the output file contains a new directory. 
     chk_directory, chk_filename = os.path.split(outputfile)
@@ -2284,9 +2286,47 @@ def collectcells(input, outputfile,
                                      "MJD at exposure end-point")
     add_fits_header_title(ota_list[0].header, "Additional time stamps", 'DATE-MID')
 
+    #
+    # Gather some information from the guider, compute statistics,
+    # and create the guide star diagnostic plots
+    #
+    guide_files = podi_guidestars.get_guidephotom_filelist(directory, obsid)
+    logger.info("Found the following guide photometry files:\n-- %s" % (
+        "\n-- ".join(guide_files)))
+    guide_plot_filename = outputfile[:-5]+".guide.png"
+    guide_plot_title = "%(OBSID)s: %(OBJECT)s (%(FILTER)s, %(EXPTIME)d s)" % hdulist[0].header
+    guidestats = podi_guidestars.draw_guidestarplot(
+        guide_files, 
+        title=guide_plot_title,
+        plot_filename=guide_plot_filename)
+    #
+    # Now add some of the guide information to the FITS header
+    #
+    ota_list[0].header['N_GUIDES'] = (len(guidestats), 
+                                      'number of guide stars')
+    total_flux_max, total_flux_min, total_guide_samples = 0, 0, 0
+    for idx, starfile in enumerate(guidestats):
+        star = guidestats[starfile]
+        total_flux_max += star['flux_max']
+        total_flux_min += star['flux_min']
+        total_guide_samples += star['n_guide_samples']
+        ota_list[0].header['SGMA1F_%d' % (idx+1)] = star['flux_1sigma']
+        ota_list[0].header['SGMA3F_%d' % (idx+1)] = star['flux_3sigma']
+
+    print "phot:", total_flux_max, total_flux_min
+    photometricity = (total_flux_min / total_flux_max) \
+                     if ((total_flux_max > 0) and (total_flux_min > 0)) else -1. 
+    ota_list[0].header['PHOTQUAL'] = (photometricity,
+                                      'degree of photometric stability (1=photometric)')
+    ota_list[0].header['GUIDSMPL'] = (0 if total_guide_samples <= 0 
+                                      else total_guide_samples/len(guidestats),
+                                      'avg number of guide frames per star')
+    add_fits_header_title(ota_list[0].header, "Guider statistics", "N_GUIDES")
+
     # We know enough about the current frame, so close the file
     hdulist.close()
     del hdulist
+
 
     ############################################################
     #
