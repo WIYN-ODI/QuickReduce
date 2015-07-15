@@ -31,6 +31,12 @@ from podi_definitions import *
 import pyfits
 import matplotlib.pyplot as plot
 import matplotlib.cm as cm
+import matplotlib
+
+#from matplotlib.ticker import MultipleLocator, FormatStrFormatter
+
+import podi_logging
+import logging
 
 
 def view_shift_delay(filename):
@@ -92,11 +98,16 @@ def view_xyhist(filename):
     plot.show()
 
 
-def view_shift_history(filename):
+def view_shift_history(filename, plot_filename, extension_list):
+
+    _, bn = os.path.split(filename)
+    logger = logging.getLogger(bn[:-11])
 
     # Load the shiftf file
     hdu = pyfits.open(filename)
     dir, name = os.path.split(filename)
+
+    logger.debug("Starting to create the shift history file")
 
     #print hdu.info()
     
@@ -124,27 +135,48 @@ def view_shift_history(filename):
     # Draw the two plots on the left, bototm one first
     ax = plot.axes([0.05,0.1, 0.38,.35])
     print ax
-    ax.scatter(shift_history.field(x_value)-x_offset, shift_history.field('shift2')+little_scatter_y)
+    ax.scatter(shift_history.field(x_value)-x_offset, shift_history.field('shift2')+little_scatter_y,
+               linewidth=0.5, alpha=0.5)
     ax.set_xlim((fn_min, fn_max))
     #plot.scatter(shift_history.field(x_value), shift_history.field('shift2')+little_scatter_y)
     ax.grid(True)
     ax.set_xlabel(x_label)
     ax.set_ylabel("shift y")
+    ax.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter("%d"))
+    ax.yaxis.set_major_locator(matplotlib.ticker.MultipleLocator(1))
+    
+# majorLocator   = MultipleLocator(20)=
+# majorFormatter = FormatStrFormatter('%d')
+# minorLocator   = MultipleLocator(5)
+
+
+# t = np.arange(0.0, 100.0, 0.1)
+# s = np.sin(0.1*np.pi*t)*np.exp(-t*0.01)
+
+# fig, ax = plt.subplots()
+# plt.plot(t,s)
+
+# ax.xaxis.set_major_locator(majorLocator)
+
 
     #plot.subplot(2,1,2)
     ax2 = plot.axes([0.05,0.55, 0.38,0.35])
-    ax2.scatter(shift_history.field(x_value)-x_offset, shift_history.field('shift1')+little_scatter_x)
-    #ax2.plot(shift_history.field(x_value), shift_history.field('shift1')+little_scatter_x, 'b-')
+    ax2.scatter(shift_history.field(x_value)-x_offset, shift_history.field('shift1')+little_scatter_x,
+               linewidth=0.5, alpha=0.5)
     ax2.set_xlim((fn_min, fn_max))
     ax2.grid(True)
     ax2.set_xlabel(x_label)
     ax2.set_ylabel("shift x")
-
+    ax2.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter("%d"))
+    ax2.yaxis.set_major_locator(matplotlib.ticker.MultipleLocator(1))
 
     # Now draw the 2-d histogram pn the right
     # Find the maximum shift in either direction
     max_shift = numpy.max(numpy.append(shift_history.field('shift1'), shift_history.field('shift2')))
-    print "max ot shift:", max_shift
+    logger.debug("max ot shift: %d" % (max_shift))
+
+    ax.set_ylim((-max_shift-0.5, max_shift+0.5))
+    ax2.set_ylim((-max_shift-0.5, max_shift+0.5))
 
     max_shift += 1
     n_bins = 2*(max_shift)+1
@@ -170,17 +202,24 @@ def view_shift_history(filename):
     ax3.set_xlabel("shift_x")
     ax3.set_ylabel("shift_y")
 
+    if (plot_filename == None):
+        plot.show()
+    else:
+        for ext in extension_list:
+            fig.set_size_inches(8,6)
+            logger.debug("saving file: %s.%s" % (filename, ext))
+            fig.savefig(filename+"."+ext, dpi=100)
 
+    return
 
-    plot.show()
-    fig.savefig("shift.png")
-
-    print 
     
 
     
 if __name__ == "__main__":
     
+    options = read_options_from_commandline(None)
+    podi_logging.setup_logging(options)
+
     filename = sys.argv[1]
     
     if (cmdline_arg_isset("-shiftdelay")):
@@ -188,5 +227,6 @@ if __name__ == "__main__":
     elif (cmdline_arg_isset("-xyhist")):
         view_xyhist(filename)
     else:
-        view_shift_history(filename)
+        view_shift_history(filename, None, 'png')
     
+    podi_logging.shutdown_logging(options)
