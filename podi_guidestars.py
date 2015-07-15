@@ -225,9 +225,12 @@ def draw_guidestarplot(filelist, title=None, plot_filename=None):
 
         s2p = lambda x : 0.5*(1+scipy.special.erf(x/numpy.sqrt(2)))*100
         print s2p([-3,-1,1,3])
-        sigmas = scipy.stats.scoreatpercentile(flux/max_flux, s2p([-3,-1,1,3]))
-        sigma1 = sigmas[2] - sigmas[1]
-        sigma3 = sigmas[3] - sigmas[0]
+        try:
+            sigmas = scipy.stats.scoreatpercentile(flux/max_flux, s2p([-3,-1,1,3]))
+            sigma1 = sigmas[2] - sigmas[1]
+            sigma3 = sigmas[3] - sigmas[0]
+        except:
+            sigma1, sigma3 = -1., -1.
         txt = u'GS %d: 1\u03C3=%.3f - 3\u03C3=%.3f' % (
             idx+1, sigma1, sigma3)
         fig.text(text_positions[idx,0], text_positions[idx,1], 
