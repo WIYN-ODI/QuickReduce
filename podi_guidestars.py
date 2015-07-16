@@ -41,6 +41,7 @@ def get_guidephotom_filelist(directory, filebase):
 
 
 def draw_guidestarplot(filelist, title=None, plot_filename=None):
+
     #
     # Start plot
     #
@@ -116,7 +117,9 @@ def draw_guidestarplot(filelist, title=None, plot_filename=None):
     text_align = ['left', 'left', 'center', 'center', 'right', 'right']
 
     guidestats = {}
-    
+    if (len(filelist) <= 0):
+        return guidestats
+
     for idx, infile in enumerate(filelist):
         
         hdulist = pyfits.open(infile)
@@ -224,13 +227,14 @@ def draw_guidestarplot(filelist, title=None, plot_filename=None):
         all_fwhm.append(fwhm)
 
         s2p = lambda x : 0.5*(1+scipy.special.erf(x/numpy.sqrt(2)))*100
-        print s2p([-3,-1,1,3])
+        #print s2p([-3,-1,1,3])
         try:
             sigmas = scipy.stats.scoreatpercentile(flux/max_flux, s2p([-3,-1,1,3]))
             sigma1 = sigmas[2] - sigmas[1]
             sigma3 = sigmas[3] - sigmas[0]
         except:
             sigma1, sigma3 = -1., -1.
+            pass
         txt = u'GS %d: 1\u03C3=%.3f - 3\u03C3=%.3f' % (
             idx+1, sigma1, sigma3)
         fig.text(text_positions[idx,0], text_positions[idx,1], 
@@ -256,15 +260,21 @@ def draw_guidestarplot(filelist, title=None, plot_filename=None):
     #
     all_flux = numpy.array(all_flux)
     all_fwhm = numpy.array(all_fwhm)
-    print all_fwhm.shape
-    numpy.savetxt("fwhm", all_fwhm.reshape((-1,1)))
+    #print all_fwhm.shape
+    #numpy.savetxt("fwhm", all_fwhm.reshape((-1,1)))
 
-    _min_flux, _max_flux = numpy.min(all_flux), 1.0 # normalized !
+    try:
+        _min_flux, _max_flux = numpy.min(all_flux), 1.0 # normalized !
+    except:
+        _min_flux, _max_flux = 0.0, 1.0
     ax_flux.set_ylim((_min_flux-0.05, 1.05))
     hist_flux.set_ylim((_min_flux-0.05, 1.05))
 
-    _min_fwhm, _max_fwhm = numpy.min(all_fwhm), numpy.max(all_fwhm)
-    print _min_fwhm, _max_fwhm
+    try:
+        _min_fwhm, _max_fwhm = numpy.min(all_fwhm), numpy.max(all_fwhm)
+    except:
+        _min_fwhm, _max_fwhm = 0.0, limit_fwhm_max
+    #print _min_fwhm, _max_fwhm
     if (_max_fwhm > limit_fwhm_max): _max_fwhm = limit_fwhm_max
     _range_fwhm = _max_fwhm - _min_fwhm
     ax_fwhm.set_ylim((_min_fwhm-0.05*_range_fwhm, _max_fwhm+0.05*_range_fwhm))
