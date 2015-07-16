@@ -47,7 +47,7 @@ x0 =  5.6E-5 #1.2e-4
 xtalk_saturated_correction = 8
 xtalk_saturation_limit = 65535
 
-
+import podi_focalplanelayout
 
 xtalk_coeffs = {
 
@@ -178,6 +178,108 @@ def invert_all_xtalk():
         xtalk_matrix[ota] = ota_matrices
 
 invert_all_xtalk()
+
+
+
+def apply_old_crosstalk_correction(hdulist, fpl, extname2id):
+
+    logger = logging.getLogger("CrossTalk")
+    logger.debug("Using traditional crosstalk method")
+
+    ota = int(hdulist[0].header['FPPOS'][2:])
+    extname = "OTA%02d.SCI" % ota
+    xtalk_matrix = fpl.get_crosstalk_matrix(extname)
+
+    # Allocate some memory for the cells in one row
+    xtalk_corr = [None] * 8
+
+    for row in range(8):
+        for column in range(8):
+
+            # Allocate some more memory to hold the output of the cross-talk 
+            # correction of this frame
+            xtalk_corr[column] = numpy.zeros(hdulist[1].data.shape)
+
+            for xtalk_column in range(8):
+                # Construct the name of each cell that's causing the crosstalk
+                xy_name = "xy%d%d" % (xtalk_column, row)
+
+                # Now go through the list of all cells in this row and add them to 
+                # the corrected cell content output
+                #print "Adding ",xy_name,"to ",extname, column, row, "(scaling",podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column],")"
+
+                correction = hdulist[extname2id[xy_name]].data * xtalk_matrix[row][xtalk_column][column]
+                if (column != xtalk_column):
+                    saturated = hdulist[extname2id[xy_name]].data >= fpl.crosstalk_saturation_limit(extname)
+                    correction[saturated] = -1 * fpl.crosstalk_saturation_correction(extname)
+
+                xtalk_corr[column] += correction #hdulist[xy_name].data * podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column]
+                #print xtalk_corr[column][100,100]
+
+        for column in range(8):
+            # Now all cells in this row have been corrected, let's write them 
+            # back into the hdulist so can can continue with the overscan subtraction etc.
+            xy_name = "xy%d%d" % (column, row)
+            hdulist[extname2id[xy_name]].data = xtalk_corr[column]
+
+    return hdulist
+
+
+def apply_crosstalk_correction(hdulist, fpl, extname2id, options):
+
+    logger = logging.getLogger("CrossTalk")
+
+    if (options['crosstalk'] == 'none'):
+        logger.debug("Skipping crosstalk correction")
+        return hdulist
+
+    # Find the correct crosstalk coefficient file for this detector
+    ota = int(hdulist[0].header['FPPOS'][2:])
+    extname = "OTA%02d.SCI" % ota
+    xtalk_file = fpl.get_crosstalk_file(ota, options)
+    logger.debug("XTalk-File: %s" % (xtalk_file))
+
+    if (xtalk_file == None):
+        return apply_old_crosstalk_correction(hdulist, fpl, extname2id)
+
+    xtalk_hdu = pyfits.open(xtalk_file)
+    xtalk_inv = xtalk_hdu['XTALK.INV'].data
+    #print xtalk_inv.shape
+    logger.debug("Using new XTALK method")
+
+    # Allocate some memory for the cells in one row
+    xtalk_corr = [None] * 8
+
+    for row in range(8):
+        for column in range(8):
+
+            # Allocate some more memory to hold the output of the cross-talk 
+            # correction of this frame
+            xtalk_corr[column] = numpy.zeros(hdulist[1].data.shape)
+
+            for xtalk_column in range(8):
+                # Construct the name of each cell that's causing the crosstalk
+                xy_name = "xy%d%d" % (xtalk_column, row)
+
+                # Now go through the list of all cells in this row and add them to 
+                # the corrected cell content output
+                #print "Adding ",xy_name,"to ",extname, column, row, "(scaling",podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column],")"
+
+                correction = hdulist[extname2id[xy_name]].data * xtalk_inv[row, xtalk_column, column] #xtalk_matrix[row][xtalk_column][column]
+                #if (column != xtalk_column):
+                #    saturated = hdulist[extname2id[xy_name]].data >= fpl.crosstalk_saturation_limit(extname)
+                #        correction[saturated] = -1 * fpl.crosstalk_saturation_correction(extname)
+
+                xtalk_corr[column] += correction #hdulist[xy_name].data * podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column]
+                    #print xtalk_corr[column][100,100]
+
+        for column in range(8):
+            # Now all cells in this row have been corrected, let's write them 
+            # back into the hdulist so can can continue with the overscan subtraction etc.
+            xy_name = "xy%d%d" % (column, row)
+            hdulist[extname2id[xy_name]].data = xtalk_corr[column]
+
+    return hdulist
 
 
 

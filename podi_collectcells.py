@@ -446,40 +446,9 @@ def collect_reduce_ota(filename,
 
         logger.info("Starting work on OTA %02d of %s ..." % (ota, obsid))
 
-        # Allocate some memory for the cells in one row
-        xtalk_corr = [None] * 8
-
         # Now go through each of the 8 lines
         logger.debug("Starting crosstalk correction (%s)" % (extname))
-        xtalk_matrix = fpl.get_crosstalk_matrix(extname)
-        for row in range(8):
-            for column in range(8):
-                
-                # Allocate some more memory to hold the output of the cross-talk 
-                # correction of this frame
-                xtalk_corr[column] = numpy.zeros(hdulist[1].data.shape)
-
-                for xtalk_column in range(8):
-                    # Construct the name of each cell that's causing the crosstalk
-                    xy_name = "xy%d%d" % (xtalk_column, row)
-
-                    # Now go through the list of all cells in this row and add them to 
-                    # the corrected cell content output
-                    #print "Adding ",xy_name,"to ",extname, column, row, "(scaling",podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column],")"
-
-                    correction = hdulist[extname2id[xy_name]].data * xtalk_matrix[row][xtalk_column][column]
-                    if (column != xtalk_column):
-                        saturated = hdulist[extname2id[xy_name]].data >= fpl.crosstalk_saturation_limit(extname)
-                        correction[saturated] = -1 * fpl.crosstalk_saturation_correction(extname)
-
-                    xtalk_corr[column] += correction #hdulist[xy_name].data * podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column]
-                    #print xtalk_corr[column][100,100]
-
-            for column in range(8):
-                # Now all cells in this row have been corrected, let's write them 
-                # back into the hdulist so can can continue with the overscan subtraction etc.
-                xy_name = "xy%d%d" % (column, row)
-                hdulist[extname2id[xy_name]].data = xtalk_corr[column]
+        podi_crosstalk.apply_crosstalk_correction(hdulist, fpl, extname2id, options)
         logger.debug("Done with crosstalk correction")
 
         #
@@ -998,10 +967,11 @@ def collect_reduce_ota(filename,
         if (options['fringe_dir'] != None):
             fringe_filename = fpl.get_fringe_filename(options['fringe_dir'])
             fringe_vector_file = fpl.get_fringevector_regionfile(options['fringe_vectors'], ota)
-            reduction_files_used['fringemap'] = fringe_filename
-            reduction_files_used['fringevector'] = fringe_vector_file
-            logger.info("fringe file %s found: %s" % (fringe_filename, os.path.isfile(fringe_filename)))
-            logger.info("fringe vector %s found: %s" % (fringe_vector_file, os.path.isfile(fringe_vector_file)))
+            logger.debug("fringe file %s found: %s" % (fringe_filename, os.path.isfile(fringe_filename)))
+            logger.debug("fringe vector %s found: %s" % (fringe_vector_file, os.path.isfile(fringe_vector_file)))
+            if (os.path.isfile(fringe_filename) and os.path.isfile(fringe_vector_file)):
+                reduction_files_used['fringemap'] = fringe_filename
+                reduction_files_used['fringevector'] = fringe_vector_file
             if (options['verbose']):
                 print "fringe file:",fringe_filename, "    found:",os.path.isfile(fringe_filename)
                 print "fringe vector:",fringe_vector_file, "    found:",os.path.isfile(fringe_vector_file)
@@ -2434,11 +2404,10 @@ def collectcells(input, outputfile,
     # 
     logger.debug("Combining sky-samples from all OTAs into global sky value")
     sky_samples_global = None #numpy.empty(0)
-    print "\n"*10,ota_list[0].header,"\n"*10
-    logger.info("Filtername: %s (%s)" % (
-        ota_list[0].header['FILTER'] if 'FILTER' in ota_list[0].header else "<NO FILTER KEYWORD>",
-        ota_list[0].header['FILTERID'] if 'FILTERID' in ota_list[0].header else "<NO FILTERID KEYWORD>"
-        ))
+    # logger.info("Filtername: %s (%s)" % (
+    #     ota_list[0].header['FILTER'] if 'FILTER' in ota_list[0].header else "<NO FILTER KEYWORD>",
+    #     ota_list[0].header['FILTERID'] if 'FILTERID' in ota_list[0].header else "<NO FILTERID KEYWORD>"
+    #     ))
     valid_ext = fpl.otas_for_photometry[get_valid_filter_name(ota_list[0].header)]
     sky_global_median = -1.
     for ext in sky_samples:
