@@ -479,7 +479,6 @@ class FocalPlaneLayout(object):
         else:
             fn_ota = "%s/.xtalk/%s" % (sitesetup.exec_dir, default_ota_file)
             fn = "%s/.xtalk/%s" % (sitesetup.exec_dir, default_file)
-            print fn, fn_ota
             if (os.path.isfile(fn_ota)):
                 return fn_ota
             elif (os.path.isfile(fn)):
