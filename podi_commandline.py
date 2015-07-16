@@ -359,6 +359,8 @@ Calibration data:
 
     options['simple-tan-wcs'] = cmdline_arg_isset("-tanwcs")
 
+    options['crosstalk'] = cmdline_arg_set_or_default("-crosstalk", "auto")
+
     return options
 
 
@@ -470,7 +472,9 @@ def set_default_options(options_in=None):
     options['selectota'] = None
 
     options['simple-tan-wcs'] = False
- 
+
+    options['crosstalk'] = None
+
     return options
 
 
