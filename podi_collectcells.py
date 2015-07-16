@@ -1314,7 +1314,7 @@ def apply_software_binning(hdu, softbin):
 
     logger = logging.getLogger("Softbin")
 
-    logger.info("Applying software binning of x%d to ext %s" %
+    logger.debug("Applying software binning of x%d to ext %s" %
                 (softbin, hdu.name))
 
     # for software binning, bin data
@@ -2262,7 +2262,7 @@ def collectcells(input, outputfile,
     # and create the guide star diagnostic plots
     #
     guide_files = podi_guidestars.get_guidephotom_filelist(directory, obsid)
-    logger.info("Found the following guide photometry files:\n-- %s" % (
+    logger.debug("Found the following guide photometry files:\n-- %s" % (
         "\n-- ".join(guide_files)))
     guide_plot_filename = outputfile[:-5]+".guide.png"
     guide_plot_title = "%(OBSID)s: %(OBJECT)s (%(FILTER)s, %(EXPTIME)d s)" % hdulist[0].header
@@ -2284,7 +2284,7 @@ def collectcells(input, outputfile,
         ota_list[0].header['SGMA1F_%d' % (idx+1)] = star['flux_1sigma']
         ota_list[0].header['SGMA3F_%d' % (idx+1)] = star['flux_3sigma']
 
-    print "phot:", total_flux_max, total_flux_min
+    # print "phot:", total_flux_max, total_flux_min
     photometricity = (total_flux_min / total_flux_max) \
                      if ((total_flux_max > 0) and (total_flux_min > 0)) else -1. 
     ota_list[0].header['PHOTQUAL'] = (photometricity,

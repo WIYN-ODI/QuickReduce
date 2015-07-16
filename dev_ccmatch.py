@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+sv n#!/usr/bin/env python
 
 """
 
@@ -1901,7 +1901,6 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     current_best_shift = initial_guess[1:3]
     logger.debug("Improving global shift/rotation solution")
     logger.debug("Full ODI source catalog: %d" % (full_src_cat.shape[0]))
-    print "*****\n"*5,"center:\n",center_ra, center_dec,"\n*****"*5
     guessed_cat = rotate_shift_catalog(full_src_cat, (center_ra, center_dec), 
                                        angle=current_best_rotation,
                                        shift=current_best_shift,
