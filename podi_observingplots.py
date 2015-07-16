@@ -77,7 +77,7 @@ def read_data_from_files(filelist):
                 "EXPMEAS" : -1,
                 "FILTER"  : "???", 
                 "PHOTZP"  : -99, 
-                "PHOTZPE" : -99, 
+                "PHOTZPER" : -99, 
                 "MJD-OBS" : -99, 
                 "DATE-OBS": "???",
                 "AIRMASS" : 1.0,
