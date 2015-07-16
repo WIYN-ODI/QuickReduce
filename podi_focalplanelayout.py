@@ -9,6 +9,7 @@ import podi_crosstalk
 import podi_logging
 import numpy
 import os
+import podi_sitesetup as sitesetup
 
 class FocalPlaneLayout(object):
 
@@ -54,7 +55,7 @@ class FocalPlaneLayout(object):
         self.setup_general()
 
         self.filter_name = self.hdu.header['FILTER']
-        self.logger.info("Found filter name: %s" % (self.filter_name))
+        self.logger.debug("Found filter name: %s" % (self.filter_name))
 
         if (binning > 0):
             self.hw_binning = binning
@@ -463,7 +464,28 @@ class FocalPlaneLayout(object):
     def crosstalk_saturation_correction(self, extname):
         return podi_crosstalk.xtalk_saturated_correction
 
-
+    def get_crosstalk_file(self, ota, options):
+        default_ota_file = "crosstalk_%s.%d.fits" % (self.get_layout(), ota)
+        default_file = "crosstalk_%s.fits" % (self.get_layout())
+        if (os.path.isfile(options['crosstalk'])):
+            return options['crosstalk']
+        elif (os.path.isdir(options['crosstalk'])):
+            fn_ota = "%s/%s" % (options['crosstalk'], default_ota_file)
+            fn = "%s/%s" % (options['crosstalk'], default_file)
+            if (os.path.isfile(fn_ota)):
+                return fn_ota
+            elif (os.path.isfile(fn)):
+                return fn
+        else:
+            fn_ota = "%s/.xtalk/%s" % (sitesetup.exec_dir, default_ota_file)
+            fn = "%s/.xtalk/%s" % (sitesetup.exec_dir, default_file)
+            print fn, fn_ota
+            if (os.path.isfile(fn_ota)):
+                return fn_ota
+            elif (os.path.isfile(fn)):
+                return fn
+        return None 
+        
     def get_wcs_distortion_file(self, wcs_distort):
         if (os.path.isfile(wcs_distort)):
             # if a file is given, use this file
@@ -508,7 +530,7 @@ class FocalPlaneLayout(object):
                 d_crval1 -= 360
             hdu.header['CRVAL2'] += wcs_header['CRVAL2']
             hdu.header["CRVAL1"] += d_crval1 / math.cos(math.radians(hdu.header['CRVAL2']))
-            print "change crval1 by",wcs_header['CRVAL1'], d_crval1, wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
+            #print "change crval1 by",wcs_header['CRVAL1'], d_crval1, wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
 
             # Make sure to write RAs that are positive
             if (hdu.header["CRVAL1"] < 0):
