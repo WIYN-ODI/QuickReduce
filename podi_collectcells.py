@@ -729,20 +729,23 @@ def collect_reduce_ota(filename,
                             # If this is not stored in the flat-field, assume some
                             # standard coordinates
                             logger.debug("Found an extension affected by pupilghost: %s" % (extname))
-                            if (extname in pupilghost_centers):
-                                pupilghost_center_x, pupilghost_center_y = pupilghost_centers[extname]
-                                hdu.header['PGCNTR_X'] = (pupilghost_center_x, "pupil ghost center position X")
-                                hdu.header['PGCNTR_Y'] = (pupilghost_center_y, "pupil ghost center position Y")
-                            for pgheader in (
-                                    'PGCENTER', 'PGCNTR_X', 'PGCNTR_Y',
-                                    'PGTMPL_X', 'PGTMPL_Y', 
-                                    'PGREG_X1', 'PGREG_X2', 'PGREG_Y1', 'PGREG_Y2',
-                                    'PGEFCTVX', 'PGEFCTVY', 
-                                    'PGSCALNG',
-                                    'PGROTANG',
-                            ):
-                                if (pgheader in ff_ext.header):
-                                    hdu.header[pgheader] = ff_ext.header[pgheader]
+                            try:
+                                if (extname in pupilghost_centers):
+                                    pupilghost_center_x, pupilghost_center_y = pupilghost_centers[extname]
+                                    hdu.header['PGCNTR_X'] = (pupilghost_center_x, "pupil ghost center position X")
+                                    hdu.header['PGCNTR_Y'] = (pupilghost_center_y, "pupil ghost center position Y")
+                                    for pgheader in (
+                                            'PGCENTER', 'PGCNTR_X', 'PGCNTR_Y',
+                                            'PGTMPL_X', 'PGTMPL_Y', 
+                                            'PGREG_X1', 'PGREG_X2', 'PGREG_Y1', 'PGREG_Y2',
+                                            'PGEFCTVX', 'PGEFCTVY', 
+                                            'PGSCALNG',
+                                            'PGROTANG',
+                                    ):
+                                    if (pgheader in ff_ext.header):
+                                        hdu.header[pgheader] = ff_ext.header[pgheader]
+                            except:
+                                pass
 
                             # if ('PGCNTR_X' in ff_ext.header):
                             #     pupilghost_center_x = ff_ext.header['PGCNTR_X']
