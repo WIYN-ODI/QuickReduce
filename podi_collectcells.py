@@ -742,8 +742,8 @@ def collect_reduce_ota(filename,
                                             'PGSCALNG',
                                             'PGROTANG',
                                     ):
-                                    if (pgheader in ff_ext.header):
-                                        hdu.header[pgheader] = ff_ext.header[pgheader]
+                                        if (pgheader in ff_ext.header):
+                                            hdu.header[pgheader] = ff_ext.header[pgheader]
                             except:
                                 pass
 
