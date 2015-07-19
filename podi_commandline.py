@@ -154,8 +154,6 @@ def read_options_from_commandline(options=None, ignore_errors=False):
         cmdline_arg_set_or_default("-flat", options['flat_dir']))
 
     options['bpm_dir']  = cmdline_arg_set_or_default("-bpm", options['bpm_dir'])
-    if (options['bpm_dir'] == "auto"):
-        options['bpm_dir'] = options['exec_dir']
         
     if (options['verbose']):
         print """

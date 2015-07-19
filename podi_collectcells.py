@@ -791,16 +791,15 @@ def collect_reduce_ota(filename,
                 del illumcorr
 
         # Finally, apply bad pixel masks 
-        if (not options['bpm_dir'] == None):
-            # Determine which region file we need
-            region_file = "%s/bpm_%s.reg" % (options['bpm_dir'], fppos)
-            if (os.path.isfile(region_file)):
-                # Apply the bad pixel regions to file, marking
-                # all bad pixels as NaNs
-                logger.debug("Applying BPM file: %s" % (region_file))
-                mask_broken_regions(merged, region_file)
-                hdu.header.add_history("CC-BPM: %s" % (os.path.abspath(region_file)))
-                reduction_files_used['bpm'] = region_file
+        # Determine which region file we need
+        # This function only returns valid filenames, or None otherwise
+        bpm_region_file = fpl.get_badpixel_regionfile(options['bpm_dir'], fppos)
+        print bpm_region_file
+        if (not bpm_region_file == None):
+            # Apply the bad pixel regions to file, marking all bad pixels as NaNs
+            logger.debug("Applying BPM file: %s" % (bpm_region_file))
+            mask_broken_regions(merged, bpm_region_file)
+            reduction_files_used['bpm'] = bpm_region_file
 
         #
         # Now apply the gain correction
