@@ -794,7 +794,6 @@ def collect_reduce_ota(filename,
         # Determine which region file we need
         # This function only returns valid filenames, or None otherwise
         bpm_region_file = fpl.get_badpixel_regionfile(options['bpm_dir'], fppos)
-        print bpm_region_file
         if (not bpm_region_file == None):
             # Apply the bad pixel regions to file, marking all bad pixels as NaNs
             logger.debug("Applying BPM file: %s" % (bpm_region_file))
@@ -1477,7 +1476,7 @@ def parallel_collect_reduce_ota(queue, return_queue,
 
         try:
             # Remove fringing by subtracting the scaled fringe template
-            if (not fringe_template == None and final_parameters['fringe-scaling-median'] > 0):
+            if (not type(fringe_template) == type(None) and final_parameters['fringe-scaling-median'] > 0):
                 logger.debug("Subtracting fringes (%.2f)..." % (final_parameters['fringe-scaling-median']))
                 return_hdu.data -= (fringe_template * final_parameters['fringe-scaling-median'])
         except:
@@ -1486,7 +1485,7 @@ def parallel_collect_reduce_ota(queue, return_queue,
 
         try:
             # Also delete the pupilghost contribution
-            if (not pg_image == None and final_parameters['pupilghost-scaling-median'] > 0):
+            if (not type(pg_image) == type(None) and final_parameters['pupilghost-scaling-median'] > 0):
                 logger.debug("Subtracting pupilghost (%.2f)..." % (final_parameters['pupilghost-scaling-median']))
                 return_hdu.data -= (pg_image * final_parameters['pupilghost-scaling-median'])
         except:
@@ -2377,14 +2376,14 @@ def collectcells(input, outputfile,
 
         sky_samples[header['EXTNAME']] = data_products['sky-samples']
 
-        if (not data_products['fringe_scaling'] == None):
-            fringe_scaling = data_products['fringe_scaling'] if fringe_scaling == None else \
+        if (not type(data_products['fringe_scaling']) == type(None)):
+            fringe_scaling = data_products['fringe_scaling'] if type(fringe_scaling) == type(None) else \
                 numpy.append(fringe_scaling, data_products['fringe_scaling'], axis=0)
             logger.debug("XXX fringe scaling:\n%s" % (str(fringe_scaling)))
 
         # Add something about pupilghost scaling XXXXXXXXXXXXX
-        if (not data_products['pupilghost-scaling'] == None):
-            pupilghost_scaling = data_products['pupilghost-scaling'] if (pupilghost_scaling == None) \
+        if (not type(data_products['pupilghost-scaling']) == type(None)):
+            pupilghost_scaling = data_products['pupilghost-scaling'] if (type(pupilghost_scaling) == type(None)) \
                 else numpy.append(pupilghost_scaling, data_products['pupilghost-scaling'], axis=0)
             
 
@@ -2495,7 +2494,7 @@ def collectcells(input, outputfile,
     # Compute the global fringe scaling 
     # 
     fringe_scaling_median = fringe_scaling_std = 0
-    if (not options['fringe_dir'] == None and not fringe_scaling == None): #.shape[0] > 0):
+    if (not options['fringe_dir'] == None and not type(fringe_scaling) == type(None)): #.shape[0] > 0):
         logger.debug("Computing average fringe scaling amplitude")
         # Determine the global scaling factor
         good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])

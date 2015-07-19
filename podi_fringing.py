@@ -421,7 +421,7 @@ def get_fringe_scaling(data, fringe, region_file):
     logger = logging.getLogger("FringeScaling")
 
     # Read the region file
-    logger.info("Reading fringe vectors from %s" % (region_file))
+    logger.debug("Reading fringe vectors from %s" % (region_file))
 
     regfile = open(region_file, "r")
     entries = regfile.readlines()
