@@ -292,10 +292,10 @@ def draw_guidestarplot(filelist, title=None, plot_filename=None):
         fig.savefig(plot_filename, dpi=100,
                     facecolor=fig.get_facecolor(), edgecolor='none')
     else:
+        fig.show()
+        plot.show()
         pass
 
-    fig.show()
-    plot.show()
 
     # catfile = infile[:-5]+".cat"
 
