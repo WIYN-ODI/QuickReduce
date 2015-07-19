@@ -2432,7 +2432,7 @@ def collectcells(input, outputfile,
 
         not_a_guiding_ota = ota_headers[ota_name]['CELLMODE'].find("V") < 0
         if (ota_number in valid_ext and not_a_guiding_ota and not type(sky_samples[ext]) == type(None)):
-            if (sky_samples_global == None):
+            if (type(sky_samples_global) == type(None)):
                 sky_samples_global = sky_plus_ota 
             else:
                 sky_samples_global = numpy.append(sky_samples_global, sky_plus_ota, axis=0)
@@ -2579,7 +2579,7 @@ def collectcells(input, outputfile,
 
             target_ota_id = intermediate_results[j]['ota-id']
             if (target_ota_id in ota_missing_empty):
-                logger.info("OTA %d is listed as missing" % (target_ota_id))
+                logger.debug("OTA %d is listed as missing" % (target_ota_id))
                 continue
 
             pipe_send = intermediate_results[j]['pipe-send']
@@ -2630,8 +2630,11 @@ def collectcells(input, outputfile,
         # We received a final answer, so if necessary send off another intermediate results
         try:
             logger.debug("received final answer from OTA-ID %02d [c=%d, FP=%s], expecting %d [%d] more" % (
-                ota_id, i, str(list_of_otas_to_collect[ota_id]), n_expected_results-(i+1), n_expected_results))
+                ota_id, i, 
+                str(list_of_otas_to_collect[ota_id-1]), 
+                n_expected_results-(i+1), n_expected_results))
         except:
+            podi_logging.log_exception()
             print "Error with logger.info statement"
             pass
 
