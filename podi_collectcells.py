@@ -2702,7 +2702,7 @@ def collectcells(input, outputfile,
         global_gain_count += hdu.header['NGAIN']
 
         if (not type(data_products['sourcecat']) == type(None)):
-            global_source_cat = data_products['sourcecat'] if (global_source_cat == None) \
+            global_source_cat = data_products['sourcecat'] if (type(global_source_cat) == type(None)) \
                 else numpy.append(global_source_cat, data_products['sourcecat'], axis=0)
 
         if ('tech-header' in data_products):

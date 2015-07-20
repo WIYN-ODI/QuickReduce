@@ -393,7 +393,7 @@ def rotate_shift_catalog(src_cat, center, angle, shift=None, verbose = False):
     src_rotated += [center_ra, center_dec]
 
     # if requested, add shift
-    if (not shift == None):
+    if (not type(shift) == type(None)):
         src_rotated += shift
     
     if (verbose): 
@@ -1550,7 +1550,8 @@ def improve_wcs_solution(src_catalog,
 
         ota_full[:,0:2] = ota_radec
 
-        global_cat = ota_full if (global_cat == None) else numpy.append(global_cat, ota_full, axis=0)
+        global_cat = ota_full if (type(global_cat) == type(None)) \
+                     else numpy.append(global_cat, ota_full, axis=0)
 
   
     # Match the new, improved catalog with the reference catalog
