@@ -1681,12 +1681,14 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     center_ra = None
     center_dec = None
     for ext in hdulist:
-        try:
+        if (ext.header['NAXIS'] == 2 and
+            ext.header['NAXIS1'] > 1 and 
+            ext.header['NAXIS2'] > 1 and
+            'CRVAL1' in ext.header and
+            'CRVAL2' in ext.header):
             center_ra = ext.header['CRVAL1']
             center_dec = ext.header['CRVAL2']
             break
-        except:
-            pass
     if (center_ra == None or center_dec == None):
         logger.info("Unable to find a field center")
         return return_value
