@@ -1011,6 +1011,11 @@ def collect_reduce_ota(filename,
         detsec_str = "[%d:%d,%d:%d]" % (start_x, end_x, start_y, end_y)
         hdu.header["DETSEC"] = (detsec_str, "position of OTA in focal plane")
                 
+        hdu.header['LTM1_1'] = 1.0
+        hdu.header['LTM2_2'] = 1.0
+        hdu.header['LTV1'] = -start_x
+        hdu.header['LTV2'] = -start_y
+
         # if (cmdline_arg_isset("-simplewcs") or options['wcs_distortion'] != None):
         #     logger.debug("Clearing existing WCS solution")
         #     #
