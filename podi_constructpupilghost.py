@@ -476,6 +476,68 @@ def create_radial_pupilghost(filename, outputfile, radial_opts, verbose=True):
     stdout_write(" done!\n")
 
 
+
+def compute_angular_misalignment(header, l=256):
+
+    #
+    # Make copy so we don't accidently change the input header
+    #
+    ext = pyfits.ImageHDU(header=header)
+
+    #
+    # Get valid WCS system
+    #
+    ext.header['NAXIS'] = 2
+    ext.header['NAXIS1'] = l
+    ext.header['NAXIS2'] = l
+    ext.header['CRVAL1'] = 0.0
+    ext.header['CRVAL2'] = 0.0
+    wcs = astWCS.WCS(ext.header, mode='pyfits')
+
+    # compute zero-point
+    radec_0_0 = numpy.array(wcs.pix2wcs(0,0))
+    wcs.header['CRVAL1'] -= radec_0_0[0]
+    if (wcs.header['CRVAL1'] < 0): wcs.header['CRVAL1'] += 360.
+    wcs.header['CRVAL2'] -= radec_0_0[1]
+    wcs.header['CRVAL1'] += 10. # add some offset to RA to avoid problems around RA=0=360
+    wcs.updateFromHeader()
+
+    #
+    # compute points at origin and along both axes
+    #
+    radec_0_0 = numpy.array(wcs.pix2wcs(0,0))
+    #print radec_0_0-[10.,0]
+    radec_0_100 = numpy.array(wcs.pix2wcs(0,l)) - radec_0_0
+    radec_100_0 = numpy.array(wcs.pix2wcs(l,0)) - radec_0_0
+    radec_100_100 = numpy.array(wcs.pix2wcs(l,l)) - radec_0_0
+
+    #
+    # convert vectors into angles
+    #
+    #print radec_100_0, radec_0_100
+    angle_100_0 = numpy.degrees(numpy.arctan2(radec_100_0[0], radec_100_0[1]))
+    angle_0_100 = numpy.degrees(numpy.arctan2(radec_0_100[0], radec_0_100[1]))
+    angle_100_100 = numpy.degrees(numpy.arctan2(radec_100_100[0], radec_100_100[1]))
+
+    #print angle_100_100 - 45.
+
+    #
+    # Then from the difference between perfect alignment compute misalignment
+    #
+    d = 90. - angle_100_0
+    #print "\n",angle_100_0, angle_0_100, angle_100_0 - angle_0_100, d, 0.5*(d-angle_0_100)
+    angle_error = 0.5*(d-angle_0_100)
+
+    angle_error = angle_100_100 - 45.
+
+    rot = wcs.getRotationDeg()
+    if (rot > 180): rot -= 360.
+    #print rot
+
+    #print "Angle_Misalignment (%s) = %f deg" % (ext.name, angle_error)
+
+    return angle_error
+
 #################################
 #
 # Important note:
@@ -515,6 +577,21 @@ if __name__ == "__main__":
 
         spl = fit_spline_background(data[:,0], data[:,1])
 
+
+    elif (cmdline_arg_isset("-angles")):
+
+        from astLib import astWCS
+
+        filename = get_clean_cmdline()[1]
+        hdulist = pyfits.open(filename)
+        l = 4096
+
+        for ext in hdulist:
+            if (not is_image_extension(ext)):
+                continue
+     
+            angle_error = compute_angular_misalignment(ext.header)
+            print "Angle_Misalignment (%s) = %f deg" % (ext.name, angle_error)
     else:
         r_inner = float(cmdline_arg_set_or_default("-ri",  700))
         r_outer = float(cmdline_arg_set_or_default("-ro", 4000))
