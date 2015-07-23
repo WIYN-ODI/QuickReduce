@@ -37,6 +37,11 @@ def get_profile(data, center_x, center_y, mx, my, width, mode='radial',
     cutout = data[minx:maxx, miny:maxy].copy()
 
     idxx, idxy = numpy.indices(cutout.shape)
+
+    # shift coordinates by half a pixel to put coordinates into the center of each pixel
+    idxx = idxx.astype(numpy.float32) + 0.5
+    idxy = idxy.astype(numpy.float32) + 0.5
+
     #print idxx, idxy
 
     
