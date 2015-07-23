@@ -220,6 +220,11 @@ def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo
         basedir, basename = os.path.split(filename)
         directory = filename
 
+    else:
+        logger.error("Input %s is neither a file nor a directory!" % (filename))
+        logger.error("Aborting operation due to illegal input.)
+        return
+
     output_filename = "%s/%s.saturated.fits" % (output_dir, basename)
     logger.debug("Output saturation catalog: %s" % (output_filename))
 
