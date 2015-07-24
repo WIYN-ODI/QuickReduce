@@ -48,9 +48,12 @@ if __name__ == "__main__":
         ext.header['NAXIS'] = 2
         ext.header['NAXIS1'] = 4096
         ext.header['NAXIS2'] = 4096
+        if (cmdline_arg_isset("-zero")):
+            ext.header['CRVAL1'] = 0.
+            ext.header['CRVAL2'] = 0.
         ext.header['CRVAL1'] += wcs_offset[0]
         ext.header['CRVAL2'] += wcs_offset[1]
-
+        
 
         wcs = astWCS.WCS(ext.header, mode='pyfits')
 
