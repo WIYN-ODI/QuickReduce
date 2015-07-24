@@ -1506,7 +1506,7 @@ def improve_wcs_solution(src_catalog,
                        'queue_out': queue_return,
                        }
         # All work is queued, start the processes to do the work
-        for i in range(1): #sitesetup.number_cpus):
+        for i in range(sitesetup.number_cpus):
             p = multiprocessing.Process(target=parallel_optimize_wcs_solution, kwargs=worker_args)
             p.start()
             processes.append(p)
