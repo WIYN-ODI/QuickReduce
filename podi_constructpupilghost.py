@@ -39,6 +39,8 @@ from astLib import astWCS
 
 from podi_definitions import *
 from podi_commandline import *
+import podi_imcombine
+
 az_knot_limit = [50,600]
 
 import logging
@@ -157,7 +159,8 @@ def mp_pupilghost_slice(job_queue, result_queue, bpmdir, binfac):
         rotator_angle = hdulist[0].header['ROTSTART'] 
 
         logger.info("Searching for center ...")
-        fx, fy, fr, vx, vy, vr = dev_pgcenter.find_pupilghost_center(input_hdu, verbose=False)
+        centering = dev_pgcenter.find_pupilghost_center(input_hdu, verbose=False)
+        fx, fy, fr, vx, vy, vr = centering
         center_x = vx
         center_y = vy
 
@@ -211,7 +214,7 @@ def mp_pupilghost_slice(job_queue, result_queue, bpmdir, binfac):
         imghdu.header['PGCNTRVY'] = vy
         imghdu.header['PGCNTRVR'] = vr
 
-        result_queue.put((imghdu,extname))
+        result_queue.put((imghdu,extname, centering))
         job_queue.task_done()
 
     _logger.info("Worker shutting down")
@@ -253,7 +256,7 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
     # Start workers
     #
     processes = []
-    for i in range(2):
+    for i in range(3):
         p = multiprocessing.Process(
             target=mp_pupilghost_slice,
             kwargs={
@@ -293,15 +296,28 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
     #
     # Collect results
     #
+    centerings = {}
+    all_datas = []
     for i in range(jobs_ordered):
         result = result_queue.get()
 
-        imghdu, extname = result
+        imghdu, extname, centering = result
+        all_datas.append(imghdu.data)
         hdulist.append(imghdu)
         logger.info("Done with OTA %s" % (extname))
+        centerings[extname] = centering
 
-            #break
 
+    #
+    # Now combine the slices from each of the contributing OTAs
+    # 
+    logger.info("Combining all OTA slices")
+    combined = podi_imcombine.imcombine_data(all_datas, operation='nanmean.bn')
+
+    comb_hdu = pyfits.ImageHDU(data=combined)
+    comb_hdu.name = "COMBINED"
+    hdulist.append(comb_hdu)
+    
     logger.info("All done!")
     HDUlist = pyfits.HDUList(hdulist)
     HDUlist.writeto(output_filename, clobber=True)
@@ -550,7 +566,7 @@ def create_radial_pupilghost(filename, outputfile, radial_opts, verbose=True):
     clobberfile(outputfile)
     stdout_write("writing output file ...")
     hdulist.writeto(outputfile, clobber=True)
-    stdout_write(" done!\n")
+    #stdout_write(" done!\n")
 
 
 
