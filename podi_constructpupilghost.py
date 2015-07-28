@@ -38,6 +38,9 @@ from podi_definitions import *
 from podi_commandline import *
 az_knot_limit = [50,600]
 
+import logging
+import podi_logging
+
 write_intermediate = True
 use_buffered_files  = True
 
@@ -63,21 +66,23 @@ def get_median_level(data, radii, ri, ro):
 
 def fit_spline_background(radii, flux):
 
+    logger = logging.getLogger("FitSpline")
+
     # data = numpy.loadtxt("/home/work/odi_commissioning/pupilghost/radial__x")
     bad = numpy.isnan(radii) | numpy.isnan(flux)
     exclude = (radii > 1150) & (radii < 3950)
     r = radii.copy()[~bad & ~exclude]
     f = flux.copy()[~bad & ~exclude]
     _min, _max = numpy.min(r), numpy.max(r)
-    print "min/max:", _min, _max
+    #print "min/max:", _min, _max
 
     t = numpy.arange(_min+50,_max-50, 100)
     exclude = (t > 1100) & (t < 4000)
     t = numpy.sort(numpy.append(t[~exclude], [1101,1102, 4001, 4002]))
-    print "t:", t
+    #print "t:", t
 
     # Now fit a spline to the data
-    print "R:",r
+    #print "R:",r
     spl = scipy.interpolate.LSQUnivariateSpline(x=r, y=f, t=t)
 
     # generate a smooth curve for plotting & debugging
@@ -126,25 +131,35 @@ def get_radii_angles(data_fullres, center, binfac, verbose=False):
 
 
 
+def mp_pupilghost_slice(job_queue, return_queue, bpmdir, binfac):
+
+    while (True):
+        break
+
+    return
+
+
 def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False):
 
     hdu_ref = pyfits.open(filename)
+
+    logger = logging.getLogger("MakePGSlice")
 
     hdus = []
     centers = []
 
     rotator_angle = hdu_ref[0].header['ROTSTART'] 
-    stdout_write("\nLoading frame %s ...\n" % (filename))
+    logger.info("\nLoading frame %s ...\n" % (filename))
 
     #combined_file = "pg_combined_%+04d.fits" % numpy.around(rotator_angle)
     #print "combined-file:",combined_file
 
     output_filename = "pg_%+04d.fits" % (numpy.round(rotator_angle))
     if (os.path.isfile(output_filename) and not clobber):
-        stdout_write("output filename %s already exists, skipping\n" % (output_filename))
+        logger.warning("output filename %s already exists, skipping\n" % (output_filename))
         return None
 
-    stdout_write("creating pupilghost slice %s ...\n" % (output_filename))
+    logger.info("creating pupilghost slice %s ..." % (output_filename))
     
     datas = []
     extnames = []
@@ -158,7 +173,7 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
         
         pupilghost_centers = ['OTA33.SCI', 'OTA34.SCI', 'OTA43.SCI', 'OTA44.SCI']
         if (extname in pupilghost_centers):
-            print "\n\n\n\n\n",extname
+            #print "\n\n\n\n\n",extname
 
             #
             # Determine center position
@@ -174,22 +189,23 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
 
 
             #stdout_write("Using center position %d, %d for OTA %s\n" % (center_y, center_x, extname))
-            stdout_write("Adding OTA %s, center @ %d, %d\n" % (extname, center_x, center_y))
+            logger.info("Adding OTA %s, center @ %d, %d" % (extname, center_x, center_y))
 
             data = hdu_ref[i].data
             if (bpmdir != None):
                 bpmfile = "%s/bpm_xy%s.reg" % (bpmdir, extname[3:5])
+                logger.debug("Masking bad pixels from %s" % (bpmfile))
                 mask_broken_regions(data, bpmfile, verbose=False)
 
             #hdus.append(hdu_ref[i])
             #centers.append((center_y, center_x))
 
             data = hdu_ref[i].data
-            print "data-shape=",data.shape
+            #print "data-shape=",data.shape
 
             # Convert into radii and angles to make sure we can subtract the background
             binned, radius, angle = get_radii_angles(data, (center_y, center_x), binfac)
-            print binned.shape, radius.shape, angle.shape, (center_y, center_x)
+            #print binned.shape, radius.shape, angle.shape, (center_y, center_x)
 
             # Fit and subtract the background
             bgsub = subtract_background(binned, radius, angle, radius_range, binfac)
@@ -205,7 +221,7 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
             bx = combined.shape[1] / 2 - center_x/binfac
             by = combined.shape[0] / 2 - center_y/binfac
             tx, ty = bx + bgsub.shape[0], by + bgsub.shape[1]
-            print "insert target: x=", bx, tx, "y=", by, ty
+            #print "insert target: x=", bx, tx, "y=", by, ty
             #combined[bx:tx, by:ty] = binned #bgsub[:,:]
             combined[by:ty, bx:tx] = bgsub[:,:]
 
@@ -213,8 +229,8 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
             combined_rotated = rotate_around_center(combined, rotator_angle, mask_nans=True, spline_order=1)
 
             imghdu = pyfits.ImageHDU(data=combined_rotated)
-            imghdu.header.update('EXTNAME', extname)
-            imghdu.header.update('ROTANGLE', rotator_angle)
+            imghdu.header['EXTNAME'] = extname
+            imghdu.header['ROTANGLE'] = rotator_angle
 
             imghdu.header['OTA'] = int(extname[3:5])
             imghdu.header['PGCNTRFX'] = fx
@@ -225,9 +241,11 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
             imghdu.header['PGCNTRVR'] = vr
 
             hdulist.append(imghdu)
+            logger.info("Done with OTA")
 
             #break
 
+    logger.info("All done!")
     HDUlist = pyfits.HDUList(hdulist)
     HDUlist.writeto(output_filename, clobber=True)
 
@@ -249,8 +267,10 @@ def subtract_background(data, radius, angle, radius_range, binfac):
     - binfac (the binning used for the data)
     """
 
+    logger = logging.getLogger("BGSub")
+
     # Compute the radial bin size in binned pixels
-    print "subtracting background - binfac=",binfac
+    logger.debug("subtracting background - binfac=%d" % (binfac))
     r_inner, r_outer, dr_full = radius_range
     dr = dr_full/binfac
     r_inner /= binfac
@@ -268,7 +288,7 @@ def subtract_background(data, radius, angle, radius_range, binfac):
     # Compute the background level as a linear interpolation of the levels 
     # inside and outside of the pupil ghost
     #
-    stdout_write("   Computing background-level ...")
+    logger.info("Computing background-level ...")
     # Define the background ring levels
     radii = numpy.arange(0, max_radius, dr)
     background_levels = numpy.zeros(shape=(n_radii))
@@ -296,15 +316,15 @@ def subtract_background(data, radius, angle, radius_range, binfac):
     # only linearly (if at all) with radius
     # define our (line) fitting function
     
-    print "XXXXXXX", radii.shape, background_levels.shape
+    #print "XXXXXXX", radii.shape, background_levels.shape
     numpy.savetxt("radial__%s" % ("x"),
                   numpy.append(radii.reshape((-1,1)),
                                background_levels.reshape((-1,1)), axis=1))
-    print "saved"
+    #print "saved"
 
     # Find average intensity at the largest radii
     avg_level = bottleneck.nanmedian(background_levels[radii>4000])
-    print "avg_level=",avg_level
+    #print "avg_level=",avg_level
 
     #
     # Normalize profile
@@ -312,7 +332,7 @@ def subtract_background(data, radius, angle, radius_range, binfac):
     normalize_region = ((radii < 1100) & (radii > 600)) |  \
                        ((radii > 4000) & (radii < 4600))
     normalize_flux = numpy.mean(background_levels[normalize_region])
-    print "normalization flux =", normalize_flux
+    #print "normalization flux =", normalize_flux
 
     #
     # Use the profile and fit a spline to the underlying shape
@@ -546,6 +566,9 @@ def compute_angular_misalignment(header, l=256):
 #################################
 if __name__ == "__main__":
 
+    options = read_options_from_commandline(None)
+    podi_logging.setup_logging(options)
+    
     print """\
 
   fit-pupilghost tool
@@ -604,6 +627,8 @@ if __name__ == "__main__":
 
         for inputfile in filenames:
             make_pupilghost_slice(inputfile, binfac, bpmdir, radius_range, clobber=False)
+
+    podi_logging.shutdown_logging(options)
 
     sys.exit(0)
 
