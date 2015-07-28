@@ -33,6 +33,9 @@ import math
 import scipy.optimize
 import bottleneck
 import dev_pgcenter
+import multiprocessing
+from astLib import astWCS
+
 
 from podi_definitions import *
 from podi_commandline import *
@@ -131,11 +134,87 @@ def get_radii_angles(data_fullres, center, binfac, verbose=False):
 
 
 
-def mp_pupilghost_slice(job_queue, return_queue, bpmdir, binfac):
+def mp_pupilghost_slice(job_queue, result_queue, bpmdir, binfac):
+
+    _logger = logging.getLogger("MPSlice")
+    _logger.info("Worker started")
 
     while (True):
-        break
 
+        task = job_queue.get()
+        if (task == None):
+            job_queue.task_done()
+            break
+
+        filename, extname = task
+
+        _, bn = os.path.split(filename)
+        logger = logging.getLogger("%s(%s)" % (bn[:-5], extname))
+        logger.debug("Starting work")
+
+        hdulist = pyfits.open(filename)
+        input_hdu = hdulist[extname]
+        rotator_angle = hdulist[0].header['ROTSTART'] 
+
+        logger.info("Searching for center ...")
+        fx, fy, fr, vx, vy, vr = dev_pgcenter.find_pupilghost_center(input_hdu, verbose=False)
+        center_x = vx
+        center_y = vy
+
+
+        #stdout_write("Using center position %d, %d for OTA %s\n" % (center_y, center_x, extname))
+        logger.info("Adding OTA %s, center @ %d, %d" % (extname, center_x, center_y))
+
+        data = input_hdu.data
+        if (bpmdir != None):
+            bpmfile = "%s/bpm_xy%s.reg" % (bpmdir, extname[3:5])
+            logger.debug("Masking bad pixels from %s" % (bpmfile))
+            mask_broken_regions(data, bpmfile, verbose=False)
+
+        # Convert into radii and angles to make sure we can subtract the background
+        binned, radius, angle = get_radii_angles(data, (center_y, center_x), binfac)
+        #print binned.shape, radius.shape, angle.shape, (center_y, center_x)
+
+        # Fit and subtract the background
+        bgsub = subtract_background(binned, radius, angle, radius_range, binfac)
+
+        #
+        # Insert this rawframe into the larger frame
+        #
+        combined = numpy.zeros(shape=(9000/binfac,9000/binfac), dtype=numpy.float32)
+        combined[:,:] = numpy.NaN
+
+        # Use center position to add the new frame into the combined frame
+        # bx, by are the pixel position of the bottom left corner of the frame to be inserted
+        bx = combined.shape[1] / 2 - center_x/binfac
+        by = combined.shape[0] / 2 - center_y/binfac
+        tx, ty = bx + bgsub.shape[0], by + bgsub.shape[1]
+        #print "insert target: x=", bx, tx, "y=", by, ty
+        #combined[bx:tx, by:ty] = binned #bgsub[:,:]
+        combined[by:ty, bx:tx] = bgsub[:,:]
+
+        angle_mismatch = compute_angular_misalignment(input_hdu.header)
+
+        # Rotated around center to match the ROTATOR angle from the fits header
+        full_angle = rotator_angle + angle_mismatch
+        combined_rotated = rotate_around_center(combined, rotator_angle, mask_nans=True, spline_order=1)
+
+        imghdu = pyfits.ImageHDU(data=combined_rotated)
+        imghdu.header['EXTNAME'] = extname
+        imghdu.header['ROTANGLE'] = rotator_angle
+
+        imghdu.header['OTA'] = int(extname[3:5])
+        imghdu.header['PGCNTRFX'] = fx
+        imghdu.header['PGCNTRFY'] = fy
+        imghdu.header['PGCNTRFR'] = fr
+        imghdu.header['PGCNTRVX'] = vx
+        imghdu.header['PGCNTRVY'] = vy
+        imghdu.header['PGCNTRVR'] = vr
+
+        result_queue.put((imghdu,extname))
+        job_queue.task_done()
+
+    _logger.info("Worker shutting down")
     return
 
 
@@ -167,6 +246,27 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
 
     hdulist = [pyfits.PrimaryHDU()]
 
+    job_queue = multiprocessing.JoinableQueue()
+    result_queue = multiprocessing.Queue()
+
+    #
+    # Start workers
+    #
+    processes = []
+    for i in range(2):
+        p = multiprocessing.Process(
+            target=mp_pupilghost_slice,
+            kwargs={
+                'job_queue': job_queue,
+                'result_queue': result_queue,
+                'bpmdir': bpmdir,
+                'binfac': binfac,
+                },
+            )
+        p.start()
+        processes.append(p)
+
+    jobs_ordered = 0
     for i in range(1, len(hdu_ref)):
 
         extname = hdu_ref[i].header['EXTNAME']
@@ -181,67 +281,24 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
             # old method: use fixed values
             # center_x, center_y = pupilghost_centers[extname]
 
-            input_hdu = hdu_ref[i]
+            job_queue.put((filename, extname))
+            jobs_ordered += 1
 
-            fx, fy, fr, vx, vy, vr = dev_pgcenter.find_pupilghost_center(input_hdu, verbose=False)
-            center_x = vx
-            center_y = vy
+    #
+    # Send quit command
+    # 
+    for p in processes:
+        job_queue.put(None)
+        
+    #
+    # Collect results
+    #
+    for i in range(jobs_ordered):
+        result = result_queue.get()
 
-
-            #stdout_write("Using center position %d, %d for OTA %s\n" % (center_y, center_x, extname))
-            logger.info("Adding OTA %s, center @ %d, %d" % (extname, center_x, center_y))
-
-            data = hdu_ref[i].data
-            if (bpmdir != None):
-                bpmfile = "%s/bpm_xy%s.reg" % (bpmdir, extname[3:5])
-                logger.debug("Masking bad pixels from %s" % (bpmfile))
-                mask_broken_regions(data, bpmfile, verbose=False)
-
-            #hdus.append(hdu_ref[i])
-            #centers.append((center_y, center_x))
-
-            data = hdu_ref[i].data
-            #print "data-shape=",data.shape
-
-            # Convert into radii and angles to make sure we can subtract the background
-            binned, radius, angle = get_radii_angles(data, (center_y, center_x), binfac)
-            #print binned.shape, radius.shape, angle.shape, (center_y, center_x)
-
-            # Fit and subtract the background
-            bgsub = subtract_background(binned, radius, angle, radius_range, binfac)
-
-            #
-            # Insert this rawframe into the larger frame
-            #
-            combined = numpy.zeros(shape=(9000/binfac,9000/binfac), dtype=numpy.float32)
-            combined[:,:] = numpy.NaN
-
-            # Use center position to add the new frame into the combined frame
-            # bx, by are the pixel position of the bottom left corner of the frame to be inserted
-            bx = combined.shape[1] / 2 - center_x/binfac
-            by = combined.shape[0] / 2 - center_y/binfac
-            tx, ty = bx + bgsub.shape[0], by + bgsub.shape[1]
-            #print "insert target: x=", bx, tx, "y=", by, ty
-            #combined[bx:tx, by:ty] = binned #bgsub[:,:]
-            combined[by:ty, bx:tx] = bgsub[:,:]
-
-            # Rotated around center to match the ROTATOR angle from the fits header
-            combined_rotated = rotate_around_center(combined, rotator_angle, mask_nans=True, spline_order=1)
-
-            imghdu = pyfits.ImageHDU(data=combined_rotated)
-            imghdu.header['EXTNAME'] = extname
-            imghdu.header['ROTANGLE'] = rotator_angle
-
-            imghdu.header['OTA'] = int(extname[3:5])
-            imghdu.header['PGCNTRFX'] = fx
-            imghdu.header['PGCNTRFY'] = fy
-            imghdu.header['PGCNTRFR'] = fr
-            imghdu.header['PGCNTRVX'] = vx
-            imghdu.header['PGCNTRVY'] = vy
-            imghdu.header['PGCNTRVR'] = vr
-
-            hdulist.append(imghdu)
-            logger.info("Done with OTA")
+        imghdu, extname = result
+        hdulist.append(imghdu)
+        logger.info("Done with OTA %s" % (extname))
 
             #break
 
@@ -487,7 +544,7 @@ def create_radial_pupilghost(filename, outputfile, radial_opts, verbose=True):
 
         # and save the pupil ghost
         hdulist[ext].data = radial_pupilghost
-        stdout_write(" done!\n")
+        #stdout_write(" done!\n")
 
     # Now we are done with all profiles, write the results to the output file
     clobberfile(outputfile)
@@ -602,8 +659,6 @@ if __name__ == "__main__":
 
 
     elif (cmdline_arg_isset("-angles")):
-
-        from astLib import astWCS
 
         filename = get_clean_cmdline()[1]
         hdulist = pyfits.open(filename)
