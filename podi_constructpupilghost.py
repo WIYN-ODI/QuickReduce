@@ -200,8 +200,8 @@ def mp_pupilghost_slice(job_queue, result_queue, bpmdir, binfac):
 
         # Rotated around center to match the ROTATOR angle from the fits header
         full_angle = rotator_angle + angle_mismatch
-        #combined_rotated = rotate_around_center(combined, rotator_angle, mask_nans=True, spline_order=1)
-        combined_rotated = combined
+        combined_rotated = rotate_around_center(combined, rotator_angle, mask_nans=True, spline_order=1)
+        #combined_rotated = combined
 
         imghdu = pyfits.ImageHDU(data=combined_rotated)
         imghdu.header['EXTNAME'] = extname
@@ -312,12 +312,13 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
     # Create some keywords to report what was done
     #
     norm_angle = numpy.round(rotator_angle if rotator_angle > 0 else rotator_angle + 360.)
-    center_str = ""
+    centerf_str = centerv_str = ""
     ota_str = ""
     for extname in pupilghost_centers:
         fx, fy, fr, vx, vy, vr = centerings[extname]
         ota_str += "%s;" % (extname)
-        center_str += "%+05d,%05d;" % (vx, vy)
+        centerv_str += "%+05d,%+05d;" % (vx, vy)
+        centerf_str += "%+05d,%+05d;" % (fx, fy)
 
     
     #
@@ -328,7 +329,8 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
 
     comb_hdu = pyfits.ImageHDU(data=combined)
     comb_hdu.name = "COMBINED"
-    comb_hdu.header['CNTR_%03d' % (norm_angle)] = center_str[:-1]
+    comb_hdu.header['CNTRF%03d' % (norm_angle)] = centerf_str[:-1]
+    comb_hdu.header['CNTRV%03d' % (norm_angle)] = centerv_str[:-1]
     comb_hdu.header['OTAORDER'] = ota_str[:-1]
     hdulist.append(comb_hdu)
     
