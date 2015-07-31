@@ -35,7 +35,7 @@ import bottleneck
 import dev_pgcenter
 import multiprocessing
 from astLib import astWCS
-
+import podi_showassociations as podi_associations
 
 from podi_definitions import *
 from podi_commandline import *
@@ -69,9 +69,10 @@ def get_median_level(data, radii, ri, ro):
 
 
 
-def fit_spline_background(radii, flux):
+def fit_spline_background(radii, flux, logger=None):
 
-    logger = logging.getLogger("FitSpline")
+    if (logger == None):
+        logger = logging.getLogger("FitSpline")
 
     # data = numpy.loadtxt("/home/work/odi_commissioning/pupilghost/radial__x")
     bad = numpy.isnan(radii) | numpy.isnan(flux)
@@ -179,7 +180,7 @@ def mp_pupilghost_slice(job_queue, result_queue, bpmdir, binfac):
         #print binned.shape, radius.shape, angle.shape, (center_y, center_x)
 
         # Fit and subtract the background
-        bgsub = subtract_background(binned, radius, angle, radius_range, binfac)
+        bgsub = subtract_background(binned, radius, angle, radius_range, binfac, logger=logger)
 
         #
         # Insert this rawframe into the larger frame
@@ -342,6 +343,16 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
 
     hdulist[0].header['RNDANGLE'] = norm_angle
 
+    #
+    # Copy the associations table
+    #
+    try:
+        assoctable = hdu_ref['ASSOCIATIONS']
+        logger.debug("Transfering the assocations table")
+        hdulist.append(assoctable)
+    except:
+        logger.warning("No associations table found, unable to transfer table")
+
     logger.info("All done!")
     HDUlist = pyfits.HDUList(hdulist)
     HDUlist.writeto(output_filename, clobber=True)
@@ -349,7 +360,7 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
     return rotator_angle, norm_angle
 
 
-def subtract_background(data, radius, angle, radius_range, binfac):
+def subtract_background(data, radius, angle, radius_range, binfac, logger=None):
     """
     This routine takes the input in polar coordinates and fits a straight line
     to the radial profile inside and outside of the allowed range. This is 
@@ -364,7 +375,8 @@ def subtract_background(data, radius, angle, radius_range, binfac):
     - binfac (the binning used for the data)
     """
 
-    logger = logging.getLogger("BGSub")
+    if (logger == None):
+        logger = logging.getLogger("BGSub")
 
     # Compute the radial bin size in binned pixels
     logger.debug("subtracting background - binfac=%d" % (binfac))
@@ -434,7 +446,7 @@ def subtract_background(data, radius, angle, radius_range, binfac):
     #
     # Use the profile and fit a spline to the underlying shape
     #
-    spl = fit_spline_background(radii, background_levels)
+    spl = fit_spline_background(radii, background_levels, logger=logger)
 
     # #
     # # Subtract background and normalize all measurements
@@ -656,7 +668,7 @@ def compute_angular_misalignment(header, l=256):
     return angle_error
 
 
-def combine_pupilghost_slices(out_filename, filelist):
+def combine_pupilghost_slices(out_filename, filelist, op='sigclipmean'):
 
     logger = logging.getLogger("CombinePG")
 
@@ -669,7 +681,12 @@ def combine_pupilghost_slices(out_filename, filelist):
     rotangles = numpy.ones(len(filelist)) * -9999
     headers = [None] * len(filelist)
 
+    #
+    # Prepare the association data
+    #
+    assoc_table = {}
     logger.info("Reading data from input files")
+
     for idx, fn in enumerate(filelist):
         hdulist = pyfits.open(fn)
         
@@ -685,6 +702,17 @@ def combine_pupilghost_slices(out_filename, filelist):
         # comb_hdu.header['ALPHA%03d' % (norm_angle)] = (d_angle_str[:-1], "OTA angle [arcmin]")
         # comb_hdu.header['OTAORDER'] = ota_str[:-1]
 
+        this_assoc = {'pupilghost-slice': fn }
+        assoc_table = collect_reduction_files_used(assoc_table, this_assoc)
+
+        # Read the assocation table of this frame
+        in_assoc  = podi_associations.read_associations(hdulist)
+        if (not in_assoc == None):
+            logger.debug("Found assocations:\n%s" % (str(in_assoc)))
+            assoc_table = collect_reduction_files_used(assoc_table, in_assoc)
+
+#    return
+
     #
     # Now sort the rotator angles from smallest to largest
     #
@@ -697,12 +725,14 @@ def combine_pupilghost_slices(out_filename, filelist):
     combined_hdulist = podi_imcombine.imcombine(
         filelist, 
         outputfile=None,
-        operation='sigmaclipmean', #nanmean.bn',
+        operation=op, #nanmean.bn',
         return_hdu=True,
         subtract=None, scale=None)
 
     print combined_hdulist
     combined = combined_hdulist['COMBINED']
+
+    combined.header['STACK_OP'] = op
 
     #
     # Add the sorted keywords back into the resulting file
@@ -743,9 +773,11 @@ def combine_pupilghost_slices(out_filename, filelist):
         podi_logging.log_exception()
         pass
 
-    
+    print assoc_table
+    assoc_hdu = create_association_table(assoc_table)
+
     logger.info("Writing output to %s" % (out_filename))
-    out_hdulist = pyfits.HDUList([primhdu, combined])
+    out_hdulist = pyfits.HDUList([primhdu, combined, assoc_hdu])
     out_hdulist.writeto(out_filename, clobber=True)
 
     logger.info("Work complete!")
