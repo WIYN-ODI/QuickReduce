@@ -408,6 +408,8 @@ def imcombine_subprocess(extension, filelist, shape, operation, queue, verbose,
 def imcombine(input_filelist, outputfile, operation, return_hdu=False,
               subtract=None, scale=None):
 
+    logger = logging.getLogger("ImCombine")
+
     # First loop over all filenames and make sure all files exist
     filelist = []
     for file in input_filelist:
@@ -415,8 +417,11 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
             filelist.append(file)
 
     if (len(filelist) <= 0):
-        stdout_write("No existing files found in input list, hence nothing to do!\n")
+        logger.error("No existing files found in input list, hence nothing to do!\n")
         return None
+
+    logger.debug("Stacking the following files:\n -- %s" % ("\n -- ".join(filelist)))
+
     # elif (len(filelist) == 1):
     #     # stdout_write("Only 1 file to combine, save the hassle and copy the file!\n")
     #     hdulist = pyfits.open(filelist[0])
@@ -449,6 +454,7 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
         ref_fppos = ref_hdulist[cur_ext].header['EXTNAME']
 
         stdout_write("\rCombining frames for OTA %s (#% 2d/% 2d) ..." % (ref_fppos, cur_ext, len(ref_hdulist)-1))
+        logger.debug("Combining frames for OTA %s (#% 2d/% 2d) ..." % (ref_fppos, cur_ext, len(ref_hdulist)-1))
 
         #
         # Add some weird-looking construct to move the memory allocation and actual 
@@ -478,7 +484,7 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
         del p
 
         if (verbose): stdout_write(" done, creating fits extension ...")
-
+        logger.debug("done with computing, creating fits extension ...")
         # Create new ImageHDU, insert the imcombined's data and copy the 
         # header from the reference frame
         hdu = pyfits.ImageHDU(data=combined, header=ref_hdulist[cur_ext].header)
@@ -496,6 +502,8 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
         dirname, filename = os.path.split(file)
         filenames_only.append(filename)
 
+    logger.debug("Adding association data to output file")
+
     out_hdulist[0].header["NCOMBINE"] = (len(filenames_only), "number of combined files")
 
     columns = [
@@ -512,7 +520,7 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
     #
     out_hdu = pyfits.HDUList(out_hdulist)
     if (not return_hdu and outputfile != None):
-        stdout_write(" writing results to file %s ..." % (outputfile))
+        logger.debug(" writing results to file %s ..." % (outputfile))
         clobberfile(outputfile)
         out_hdu.writeto(outputfile, clobber=True)
         out_hdu.close()
@@ -520,10 +528,10 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
         del out_hdulist
         stdout_write(" done!\n")
     elif (return_hdu):
-        stdout_write(" returning HDU for further processing ...\n")
+        logger.debug(" returning HDU for further processing ...")
         return out_hdu
     else:
-        stdout_write(" couldn't write output file, no filename given!\n")
+        logger.debug(" couldn't write output file, no filename given!")
 
     return None
 
