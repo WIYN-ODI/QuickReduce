@@ -1865,8 +1865,8 @@ def collectcells(input, outputfile,
 
     **********************************************************************
     * This is podi_collectcells                                          *
-    * (c) 2012-2013: Ralf Kotulla, kotulla@uwm.edu                       *
-    *                University of Wisconsin (Milwaukee & Madison)       *
+    * (c) 2012-2015: Ralf Kotulla, kotulla@wisc.edu                      *
+    *                University of Wisconsin - Madison                   *
     *                WIYN Observatory, Inc                               *
     *                                                                    *
     * Please acknowledge the author when using any products generated    *
