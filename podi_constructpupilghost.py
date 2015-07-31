@@ -200,8 +200,8 @@ def mp_pupilghost_slice(job_queue, result_queue, bpmdir, binfac):
 
         # Rotated around center to match the ROTATOR angle from the fits header
         full_angle = rotator_angle + angle_mismatch
-        combined_rotated = rotate_around_center(combined, rotator_angle, mask_nans=True, spline_order=1)
-        #combined_rotated = combined
+        #combined_rotated = rotate_around_center(combined, rotator_angle, mask_nans=True, spline_order=1)
+        combined_rotated = combined
 
         imghdu = pyfits.ImageHDU(data=combined_rotated)
         imghdu.header['EXTNAME'] = extname
@@ -215,7 +215,7 @@ def mp_pupilghost_slice(job_queue, result_queue, bpmdir, binfac):
         imghdu.header['PGCNTRVY'] = vy
         imghdu.header['PGCNTRVR'] = vr
 
-        result_queue.put((imghdu,extname, centering))
+        result_queue.put((imghdu,extname, centering, angle_mismatch))
         job_queue.task_done()
 
     _logger.info("Worker shutting down")
@@ -299,27 +299,30 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
     #
     centerings = {}
     all_datas = []
+    d_angles = {}
     for i in range(jobs_ordered):
         result = result_queue.get()
 
-        imghdu, extname, centering = result
+        imghdu, extname, centering, angle_mismatch = result
         all_datas.append(imghdu.data)
         hdulist.append(imghdu)
         logger.info("Done with OTA %s" % (extname))
         centerings[extname] = centering
+        d_angles[extname] = angle_mismatch
 
     #
     # Create some keywords to report what was done
     #
     norm_angle = numpy.round(rotator_angle if rotator_angle > 0 else rotator_angle + 360.)
-    centerf_str = centerv_str = ""
+    centerf_str = centerv_str = d_angle_str = ""
     ota_str = ""
     for extname in pupilghost_centers:
         fx, fy, fr, vx, vy, vr = centerings[extname]
         ota_str += "%s;" % (extname)
         centerv_str += "%+05d,%+05d;" % (vx, vy)
         centerf_str += "%+05d,%+05d;" % (fx, fy)
-
+        da = d_angles[extname]
+        d_angle_str += "%+6.1f;" % (da * 60.)
     
     #
     # Now combine the slices from each of the contributing OTAs
@@ -329,9 +332,11 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
 
     comb_hdu = pyfits.ImageHDU(data=combined)
     comb_hdu.name = "COMBINED"
-    comb_hdu.header['CNTRF%03d' % (norm_angle)] = centerf_str[:-1]
-    comb_hdu.header['CNTRV%03d' % (norm_angle)] = centerv_str[:-1]
+    comb_hdu.header['CNTRF%03d' % (norm_angle)] = (centerf_str[:-1], "PG center, fixed r [px]")
+    comb_hdu.header['CNTRV%03d' % (norm_angle)] = (centerv_str[:-1], "PG center, var. r [px]")
+    comb_hdu.header['ALPHA%03d' % (norm_angle)] = (d_angle_str[:-1], "OTA angle [arcmin]")
     comb_hdu.header['OTAORDER'] = ota_str[:-1]
+    comb_hdu.header['ROTANGLE'] = rotator_angle
     hdulist.append(comb_hdu)
     
     logger.info("All done!")
@@ -647,6 +652,68 @@ def compute_angular_misalignment(header, l=256):
 
     return angle_error
 
+
+def combine_pupilghost_slices(out_filename, filelist):
+
+    logger = logging.getLogger("CombinePG")
+
+    # 
+    # Gather information about rotation angles and center positions
+    # Also collect the association data.
+    #
+    rotangles = numpy(len(filelist))
+    headers = [None] * len(filelist)
+
+    logger.info("Reading data from input files")
+    for idx, fn in enumerate(filelist):
+        hdulist = pyfits.open(fn)
+        
+        # Read the center and angle keywords from the "COMBINED" extension
+        comb_hdu = hdulist['COMBINED']
+        _ra = comb_hduheader['ROTANGLE']
+        rotangle[idx] = _ra
+        headers[idx] = comb_hdu.header
+        logger.debug("%s: %.2f" % (fn, _ra))
+        
+        # comb_hdu.header['CNTRF%03d' % (norm_angle)] = (centerf_str[:-1], "PG center, fixed r [px]")
+        # comb_hdu.header['CNTRV%03d' % (norm_angle)] = (centerv_str[:-1], "PG center, var. r [px]")
+        # comb_hdu.header['ALPHA%03d' % (norm_angle)] = (d_angle_str[:-1], "OTA angle [arcmin]")
+        # comb_hdu.header['OTAORDER'] = ota_str[:-1]
+
+    #
+    # Now sort the rotator angles from smallest to largest
+    #
+    angle_sort = numpy.argsort(rotangles)
+
+    #
+    # Combine all frames
+    #
+    logger.info("Stacking all slices into master pupilghost template")
+    combined = podi_imcombine.imcombine(
+        filelist, 
+        outputfile=None,
+        operation='nanmean.bn',
+        return_hdu=False,
+        subtract=None, scale=None)
+
+    #
+    # Add the sorted keywords back into the resulting file
+    #
+    logger.info("Adding metadata")
+    for header in ['CNTRF%03d', 'CNTRV%03d', 'ALPHA%03d']:
+        for i in range(rotangles.shape[0]):
+            idx = angle_sort[i]
+            rotangle = rotangles[idx]
+            keyname = header % rotangle
+            combined.header[keyname] = headers[idx][keyname]
+    combined.header['OTAORDER'] = headers[0]['OTAORDER']
+    
+    logger.info("Writing output to %s" % (out_filename))
+    out_hdulist = pyfits.HDUList([pyfits.PrimaryHDU(), combined])
+    out_hdulist.writeto(out_filename, clobber=True)
+
+    logger.info("Work complete!")
+
 #################################
 #
 # Important note:
@@ -702,6 +769,15 @@ if __name__ == "__main__":
      
             angle_error = compute_angular_misalignment(ext.header)
             print "Angle_Misalignment (%s) = %f deg" % (ext.name, angle_error)
+
+    elif (cmdline_arg_isset("-combine")):
+
+        out_filename = get_clean_cmdline()[1]
+        filelist = get_clean_cmdline()[2:]
+
+        # combine all images
+        combine_pupilghost_slices(out_filename, filelist)
+
     else:
         r_inner = float(cmdline_arg_set_or_default("-ri",  700))
         r_outer = float(cmdline_arg_set_or_default("-ro", 4000))
