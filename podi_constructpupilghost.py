@@ -200,8 +200,8 @@ def mp_pupilghost_slice(job_queue, result_queue, bpmdir, binfac):
 
         # Rotated around center to match the ROTATOR angle from the fits header
         full_angle = rotator_angle + angle_mismatch
-        #combined_rotated = rotate_around_center(combined, rotator_angle, mask_nans=True, spline_order=1)
-        combined_rotated = combined
+        combined_rotated = rotate_around_center(combined, full_angle, mask_nans=True, spline_order=1)
+        #combined_rotated = combined
 
         imghdu = pyfits.ImageHDU(data=combined_rotated)
         imghdu.header['EXTNAME'] = extname
@@ -257,7 +257,7 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
     # Start workers
     #
     processes = []
-    for i in range(3):
+    for i in range(4):
         p = multiprocessing.Process(
             target=mp_pupilghost_slice,
             kwargs={
@@ -337,13 +337,16 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
     comb_hdu.header['ALPHA%03d' % (norm_angle)] = (d_angle_str[:-1], "OTA angle [arcmin]")
     comb_hdu.header['OTAORDER'] = ota_str[:-1]
     comb_hdu.header['ROTANGLE'] = rotator_angle
+    comb_hdu.header['RNDANGLE'] = norm_angle
     hdulist.append(comb_hdu)
-    
+
+    hdulist[0].header['RNDANGLE'] = norm_angle
+
     logger.info("All done!")
     HDUlist = pyfits.HDUList(hdulist)
     HDUlist.writeto(output_filename, clobber=True)
 
-    return rotator_angle
+    return rotator_angle, norm_angle
 
 
 def subtract_background(data, radius, angle, radius_range, binfac):
@@ -657,11 +660,13 @@ def combine_pupilghost_slices(out_filename, filelist):
 
     logger = logging.getLogger("CombinePG")
 
+    print filelist
+    
     # 
     # Gather information about rotation angles and center positions
     # Also collect the association data.
     #
-    rotangles = numpy(len(filelist))
+    rotangles = numpy.ones(len(filelist)) * -9999
     headers = [None] * len(filelist)
 
     logger.info("Reading data from input files")
@@ -670,8 +675,8 @@ def combine_pupilghost_slices(out_filename, filelist):
         
         # Read the center and angle keywords from the "COMBINED" extension
         comb_hdu = hdulist['COMBINED']
-        _ra = comb_hduheader['ROTANGLE']
-        rotangle[idx] = _ra
+        _ra = comb_hdu.header['ROTANGLE']
+        rotangles[idx] = _ra if _ra > 0 else _ra + 360.
         headers[idx] = comb_hdu.header
         logger.debug("%s: %.2f" % (fn, _ra))
         
@@ -689,27 +694,58 @@ def combine_pupilghost_slices(out_filename, filelist):
     # Combine all frames
     #
     logger.info("Stacking all slices into master pupilghost template")
-    combined = podi_imcombine.imcombine(
+    combined_hdulist = podi_imcombine.imcombine(
         filelist, 
         outputfile=None,
-        operation='nanmean.bn',
-        return_hdu=False,
+        operation='sigmaclipmean', #nanmean.bn',
+        return_hdu=True,
         subtract=None, scale=None)
+
+    print combined_hdulist
+    combined = combined_hdulist['COMBINED']
 
     #
     # Add the sorted keywords back into the resulting file
     #
     logger.info("Adding metadata")
-    for header in ['CNTRF%03d', 'CNTRV%03d', 'ALPHA%03d']:
-        for i in range(rotangles.shape[0]):
-            idx = angle_sort[i]
-            rotangle = rotangles[idx]
-            keyname = header % rotangle
-            combined.header[keyname] = headers[idx][keyname]
-    combined.header['OTAORDER'] = headers[0]['OTAORDER']
+    primhdu = pyfits.PrimaryHDU()
+    
+    try:
+        prev_hdr = None
+        for header, label in [
+                ('CNTRF%03d', "center, fixed radius"), 
+                ('CNTRV%03d', "center, var. radius"),
+                ('ALPHA%03d', "angle mismatch [arcmin]"),
+        ]:
+            first_hdr = None
+            for i in range(rotangles.shape[0]):
+                idx = angle_sort[i]
+                rotangle = rotangles[idx]
+                round_angle = headers[idx]['RNDANGLE']
+                keyname = header % round_angle
+                #logger.info("Adding key: %s" % (keyname))
+                combined.header[keyname] = headers[idx][keyname]
+                #primhdu.header[keyname] = headers[idx][keyname]
+                first_hdr = keyname if first_hdr == None else first_hdr
+                if (prev_hdr == None):
+                    print "adding header",keyname," somewhere"
+                    primhdu.header.append((keyname, headers[idx][keyname]))
+                    prev_hdr = keyname
+                else:
+                    print "adding header",keyname,"after",prev_hdr
+                    primhdu.header.insert(prev_hdr, (keyname, headers[idx][keyname]), after=True)
+                prev_hdr = keyname
+
+            add_fits_header_title(primhdu.header, label, first_hdr)
+
+        combined.header['OTAORDER'] = headers[0]['OTAORDER']
+    except:
+        podi_logging.log_exception()
+        pass
+
     
     logger.info("Writing output to %s" % (out_filename))
-    out_hdulist = pyfits.HDUList([pyfits.PrimaryHDU(), combined])
+    out_hdulist = pyfits.HDUList([primhdu, combined])
     out_hdulist.writeto(out_filename, clobber=True)
 
     logger.info("Work complete!")
