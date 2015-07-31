@@ -870,8 +870,8 @@ def rotate_around_center(data, angle, mask_limit = 0.1, verbose=True, safety=1, 
     Rotate a given data array. Rotation center is the center of the data frame.
 
     """
-    if (verbose):
-        stdout_write("Rotating data block by %.1f deg ..." % (angle))
+    logger = logging.getLogger("RotateFrame")
+    logger.debug("Rotating data block by %.1f deg ..." % (angle))
 
     # Prepare mask so we can mask out undefined regions
     mask = numpy.zeros(shape=data.shape)
@@ -887,6 +887,7 @@ def rotate_around_center(data, angle, mask_limit = 0.1, verbose=True, safety=1, 
                                                  mode='constant', cval=0, )
 
     if (mask_nans):
+        logger.debug("masking NaNs")
         rotated_mask = scipy.ndimage.interpolation.rotate(input=mask, angle=angle, axes=(1, 0), 
                                                           reshape=False, order=1,
                                                           mode='constant', cval=1, )
@@ -901,7 +902,7 @@ def rotate_around_center(data, angle, mask_limit = 0.1, verbose=True, safety=1, 
         rotated[filter_gaussed > mask_limit] = numpy.NaN
         
     # and return the results
-    if (verbose): stdout_write(" done!\n")
+    logger.debug("done!")
     return rotated
 
 
