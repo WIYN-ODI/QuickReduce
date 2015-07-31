@@ -140,7 +140,7 @@ def get_radii_angles(data_fullres, center, binfac, verbose=False):
 def mp_pupilghost_slice(job_queue, result_queue, bpmdir, binfac):
 
     _logger = logging.getLogger("MPSlice")
-    _logger.info("Worker started")
+    _logger.debug("Worker started")
 
     while (True):
 
@@ -219,7 +219,7 @@ def mp_pupilghost_slice(job_queue, result_queue, bpmdir, binfac):
         result_queue.put((imghdu,extname, centering, angle_mismatch))
         job_queue.task_done()
 
-    _logger.info("Worker shutting down")
+    _logger.debug("Worker shutting down")
     return
 
 
@@ -233,7 +233,7 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
     centers = []
 
     rotator_angle = hdu_ref[0].header['ROTSTART'] 
-    logger.info("\nLoading frame %s ...\n" % (filename))
+    logger.info("Loading frame %s ..." % (filename))
 
     #combined_file = "pg_combined_%+04d.fits" % numpy.around(rotator_angle)
     #print "combined-file:",combined_file
