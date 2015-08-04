@@ -2067,7 +2067,7 @@ def collectcells(input, outputfile,
     ota_list[0].header["PIPELINE"] = (pipeline_name, "pipeline name")
     ota_list[0].header["PLVERSIO"] = (pipeline_version, "pipeline version")
     ota_list[0].header["PLAUTHOR"] = ("Ralf Kotulla", "pipeline author")
-    ota_list[0].header["PLEMAIL"] = ("kotulla@uwm.edu", "contact email")
+    ota_list[0].header["PLEMAIL"] = ("kotulla@wisc.edu", "contact email")
     add_fits_header_title(ota_list[0].header, "Pipeline information", 'PLVER')
     for key, value in options['additional_fits_headers'].iteritems():
         ota_list[0].header[key] = (value, "user-added keyword")
