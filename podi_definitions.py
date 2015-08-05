@@ -1320,7 +1320,10 @@ def create_association_table(master, verbose=False):
         ]
 
     coldefs = pyfits.ColDefs(columns)
-    tbhdu = pyfits.BinTableHDU.from_columns(coldefs)
+    try:
+        tbhdu = pyfits.BinTableHDU.from_columns(coldefs)
+    except:
+        tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
 
     tbhdu.name = "ASSOCIATIONS"
 
