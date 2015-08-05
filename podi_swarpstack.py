@@ -901,6 +901,46 @@ def swarpstack(outputfile,
         params['illumcorr'] = ic_filename
         options['illumcorr_dir'] = ic_filename
 
+    ###########################################################################
+    #
+    # Handle the optional user-requested zeropoint determination based on the 
+    # -best or median options
+    #
+    ###########################################################################
+    if (swarp_params['target_magzero'] in ['best', 'median']):
+        # Load all frames, and get a list of all available magzero headers
+        all_zp = numpy.empty((len(inputlist)))
+        all_zp[:] = numpy.NaN
+        for idx, fn in enumerate(inputlist):
+            if (os.path.isfile(fn)):
+                _hdu = pyfits.open(fn)
+                magzero = _hdu[0].header['PHOTZP_X'] if 'PHOTZP_X' in _hdu[0].header else numpy.NaN
+                logger.debug("ZP (%s) = %.4f" % (fn, magzero))
+                all_zp[idx] = magzero
+        logger.info(str(all_zp))
+        all_zp = all_zp[numpy.isfinite(all_zp)]
+        if (all_zp.shape[0] == 0):
+            final_magzero = 25.
+            logger.warning("Didn't find any valid zeropoints")
+        elif (swarp_params['target_magzero'] == "best"):
+            final_magzero = numpy.max(all_zp)
+            logger.debug("Selecting ''best'' phot. ZP of %.3f" % (final_magzero))
+        elif (swarp_params['target_magzero'] == "median"):
+            final_magzero = numpy.median(all_zp)
+            logger.debug("Selecting ''median'' phot. ZP of %.3f" % (final_magzero))
+        else:
+            logger.error("Problem determing which phot. ZP to use")
+            final_magzero = 25.0
+        swarp_params['target_magzero'] = final_magzero
+    elif (os.path.isfile(swarp_params['target_magzero'])):
+        _hdu = pyfits.open(swarp_params['target_magzero'])
+        magzero = _hdu[0].header['PHOTZP_X'] if 'PHOTZP_X' in _hdu[0].header else 25.0
+        logger.debug("Matching ZP to %s ==> ZP = %.4f" % (swarp_params['target_magzero'], magzero))
+        swarp_params['target_magzero'] = magzero
+    else:
+        swarp_params['target_magzero'] = float(swarp_params['target_magzero'])
+    logger.info("Scaling all frames to common phot. ZP of %.4f" % (swarp_params['target_magzero']))
+
 
     ############################################################################
     #
@@ -1809,7 +1849,7 @@ def read_swarp_params(filelist):
 
     params['huge_frame_allowed'] = cmdline_arg_isset("-huge")
 
-    params['target_magzero'] = float(cmdline_arg_set_or_default("-targetzp", 25.0))
+    params['target_magzero'] = cmdline_arg_set_or_default("-targetzp", 25.0)
 
     params['illumcorr'] = cmdline_arg_set_or_default("-illumcorr", None)
     params['illumcorrfiles'] = cmdline_arg_set_or_default("-illumcorrfiles", None)
