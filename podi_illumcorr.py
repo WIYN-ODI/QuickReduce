@@ -112,8 +112,13 @@ def apply_illumination_correction(input_hdu, illumcorr_hdu, output_file=None):
     if (not type(input_hdu) == pyfits.hdu.hdulist.HDUList):
         input_is_hdu = False
         try:
-            hdu = pyfits.open(input_hdu)
-            input_hdu = hdu
+            if (os.path.isfile(input_hdu)):
+                hdu = pyfits.open(input_hdu)
+                input_hdu = hdu
+            else:
+                logger.error("The specified illumination correction frame (%s) does not exist" % (
+                    str(input_hdu)))
+                return None
         except:
             logger.error("Can't figure out what format input_hdu is in")
             return None
