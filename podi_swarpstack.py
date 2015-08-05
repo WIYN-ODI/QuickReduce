@@ -874,6 +874,35 @@ def swarpstack(outputfile,
 
     ############################################################################
     #
+    # Generate the illumination correction file if this is requested
+    #
+    ############################################################################
+    if (swarp_params['illumcorr'] == "autogenerate" and
+        swarp_params['illumcorrlist'] != None):
+        
+        # Make sure all files exist
+        ic_filelist = []
+        for fn in swarp_params['illumcorrlist'].split(","):
+            if (os.path.isfile(fn)):
+                ic_filelist.append(fn)
+        
+        logger.debug("Using the following files to create an illumination correction:\n -- %s" % (
+            "\n -- ".join(ic_filelist))
+
+        ic_filename = "%s.illumcorr.fits" % (outputfile[:-5])
+        podi_illumcorr.prepare_illumination_correction(
+            filelist=ic_filelist,
+            outfile=ic_filename,
+            tmpdir=unique_singledir,
+            redo=True)
+
+        # Change the internal parameter to use the newly generated
+        # illumination correction file during stacking
+        params['illumcorr'] = ic_filename
+
+
+    ############################################################################
+    #
     # Prepare all QR'ed input files, applying additional corrections where needed
     #
     ############################################################################
@@ -1782,6 +1811,7 @@ def read_swarp_params(filelist):
     params['target_magzero'] = float(cmdline_arg_set_or_default("-targetzp", 25.0))
 
     params['illumcorr'] = cmdline_arg_set_or_default("-illumcorr", None)
+    params['illumcorrfiles'] = cmdline_arg_set_or_default("-illumcorrfiles", None)
 
     return params
 
