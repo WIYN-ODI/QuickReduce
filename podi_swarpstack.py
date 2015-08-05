@@ -899,6 +899,7 @@ def swarpstack(outputfile,
         # Change the internal parameter to use the newly generated
         # illumination correction file during stacking
         params['illumcorr'] = ic_filename
+        options['illumcorr_dir'] = ic_filename
 
 
     ############################################################################
