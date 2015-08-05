@@ -878,16 +878,16 @@ def swarpstack(outputfile,
     #
     ############################################################################
     if (swarp_params['illumcorr'] == "autogenerate" and
-        swarp_params['illumcorrlist'] != None):
+        swarp_params['illumcorrfiles'] != None):
         
         # Make sure all files exist
         ic_filelist = []
-        for fn in swarp_params['illumcorrlist'].split(","):
+        for fn in swarp_params['illumcorrfiles'].split(","):
             if (os.path.isfile(fn)):
                 ic_filelist.append(fn)
         
         logger.debug("Using the following files to create an illumination correction:\n -- %s" % (
-            "\n -- ".join(ic_filelist))
+            "\n -- ".join(ic_filelist)))
 
         ic_filename = "%s.illumcorr.fits" % (outputfile[:-5])
         podi_illumcorr.prepare_illumination_correction(
