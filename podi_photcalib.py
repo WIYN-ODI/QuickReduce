@@ -103,7 +103,6 @@ from podi_commandline import *
 import pyfits
 #import date
 import datetime
-#import pywcs  
 from astLib import astWCS
 import pdb
 import scipy

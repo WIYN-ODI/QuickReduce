@@ -74,7 +74,6 @@ import os
 import pyfits
 import numpy
 import scipy
-import pywcs
 from astLib import astWCS
 import jdcal
 import itertools

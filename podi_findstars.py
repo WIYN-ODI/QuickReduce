@@ -26,7 +26,7 @@ import os
 import pyfits
 import numpy
 import scipy
-import pywcs
+#import pywcs
 from astLib import astWCS
 
 from podi_definitions import *

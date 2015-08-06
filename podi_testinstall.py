@@ -325,7 +325,6 @@ if __name__ == "__main__":
     check_package('pyfits')
     check_package('ephem')
     check_package('astLib')
-    check_package('pywcs')
     check_package('jdcal')
 
     if (not check_package('podi_sitesetup')):
