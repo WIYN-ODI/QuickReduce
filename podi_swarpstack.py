@@ -457,16 +457,27 @@ def prepare_input(inputlist, swarp_params, options):
     # fill queue with files to be processed
     #
     n_jobs = 0
-    for i in range(len(inputlist)):
-        if (not os.path.isfile(inputlist[i])):
+    existing_inputlist = []
+    for fn in inputlist: #i in range(len(inputlist)):
+        if (not os.path.isfile(fn)):
             continue
         try:
-            hdulist = pyfits.open(inputlist[i])
+            hdulist = pyfits.open(fn)
         except IOError:
-            logger.error("Can't open file %s" % (inputlist[i]))
-            inputlist[i] = None
+            logger.error("Can't open file %s" % (fn))
             continue
+        
+        hdulist.close()
+        existing_inputlist.append(fn)
 
+    if (len(existing_inputlist) <= 0):
+        logger.error("No valid files found")
+        return
+
+    wcs_inputlist = []
+    photcal_inputlist = []
+    for idx, fn in enumerate(existing_inputlist):
+        hdulist = pyfits.open(fn)
         #
         # Perform some checks to only include valid frames in the stack
         #
@@ -474,19 +485,35 @@ def prepare_input(inputlist, swarp_params, options):
         if ('WCSCAL' in hdulist[0].header and
             not hdulist[0].header['WCSCAL'] and 
             not swarp_params['ignore_quality_checks']):
-            logger.info("Excluding frame (%s) due to faulty WCS calibration" % (inputlist[i]))
-            inputlist[i] = None
+            logger.info("Excluding frame (%s) due to faulty WCS calibration" % (fn))
+            #good_inputlist[idx] = None
             continue
+
+        wcs_inputlist.append(fn)
+
         # and proper photometric calibration
         if ('MAGZERO' in hdulist[0].header and
             hdulist[0].header['MAGZERO'] <= 0 and
             not swarp_params['no-fluxscale'] and
             not swarp_params['ignore_quality_checks']):
-            logger.info("Excluding frame (%s) due to missing photometric calibration" % (inputlist[i]))
-            inputlist[i] = None
+            logger.info("Excluding frame (%s) due to missing photometric calibration" % (fn))
+            #good_inputlist[idx] = None
             continue
 
-        in_queue.put((inputlist[i],i+1))
+        photcal_inputlist.append(fn)
+
+    if (len(photcal_inputlist) > 0):
+        logger.debug("Restricting input file list to files with valid photoemtric calibration")
+        inputlist = photcal_inputlist
+    elif (len(wcs_inputlist) > 0):
+        logger.warning("No files with photometric calibration found, reverting to list of WCS-calibrated files")
+        inputlist = wcs_inputlist
+    else:
+        logger.warning("No files with WCS and/or photometry found, reverting to unfiltered inputlist")
+        inputlist = existing_inputlist
+
+    for idx, fn in enumerate(inputlist):
+        in_queue.put((fn, idx+1))
         n_jobs += 1
 
     logger.info("Queued %d jobs ..." % (n_jobs))
