@@ -932,13 +932,18 @@ def swarpstack(outputfile,
             logger.error("Problem determing which phot. ZP to use")
             final_magzero = 25.0
         swarp_params['target_magzero'] = final_magzero
-    elif (os.path.isfile(swarp_params['target_magzero'])):
+    elif (type(swarp_params['target_magzero']) == str and
+          os.path.isfile(swarp_params['target_magzero'])):
         _hdu = pyfits.open(swarp_params['target_magzero'])
         magzero = _hdu[0].header['PHOTZP_X'] if 'PHOTZP_X' in _hdu[0].header else 25.0
         logger.debug("Matching ZP to %s ==> ZP = %.4f" % (swarp_params['target_magzero'], magzero))
         swarp_params['target_magzero'] = magzero
     else:
-        swarp_params['target_magzero'] = float(swarp_params['target_magzero'])
+        try:
+            swarp_params['target_magzero'] = float(swarp_params['target_magzero'])
+        except:
+            logger.error("Invalid parameter or file not found: %s" % (str(swarp_params['target_magzero'])))
+            swarp_params['target_magzero'] = 25.0
     logger.info("Scaling all frames to common phot. ZP of %.4f" % (swarp_params['target_magzero']))
 
 
