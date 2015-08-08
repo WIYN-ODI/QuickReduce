@@ -710,6 +710,11 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             return error_return_value
 
 
+    if (std_stars == None or
+        type(std_stars) == numpy.ndarray and std_stars.shape[0] <= 0):
+        # No sources found, report a photometric calibration failure.
+        return error_return_value
+
     #
     # Now go through each of the extension
     # Improve: Change execution to parallel !!!
