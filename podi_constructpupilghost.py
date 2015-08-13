@@ -372,18 +372,22 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False,
     above_10_percent_max = mean_radial_profile > 0.1*numpy.max(mean_radial_profile)
     mean_intensity = numpy.mean(mean_radial_profile[above_10_percent_max])
     mean_intensity_raw = numpy.mean(mean_radial_profile_raw[above_10_percent_max])
+    logger.debug("mean intensities: spline-bgsub: %f  --   linear bgsub: %f" % (
+        mean_intensity, mean_intensity_raw))
 
     # Now compute the scaling factors for each of the quadrants
     scale_all = profiles_matched / mean_radial_profile.reshape((-1,1))
-    scale = numpy.sum(scale_all*profiles_matched, axis=0) / numpy.sum(profiles_matched, axis=0)
+    scale = numpy.sum((scale_all*profiles_matched)[above_10_percent_max], axis=0) \
+            / numpy.sum(profiles_matched[above_10_percent_max], axis=0)
 
     # also fold in the normalization to mean intensity of 1
     final_scale = scale * mean_intensity
-    print final_scale
+    logger.info("Final scaling: %s" % (str(final_scale)))
 
     # and apply the scaling factors to each background-subtracted slice
     for sector in range(len(all_datas)):
-        print sector, final_scale[sector], all_datas[sector]
+        logger.debug("Applying scaling: Sector %d, scale=%8.6f, shape=%d,%d" % (
+            sector+1, final_scale[sector], all_datas[sector].shape[0], all_datas[sector].shape[1]))
         all_datas[sector] /= final_scale[sector]
 
     # also apply the scaling and normalization to the actual profiles to keep 
@@ -444,28 +448,25 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False,
     #
     new_shape = (profiles_matched.shape[0], profiles_matched.shape[1], 1)
 
-    profile_img = numpy.empty((profiles_matched.shape[0], profiles_matched.shape[1]+1, 2))
-    profile_img[:,0,0] = mean_radial_profile
-    profile_img[:,1:,0] = profiles_matched
-    profile_img[:,0,1] = mean_radial_profile_raw
-    profile_img[:,1:,1] = profiles_matched_raw
+    for src in [(mean_radial_profile, profiles_matched, "PROFILE"),
+                (mean_radial_profile_raw, profiles_matched_raw, "RAWPROFILE"),
+                ]:
+        mrp, pm, name = src
 
-    # profile_img = numpy.append(profiles_matched.reshape(new_shape),
-    #                            profiles_matched_raw.reshape(new_shape),
-    #                            axis=2)
+        profile_img = numpy.append(mrp.reshape((-1,1)),
+                                   pm, axis=1)
+        #profile_img = numpy.empty((pm.shape[0], pm[1]+1))
+        #profile_img[:,0] = mean_radial_profile
 
-    # swap axes as FITS stores axes in reverse order compared to python
-    profile_img = numpy.swapaxes(profile_img, 0, 2)
-    # prepare image extension
-    prof_hdu = pyfits.ImageHDU(data=profile_img)
-    prof_hdu.name = "PROFILES"
-    prof_hdu.header['CRPIX1'] = 1.
-    prof_hdu.header['CRVAL1'] = norm_radius[0]
-    prof_hdu.header['CD1_1'] = norm_radius[1] - norm_radius[0]
-    prof_hdu.header['CTYPE1'] = "RADIUS"
-    hdulist.append(prof_hdu)
-
-
+        # prepare image extension
+        prof_hdu = pyfits.ImageHDU(data=profile_img)
+        prof_hdu.name = name
+        prof_hdu.header['CRPIX1'] = 1.
+        prof_hdu.header['CRVAL1'] = norm_radius[0]
+        prof_hdu.header['CD1_1'] = norm_radius[1] - norm_radius[0]
+        prof_hdu.header['CTYPE1'] = "RADIUS"
+        hdulist.append(prof_hdu)
+        
     logger.info("All done!")
     HDUlist = pyfits.HDUList(hdulist)
     HDUlist.writeto(output_filename, clobber=True)
@@ -885,6 +886,8 @@ def combine_pupilghost_slices(out_filename, filelist, op='sigclipmean'):
                 ('CNTRF%03d', "center, fixed radius"), 
                 ('CNTRV%03d', "center, var. radius"),
                 ('ALPHA%03d', "angle mismatch [arcmin]"),
+                ('NORM_%03d', "sector normalizations"),
+                
         ]:
             first_hdr = None
             for i in range(rotangles.shape[0]):
@@ -915,8 +918,19 @@ def combine_pupilghost_slices(out_filename, filelist, op='sigclipmean'):
     print assoc_table
     assoc_hdu = create_association_table(assoc_table)
 
+    out_hdulist = [primhdu, combined, assoc_hdu]
+    for name in ['PROFILE', 'RAWPROFILE']:
+        try:
+            logger.info("Adding in extension %s" % (name))
+            out_hdulist.append(combined_hdulist[name])
+        except:
+            logger.warning("Unable to find extension %s" % (name))
+            pass
+
+    combined_hdulist.writeto("dummy.fits", clobber=True)
+
     logger.info("Writing output to %s" % (out_filename))
-    out_hdulist = pyfits.HDUList([primhdu, combined, assoc_hdu])
+    out_hdulist = pyfits.HDUList(out_hdulist) #[primhdu, combined, assoc_hdu])
     out_hdulist.writeto(out_filename, clobber=True)
 
     logger.info("Work complete!")
@@ -983,7 +997,7 @@ if __name__ == "__main__":
         filelist = get_clean_cmdline()[2:]
 
         # combine all images
-        combine_pupilghost_slices(out_filename, filelist)
+        combine_pupilghost_slices(out_filename, filelist, op='nanmean.bn')
 
     else:
         r_inner = float(cmdline_arg_set_or_default("-ri",  700))
