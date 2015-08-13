@@ -487,6 +487,77 @@ def query_sdss_catalog(ra_range, dec_range, sdss_filter, verbose=False):
 
 
 
+def estimate_zeropoint(filtername):
+
+    logger = logging.getLogger("EstimateZP")
+
+    # First, check if we know this filter
+    if (not filtername in filter_bandpass):
+        logger.warning("this (%s) is a filter I don't know!" % (filtername))
+
+    # Now get the bandpass info
+    bp = filter_bandpass[filtername]
+    _, mean, center, fwhm, _, _, fmax, fmean, area, _, _ = bp
+
+    print filtername, " ==> ", mean, center, fwhm
+
+
+    # Now find the closest two ODI filters with known zeropoints, so we can 
+    # interpolate a zeropoint between then
+    known_name = [None] * len(reference_zeropoint)
+    # numpy.empty((len(reference_zeropoint)), dtype=numpy.str)
+    known_pos = numpy.empty((len(reference_zeropoint)))
+    known_fwhm = numpy.empty((len(reference_zeropoint)))
+    known_zp_per_fwhm = numpy.empty((len(reference_zeropoint)))
+
+    for idx, known_filter in enumerate(reference_zeropoint):
+
+        known_name[idx] = known_filter
+
+        _, k_mean, k_center, k_fwhm, _, _, _, _, _, _, _ = filter_bandpass[known_filter]
+
+        known_pos[idx] = k_mean
+        known_fwhm[idx] = k_fwhm
+
+        zp = reference_zeropoint[known_filter][0]
+        zp_fwhm = zp - 2.5*math.log10(k_fwhm)
+        print known_filter, zp_fwhm
+        known_zp_per_fwhm[idx] = zp_fwhm
+
+    known_name = numpy.array(known_name)
+
+    print "pos:", known_pos
+    print "names:", known_name
+
+    print "\n\n\n\n\n"
+
+    # compute the difference in mean wavelengths, then pick the two closest ones
+    delta_pos = numpy.fabs(known_pos - mean)
+    si = numpy.argsort(delta_pos)
+    known_name = known_name[si]
+    known_pos = known_pos[si]
+    known_zp_per_fwhm = known_zp_per_fwhm[si]
+
+    #print known_pos
+
+    d_pos = known_pos[1] - known_pos[0]
+    d_zpfwhm = known_zp_per_fwhm[1] - known_zp_per_fwhm[0]
+    slope_zpfwhm = d_zpfwhm / d_pos
+
+    print "positions:", known_name[0], known_name[1]
+    print "delta-pos:", d_pos, "      delta zp/fwhm=",d_zpfwhm
+
+    zp_interpol = known_zp_per_fwhm[0] + slope_zpfwhm*(mean-known_pos[0])
+    print "INTERPOL:", known_zp_per_fwhm[0], slope_zpfwhm, mean, known_pos[0], mean-known_pos[0]
+
+    zp_fwhm = zp_interpol + 2.5*math.log10(fwhm)
+
+    print known_name
+    print known_pos
+    print known_fwhm
+    print zp_interpol, fwhm, zp_fwhm
+
+    return zp_fwhm
 
 
 def photcalib(source_cat, output_filename, filtername, exptime=1, 
