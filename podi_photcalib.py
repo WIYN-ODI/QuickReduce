@@ -559,6 +559,53 @@ def estimate_zeropoint(filtername):
 
     return zp_fwhm
 
+def estimate_mean_star_color(filtername, T=5000):
+
+    if (not filtername in filter_bandpass):
+        print "This filter (%s) is not registered" % (filtername)
+        return None
+
+    # compute the color of a average star (Teff=5000K) in XXX-J, where XXX is 
+    # the specified filter
+
+    # define constants
+    h = 6.6626e-34 # J s
+    kb =1.380e-23 # J/K
+    c = 3e8 # m/s
+    
+    def planck(l_ang, T):
+        lm = l_ang * 1e-10
+        return 2*h*c**2/(lm**5) * (1. / (numpy.exp(h*c/(lm*kb*T))-1))
+
+    spec_wl = numpy.arange(3000,15000,25)
+    flux = planck(spec_wl, T)
+
+    AB_calibspec = 0.11 / (spec_wl*1e-10)**2
+
+    # compute the mean spectral flux for J band
+    Jband_wl = (spec_wl > 11500) & (spec_wl < 13500)
+    Jband_mean = numpy.mean(flux[Jband_wl])
+
+    # Now get the left and right filter edge for the specified filter
+    _, _, _, _, left, right, _, _, _, _, _ = filter_bandpass[filtername]
+    Xband_wl = (spec_wl >= left) & (spec_wl <= right)
+    Xband_mean = numpy.mean(flux[Xband_wl])
+
+    Jmag = -2.5*numpy.log10(Jband_mean)
+    Xmag = -2.5*numpy.log10(Xband_mean)
+
+    #
+    # Apply some correction to account for both bands being in AB magnitudes
+    #
+    Jband_AB = numpy.mean(AB_calibspec[Jband_wl])
+    Xband_AB = numpy.mean(AB_calibspec[Xband_wl])
+    #print Jmag, Xmag, -2.5*math.log10(Jband_AB), -2.5*math.log10(Xband_AB)
+    #print (-2.5*math.log10(Jband_AB)) - (-2.5*math.log10(Xband_AB))
+    AB_color_corr = (-2.5*math.log10(Jband_AB)) - (-2.5*math.log10(Xband_AB))
+    
+    return (Xmag-Jmag)+AB_color_corr
+
+
 
 def photcalib(source_cat, output_filename, filtername, exptime=1, 
               diagplots=True, calib_directory=None, overwrite_cat=None,
@@ -1776,6 +1823,11 @@ if __name__ == "__main__":
         logger.info("Results written to %s!\n" % (plotfile))
 
         podi_logging.shutdown_logging(options)
+    
+    elif (cmdline_arg_isset("-color")):
+        filtername = get_clean_cmdline()[1]
+        color = estimate_mean_star_color(filtername)
+        print color
 
     else:
         fitsfile = get_clean_cmdline()[1]
