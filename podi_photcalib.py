@@ -499,8 +499,7 @@ def estimate_zeropoint(filtername):
     bp = filter_bandpass[filtername]
     _, mean, center, fwhm, _, _, fmax, fmean, area, _, _ = bp
 
-    print filtername, " ==> ", mean, center, fwhm
-
+    logger.debug("%s ==> mean=%f, center=%f, fwhm=%f" % (filtername, mean, center, fwhm))
 
     # Now find the closest two ODI filters with known zeropoints, so we can 
     # interpolate a zeropoint between then
@@ -521,15 +520,14 @@ def estimate_zeropoint(filtername):
 
         zp = reference_zeropoint[known_filter][0]
         zp_fwhm = zp - 2.5*math.log10(k_fwhm)
-        print known_filter, zp_fwhm
+        #print known_filter, zp_fwhm
         known_zp_per_fwhm[idx] = zp_fwhm
 
     known_name = numpy.array(known_name)
 
-    print "pos:", known_pos
-    print "names:", known_name
-
-    print "\n\n\n\n\n"
+    # print "pos:", known_pos
+    # print "names:", known_name
+    # print "\n\n\n\n\n"
 
     # compute the difference in mean wavelengths, then pick the two closest ones
     delta_pos = numpy.fabs(known_pos - mean)
@@ -540,29 +538,34 @@ def estimate_zeropoint(filtername):
 
     #print known_pos
 
+    logger.debug("Interpolating ZP between %s and %s" % (known_name[0], known_name[1]))
+
     d_pos = known_pos[1] - known_pos[0]
     d_zpfwhm = known_zp_per_fwhm[1] - known_zp_per_fwhm[0]
     slope_zpfwhm = d_zpfwhm / d_pos
 
-    print "positions:", known_name[0], known_name[1]
-    print "delta-pos:", d_pos, "      delta zp/fwhm=",d_zpfwhm
+    #print "positions:", known_name[0], known_name[1]
+    #print "delta-pos:", d_pos, "      delta zp/fwhm=",d_zpfwhm
 
     zp_interpol = known_zp_per_fwhm[0] + slope_zpfwhm*(mean-known_pos[0])
-    print "INTERPOL:", known_zp_per_fwhm[0], slope_zpfwhm, mean, known_pos[0], mean-known_pos[0]
+    #print "INTERPOL:", known_zp_per_fwhm[0], slope_zpfwhm, mean, known_pos[0], mean-known_pos[0]
 
     zp_fwhm = zp_interpol + 2.5*math.log10(fwhm)
+    logger.debug("ZP results: ZP/FWHM=%f, final-ZP=%f" % (zp_interpol, zp_fwhm))
 
-    print known_name
-    print known_pos
-    print known_fwhm
-    print zp_interpol, fwhm, zp_fwhm
+    # print known_name
+    # print known_pos
+    # print known_fwhm
+    # print zp_interpol, fwhm, zp_fwhm
 
     return zp_fwhm
 
 def estimate_mean_star_color(filtername, T=5000):
 
+    logger = logging.getLogger("MeanStarColor")
+
     if (not filtername in filter_bandpass):
-        print "This filter (%s) is not registered" % (filtername)
+        logger.warning("This filter (%s) is not registered" % (filtername))
         return None
 
     # compute the color of a average star (Teff=5000K) in XXX-J, where XXX is 
@@ -593,17 +596,23 @@ def estimate_mean_star_color(filtername, T=5000):
 
     Jmag = -2.5*numpy.log10(Jband_mean)
     Xmag = -2.5*numpy.log10(Xband_mean)
+    logger.debug("Found X and J-magnitudes: %.3f / %.3f" % (Xmag, Jmag))
 
     #
     # Apply some correction to account for both bands being in AB magnitudes
     #
     Jband_AB = numpy.mean(AB_calibspec[Jband_wl])
     Xband_AB = numpy.mean(AB_calibspec[Xband_wl])
+    logger.debug("AB zeropoint corrections: X = %.3f / J = %.3f" % (Xband_AB, Jband_AB))
+
     #print Jmag, Xmag, -2.5*math.log10(Jband_AB), -2.5*math.log10(Xband_AB)
     #print (-2.5*math.log10(Jband_AB)) - (-2.5*math.log10(Xband_AB))
     AB_color_corr = (-2.5*math.log10(Jband_AB)) - (-2.5*math.log10(Xband_AB))
-    
-    return (Xmag-Jmag)+AB_color_corr
+
+    starcolor = (Xmag-Jmag)+AB_color_corr
+    logger.info("Estimating mean star color X-J = %.3f" % (starcolor))
+    return starcolor
+
 
 
 
