@@ -466,6 +466,7 @@ def query_sdss_catalog(ra_range, dec_range, sdss_filter, verbose=False):
     # Get a photometric reference catalog one way or another
     # 
     std_stars = None
+    logger = logging.getLogger("QuerySDSS")
 
     if (sitesetup.sdss_ref_type == "stripe82"):
         std_stars = numpy.zeros(shape=(0,0)) #load_catalog_from_stripe82cat(ra, dec, calib_directory, sdss_filter)
@@ -479,6 +480,7 @@ def query_sdss_catalog(ra_range, dec_range, sdss_filter, verbose=False):
     elif (sitesetup.sdss_ref_type == 'web'):
         #stdout_write("Trying to get one directly from SDSS, please wait!\n\n")
         #std_stars = load_catalog_from_sdss(ra, dec, sdss_filter)
+        logger.info("Loading SDSS catalog from online webserver")
         std_stars = load_catalog_from_sdss(ra_range, dec_range, sdss_filter,
                                            verbose=verbose)
 
@@ -824,6 +826,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                                                                      radius=None,
                                                                      basedir=sitesetup.ippref_ref_dir,
                                                                      cattype="IPPRef")
+            print "IPP:", _std_stars
             if (not _std_stars == None and _std_stars.shape[0] > 0):
                 detailed_return['catalog'] = "IPPRef"
                 std_stars = _std_stars
@@ -1188,6 +1191,11 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         zp_median_ = numpy.median(zp)
         zp_std_ = numpy.std(zp)
         zp_exptime = zp_median - zp_correction_exptime
+
+        logger.debug("PHOTCAL RESULTS: Clipped: %f +/- %f (%f, %f)" % (
+            zp_median, zp_std, zp_upper1sigma, zp_lower1sigma))
+        logger.debug("PHOTCAL RESULTS: Full: %f +/- %f --> %f" % (
+            zp_median_, zp_std_, zp_exptime))
 
         # compute the r.m.s. value of the distribution as well
         final_cat = small_errors[clipping_mask]
