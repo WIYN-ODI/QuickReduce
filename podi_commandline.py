@@ -106,6 +106,8 @@ def read_comma_separated_list(inp, ignore_errors=True):
     ret_list = []
     if (type(inp) == list):
         return inp
+    elif (inp == None):
+        return None
     elif (not inp == None):
         for _in in inp.split(","):
             if (os.path.isdir(_in) or os.path.isfile(_in) or ignore_errors):
@@ -172,7 +174,8 @@ Calibration data:
 
     options["update_persistency_only"] = cmdline_arg_isset("-update_persistency_only")
 
-    options['fringe_dir'] = cmdline_arg_set_or_default('-fringe', "auto")
+    options['fringe_dir'] = None if not cmdline_arg_isset("-fringe") \
+                            else cmdline_arg_set_or_default('-fringe', "auto")
     options['fringe_vectors'] = cmdline_arg_set_or_default("-fringevectors", options['fringe_vectors'])
 
     options['pupilghost_dir'] = cmdline_arg_set_or_default('-pupilghost', None)
