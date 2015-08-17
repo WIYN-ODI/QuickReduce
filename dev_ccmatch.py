@@ -524,7 +524,6 @@ def count_matches_parallelwrapper(work_queue, return_queue,
 
         # print "Angle:",angle*60.," --> ",
         
-        #        n_matches, offset = count_matches(src_rotated, ref_cat, 
         #logger.debug("angle=%s src=%d ref=%d" % (angle, src_rotated.shape[0], ref_cat.shape[0]))
         cm_data = count_matches(src_rotated, ref_cat, 
                                 pointing_error=pointing_error, 
@@ -1957,8 +1956,23 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                 contrast, pointing_error))
             break
 
+    if (contrast > min_contrast and 
+        f_matches_found < sitesetup.wcs_match_multiplier * f_matched_expected):
+        #
+        # This solution fulfills the contrast criteria, but not the f_match criteria
+        # In the absence of a better alternative, use this solution anyway, 
+        # but also issue a warning
+        #
+        logger.warning("WCS solution has high contrast, but low matching fraction")
 
-    if (contrast < min_contrast):
+        # Add here: Add some header keywords to the output logging the 
+        # matching requirements and resultsxs
+        pass
+
+    elif (contrast < min_contrast):
+        #
+        # This solution seems to be really bad, so mark it as insufficient
+        #
         logger.debug("Failed finding a good enough WCS solution")
         return_value['hdulist'] = hdulist
         return_value['matched_src+2mass'] = None
