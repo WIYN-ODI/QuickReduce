@@ -761,7 +761,7 @@ def insert_into_array(data, from_region, target, target_region):
 
     return 0
 
-def mask_broken_regions(datablock, regionfile, verbose=False):
+def mask_broken_regions(datablock, regionfile, verbose=False, reduction_log=None):
     """
 
     Mask out broken regions in a data array. Regions are defined via a ds9
@@ -769,7 +769,10 @@ def mask_broken_regions(datablock, regionfile, verbose=False):
 
     """
 
-
+    if (not os.path.isfile(regionfile)):
+        if (not reduction_log == None):
+            reduction_log.failed('badpixels')
+        return datablock
 
     counter = 0
     file = open(regionfile)
@@ -795,6 +798,10 @@ def mask_broken_regions(datablock, regionfile, verbose=False):
     file.close()
     if (verbose):
         print "Marked",counter,"bad pixel regions"
+
+    if (not reduction_log == None):
+        reduction_log.success('badpixels')
+
     return datablock
 
 

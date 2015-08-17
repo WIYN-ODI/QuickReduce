@@ -496,12 +496,15 @@ class FocalPlaneLayout(object):
             return None
 
 
-    def apply_wcs_distortion(self, filename, hdu, binning):
+    def apply_wcs_distortion(self, filename, hdu, binning, reduction_log=None):
+
+        reduction_log.attempt('wcs_dist')
 
         filename = self.get_wcs_distortion_file(filename)
         try:
             self.wcs = pyfits.open(filename)
         except:
+            reduction_log.failed('wcs_dist')
             self.logger.error("Could not open WCS distortion model (%s)" % (filename))
             return
 
@@ -510,6 +513,7 @@ class FocalPlaneLayout(object):
         try:
             wcs_header = self.wcs[extname].header
         except:
+            reduction_log.failed('wcs_dist')
             self.logger.warning("Could not find distortion model for %s" % (extname))
             return
 
@@ -539,9 +543,10 @@ class FocalPlaneLayout(object):
 
         except:
             self.logger.critical("something went wrong while applying the WCS model")
+            reduction_log.partial_fail('wcs_dist')
             podi_logging.log_exception()
 
-            
+        reduction_log.success('wcs_dist')
         return
 
 

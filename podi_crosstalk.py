@@ -48,6 +48,7 @@ xtalk_saturated_correction = 8
 xtalk_saturation_limit = 65535
 
 import podi_focalplanelayout
+import podi_reductionlog
 
 xtalk_coeffs = {
 
@@ -225,12 +226,14 @@ def apply_old_crosstalk_correction(hdulist, fpl, extname2id):
     return hdulist
 
 
-def apply_crosstalk_correction(hdulist, fpl, extname2id, options):
+def apply_crosstalk_correction(hdulist, fpl, extname2id, options, reduction_log):
 
     logger = logging.getLogger("CrossTalk")
 
+    reduction_log.attempt('crosstalk')
     if (options['crosstalk'] == 'none'):
         logger.debug("Skipping crosstalk correction")
+        reduction_log.not_selected('crosstalk')
         return hdulist
 
     # Find the correct crosstalk coefficient file for this detector
@@ -240,7 +243,9 @@ def apply_crosstalk_correction(hdulist, fpl, extname2id, options):
     logger.debug("XTalk-File: %s" % (xtalk_file))
 
     if (xtalk_file == None):
-        return apply_old_crosstalk_correction(hdulist, fpl, extname2id)
+        res = apply_old_crosstalk_correction(hdulist, fpl, extname2id)
+        reduction_log.success('crosstalk')
+        return res
 
     xtalk_hdu = pyfits.open(xtalk_file)
     xtalk_inv = xtalk_hdu['XTALK.INV'].data
@@ -279,6 +284,7 @@ def apply_crosstalk_correction(hdulist, fpl, extname2id, options):
             xy_name = "xy%d%d" % (column, row)
             hdulist[extname2id[xy_name]].data = xtalk_corr[column]
 
+    reduction_log.success('crosstalk')
     return hdulist
 
 
