@@ -218,6 +218,9 @@ def update_sitesetup():
     changes = changes | ask_for_option('min_wcs_quality', 
                    "Minimum WCS quality for successful calibration", 
                    3.0, False, config_array)
+    changes = changes | ask_for_option('wcs_match_multiplier', 
+                   "FixWCS: Match-multiplier", 
+                   0.6, False, config_array)
 
     changes = changes | ask_for_option('saturation_limit', 
                    "Saturation count rate; pixel >= X are considered saturated", 

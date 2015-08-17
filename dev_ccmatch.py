@@ -24,6 +24,8 @@ import podi_search_ipprefcat
 from podi_wcs import *
 import podi_search_ipprefcat
 import podi_sitesetup as sitesetup
+from podi_photcalib import estimate_zeropoint, estimate_mean_star_color
+
 
 import Queue
 import multiprocessing
@@ -327,13 +329,13 @@ def count_matches(src_cat, ref_cat,
     # Now that we have a solution, match the shifted source catalog 
     # and count the number of matches
     n_matches = -1
-    if (final_significance >= 0):
+    if (final_significance >= -3): #0):
         src_corrected = src_cat[:, 0:2] + (mean_peak_pos / 3600.) #(offset) * numpy.array([cos_dec, 1.])
         corr_tree = scipy.spatial.cKDTree(src_corrected)
         n_matches = corr_tree.count_neighbors(ref_tree, 2./3600., p=2) # match stars within 2 arcsec
 
-    logger.debug("done with entire cat (% 7s): %8.4f %8.4f %8.4f --> %8.4f % 6d" % (
-        str(debugangle), _max, _mean, _std, final_significance, n_matches))
+    logger.debug("done with entire cat (% 7s): max=%8.4f mean=%8.4f std=%8.4f --> sigma=%8.4f #matches=% 6d #searched=% 6d" % (
+        str(debugangle), _max, _mean, _std, final_significance, n_matches, n_searched))
 
     return offset, n_matches, n_searched, _max, _mean, _std
 
@@ -522,7 +524,8 @@ def count_matches_parallelwrapper(work_queue, return_queue,
 
         # print "Angle:",angle*60.," --> ",
         
-#        n_matches, offset = count_matches(src_rotated, ref_cat, 
+        #        n_matches, offset = count_matches(src_rotated, ref_cat, 
+        #logger.debug("angle=%s src=%d ref=%d" % (angle, src_rotated.shape[0], ref_cat.shape[0]))
         cm_data = count_matches(src_rotated, ref_cat, 
                                 pointing_error=pointing_error, 
                                 matching_radius=matching_radius,
@@ -1570,6 +1573,67 @@ def improve_wcs_solution(src_catalog,
     return global_cat, hdulist, matched_global
 
 
+
+
+def estimate_match_fraction(src_cat, primary_header, meanTeff = 5000):
+
+    logger = logging.getLogger("EstMatchFrac")
+
+    #
+    # Based on the exposure time and seeing, estimate a rough photometric 
+    # depth,and based on that depth, what fraction of stars we expect to 
+    # match between 2MASS and the ODI source catalog.
+    #
+    # If this fraction is too low, go up one step in search radius and try 
+    # again.
+    #
+    seeing_data = three_sigma_clip(src_cat[:, SXcolumn['fwhm_world']])
+    seeing = numpy.median(seeing_data) * 3600. # --> in arcsec
+    logger.info("Found seeing measurement: %.3f" % (seeing))
+
+    # Now estimate a zeropoint for the specified filter ...
+    magzero = estimate_zeropoint(primary_header['FILTER'])
+    logger.info("Received ZP estimate (filter: %s) of %.4f" % (
+        primary_header['FILTER'], magzero))
+
+    # also account for exposure time
+    exptime = primary_header['EXPMEAS'] if 'EXPMEAS' in primary_header else (
+        primary_header['EXPTIME'] if 'EXPTIME' in primary_header else 1.0)
+    zeropoint = magzero + 2.5*math.log10(exptime)
+    logger.info("Accouting for exposure time, using inst. ZP = %.4f" % (zeropoint))
+
+    # Now calibrate all instrumental magnitudes for the 3'' aperture with this 
+    # zeropoint
+    cal_mags = src_cat[:, SXcolumn['mag_aper_3.0']]
+    cal_mags = cal_mags[cal_mags < 50] + zeropoint
+    
+    if (cal_mags.shape[0] < 5):
+        return 0.
+
+    # Count how many of these stars are likely brighter than the J=15.8 mag 
+    # cutoff of 2MASS
+
+    # Estimate X-J color index
+    mean_star_color = estimate_mean_star_color(
+        primary_header['FILTER'], T=meanTeff)
+    if (mean_star_color == None):
+        mean_star_color = 0.5
+
+    estimated_Jband = cal_mags - mean_star_color
+    numpy.savetxt("cal_mags", cal_mags)
+
+    n_brighter_than_2MASS_cutoff = numpy.sum(estimated_Jband < 15.8)
+    n_total = cal_mags.shape[0]
+
+    logger.info("Star counts brighter than 2MASS/total: %d vs %d" % (
+        n_brighter_than_2MASS_cutoff, n_total))
+
+    # return the estimate for the matching-fraction
+    return float(n_brighter_than_2MASS_cutoff)/float(n_total)
+
+    
+
+
 #############################################################################
 #############################################################################
 #
@@ -1775,6 +1839,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # 
     # Get rid of all data except the coordinates
     # 
+    src_cat_long = numpy.array(src_cat)
     src_cat = src_cat[:,0:2]
 
     #
@@ -1793,11 +1858,20 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     use_only_isolated_reference_stars = False
 
+    # Estimate what fraction of 2mass stars are expected to be matched to 
+    # ODI sources
+    f_matched_expected = estimate_match_fraction(
+        src_cat=src_cat_long, 
+        primary_header=hdulist[0].header,
+        meanTeff=4500)
+    logger.info("Expecting match-ratios ~ %f" % (f_matched_expected))
+
+
     # max_pointing_error_list = numpy.array([numpy.max(numpy.array(max_pointing_error_list))])
     for i in range(max_pointing_error_list.shape[0]):
 
         pointing_error = max_pointing_error_list[i]
-        logger.info("Searching for WCS pointing with search radius %f arcmin" % (pointing_error))
+        logger.info("Searching for WCS pointing with search radius %5.1f arcmin" % (pointing_error))
 
         logger.debug("Attempting to find WCS solution with search radius %.1f arcmin ..." % (
             pointing_error))
@@ -1862,7 +1936,23 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         return_value['contrasts'][i] = contrast
         return_value['max_pointing_error_searched'] = pointing_error
 
-        if (contrast > min_contrast):
+        # Count the fraction of stars actually matched to 2MASS sources
+        logger.debug("Found %d matches" % (initial_guess[3]))
+        f_matches_found = initial_guess[3] / src_cat.shape[0]
+        logger.info("Found matching ration of %.4f" % (f_matches_found))
+
+        current_best_rotation = initial_guess[0]
+        current_best_shift = initial_guess[1:3]
+        crossmatch_radius = 2./3600.
+        gc = rotate_shift_catalog(src_cat_long, (center_ra, center_dec), 
+                                       angle=current_best_rotation,
+                                       shift=current_best_shift,
+                                       verbose=False)
+        gm = kd_match_catalogs(gc, ref_cat, crossmatch_radius, max_count=1)
+        numpy.savetxt("matched_%f" % (pointing_error), gm)
+        numpy.savetxt("match_src", src_cat_long)
+
+        if (contrast > min_contrast and f_matches_found > sitesetup.wcs_match_multiplier * f_matched_expected):
             logger.debug("Found good WCS solution (%.2f sigma, search radius: %.2f arcmin)" % (
                 contrast, pointing_error))
             break
@@ -2512,6 +2602,13 @@ if __name__ == "__main__":
 
         # end_time = time.time()
         # print "count_matches took",end_time-start_time,"seconds"
+
+    elif (cmdline_arg_isset("-zeropoint")):
+        
+        filtername = get_clean_cmdline()[1]
+        zp = estimate_zeropoint(filtername)
+
+        print "ZP estimate:", zp
 
     else:
         mode = cmdline_arg_set_or_default('-mode', 'xxx')
