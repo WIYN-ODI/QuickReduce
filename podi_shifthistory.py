@@ -243,6 +243,6 @@ if __name__ == "__main__":
     elif (cmdline_arg_isset("-xyhist")):
         view_xyhist(filename)
     else:
-        view_shift_history(filename, 'demo', ['png'], title="this is a demo %(nshifts)d")
+        view_shift_history(filename, plot_filename='demo', extension_list=['png'], title="this is a demo %(nshifts)d")
     
     podi_logging.shutdown_logging(options)

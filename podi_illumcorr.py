@@ -340,7 +340,7 @@ def prepare_illumination_correction(filelist, outfile, tmpdir=".", redo=False):
             pass
 
     illumcorrfile = get_illumination_filename(outfile, filtername, binning)
-    print "\n"*5,illumcorrfile,"\n",outfile,"\n"*5
+    #print "\n"*5,illumcorrfile,"\n",outfile,"\n"*5
 
     presmoothed_file = illumcorrfile[:-5]+".raw.fits"
 
