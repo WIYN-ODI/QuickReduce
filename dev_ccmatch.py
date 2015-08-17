@@ -1588,18 +1588,18 @@ def estimate_match_fraction(src_cat, primary_header, meanTeff = 5000):
     #
     seeing_data = three_sigma_clip(src_cat[:, SXcolumn['fwhm_world']])
     seeing = numpy.median(seeing_data) * 3600. # --> in arcsec
-    logger.info("Found seeing measurement: %.3f" % (seeing))
+    logger.debug("Found seeing measurement: %.3f" % (seeing))
 
     # Now estimate a zeropoint for the specified filter ...
     magzero = estimate_zeropoint(primary_header['FILTER'])
-    logger.info("Received ZP estimate (filter: %s) of %.4f" % (
+    logger.debug("Received ZP estimate (filter: %s) of %.4f" % (
         primary_header['FILTER'], magzero))
 
     # also account for exposure time
     exptime = primary_header['EXPMEAS'] if 'EXPMEAS' in primary_header else (
         primary_header['EXPTIME'] if 'EXPTIME' in primary_header else 1.0)
     zeropoint = magzero + 2.5*math.log10(exptime)
-    logger.info("Accouting for exposure time, using inst. ZP = %.4f" % (zeropoint))
+    logger.debug("Accouting for exposure time, using inst. ZP = %.4f" % (zeropoint))
 
     # Now calibrate all instrumental magnitudes for the 3'' aperture with this 
     # zeropoint
@@ -1624,7 +1624,7 @@ def estimate_match_fraction(src_cat, primary_header, meanTeff = 5000):
     n_brighter_than_2MASS_cutoff = numpy.sum(estimated_Jband < 15.8)
     n_total = cal_mags.shape[0]
 
-    logger.info("Star counts brighter than 2MASS/total: %d vs %d" % (
+    logger.debug("Star counts brighter than 2MASS/total: %d vs %d" % (
         n_brighter_than_2MASS_cutoff, n_total))
 
     # return the estimate for the matching-fraction
@@ -1863,7 +1863,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         src_cat=src_cat_long, 
         primary_header=hdulist[0].header,
         meanTeff=4500)
-    logger.info("Expecting match-ratios ~ %f" % (f_matched_expected))
+    logger.debug("Expecting match-ratios ~ %f" % (f_matched_expected))
 
 
     # max_pointing_error_list = numpy.array([numpy.max(numpy.array(max_pointing_error_list))])
@@ -1938,7 +1938,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         # Count the fraction of stars actually matched to 2MASS sources
         logger.debug("Found %d matches" % (initial_guess[3]))
         f_matches_found = initial_guess[3] / src_cat.shape[0]
-        logger.info("Found matching ration of %.4f" % (f_matches_found))
+        logger.debug("Found matching ration of %.4f" % (f_matches_found))
 
         current_best_rotation = initial_guess[0]
         current_best_shift = initial_guess[1:3]

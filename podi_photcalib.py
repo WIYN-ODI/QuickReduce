@@ -612,7 +612,7 @@ def estimate_mean_star_color(filtername, T=5000):
     AB_color_corr = (-2.5*math.log10(Jband_AB)) - (-2.5*math.log10(Xband_AB))
 
     starcolor = (Xmag-Jmag)+AB_color_corr
-    logger.info("Estimating mean star color X-J = %.3f" % (starcolor))
+    logger.debug("Estimating mean star color X-J = %.3f (Teff=% 6dK)" % (starcolor, T))
     return starcolor
 
 
@@ -826,7 +826,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                                                                      radius=None,
                                                                      basedir=sitesetup.ippref_ref_dir,
                                                                      cattype="IPPRef")
-            print "IPP:", _std_stars
+            #print "IPP:", _std_stars
             if (not _std_stars == None and _std_stars.shape[0] > 0):
                 detailed_return['catalog'] = "IPPRef"
                 std_stars = _std_stars

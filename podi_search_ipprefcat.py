@@ -263,7 +263,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
     #print skytable[:3]
     
     # Select entries that match our list
-    print ra, dec, radius, type(ra), type(dec), type(radius)
+    # print ra, dec, radius, type(ra), type(dec), type(radius)
     #logger.debug("# Searching for stars within %.1f degress around %f , %f ..." % (radius, ra, dec))
 
     if (not radius == None and radius > 0):
