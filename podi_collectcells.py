@@ -1968,7 +1968,7 @@ def collectcells(input, outputfile,
     *                                                                    *
     * Please acknowledge the author when using any products generated    *
     * with this tool. For comments, questions or ideas for improvement   *
-    * please send an email to kotulla@uwm.edu. Thank you!                *
+    * please send an email to kotulla@wisc.edu. Thank you!               *
     **********************************************************************
 
 """
