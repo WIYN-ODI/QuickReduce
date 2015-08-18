@@ -16,6 +16,7 @@ class ReductionLog:
     _missing_data = 'missing data'
     _partial_success = 'partial success'
     _not_required = 'not required'
+    _no_data = 'no data'
 
     def __init__(self):
 
@@ -73,6 +74,8 @@ class ReductionLog:
         return self.set(task, self._missing_data)
     def not_required(self, task):
         return self.set(task, self._not_required)
+    def no_data(self, task):
+        return self.set(task, self._no_data)
 
     def dump(self):
         for step in self.steps:
