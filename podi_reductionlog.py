@@ -124,14 +124,14 @@ class ReductionLog:
 
             elif (this in [self._success,
                            self._partial_fail] and 
-                  other in [self._failed,
+                  other in [self._fail,
                             self._partial_fail,
                             self._skip_after_fail]):
                 # Set to partial fail if mix of success and fails
                 self.set(step, self._partial_fail)
 
             elif (this in [self._not_selected, 
-                           self._partial] and 
+                           self._partial_success] and 
                   other in [self._success]):
 
                 # if some are done and some or not, set to partial 
