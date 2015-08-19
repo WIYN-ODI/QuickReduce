@@ -677,6 +677,10 @@ def gain_readnoise_to_tech_hdu(hdulist, gain, readnoise):
     return 
 
 
+valid_PG_filters = [
+    'odi_g', 'odi_r', 'odi_i', 'odi_z'
+    ]
+
 if __name__ == "__main__":
 
     if (len(sys.argv) < 2):
@@ -1045,12 +1049,13 @@ podi_makecalibrations.py input.list calib-directory
                     # Relabel the file
                     flat_hdus[0].header['OBJECT'] = "master-flat %s" % (filter)
 
-                    logger.debug("Stacking %s done!" % (flat_frame))
+                    logger.info("Stacking %s done!" % (flat_frame))
 
                     #
                     # Now apply the pupil ghost correction 
                     # Only do this if requested via keyword -pupilghost=(dirname)
                     #
+                    logger.info("PG-dir: %s" % (pupilghost_dir))
                     if (not pupilghost_dir == None): #options['pupilghost_dir'] != None):
                         # Reset the pupil ghost option to enable it here
                         options['pupilghost_dir'] = pupilghost_dir
@@ -1061,26 +1066,112 @@ podi_makecalibrations.py input.list calib-directory
 
                         pg_filename = "pupilghost_template___level_%d__bin%d.fits" % (filter_level, binning)
                         pg_template = check_filename_directory(options['pupilghost_dir'], pg_filename)
-                        logger.debug("Using template file %s" % (pg_template))
+                        logger.info("Using template file %s" % (pg_template))
 
                         # If we have a template for this level
-                        if (os.path.isfile(pg_template)):
-                            logger.debug("Using pupilghost template in  %s ... " % (pg_template))
+                        if (os.path.isfile(pg_template) and filter in valid_PG_filters):
+                            logger.info("Using pupilghost template in  %s ... " % (pg_template))
+
                             pg_hdu = pyfits.open(pg_template)
-                            if (filter in podi_matchpupilghost.scaling_factors and
-                                podi_matchpupilghost.scaling_factors[filter] > 0):
 
-                                scaling = podi_matchpupilghost.scaling_factors[filter]
+                            all_pg_samples = None
+                            pg_templates = {}
+                            for ota_ext in flat_hdus:
+                                if (not is_image_extension(ota_ext)):
+                                    continue
 
-                                # Also save a copy before the pupil ghost correction.
-                                if (cmdline_arg_isset("-keepprepg")):
-                                    logger.debug("Writing flat-field before pupil ghost correction ...")
-                                    flat_hdus.writeto(flat_frame[:-5]+".prepg.fits", clobber=True)
+                                ota_ext.header['PGAFCTD'] = (False, "affected by pupilghost")
+                                ota = ota_ext.header['OTA']
 
-                                podi_matchpupilghost.subtract_pupilghost(flat_hdus, pg_hdu, scaling)
-                                flat_hdus[0].header["PUPLGOST"] = (pg_template, "p.g. template")
-                                flat_hdus[0].header["PUPLGFAC"] = (scaling, "pupilghost scaling")
-                                logger.debug("Pupilghost subtraction complete")
+                                #
+                                # Compute PG template for the correct rotator angle
+                                #
+                                # ota_ext.header['ROTSTART'] = flat_hdus[0].header['ROTSTART']
+                                # ota_ext.header['FILTER'] = flat_hdus[0].header['FILTER']
+                                pg_template = podi_matchpupilghost.compute_pupilghost_template_ota(
+                                    ota_ext, pg_hdu, 
+                                    rotate=flat_hdus[0].header['ROTSTART'], verbose=True, non_negative=True,
+                                    source_center_coords='data'
+                                )
+                                
+                                if (pg_template == None):
+                                    continue
+
+                                pg_templates[ota_ext.name] = pg_template
+
+                                #
+                                # Load the relative gain values for this OTA. This 
+                                # allows us to largely compensate cell-to-cell 
+                                # intensity variations and obtain a more reliable 
+                                # pupilghost scaling factor
+                                #
+                                mjd = flat_hdus[0].header['MJD-OBS']
+                                nonlinearity_file = options['nonlinearity']
+                                if (options['nonlinearity'] == None or 
+                                    options['nonlinearity'] == "" or
+                                    not os.path.isfile(nonlinearity_file)):
+                                    nonlinearity_file = podi_nonlinearity.find_nonlinearity_coefficient_file(mjd, options)
+                                logger.debug("Using non-linearity coefficients from file %s"  % (nonlinearity_file))
+                                nonlin_data = podi_nonlinearity.load_nonlinearity_correction_table(nonlinearity_file, ota)
+
+                                ff_data_tmp = numpy.array(ota_ext.data)
+                                #pyfits.HDUList([pyfits.PrimaryHDU(data=ff_data_tmp)]).writeto("xx0_%d.fits" % (ota), clobber=True)
+                                podi_nonlinearity.apply_gain_correction_fullOTA(ff_data_tmp, nonlin_data, binning)
+                                #pyfits.HDUList([pyfits.PrimaryHDU(data=ff_data_tmp)]).writeto("xx1_%d.fits" % (ota), clobber=True)
+                                # pack the new gain-corrected data in a proper HDU
+                                # copying the header from the original extension
+                                ff_hdu_tmp = pyfits.ImageHDU(data=ff_data_tmp, header=ota_ext.header)
+                                #pyfits.HDUList([pyfits.PrimaryHDU(), ff_hdu_tmp]).writeto("xx_%d.fits" % (ota), clobber=True)
+
+                                #
+                                # XXX CHECK WHY REL_GAIN VALUES ARE SO CLOSE TO 1.0000
+                                #
+
+                                _, full_samples = podi_matchpupilghost.get_pupilghost_scaling_ota(
+                                    science_hdu=ff_hdu_tmp, 
+                                    pupilghost_frame=pg_hdu,
+                                    n_samples=750, boxwidth=20, 
+                                    verbose=False,
+                                    pg_matched=False,
+                                    return_all=True)
+
+                                numpy.savetxt("flat_pg_samples.%d" % (ota), full_samples)
+
+                                all_pg_samples = full_samples if all_pg_samples == None else \
+                                                 numpy.append(all_pg_samples, full_samples, axis=0)
+
+                            #
+                            # Now we have all samples, so compute PG scaling factor
+                            #
+                            pg_scaling, bg = podi_matchpupilghost.iterate_reject_scaling_factors(
+                                all_pg_samples, iterations=3, significant_only=False)
+                            logger.info("PG scaling results: bg=%.1f scale=%.3f" % (bg, pg_scaling))
+
+                            if (cmdline_arg_isset("-pgscale")):
+                                pg_scaling = float(get_cmdline_arg("-pgscale"))
+                                logger.info("Overwriting PG scaling: scale=%f" % (pg_scaling))
+
+                            #
+                            # And subtract template
+                            #
+                            for extname in pg_templates:
+                                flat_hdus[extname].data -= (pg_templates[extname] * pg_scaling)
+
+                            
+                            # if (filter in podi_matchpupilghost.scaling_factors and
+                            #     podi_matchpupilghost.scaling_factors[filter] > 0):
+
+                            #     scaling = podi_matchpupilghost.scaling_factors[filter]
+
+                            #     # Also save a copy before the pupil ghost correction.
+                            #     if (cmdline_arg_isset("-keepprepg")):
+                            #         logger.debug("Writing flat-field before pupil ghost correction ...")
+                            #         flat_hdus.writeto(flat_frame[:-5]+".prepg.fits", clobber=True)
+
+                            #     podi_matchpupilghost.subtract_pupilghost(flat_hdus, pg_hdu, scaling)
+                            #     flat_hdus[0].header["PUPLGOST"] = (pg_template, "p.g. template")
+                            #     flat_hdus[0].header["PUPLGFAC"] = (scaling, "pupilghost scaling")
+                            #     logger.debug("Pupilghost subtraction complete")
                         else:
                             logger.info("Couldn't find the pupilghost template for level %d" % (filter_level))
                             logger.debug("Missing pg-template file: %s" % (pg_template))
