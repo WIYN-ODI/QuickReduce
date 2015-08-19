@@ -91,6 +91,7 @@ from podi_commandline import *
 import podi_logging
 import logging
 import time
+import itertools
 
 import podi_plotting
 
@@ -531,11 +532,26 @@ def apply_gain_correction(data, cellx, celly, nonlin_data, return_gain=False):
     """
 
     gain = nonlin_data['rel_gain'][cellx,celly]
-
+    # print cellx, celly, gain
     if (return_gain):
         return data * gain, gain
 
     return data * gain
+
+
+def apply_gain_correction_fullOTA(data, nonlin_data, binning=1):
+
+    logger = logging.getLogger("ApplyGainFullOTA")
+    logger.debug("Starting work")
+
+    for cx, cy in itertools.product(range(8), repeat=2):
+        x1,x2,y1,y2 = cell2ota__get_target_region(cx, cy, binning)
+        
+        cell = data[y1:y2, x1:x2]
+        cell_corr = apply_gain_correction(cell, cx, cy, nonlin_data, return_gain=False)
+        data[y1:y2, x1:x2] = cell_corr
+
+    logger.debug("done with work")
 
 
 def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
