@@ -181,8 +181,20 @@ def compute_pupilghost_template_ota(input_hdu, pupil_hdu,
         return None
 
     # Get some information about the current input frame
-    rotator_angle = input_hdu.header['ROTSTART'] if (rotate) else 0.
-    filtername = input_hdu.header['FILTER']
+    rotator_angle = 0
+    if (rotate == False):
+        logger.info("not Using rotator angle at all")
+        pass
+    elif (rotate == True):
+        rotator_angle = input_hdu.header['ROTSTART']
+        logger.info("Using rotator angle from FITS header")
+    else:
+        logger.info("Using user-defined rotator angle")
+        rotator_angle = rotate
+        rotate = True
+    # rotator_angle = 0
+    # rotator_angle = rotate if not rotate == True else 
+    #filtername = input_hdu.header['FILTER']
     logger.debug("rotator angle: %.2f" % (rotator_angle))
 
     #
@@ -236,6 +248,7 @@ def compute_pupilghost_template_ota(input_hdu, pupil_hdu,
     #
     logger.info("Using center coordinates %d %d for data frame" % (center_x, center_y))
 
+    final_angle = rotator_angle
     if (rotate):
         # print "___%s___" % rotator_angle
         if (rotator_angle == "unknown"):
@@ -282,7 +295,7 @@ def compute_pupilghost_template_ota(input_hdu, pupil_hdu,
     else:
         logger.debug("No rotation requested, skipping rotation")
         rotated = comb_hdu.data
-     
+        
    
     #
     # Now we have the template rotated to the correct angle. 
@@ -404,7 +417,7 @@ def get_pupilghost_scaling_ota(science_hdu, pupilghost_frame,
 
     
     extname = science_hdu.header['EXTNAME']
-    filter = science_hdu.header['FILTER']
+    #filter = science_hdu.header['FILTER']
 
     if (type(pupilghost_frame) == str):
         pg_hdulist = pyfits.open(pupilghost_frame)
@@ -416,7 +429,7 @@ def get_pupilghost_scaling_ota(science_hdu, pupilghost_frame,
         logger.error("Not sure what the format of the pupilghost is (need filename or HDUList)!")
         return None, None if return_all else None
 
-    logger.debug("Checking extension %s (filter: %s) for pupilghost effects" % (extname, filter))
+    logger.debug("Checking extension %s for pupilghost effects" % (extname))
 
     if (not 'PGAFCTD' in science_hdu.header or not science_hdu.header['PGAFCTD']):
         # This frame does not contain the keyword labeling it as affected by
@@ -454,12 +467,12 @@ def get_pupilghost_scaling_ota(science_hdu, pupilghost_frame,
     box_centers = samples[:,2:4]
 
     dxy = box_centers - center
-    pg_xy = box_centers
-    if (not pg_matched):
-        # This is the case if we compare to the full template
-        # Now convert the x/y from the science frame 
-        # into x/y in the pupil ghost frame
-        pg_xy = dxy + [ 0.5*pg.shape[0], 0.5*pg.shape[1] ]
+    # pg_xy = box_centers
+    # if (not pg_matched):
+    #     # This is the case if we compare to the full template
+    #     # Now convert the x/y from the science frame 
+    #     # into x/y in the pupil ghost frame
+    #     pg_xy = dxy + [ 0.5*pg.shape[0], 0.5*pg.shape[1] ]
         
     #print dxy[0:10,:]
     #print pg_xy[0:10,:]
@@ -543,7 +556,7 @@ def get_pupilghost_scaling_ota(science_hdu, pupilghost_frame,
     # merged[:,4] = numpy.array(samples)[:,4] #- skylevel
     # merged[:,5] = numpy.array(pg_samples)[:,4]
 
-    merged = numpy.empty(shape=(pg_xy.shape[0],6))
+    merged = numpy.empty(shape=(dxy.shape[0],6))
     merged[:,0:2] = samples[:,2:4]
     merged[:,2:4] = samples[:,2:4]
     merged[:,4] = numpy.array(samples)[:,4] #- skylevel
