@@ -162,13 +162,19 @@ def compute_pupilghost_template_ota(input_hdu, pupil_hdu,
     # Check if this extension is included in the pupilghost template
     #
     extname = input_hdu.header['EXTNAME']
-    right_ext = -1
-    for this_ext in range(1, len(pupil_hdu)):
-        if (pupil_hdu[this_ext].header['EXTNAME'] == extname):
-            right_ext = this_ext
-            break
+    logger = logging.getLogger("SubtractPG(%s)" % (extname))
 
-    if (right_ext < 0):
+    try:
+        comb_hdu = pupil_hdu['COMBINED']
+    except:
+        logger.warning("Could not find PG data in specified template file")
+        return None
+
+    ota_list = comb_hdu.header['OTAORDER'].split(";")
+
+    if (not extname in ota_list):
+        logger.debug("This extension (%s) is not affected by the pupilghost [%s]" % (
+            extname, ";".join(ota_list)))
         # This extension is not listed in the pupil-ghost template
         # We can't do anythin in this case, so let's simply return
         input_hdu.header['PGAFCTD'] = (False, "is the OTA affected by the pupilghost")
@@ -177,12 +183,12 @@ def compute_pupilghost_template_ota(input_hdu, pupil_hdu,
     # Get some information about the current input frame
     rotator_angle = input_hdu.header['ROTSTART'] if (rotate) else 0.
     filtername = input_hdu.header['FILTER']
+    logger.debug("rotator angle: %.2f" % (rotator_angle))
 
     #
     # Set the coordinates of the center of the pupilghost 
     #
     # Read the center coordinates from the pupil ghost template file
-    source_center_coords = 'data'
     if (source_center_coords == 'data'):
         fx, fy, fr, vx, vy, vr = dev_pgcenter.find_pupilghost_center(input_hdu, verbose=False)
         center_x, center_y = vx, vy
@@ -198,89 +204,126 @@ def compute_pupilghost_template_ota(input_hdu, pupil_hdu,
             center_x = input_hdu.header['PGEFCTVX']
         if ('PGEFCTVX' in input_hdu.header):
             center_x = input_hdu.header['PGEFCTVX']
+
+    elif (type(source_center_coords) == numpy.ndarray):
+        center_x = source_center_coords[0]
+        center_y = source_center_coords[1]
+
     #
     # by default, resort to the old-fashined canned values
     else:
-        if (filtername in pupilghost_centers):
-            if (extname in pupilghost_centers[filtername]):
-                print pupilghost_centers[filtername][extname]
-                center_x, center_y = pupilghost_centers[filtername][extname]
-            else:
-                if (extname in pupilghost_centers):
-                    center_x, center_y = pupilghost_centers[extname]
-                else:
-                    # Don't know what center coordinate to use, abort
-                    return None
-        elif (extname in pupilghost_centers):
-            center_x, center_y = pupilghost_centers[extname]
-        else:
-            # Don't know what center coordinate to use, abort
-            return None
+        logger.warning("Unable to determine pupilghost center position")
+        # if (filtername in pupilghost_centers):
+        #     if (extname in pupilghost_centers[filtername]):
+        #         print pupilghost_centers[filtername][extname]
+        #         center_x, center_y = pupilghost_centers[filtername][extname]
+        #     else:
+        #         if (extname in pupilghost_centers):
+        #             center_x, center_y = pupilghost_centers[extname]
+        #         else:
+        #             # Don't know what center coordinate to use, abort
+        #             return None
+        # elif (extname in pupilghost_centers):
+        #     center_x, center_y = pupilghost_centers[extname]
+        # else:
+
+        # Don't know what center coordinate to use, abort
+        return None
+
 
     #
     # Now we know we have to do something
     #
-    if (verbose): 
-        print "Found matching pupil ghost template in extension",right_ext
-    print "Using center coordinates", center_x, center_y," for data frame"
+    logger.info("Using center coordinates %d %d for data frame" % (center_x, center_y))
 
     if (rotate):
         # print "___%s___" % rotator_angle
         if (rotator_angle == "unknown"):
             rotator_angle = 0.0
+        elif (rotator_angle < 0):
+            rotator_angle += 360.
+        
+        # Find the small mismatch angles from the template header
+        # load all ALPHAxxx keywords, then pick the one closest to the 
+        # current rotator angle
+        alpha_list = []
+        for (key, _, _) in comb_hdu.header.cards:
+            if (key.startswith("ALPHA")):
+                _rotangle = int(key[-3:])
+                alpha_list.append(_rotangle)
+        logger.debug("Found angle mismatches for these angles: %s" % (
+            " ; ".join(["%d" % i for i in alpha_list])))
+        alpha_list = numpy.array(alpha_list)
+        closest = numpy.argmin(numpy.fabs(alpha_list-rotator_angle))
+        alpha_key = "ALPHA%03d" % (alpha_list[closest])
+        logger.debug("Using mismatch angles for %s" % (alpha_key))
+        mismatches = comb_hdu.header[alpha_key].split(";")
+        this_mismatch = float(mismatches[ota_list.index(extname)])
+        logger.debug("mis-match angle: %.2f" % (this_mismatch))
+
+        # compute the full rotation angle needed for the template
+        # note: angle mismatch headers are in arcmin
+        final_angle = rotator_angle + this_mismatch / 60.
 
         # Rotate to the right angle
         # Make sure to rotate opposite to the rotator angle since we rotate 
         # the correction and not the actual data
-        template = pupil_hdu[right_ext].data
+        template = comb_hdu.data #pupil_hdu[right_ext].data
         # Replace all NaNs with zeros
         template[numpy.isnan(template)] = 0.
 
-        if (math.fabs(rotator_angle) < 0.5):
-            if (verbose): print "Rotator angle is small (%.2f), skipping rotation" % (rotator_angle)
+        if (math.fabs(final_angle) < 0.5):
+            logger.debug("Rotator angle is small (%.2f), skipping rotation" % (final_angle))
             rotated = template
         else:
-            if (verbose): print "rotating template by",rotator_angle,"degrees"
-            rotated = rotate_around_center(template, rotator_angle, mask_nans=False)
+            logger.debug("rotating template by %.3f degrees" % (final_angle))
+            rotated = rotate_around_center(template, -final_angle, mask_nans=False)
+
     else:
-        if (verbose): print "No rotation requested, skipping rotation"
-        rotated = pupil_hdu[right_ext].data
+        logger.debug("No rotation requested, skipping rotation")
+        rotated = comb_hdu.data
      
    
-    template_centerx, template_centery = rotated.shape[0]/2, rotated.shape[1]/2
-    if (source_center_coords == 'data'):
-        #
-        # Ok, now we have the pupil ghost rotated to the right angle
-        #
-        data_shape = input_hdu.data.shape
+    #
+    # Now we have the template rotated to the correct angle. 
+    # Next up we need to determine the center position of the PG in the data
+    # to determine which part of the PG template we need to subtract off.
+    #
 
-        # Now extract the right quadrant from the pupilghost template
-        quadrant = {'OTA33.SCI': [0,4500,0,4500],
-                    'OTA34.SCI': [0,4500,4500,9000],
-                    'OTA44.SCI': [4500,9000,4500,9000],
-                    'OTA43.SCI': [4500,9000,0,4500],
-                }
-        quadrant = {'OTA33.SCI': [400,4500,400,4500],
-                    'OTA34.SCI': [400,4500,4500,8600],
-                    'OTA44.SCI': [4500,8600,4500,8600],
-                    'OTA43.SCI': [4500,8600,400,4500],
-                }
-        xys = quadrant[extname]
-        template_quadrant = rotated[xys[2]:xys[3], xys[0]:xys[1]]
-        # Now we have the right quadrant, search for center position in template
-        imghdu = pyfits.ImageHDU(data=template_quadrant)
-        imghdu.header['EXTNAME'] = extname
-        pyfits.HDUList([pyfits.PrimaryHDU(), imghdu]).writeto("template_%s.fits" % extname, clobber=True)
-        tx, ty, _, _, _, _ = dev_pgcenter.find_pupilghost_center(imghdu, verbose=False,
-                                                                 fixed_radius=vr)
-        print "Found pg center at",tx, ty
-        
-        template_centerx, template_centery = tx+xys[0], ty+xys[2]
-        print "Using",template_centerx, template_centery, "as center coordinates for template"
-        # center_x, center_y = vx, vy
-        
-        # Swap x/y since python does it too
-        print "rot.shape=",rotated.shape
+    template_centerx, template_centery = rotated.shape[0]/2, rotated.shape[1]/2
+    data_shape = input_hdu.data.shape
+    # if (source_center_coords == 'data'):
+    #     #
+    #     # Ok, now we have the pupil ghost rotated to the right angle
+    #     #
+    #
+    #     # Now extract the right quadrant from the pupilghost template
+    #     quadrant = {'OTA33.SCI': [0,4500,0,4500],
+    #                 'OTA34.SCI': [0,4500,4500,9000],
+    #                 'OTA44.SCI': [4500,9000,4500,9000],
+    #                 'OTA43.SCI': [4500,9000,0,4500],
+    #             }
+    #     quadrant = {'OTA33.SCI': [400,4500,400,4500],
+    #                 'OTA34.SCI': [400,4500,4500,8600],
+    #                 'OTA44.SCI': [4500,8600,4500,8600],
+    #                 'OTA43.SCI': [4500,8600,400,4500],
+    #             }
+    #     xys = quadrant[extname]
+    #     template_quadrant = rotated[xys[2]:xys[3], xys[0]:xys[1]]
+    #     # Now we have the right quadrant, search for center position in template
+    #     imghdu = pyfits.ImageHDU(data=template_quadrant)
+    #     imghdu.header['EXTNAME'] = extname
+    #     pyfits.HDUList([pyfits.PrimaryHDU(), imghdu]).writeto("template_%s.fits" % extname, clobber=True)
+    #     tx, ty, _, _, _, _ = dev_pgcenter.find_pupilghost_center(imghdu, verbose=False,
+    #                                                              fixed_radius=vr)
+    #     print "Found pg center at",tx, ty
+    #    
+    #     template_centerx, template_centery = tx+xys[0], ty+xys[2]
+    #     print "Using",template_centerx, template_centery, "as center coordinates for template"
+    #     # center_x, center_y = vx, vy
+    #
+    #     # Swap x/y since python does it too
+    #     print "rot.shape=",rotated.shape
 
  
     bx = template_centerx - center_x
@@ -306,7 +349,7 @@ def compute_pupilghost_template_ota(input_hdu, pupil_hdu,
     input_hdu.header['PGREG_Y2'] = (ty, "matched region of pupilghost, top")
     input_hdu.header['PGEFCTVX'] = (center_x - template_centerx + rotated.shape[1]/2, "effective pupilghost center X")
     input_hdu.header['PGEFCTVY'] = (center_y - template_centery + rotated.shape[0]/2, "effective pupilghost center Y")
-    input_hdu.header['PGROTANG'] = (rotator_angle, "pupil ghost rotator angle")
+    input_hdu.header['PGROTANG'] = (final_angle, "pupil ghost rotator angle")
 
     return correction
 
@@ -314,7 +357,8 @@ def compute_pupilghost_template_ota(input_hdu, pupil_hdu,
 def get_pupilghost_scaling_ota(science_hdu, pupilghost_frame, 
                                n_samples=750, boxwidth=20, 
                                verbose=True,
-                               pg_matched=False):
+                               pg_matched=False,
+                               return_all=False):
     """Find the optimum scaling for the pupil ghost. This is done by sampling the
     image frame and the pupil ghost template at a range of identical
     positions. The median ratio between these measurements then yields the
@@ -364,14 +408,13 @@ def get_pupilghost_scaling_ota(science_hdu, pupilghost_frame,
 
     if (type(pupilghost_frame) == str):
         pg_hdulist = pyfits.open(pupilghost_frame)
-        pg = pg_hdulist[extname].data
+        #pg = pg_hdulist[extname].data
     elif (type(pupilghost_frame) == pyfits.HDUList):
-        pg = pupilghost_frame[extname].data
-    elif (type(pupilghost_frame) == numpy.ndarray):
-        pg = pupilghost_frame
+        pg_hdulist = pupilghost_frame
+        #pg = pupilghost_frame['COMBINED'].data
     else:
-        logger.debug("Not sure what the format of the pupilghost is!")
-        return None
+        logger.error("Not sure what the format of the pupilghost is (need filename or HDUList)!")
+        return None, None if return_all else None
 
     logger.debug("Checking extension %s (filter: %s) for pupilghost effects" % (extname, filter))
 
@@ -379,7 +422,7 @@ def get_pupilghost_scaling_ota(science_hdu, pupilghost_frame,
         # This frame does not contain the keyword labeling it as affected by
         # the pupilghost. In that case we don't need to do anything
         logger.debug("This extension (%s) does not have any pupilghost problem" % (extname))
-        return None
+        return None, None if return_all else None
 
     logger.debug("Checking pupilghost center position")
 
@@ -394,7 +437,7 @@ def get_pupilghost_scaling_ota(science_hdu, pupilghost_frame,
 
     else:
         logger.debug("Couldn't find a pupilghost center, skipping rest of work")
-        return None
+        return None, None if return_all else None
 
     data = science_hdu.data
 
@@ -406,7 +449,7 @@ def get_pupilghost_scaling_ota(science_hdu, pupilghost_frame,
 
     if (samples.shape[0] <= 0):
         logger.debug("Couldn't find enough sky samples, skipping OTA %s" % (extname))
-        return None
+        return None, None if return_all else None
 
     box_centers = samples[:,2:4]
 
@@ -421,16 +464,49 @@ def get_pupilghost_scaling_ota(science_hdu, pupilghost_frame,
     #print dxy[0:10,:]
     #print pg_xy[0:10,:]
 
-    #print pg_samples.shape
-    #print pg_xy.shape
-    logger.debug("Getting sky-samples for pupilghost template")
-    pg_samples =  numpy.array(podi_fitskybackground.sample_background(pg, None, None, 
-                                                                      fit_regions=[],
-                                                                      box_center=pg_xy,
-                                                                      boxwidth=boxwidth))
-    if (pg_samples.shape[0] <= 0):
-        logger.debug("Couldn't find enough pg.template samples, skipping OTA %s" % (extname))
-        return None
+    #
+    # Use the raw profile to look up the raw and 
+    # spline-background-subtracted PG intensity
+    #
+    try:
+        rp_hdu = pg_hdulist['RAWPROFILE']
+        mean_profile = rp_hdu.data[:,0]
+        radius = numpy.arange(mean_profile.shape[0])*rp_hdu.header['CD1_1'] + rp_hdu.header['CRVAL1']
+        #print "xxx"
+
+        profile = scipy.interpolate.interp1d(
+            radius, mean_profile, kind='linear', 
+            fill_value = numpy.NaN,
+            copy=True, bounds_error=False, assume_sorted=True)
+        #print "yyy"
+
+        # data = numpy.loadtxt("radial__norm+bgsub") #radial__bgsub")
+        # profile = scipy.interpolate.interp1d(
+        #     data[:,0], data[:,1], kind='linear', 
+        #     fill_value = 0,
+        #     copy=True, bounds_error=False, assume_sorted=False)
+
+        # compute a radius for each sampling point, and look up average 
+        # intensity of the pupilghost (based on the average profile) for this 
+        # given radius. This yields a 1-d array with the corresponding 
+        # pupilghost amplitude  for the specified radius
+        pg_radius = numpy.hypot(dxy[:,0], dxy[:,1])
+        pg_samples = profile(pg_radius)
+    except:
+        logger.error("Unable to find pupilghost profile")
+        return None, None if return_all else None
+
+
+    # #print pg_samples.shape
+    # #print pg_xy.shape
+    # logger.debug("Getting sky-samples for pupilghost template")
+    # pg_samples =  numpy.array(podi_fitskybackground.sample_background(pg, None, None, 
+    #                                                                   fit_regions=[],
+    #                                                                   box_center=pg_xy,
+    #                                                                   boxwidth=boxwidth))
+    # if (pg_samples.shape[0] <= 0):
+    #     logger.debug("Couldn't find enough pg.template samples, skipping OTA %s" % (extname))
+    #     return None
 
 
     #print pg_samples.shape
@@ -440,6 +516,7 @@ def get_pupilghost_scaling_ota(science_hdu, pupilghost_frame,
     ri = 400
     ro = 3300
     radius = numpy.sqrt(numpy.sum( dxy**2, axis=1))
+    radius = pg_radius # XXX
     #print radius[0:10]
 
     #print extname
@@ -455,34 +532,44 @@ def get_pupilghost_scaling_ota(science_hdu, pupilghost_frame,
 
     # derive maximum intensity of pupil ghost 
     # better: read from file
-    pg_max = numpy.max(pg_samples[:,4])
+    #print pg_samples
+    pg_max = numpy.max(pg_samples[numpy.isfinite(pg_samples)]) # XXX [:,4])
     logger.debug("Maximum intensity of pupilghost: %f" % (pg_max))
 
     # Now merge the two arrays:
+    # merged = numpy.empty(shape=(pg_xy.shape[0],6))
+    # merged[:,0:2] = samples[:,2:4]
+    # merged[:,2:4] = pg_samples[:,2:4]
+    # merged[:,4] = numpy.array(samples)[:,4] #- skylevel
+    # merged[:,5] = numpy.array(pg_samples)[:,4]
+
     merged = numpy.empty(shape=(pg_xy.shape[0],6))
     merged[:,0:2] = samples[:,2:4]
-    merged[:,2:4] = pg_samples[:,2:4]
-    merged[:,4] = numpy.array(samples)[:,4] - skylevel
-    merged[:,5] = numpy.array(pg_samples)[:,4]
+    merged[:,2:4] = samples[:,2:4]
+    merged[:,4] = numpy.array(samples)[:,4] #- skylevel
+    merged[:,5] = numpy.array(pg_samples)[:]
     # numpy.savetxt("zzz", merged)
 
 
     ratio = merged[:,4] / merged[:,5]
-    logger.debug("simple ratio science/template (ota %s): %f" % (extname, numpy.median(ratio)))
+    logger.info("simple ratio science/template (ota %s): %f" % (extname, numpy.median(ratio)))
 
     strong_pg_signal = merged[:,5] > 0.4*pg_max
     valid_ratios = ratio[strong_pg_signal]
     median_ratio = numpy.median(valid_ratios)
     uncert_ratio = numpy.std(valid_ratios)
 
-    logger.debug("ratio for strong pg pixels (%d samples): %f +/- %f" % (
+    logger.info("ratio for strong pg pixels (%d samples): %f +/- %f" % (
         numpy.sum(strong_pg_signal), median_ratio, uncert_ratio))
 
     good_samples = None
     if (numpy.sum(strong_pg_signal) > 0):
         # Only merge the samples with sufficient pupilghost signal
         good_samples = merged[strong_pg_signal]
-        
+
+    if (return_all):
+        return good_samples, merged
+
     return good_samples
 
 
@@ -980,8 +1067,129 @@ def get_pupilghost_scaling(science_frame, pupilghost_frame,
 
 
 
+def iterate_reject_scaling_factors(samples, iterations=3, significant_only=True):
+
+    logger = logging.getLogger("PGScaleReject")
+
+    _samples = numpy.array(samples)
+    logger.info("Input data format: %d,%d" % (_samples.shape[0], samples.shape[1]))
+
+    from scipy.optimize import curve_fit
+    def f(x, scale, bg): # this is your 'straight line' y=f(x)
+        return scale*x + bg
+
+    include = numpy.zeros((_samples.shape[0])) == 0
+    pg_x = _samples[:,5]
+    sci_y = _samples[:,4]
+
+    if (significant_only):
+        strong_pg = pg_x > 0.25 * numpy.max(pg_x)
+        pg_x = pg_x[strong_pg]
+        sci_y = sci_y[strong_pg]
+        
+    min_x = numpy.nanmin(pg_x)
+    max_x = numpy.nanmax(pg_x)
+    if (min_x < 0): min_x = 0
+    n_bins = 10
+    bin_width = (max_x - min_x) / n_bins
+    n_sigma = 1.5
+
+    def compute_fit(pg_x, p):
+        return (pg_x * p[0] + p[1])
+
+    def error(p, pg_x, sci_y):
+        data = compute_fit(pg_x, p)
+        error = sci_y - data
+        return error
 
 
+    numpy.savetxt("step_start",
+                  numpy.append(pg_x.reshape((-1,1)),
+                               sci_y.reshape((-1,1)), axis=1))
+    
+    #
+    # Apply some initial sigma-rejection irrespective of PG intensity to exclude 
+    # significant outliers in the sky brightness that can skew the (initial) fits
+    # and ultimately lead to wrong results
+    #
+    valid_sky, mask = three_sigma_clip(sci_y, 
+                                       ranges=[0, 65e3],
+                                       nrep=3,
+                                       return_mask=True,
+                                       nsigma=3)
+    sci_y = sci_y[mask]
+    pg_x = pg_x[mask]
+    numpy.savetxt("step_masked",
+                  numpy.append(pg_x.reshape((-1,1)),
+                               sci_y.reshape((-1,1)), axis=1))
+    
+    for iter in range(iterations):
+        include = numpy.isfinite(sci_y) & (pg_x > 0) & (sci_y > 0)
+        #print "###=",numpy.sum(include)
+        logger.info("Working on %d samples" % (numpy.sum(include)))
+
+        numpy.savetxt("data_%d" % (iter+1),
+                  numpy.append(pg_x[include].reshape((-1,1)),
+                               sci_y[include].reshape((-1,1)), axis=1))
+    
+        p_init = [0, 0]
+        fit = scipy.optimize.leastsq(error, p_init, 
+                                     args=(pg_x[include], sci_y[include]), 
+                                     full_output=1)
+        p_fit = fit[0]
+        scale, bg = p_fit[0], p_fit[1]
+        logger.info("Iteration %d Fit: BG=%7.1f, scale=%10.4f" % (iter+1, bg, scale))
+        # print scale, bg
+        # print p_fit
+
+        #scale, bg = curve_fit(f, pg_x[include], sci_y[include])[0] # your data x, y to fit
+        #print scale, bg
+
+        # Now only include values within +3/-2 sigma of line, and iterate
+        errors = sci_y - (scale*pg_x + bg)
+
+        _x = None
+        _y = None
+
+        # Now break down the entire range into 10 bins
+        for bin in range(n_bins):
+            
+            _x1 = (bin+0) * bin_width + min_x
+            _x2 = _x1 + bin_width
+
+            # get local scatter
+            in_bin = (pg_x >= _x1) & (pg_x <= _x2)
+            sigmas = scipy.stats.scoreatpercentile(errors[in_bin & include], [16, 84, 50])
+
+            numpy.savetxt("error_%d_%d" % (iter+1, bin+1),
+                          errors[in_bin & include])
+
+            one_sigma = 0.5*(sigmas[1] - sigmas[0])
+            logger.info("Binstep %.2f--%.2f (#=%d): median=%f, sigma-error=%f (%f - %f)" % (
+                _x1, _x2, numpy.sum(in_bin), sigmas[2], one_sigma, sigmas[0], sigmas[1]))
+
+            bad = (errors[in_bin] > n_sigma*one_sigma) | (errors[in_bin] < -n_sigma*one_sigma)
+            good = ~bad
+            #print bin, _x1, _x2, sigmas, one_sigma, in_bin.shape, numpy.sum(bad)
+            pg_x[in_bin][bad] = numpy.NaN
+            sci_y[in_bin][bad] = numpy.NaN
+
+            _x = pg_x[in_bin][good] if type(_x) == type(None) else numpy.append(_x, pg_x[in_bin][good])
+            _y = sci_y[in_bin][good] if type(_y) == type(None) else numpy.append(_y, sci_y[in_bin][good])
+            #include[in_bin] = good
+
+        
+        pg_x = _x
+        sci_y = _y
+
+        numpy.savetxt("step_%d" % (iter+1),
+                      numpy.append(pg_x.reshape((-1,1)),
+                                   sci_y.reshape((-1,1)), axis=1))
+
+        #include = (errors < 3*one_sigma) & (errors > -2*one_sigma)
+#        include = (errors < 2*one_sigma) & (errors > -1.5*one_sigma)
+
+    return scale, bg
 
 if __name__ == "__main__":
 
@@ -1020,6 +1228,144 @@ if __name__ == "__main__":
         
         sci_hdu.writeto(output_frame, clobber=True)
 
+    elif (cmdline_arg_isset("-gettemplate")):
+
+        logger = logging.getLogger("PGSubMain")
+        infile = get_clean_cmdline()[1]
+        templatefile = get_clean_cmdline()[2]
+        outfile = get_clean_cmdline()[3]
+        pgsubfile = get_clean_cmdline()[4]
+
+
+        in_hdulist = pyfits.open(infile)
+        template_hdu = pyfits.open(templatefile)
+
+        singleext = cmdline_arg_set_or_default("-single", None)
+        if (not singleext == None): singleext = singleext.split(",")
+
+        full_samples = None
+        all_corrections = {}
+
+        for ext in in_hdulist:
+            if (not is_image_extension(ext)):
+                continue
+
+            
+            in_hdu = ext #in_hdulist['OTA33.SCI']
+            extname = in_hdu.name
+
+            if (not singleext == None and not extname in singleext):
+                logger.info("Skipping extension %s" % (extname))
+                continue
+
+            logger.info("Working on extension %s" % (extname))
+
+            in_hdu.header['ROTSTART'] = in_hdulist[0].header['ROTSTART']
+            in_hdu.header['FILTER'] = in_hdulist[0].header['FILTER']
+
+            pg_correction = compute_pupilghost_template_ota(
+                input_hdu=in_hdu,
+                pupil_hdu=template_hdu,
+                rotate=~cmdline_arg_isset("-norotate"), 
+                verbose=False, 
+                non_negative=False,
+                source_center_coords='data'
+            )
+            if (pg_correction == None):
+                logger.info("No PG correction found for %s" % (extname))
+                continue
+
+            all_corrections[extname] = pg_correction
+
+            # out_hdu = pyfits.HDUList([
+            #     pyfits.PrimaryHDU(data=pg_correction)])
+            # out_hdu.writeto(outfile[:-5]+extname+".fits", clobber=True)
+
+            scaling_samples, all_samples = get_pupilghost_scaling_ota(
+                science_hdu=in_hdu, 
+                pupilghost_frame=template_hdu,
+                n_samples=2750, boxwidth=20, 
+                verbose=True,
+                pg_matched=True, #pg_correction,
+                return_all=True)
+
+            #print "REceived", type(scaling_samples), type(all_samples), "from OTA", extname
+
+            if (scaling_samples == None):
+                logger.info("No PG scaling received for OTA %s" % (extname))
+                continue
+
+            logger.debug("Received %d scaling samples" % (scaling_samples.shape[0]))
+            numpy.savetxt("pg_samples"+extname, scaling_samples)
+            numpy.savetxt("pg_samples2"+extname, all_samples)
+
+            full_samples = all_samples if full_samples == None else \
+                           numpy.append(full_samples, all_samples, axis=0)
+
+        logger.info("Computing global scaling from %d samples" % (full_samples.shape[0]))
+
+        numpy.savetxt("full_samples", full_samples)
+
+        scaling, background = iterate_reject_scaling_factors(
+            full_samples, iterations=3,
+            significant_only=False)
+        logger.info("Found scaling: %.3f (BG: %.2f)" % (scaling, background))
+
+        #scaling = 28000
+        #scaling = float(cmdline_arg_set_or_default("-scale", in_hdulist[0].header['SKYLEVEL']))
+            
+        #print "Using scaling: ",scaling
+
+        for extname in all_corrections:
+            logger.info("Applying scaled correction to OTA %s" % (extname))
+            in_hdulist[extname].data -= scaling*all_corrections[extname]
+
+        # pgsub = in_hdu.data - scaling * pg_correction
+        # pgsub_hdu = pyfits.HDUList([
+        #     pyfits.PrimaryHDU(data=pgsub)])
+        # pgsub_hdu.writeto(pgsubfile[:-5]+extname+".fits", clobber=True)
+        # 
+        # ext.data -= (pg_correction * scaling)
+        logger.info("writing results to %s" % (pgsubfile))
+        in_hdulist.writeto(pgsubfile, clobber=True)
+        logger.info("all done!")
+
+    elif (cmdline_arg_isset("-filterscale")):
+
+        #
+        #
+        #
+
+        samples = None
+        for fn in get_clean_cmdline()[1:]:
+            s = numpy.loadtxt(fn)
+            samples = s if samples == None else numpy.append(samples, s, axis=0)
+
+            scale, bg = iterate_reject_scaling_factors(samples, iterations=3,
+                                                       significant_only=False)
+
+        # from scipy.optimize import curve_fit
+        # def f(x, scale, bg): # this is your 'straight line' y=f(x)
+        #     return scale*x + bg
+
+        # include = numpy.zeros((samples.shape[0])) == 0
+        # pg_x = samples[:,5]
+        # sci_y = samples[:,4]
+        # for iter in range(3):
+        #     scale, bg = curve_fit(f, pg_x[include], sci_y[include])[0] # your data x, y to fit
+        #     print scale, bg
+
+        #     # Now only include values within +3/-2 sigma of line, and iterate
+        #     errors = sci_y - (scale*pg_x + bg)
+        #     sigmas = scipy.stats.scoreatpercentile(errors, [16, 84])
+        #     print sigmas
+        #     one_sigma = 0.5*(sigmas[1] - sigmas[0])
+            
+        #     #include = (errors < 3*one_sigma) & (errors > -2*one_sigma)
+        #     include = (errors < 2*one_sigma) & (errors > -1.5*one_sigma)
+
+        print scale, bg
+            
     else:
         # Read filenames from command line
         inputframe = sys.argv[1]
@@ -1049,3 +1395,5 @@ if __name__ == "__main__":
 
     # Shutdown logging to shutdown cleanly
     podi_logging.shutdown_logging(options)
+
+
