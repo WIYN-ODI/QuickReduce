@@ -203,7 +203,7 @@ def wcsdiag_scatter(matched_radec_odi,
     ota = matched_ota
 
     if (options == None):
-        extension_list = ('png')
+        extension_list = ['png']
     else:
         extension_list = options['plotformat']
 
@@ -318,7 +318,7 @@ def wcsdiag_scatter(matched_radec_odi,
 
 def plot_wcsdiag_shift(radec, d_radec,
                        # matched_cat, 
-                       filename, extension_list=('png'), 
+                       filename, extension_list=['png'], 
                        ota_outlines=None, 
                        title=None,
                        ):
@@ -475,7 +475,7 @@ def wcsdiag_shift(matched_radec_odi,
     # ota = good_matches[:,10]
     
     if (options == None):
-        extension_list = ('png')
+        extension_list = ['png']
     else:
         extension_list = options['plotformat']
 
