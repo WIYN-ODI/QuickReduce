@@ -543,6 +543,16 @@ def collect_reduce_ota(filename,
         all_readnoise = numpy.ones(shape=(8,8)) * -99
         all_readnoise_electrons = numpy.ones(shape=(8,8)) * -99
 
+        #
+        # Handle the trimcell option
+        #
+        hdu.header['TRIMCELL'] = (-1, "trim cell edges (-1: no)")
+        if (options['trimcell'] == None):
+            reduction_log.not_selected('trimcell')
+        else:
+            reduction_log.success('trimcell')
+            hdu.header['TRIMCELL'] = options['trimcell']
+
         reduction_log.attempt('overscan')
         for wm_cellx, wm_celly in itertools.product(range(8),repeat=2):
             #if (not options['bgmode']):
@@ -577,7 +587,9 @@ def collect_reduce_ota(filename,
             # Now extract just the data section.
             # Values are hard-coded as some of the DATASEC keywords are wrong
             #
-            datasec = extract_datasec_from_cell(hdulist[cell].data, binning) #[0:494, 0:480] 
+            datasec = extract_datasec_from_cell(
+                hdulist[cell].data, binning,
+                trimcell=options['trimcell'])
             # print "datasec.shape=",datasec.shape
             # Now overscan subtract and insert into large frame
             overscan_region = extract_biassec_from_cell(hdulist[cell].data, binning)
@@ -596,7 +608,9 @@ def collect_reduce_ota(filename,
             #
             # Insert the reduced data-section of this cell into the large OTA frame
             #
-            bx, tx, by, ty = cell2ota__get_target_region(wm_cellx, wm_celly, binning)
+            bx, tx, by, ty = cell2ota__get_target_region(
+                wm_cellx, wm_celly, binning,
+                trimcell=options['trimcell'])
             merged[by:ty,bx:tx] = datasec
 
             #

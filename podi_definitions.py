@@ -953,7 +953,7 @@ def cell2ota__extract_data_from_cell(data_in=None):
 
     return data_in[0:494, 0:480]
 
-def cell2ota__get_target_region(x, y, binning=1):
+def cell2ota__get_target_region(x, y, binning=1, trimcell=None):
     """
 
     Get the location of a given cell in the monolithic OTA array, accounting for
@@ -966,6 +966,9 @@ def cell2ota__get_target_region(x, y, binning=1):
     # but pixel coordinates are counted bottom up
     _y = 7 - y
 
+    if (trimcell == None):
+        trimcell = 0
+
     if (binning == 1):
         y1 = (505*_y)  #was 503 
         y2 = y1 + 494
@@ -977,7 +980,7 @@ def cell2ota__get_target_region(x, y, binning=1):
         x1 = 254 * x
         x2 = x1 + 240
         
-    return x1, x2, y1, y2
+    return x1+trimcell, x2-trimcell, y1+trimcell, y2-trimcell
 
 
 
@@ -1140,12 +1143,15 @@ def get_collected_image_dimensions(binning):
     return sizex, sizey
 
 
-def extract_datasec_from_cell(data, binning):
+def extract_datasec_from_cell(data, binning, trimcell=None):
     """
 
     Return the science region of a given cell, accounting for binning
 
     """
+
+    if (trimcell == None):
+        trimcell=0
 
     if (binning == 1):
         dx, dy = 480, 494
@@ -1153,7 +1159,7 @@ def extract_datasec_from_cell(data, binning):
         dx, dy = 240, 247
 
     # print "extracting datasec", dx, dy
-    return data[0:dy, 0:dx]
+    return data[0+trimcell:dy-trimcell, 0+trimcell:dx-trimcell]
 
 
 def extract_biassec_from_cell(data, binning):

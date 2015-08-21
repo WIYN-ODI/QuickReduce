@@ -356,11 +356,16 @@ Calibration data:
             y = int(ota[1])
             options['selectota'][idx] = (x,y)
         
-#    options['selectota'] = int(cmdline_arg_set_or_default("-selectota", None))
-
     options['simple-tan-wcs'] = cmdline_arg_isset("-tanwcs")
 
     options['crosstalk'] = cmdline_arg_set_or_default("-crosstalk", "auto")
+
+    options['trimcell'] = cmdline_arg_set_or_default("-trimcell", None)
+    if (not options['trimcell'] == None):
+        try:
+            options['trimcell'] = int(options['trimcell'])
+        except:
+            options['trimcell'] = None
 
     return options
 
@@ -475,6 +480,8 @@ def set_default_options(options_in=None):
     options['simple-tan-wcs'] = False
 
     options['crosstalk'] = None
+
+    options['trimcell'] = None
 
     return options
 

@@ -30,6 +30,7 @@ class ReductionLog:
         self.steps['overscan']    = (None, '_OVERSCN', 'overscan subtraction')
         self.steps['crosstalk']   = (None, '_XTALK'  , 'crosstalk correction')
         self.steps['gain']        = (None, '_GAIN'   , 'explicit gain correction')
+        self.steps['trimcell']    = (None, '_TRIMCEL', 'trim edges of all cells')
         self.steps['bias']        = (None, '_BIAS'   , 'bias subtraction')
         self.steps['dark']        = (None, '_DARK'   , 'dark correction')
         self.steps['flat']        = (None, '_FLAT'   , 'flatfielding')
