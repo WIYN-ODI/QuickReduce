@@ -1646,7 +1646,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             max_rotator_error=[-3,3.5],
             min_contrast=3.0,
             angle_steps=20, # arcmin
-            fov=0.8):
+            fov=0.8,
+            estimate_fmatch=True):
 
     """
 
@@ -1859,11 +1860,13 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
 
     # Estimate what fraction of 2mass stars are expected to be matched to 
     # ODI sources
-    f_matched_expected = estimate_match_fraction(
-        src_cat=src_cat_long, 
-        primary_header=hdulist[0].header,
-        meanTeff=4500)
-    logger.debug("Expecting match-ratios ~ %f" % (f_matched_expected))
+    f_matched_expected = 0
+    if (estimate_fmatch):
+        f_matched_expected = estimate_match_fraction(
+            src_cat=src_cat_long, 
+            primary_header=hdulist[0].header,
+            meanTeff=4500)
+        logger.debug("Expecting match-ratios ~ %f" % (f_matched_expected))
 
 
     # max_pointing_error_list = numpy.array([numpy.max(numpy.array(max_pointing_error_list))])
