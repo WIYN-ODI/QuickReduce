@@ -108,6 +108,7 @@ import pdb
 import scipy
 import scipy.stats
 
+from wiyn_filters import *
 import podi_matchcatalogs
 import podi_sitesetup as sitesetup
 import podi_search_ipprefcat
@@ -616,6 +617,29 @@ def estimate_mean_star_color(filtername, T=5000):
     return starcolor
 
 
+def find_closest_sdss_counterpart(filtername):
+
+    logger = logging.getLogger("Match2SDSS")
+
+    if (not filtername in filter_bandpass):
+        logger.warning("This is an unknown filter, defaulting to sdss_r")
+        return 'r'
+
+    # Look up the filter bandpass parameters
+    # most importantly, we will use the mean_pos value to find a good 
+    # filter match
+    _, meanpos, center, _, _, _, _, _, _, _, _ = filter_bandpass[filtername]
+
+    sdss_filters = numpy.array(['u', 'g', 'r', 'i', 'z'])
+    sdss_mean_pos = numpy.array([3557, 4825, 6261, 7672, 9097])
+
+    # compute the wavelength difference to all SDSS filters
+    d_lambda = numpy.fabs(sdss_mean_pos-meanpos)
+
+    # pick the closest
+    closest = numpy.argmin(d_lambda)
+
+    return sdss_filters[closest]
 
 
 def photcalib(source_cat, output_filename, filtername, exptime=1, 
@@ -764,7 +788,8 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     ra_range  = [ra_min, ra_max]
     dec_range = [dec_min, dec_max]
 
-    sdss_filter = sdss_equivalents[filtername]
+    # sdss_filter = sdss_equivalents[filtername]
+    sdss_filter = find_closest_sdss_counterpart(filtername)
     logger.debug("Translating filter: %s --> %s" % (filtername, sdss_filter))
     if (sdss_filter == None):
         # This filter is not covered by SDSS, can't perform photometric calibration
