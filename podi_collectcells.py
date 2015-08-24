@@ -253,6 +253,7 @@ from podi_plotting import *
 gain_correct_frames = False
 from podi_definitions import *
 from podi_commandline import *
+from wiyn_filters import *
 #import podi_findstars
 import podi_search_ipprefcat
 import podi_fixwcs
