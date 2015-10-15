@@ -561,7 +561,7 @@ class FocalPlaneLayout(object):
         if (filtername in self.otas_to_normalize_ff):
             return self.otas_to_normalize_ff[filtername]
         
-        return central_2x2
+        return self.central_2x2
 
 
     def get_layout(self):
