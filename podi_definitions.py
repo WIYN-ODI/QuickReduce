@@ -52,7 +52,7 @@ from wiyn_filters import *
 #
 pipeline_plver = "QuickReduce 2.0"
 pipeline_name = "QuickReduce"
-pipeline_version = "2.0"
+pipeline_version = "2.0.1"
 try:
     cmd = "svnversion -n %s" % (sitesetup.exec_dir)
     ret = subprocess.Popen(cmd.split(), 

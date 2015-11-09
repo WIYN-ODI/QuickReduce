@@ -517,13 +517,22 @@ def collect_reduce_ota(filename,
 
             # Set the filename for the TECHDATA extension based on the user-option
             if (options['techdata'] == "from_flat" and not options['flat_dir'] == None):
-                techfile = check_filename_directory(options['flat_dir'], "flat_%s_bin%d.fits" % (filter_name, binning))
+
+                for ft in sitesetup.flat_order:
+                    techfile = check_filename_directory(options['flat_dir'], 
+                        "%s_%s_bin%d.fits" % (ft, filter_name, binning))
+                    if (os.path.isfile(techfile)):
+                        break
                 
             elif (options['techdata'] == "from_bias" and not options['bias_dir'] == None):
                 techfile = check_filename_directory(options['bias_dir'], "bias_bin%s.fits" % (binning))
 
             else:
-                techfile= check_filename_directory(options['techdata'], "techdata_%s_bin%d.fits" % (filter_name, binning))
+                for ft in sitesetup.flat_order:
+                    techfile = check_filename_directory(options['techdata'], 
+                        "techdata_%s_%s_bin%d.fits" % (ft, filter_name, binning))
+                    if (os.path.isfile(techfile)):
+                        break
 
             # Check if the specified file exists and read the data if possible
             if (os.path.isfile(techfile)):
@@ -537,9 +546,8 @@ def collect_reduce_ota(filename,
                     techhdulist = pyfits.open(techfile)
                     reduction_files_used['techdata'] = techfile
                 else:
-                    logger.debug("Was looking for techfile %s but couldn't find it" % (techfile))
+                    logger.warning("Was looking for techfile %s but couldn't find it" % (techfile))
 
-           
         all_gains = numpy.ones(shape=(8,8)) * -99
         all_readnoise = numpy.ones(shape=(8,8)) * -99
         all_readnoise_electrons = numpy.ones(shape=(8,8)) * -99
@@ -740,8 +748,14 @@ def collect_reduce_ota(filename,
         if (options['flat_dir'] == None):
             reduction_log.not_selected('flat')
         else:
-            flatfield_filename = check_filename_directory(options['flat_dir'], "flat_%s_bin%d.fits" % (filter_name, binning))
-            if (not os.path.isfile(flatfield_filename)):
+            found_flatdata = False
+            for ft in sitesetup.flat_order:
+                flatfield_filename = check_filename_directory(options['flat_dir'], 
+                    "%s_%s_bin%d.fits" % (ft, filter_name, binning))
+                if (os.path.isfile(flatfield_filename)):
+                    found_flatdata = True
+                    break
+            if (not found_flatdata):
                 reduction_log.fail('flat')
             else:
                 flatfield = pyfits.open(flatfield_filename)
