@@ -101,6 +101,21 @@ import podi_sitesetup as sitesetup
 from podi_definitions import *
 
 
+def read_comma_separated_list(inp, ignore_errors=True):
+
+    ret_list = []
+    if (type(inp) == list):
+        return inp
+    elif (inp == None):
+        return None
+    elif (not inp == None):
+        for _in in inp.split(","):
+            if (os.path.isdir(_in) or os.path.isfile(_in) or ignore_errors):
+                ret_list.append(_in)
+    return ret_list
+
+
+    
 def read_options_from_commandline(options=None, ignore_errors=False):
     """
     Read all command line options and store them in the options dictionary.
@@ -116,11 +131,14 @@ def read_options_from_commandline(options=None, ignore_errors=False):
 
     # Handle all reduction flags from command line
     if (cmdline_arg_isset("-cals")):
-        cals_dir = get_cmdline_arg("-cals")
-        if (not os.path.isdir(cals_dir)):
-            logger.critical("The specified cals-directory (%s) does not exist!!!" % (cals_dir))
+        cals_dir = read_comma_separated_list(get_cmdline_arg("-cals"), ignore_errors)
+        if (cals_dir == []):
+            logger.critical("The specified cals-directory (%s) does not exist!!!" % (
+                get_cmdline_arg("-cals")))
             if (not ignore_errors):
                 sys.exit(0)
+
+        options['calib_dir'] = cals_dir
 
         options['bias_dir'] = cals_dir
         options['dark_dir'] = cals_dir
@@ -130,13 +148,14 @@ def read_options_from_commandline(options=None, ignore_errors=False):
 
         options['illumcorr_dir'] = cals_dir
 
-    options['bias_dir'] = cmdline_arg_set_or_default("-bias", options['bias_dir'])
-    options['dark_dir'] = cmdline_arg_set_or_default("-dark", options['dark_dir'])
-    options['flat_dir'] = cmdline_arg_set_or_default("-flat", options['flat_dir'])
+    options['bias_dir'] = read_comma_separated_list(
+        cmdline_arg_set_or_default("-bias", options['bias_dir']))
+    options['dark_dir'] = read_comma_separated_list(
+        cmdline_arg_set_or_default("-dark", options['dark_dir']))
+    options['flat_dir'] = read_comma_separated_list(
+        cmdline_arg_set_or_default("-flat", options['flat_dir']))
 
     options['bpm_dir']  = cmdline_arg_set_or_default("-bpm", options['bpm_dir'])
-    if (options['bpm_dir'] == "auto"):
-        options['bpm_dir'] = options['exec_dir']
         
     if (options['verbose']):
         print """
@@ -155,7 +174,8 @@ Calibration data:
 
     options["update_persistency_only"] = cmdline_arg_isset("-update_persistency_only")
 
-    options['fringe_dir'] = cmdline_arg_set_or_default('-fringe', None)
+    options['fringe_dir'] = None if not cmdline_arg_isset("-fringe") \
+                            else cmdline_arg_set_or_default('-fringe', "auto")
     options['fringe_vectors'] = cmdline_arg_set_or_default("-fringevectors", options['fringe_vectors'])
 
     options['pupilghost_dir'] = cmdline_arg_set_or_default('-pupilghost', None)
@@ -163,9 +183,10 @@ Calibration data:
     options['fixwcs'] = cmdline_arg_isset("-fixwcs")
 
     # For now assume that the WCS template file is located in the same directory as the executable
-    options['wcs_distortion'] = sitesetup.exec_dir + "/2mass_distort5.fits"
+    options['wcs_distortion'] = sitesetup.exec_dir + "/"
     options['wcs_distortion'] = cmdline_arg_set_or_default("-wcs", options['wcs_distortion'])
-    if (not os.path.isfile(options['wcs_distortion'])):
+    if (not os.path.isfile(options['wcs_distortion']) and 
+        not os.path.isdir(options['wcs_distortion'])):
         options['wcs_distortion'] = None
 
     options['clobber'] = not cmdline_arg_isset("-noclobber")
@@ -188,7 +209,7 @@ Calibration data:
         tmp = get_cmdline_arg("-wcsoffset")
         items = tmp.split(',')
         options['offset_pointing'] = [float(items[0]), float(items[1])]
-        logger.info("Applying a user-defined WCS offset of %.3f, %.3f degrees\n" % (options['offset_pointing'][0], options['offset_pointing'][1]))
+        logger.info("Applying a user-defined WCS offset of %.3f, %.3f arcseconds\n" % (options['offset_pointing'][0], options['offset_pointing'][1]))
 
     #
     # Read all offsets from command line
@@ -324,6 +345,28 @@ Calibration data:
 
     options['prestage'] = cmdline_arg_isset("-prestage")
 
+    options['softbin'] = int(cmdline_arg_set_or_default("-softbin", 0))
+
+    if (cmdline_arg_isset("-selectota")):
+        str_otas = cmdline_arg_set_or_default("-selectota", "33")
+        otas = str_otas.split(",")
+        options['selectota'] = [None] * len(otas)
+        for idx, ota in enumerate(otas):
+            x = int(ota[0])
+            y = int(ota[1])
+            options['selectota'][idx] = (x,y)
+        
+    options['simple-tan-wcs'] = cmdline_arg_isset("-tanwcs")
+
+    options['crosstalk'] = cmdline_arg_set_or_default("-crosstalk", "auto")
+
+    options['trimcell'] = cmdline_arg_set_or_default("-trimcell", None)
+    if (not options['trimcell'] == None):
+        try:
+            options['trimcell'] = int(options['trimcell'])
+        except:
+            options['trimcell'] = None
+
     return options
 
 
@@ -367,7 +410,7 @@ def set_default_options(options_in=None):
     options['max_persistency_time'] = sitesetup.persistency_duration
 
     options['fringe_dir'] = None
-    options['fringe_vectors'] = "%s/.fringevectors/" % (options['exec_dir'])
+    options['fringe_vectors'] = None #"%s/.fringevectors/" % (options['exec_dir'])
 
     options['pupilghost_dir'] = None
 
@@ -430,6 +473,15 @@ def set_default_options(options_in=None):
     options['illumcorr_dir'] = None
 
     options['prestage'] = False
+
+    options['softbin'] = 0
+    options['selectota'] = None
+
+    options['simple-tan-wcs'] = False
+
+    options['crosstalk'] = None
+
+    options['trimcell'] = None
 
     return options
 

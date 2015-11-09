@@ -231,6 +231,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
             logger.info("No correction needs to be applied!")
             ret['corrected_file'] = input_file
         else:
+            gain = hdulist[0].header['GAIN']
 
             if (swarp_params['use_nonsidereal']):
                 logger.debug("Applying the non-sidereal motion correction")
@@ -360,6 +361,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                     master_reduction_files_used, {"illumination": illum_file})
                 podi_illumcorr.apply_illumination_correction(hdulist, illum_file)
 
+            skylevel = 0.
             if (not swarp_params['subtract_back'] == 'swarp' and not swarp_params['subtract_back'] == False):
                 skylevel = numpy.NaN
                 if (swarp_params['subtract_back'] in hdulist[0].header):
@@ -378,7 +380,10 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                             continue
                         ext.data -= skylevel
                         logger.debug("Subtracting skylevel (%f) from extension %s" % (skylevel, ext.name))
-
+            elif (swarp_params['subtract_back'] == 'swarp'):
+                skylevel = hdulist[0].header['SKYLEVEL']
+            else:
+                skylevel = hdulist[0].header['SKYLEVEL']
 
             if (not numpy.isnan(fluxscale_value)):
                 logger.debug("Applying flux-scaling (%.10e)" % (fluxscale_value))
@@ -387,6 +392,10 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                         continue
                     ext.data *= fluxscale_value
                     logger.debug("Applying flux-scaling (%.10e) to extension %s" % (fluxscale_value, ext.name))
+
+                # Apply fluxscaling to GAIN and SKYLEVLE as well
+                gain /= fluxscale_value
+                skylevel *= fluxscale_value
 
             # Check if the corrected file already exists - if not create it
             #if (not os.path.isfile(corrected_filename)):
@@ -398,6 +407,8 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
             # Now change the filename of the input list to reflect 
             # the corrected file
             ret['corrected_file'] = corrected_filename
+            ret['gain'] = gain
+            ret['skylevel'] = skylevel
 
         #
         # Now also create a relative weight map for this frame
@@ -409,12 +420,15 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                 continue
 
             weight_data = numpy.ones(ext.data.shape, dtype=numpy.float32) #* 100.
+            ret['weight'] = 1.
             if (not numpy.isnan(fluxscale_value)):
                 weight_data /= fluxscale_value
+                ret['weight'] = 1./fluxscale_value
             weight_data[numpy.isnan(ext.data)] = 0.
 
             weight_img = pyfits.ImageHDU(header=ext.header, data=weight_data) 
             weight_hdulist.append(weight_img)
+
 
         # convert extension list to proper HDUList ...
         weight_hdulist = pyfits.HDUList(weight_hdulist)
@@ -457,34 +471,63 @@ def prepare_input(inputlist, swarp_params, options):
     # fill queue with files to be processed
     #
     n_jobs = 0
-    for i in range(len(inputlist)):
-        if (not os.path.isfile(inputlist[i])):
+    existing_inputlist = []
+    for fn in inputlist: #i in range(len(inputlist)):
+        if (not os.path.isfile(fn)):
             continue
         try:
-            hdulist = pyfits.open(inputlist[i])
+            hdulist = pyfits.open(fn)
         except IOError:
-            logger.error("Can't open file %s" % (inputlist[i]))
-            inputlist[i] = None
+            logger.error("Can't open file %s" % (fn))
             continue
+        
+        hdulist.close()
+        existing_inputlist.append(fn)
 
+    if (len(existing_inputlist) <= 0):
+        logger.error("No valid files found")
+        return
+
+    wcs_inputlist = []
+    photcal_inputlist = []
+    for idx, fn in enumerate(existing_inputlist):
+        hdulist = pyfits.open(fn)
         #
         # Perform some checks to only include valid frames in the stack
         #
         # Frame needs to have valid WCS solution
         if ('WCSCAL' in hdulist[0].header and
-            not hdulist[0].header['WCSCAL']):
-            inputlist[i] = None
-            logger.info("Excluding frame (%s) due to faulty WCS calibration" % (inputlist[i]))
+            not hdulist[0].header['WCSCAL'] and 
+            not swarp_params['ignore_quality_checks']):
+            logger.info("Excluding frame (%s) due to faulty WCS calibration" % (fn))
+            #good_inputlist[idx] = None
             continue
+
+        wcs_inputlist.append(fn)
+
         # and proper photometric calibration
         if ('MAGZERO' in hdulist[0].header and
             hdulist[0].header['MAGZERO'] <= 0 and
-            not swarp_params['no-fluxscale']):
-            inputlist[i] = None
-            logger.info("Excluding frame (%s) due to missing photometric calibration" % (inputlist[i]))
+            not swarp_params['no-fluxscale'] and
+            not swarp_params['ignore_quality_checks']):
+            logger.info("Excluding frame (%s) due to missing photometric calibration" % (fn))
+            #good_inputlist[idx] = None
             continue
 
-        in_queue.put((inputlist[i],i+1))
+        photcal_inputlist.append(fn)
+
+    if (len(photcal_inputlist) > 0):
+        logger.debug("Restricting input file list to files with valid photoemtric calibration")
+        inputlist = photcal_inputlist
+    elif (len(wcs_inputlist) > 0):
+        logger.warning("No files with photometric calibration found, reverting to list of WCS-calibrated files")
+        inputlist = wcs_inputlist
+    else:
+        logger.warning("No files with WCS and/or photometry found, reverting to unfiltered inputlist")
+        inputlist = existing_inputlist
+
+    for idx, fn in enumerate(inputlist):
+        in_queue.put((fn, idx+1))
         n_jobs += 1
 
     logger.info("Queued %d jobs ..." % (n_jobs))
@@ -521,10 +564,17 @@ def prepare_input(inputlist, swarp_params, options):
     stack_total_exptime = 0
     stack_framecount = 0
 
+    gain_list = numpy.zeros((n_jobs))
+    skylevel_list = numpy.zeros((n_jobs))
+    weight_list = numpy.zeros((n_jobs))
+
     for i in range(n_jobs):
         ret = out_queue.get()
         logger.debug("Received results from job %d" % (i+1))
 
+        gain_list[i] = ret['gain']
+        skylevel_list[i] = ret['skylevel']
+        weight_list[i] = ret['weight']
 
         # Also set some global stack-related parameters that we will add to the 
         # final stack at the end
@@ -547,6 +597,8 @@ def prepare_input(inputlist, swarp_params, options):
         corrected_file_list.append(ret['corrected_file'])
         nonsidereal_offsets.append(ret['nonsidereal-dradec'])
 
+    photom_list = (gain_list, skylevel_list, weight_list)
+
     #
     # By now all frames have all corrections applied,
     # so we can go ahead and stack them as usual
@@ -564,7 +616,8 @@ def prepare_input(inputlist, swarp_params, options):
             stack_start_time, 
             stack_end_time, 
             master_reduction_files_used,
-            nonsidereal_offsets)
+            nonsidereal_offsets,
+            photom_list)
 
 
 
@@ -872,6 +925,81 @@ def swarpstack(outputfile,
 
     ############################################################################
     #
+    # Generate the illumination correction file if this is requested
+    #
+    ############################################################################
+    if (swarp_params['illumcorr'] == "autogenerate" and
+        swarp_params['illumcorrfiles'] != None):
+        
+        # Make sure all files exist
+        ic_filelist = []
+        for fn in swarp_params['illumcorrfiles'].split(","):
+            if (os.path.isfile(fn)):
+                ic_filelist.append(fn)
+        
+        logger.debug("Using the following files to create an illumination correction:\n -- %s" % (
+            "\n -- ".join(ic_filelist)))
+
+        ic_filename = "%s.illumcorr.fits" % (outputfile[:-5])
+        podi_illumcorr.prepare_illumination_correction(
+            filelist=ic_filelist,
+            outfile=ic_filename,
+            tmpdir=unique_singledir,
+            redo=True)
+
+        # Change the internal parameter to use the newly generated
+        # illumination correction file during stacking
+        params['illumcorr'] = ic_filename
+        options['illumcorr_dir'] = ic_filename
+
+    ###########################################################################
+    #
+    # Handle the optional user-requested zeropoint determination based on the 
+    # -best or median options
+    #
+    ###########################################################################
+    if (swarp_params['target_magzero'] in ['best', 'median']):
+        # Load all frames, and get a list of all available magzero headers
+        all_zp = numpy.empty((len(inputlist)))
+        all_zp[:] = numpy.NaN
+        for idx, fn in enumerate(inputlist):
+            if (os.path.isfile(fn)):
+                _hdu = pyfits.open(fn)
+                magzero = _hdu[0].header['PHOTZP_X'] if 'PHOTZP_X' in _hdu[0].header else numpy.NaN
+                logger.debug("ZP (%s) = %.4f" % (fn, magzero))
+                all_zp[idx] = magzero
+        logger.info(str(all_zp))
+        all_zp = all_zp[numpy.isfinite(all_zp)]
+        if (all_zp.shape[0] == 0):
+            final_magzero = 25.
+            logger.warning("Didn't find any valid zeropoints")
+        elif (swarp_params['target_magzero'] == "best"):
+            final_magzero = numpy.max(all_zp)
+            logger.debug("Selecting ''best'' phot. ZP of %.3f" % (final_magzero))
+        elif (swarp_params['target_magzero'] == "median"):
+            final_magzero = numpy.median(all_zp)
+            logger.debug("Selecting ''median'' phot. ZP of %.3f" % (final_magzero))
+        else:
+            logger.error("Problem determing which phot. ZP to use")
+            final_magzero = 25.0
+        swarp_params['target_magzero'] = final_magzero
+    elif (type(swarp_params['target_magzero']) == str and
+          os.path.isfile(swarp_params['target_magzero'])):
+        _hdu = pyfits.open(swarp_params['target_magzero'])
+        magzero = _hdu[0].header['PHOTZP_X'] if 'PHOTZP_X' in _hdu[0].header else 25.0
+        logger.debug("Matching ZP to %s ==> ZP = %.4f" % (swarp_params['target_magzero'], magzero))
+        swarp_params['target_magzero'] = magzero
+    else:
+        try:
+            swarp_params['target_magzero'] = float(swarp_params['target_magzero'])
+        except:
+            logger.error("Invalid parameter or file not found: %s" % (str(swarp_params['target_magzero'])))
+            swarp_params['target_magzero'] = 25.0
+    logger.info("Scaling all frames to common phot. ZP of %.4f" % (swarp_params['target_magzero']))
+
+
+    ############################################################################
+    #
     # Prepare all QR'ed input files, applying additional corrections where needed
     #
     ############################################################################
@@ -886,13 +1014,16 @@ def swarpstack(outputfile,
 
     modified_files, stack_total_exptime, stack_framecount, \
         stack_start_time, stack_end_time, master_reduction_files_used, \
-        nonsidereal_offsets = \
+        nonsidereal_offsets, photom_lists = \
         prepare_input(inputlist, swarp_params, options)
 
     # print modified_files
     inputlist = modified_files
 
-    print "\n\n".join(inputlist)
+    # print "\n\n".join(inputlist)
+
+    #print photom_lists
+    gain_list, skylevel_list, weight_list = photom_lists
 
 
     add_only = swarp_params['add'] and os.path.isfile(outputfile)
@@ -965,12 +1096,28 @@ def swarpstack(outputfile,
 
         if (swarp_params['pixelscale'] > 0):
             swarp_opts += " -PIXELSCALE_TYPE MANUAL -PIXEL_SCALE %.4f " % (swarp_params['pixelscale'])
+
+            #
+            # Factor in the potential change in pixelscale in the skylevel and 
+            # gain computations
+            #
+            pixelscale_raw = 0.11
+            pixelscale_binning = (swarp_params['pixelscale'] / pixelscale_raw)**2
+            # do not multiply gain with binning, since flux/pixel is summed, not averages
+            skylevel_list *= pixelscale_binning
+            logger.info("Adjusting gain and skylevel for change in pixelscale (%.2f''/px --> bin=%.2f)" % (
+                swarp_params['pixelscale'], pixelscale_binning))
+        else:
+            logger.info("Pixelscale remains unchanged, no need to adjust gain or skylevel")
+
+
         if (swarp_params['no-fluxscale']):
             swarp_opts += " -FSCALE_KEYWORD none "
 
         swarp_opts += " -SUBTRACT_BACK %s " % ("Y" if swarp_params['subtract_back']=='swarp' else "N")
 
         logger.debug("SWARP options for pre-stack:\n"+" ".join(swarp_opts.split()))
+
 
         # 
         # First create only the output header so we can pass some information 
@@ -1477,6 +1624,35 @@ def swarpstack(outputfile,
                                           "reuse singles?")
 
         #
+        #
+        # Add all photometry-relevant derived keywords in the output stack
+        #
+        #
+        if (combine_type in ['SUM']):
+            stack_gain = numpy.mean(gain_list)
+            stack_skylevel = numpy.sum(skylevel_list)
+        else:
+            stack_gain = numpy.sum(gain_list)
+            if (combine_type in ['WEIGHTED']):
+                # compute weighted sky-level
+                stack_skylevel = numpy.sum(skylevel_list*weight_list) / numpy.sum(weight_list)
+            else:
+                stack_skylevel = numpy.mean(skylevel_list)
+        for hk in ['GAIN', 'SKYLEVEL']:
+            if (hk in hdustack[0].header):
+                del hdustack[0].header[hk]
+        hdustack[0].header['GAIN'] = (stack_gain, "combined GAIN")
+        hdustack[0].header['SKYLEVEL'] = (stack_skylevel, "combined skylevel")
+        logger.info("Stack: GAIN=%f - SKY=%f" % (stack_gain, stack_skylevel))
+
+        # Check if we are to add the sky-level back into the stack
+        hdustack[0].header['NORMSKY'] = (False, "re-normalize sky")
+        if (params['normalize_sky'] and not params['subtract_back'] == False):
+            logger.info("Adding back skylevel (%f) to stack" % (stack_skylevel))
+            hdustack[0].data += stack_skylevel
+            hdustack[0].header['NORMSKY'] = True
+            
+        #
         # Store all configuration about non-sidereal / ephemerides corrections 
         # that were applied during execution
         #
@@ -1777,9 +1953,12 @@ def read_swarp_params(filelist):
 
     params['huge_frame_allowed'] = cmdline_arg_isset("-huge")
 
-    params['target_magzero'] = float(cmdline_arg_set_or_default("-targetzp", 25.0))
+    params['target_magzero'] = cmdline_arg_set_or_default("-targetzp", 25.0)
 
     params['illumcorr'] = cmdline_arg_set_or_default("-illumcorr", None)
+    params['illumcorrfiles'] = cmdline_arg_set_or_default("-illumcorrfiles", None)
+
+    params['normalize_sky'] = cmdline_arg_isset("-normsky")
 
     return params
 

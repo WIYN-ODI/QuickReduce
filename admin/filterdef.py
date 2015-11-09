@@ -10,8 +10,15 @@ from podi_commandline import *
 from scipy.interpolate import interp1d
 import matplotlib.pyplot
 
+import podi_logging
+import logging
+
 
 if __name__ == "__main__":
+
+    options = read_options_from_commandline(None)
+    podi_logging.setup_logging(options)
+    logger = logging.getLogger("FilterDefTool")
 
     # Loop over all commandline parameters and load entries starting with +
     # these are additional files that need to be multiplied with the filter-
@@ -38,7 +45,14 @@ if __name__ == "__main__":
         if (filterfile.startswith("+")):
             continue
 
-        data = numpy.loadtxt(filterfile)
+        logger.info("Working on file %s" % (filterfile))
+
+        try:
+            data = numpy.loadtxt(filterfile)
+        except:
+            logger.error("Problem while loading %s" % (filterfile))
+            continue
+
         #print data
 
         # Now find, for each data point, the width of this datapoint
@@ -136,3 +150,4 @@ if __name__ == "__main__":
     fig2.savefig("filter2.png")
 
 
+    podi_logging.shutdown_logging(options)

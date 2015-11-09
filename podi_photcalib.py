@@ -103,12 +103,12 @@ from podi_commandline import *
 import pyfits
 #import date
 import datetime
-#import pywcs  
 from astLib import astWCS
 import pdb
 import scipy
 import scipy.stats
 
+from wiyn_filters import *
 import podi_matchcatalogs
 import podi_sitesetup as sitesetup
 import podi_search_ipprefcat
@@ -467,6 +467,7 @@ def query_sdss_catalog(ra_range, dec_range, sdss_filter, verbose=False):
     # Get a photometric reference catalog one way or another
     # 
     std_stars = None
+    logger = logging.getLogger("QuerySDSS")
 
     if (sitesetup.sdss_ref_type == "stripe82"):
         std_stars = numpy.zeros(shape=(0,0)) #load_catalog_from_stripe82cat(ra, dec, calib_directory, sdss_filter)
@@ -480,6 +481,7 @@ def query_sdss_catalog(ra_range, dec_range, sdss_filter, verbose=False):
     elif (sitesetup.sdss_ref_type == 'web'):
         #stdout_write("Trying to get one directly from SDSS, please wait!\n\n")
         #std_stars = load_catalog_from_sdss(ra, dec, sdss_filter)
+        logger.info("Loading SDSS catalog from online webserver")
         std_stars = load_catalog_from_sdss(ra_range, dec_range, sdss_filter,
                                            verbose=verbose)
 
@@ -488,6 +490,156 @@ def query_sdss_catalog(ra_range, dec_range, sdss_filter, verbose=False):
 
 
 
+def estimate_zeropoint(filtername):
+
+    logger = logging.getLogger("EstimateZP")
+
+    # First, check if we know this filter
+    if (not filtername in filter_bandpass):
+        logger.warning("this (%s) is a filter I don't know!" % (filtername))
+
+    # Now get the bandpass info
+    bp = filter_bandpass[filtername]
+    _, mean, center, fwhm, _, _, fmax, fmean, area, _, _ = bp
+
+    logger.debug("%s ==> mean=%f, center=%f, fwhm=%f" % (filtername, mean, center, fwhm))
+
+    # Now find the closest two ODI filters with known zeropoints, so we can 
+    # interpolate a zeropoint between then
+    known_name = [None] * len(reference_zeropoint)
+    # numpy.empty((len(reference_zeropoint)), dtype=numpy.str)
+    known_pos = numpy.empty((len(reference_zeropoint)))
+    known_fwhm = numpy.empty((len(reference_zeropoint)))
+    known_zp_per_fwhm = numpy.empty((len(reference_zeropoint)))
+
+    for idx, known_filter in enumerate(reference_zeropoint):
+
+        known_name[idx] = known_filter
+
+        _, k_mean, k_center, k_fwhm, _, _, _, _, _, _, _ = filter_bandpass[known_filter]
+
+        known_pos[idx] = k_mean
+        known_fwhm[idx] = k_fwhm
+
+        zp = reference_zeropoint[known_filter][0]
+        zp_fwhm = zp - 2.5*math.log10(k_fwhm)
+        #print known_filter, zp_fwhm
+        known_zp_per_fwhm[idx] = zp_fwhm
+
+    known_name = numpy.array(known_name)
+
+    # print "pos:", known_pos
+    # print "names:", known_name
+    # print "\n\n\n\n\n"
+
+    # compute the difference in mean wavelengths, then pick the two closest ones
+    delta_pos = numpy.fabs(known_pos - mean)
+    si = numpy.argsort(delta_pos)
+    known_name = known_name[si]
+    known_pos = known_pos[si]
+    known_zp_per_fwhm = known_zp_per_fwhm[si]
+
+    #print known_pos
+
+    logger.debug("Interpolating ZP between %s and %s" % (known_name[0], known_name[1]))
+
+    d_pos = known_pos[1] - known_pos[0]
+    d_zpfwhm = known_zp_per_fwhm[1] - known_zp_per_fwhm[0]
+    slope_zpfwhm = d_zpfwhm / d_pos
+
+    #print "positions:", known_name[0], known_name[1]
+    #print "delta-pos:", d_pos, "      delta zp/fwhm=",d_zpfwhm
+
+    zp_interpol = known_zp_per_fwhm[0] + slope_zpfwhm*(mean-known_pos[0])
+    #print "INTERPOL:", known_zp_per_fwhm[0], slope_zpfwhm, mean, known_pos[0], mean-known_pos[0]
+
+    zp_fwhm = zp_interpol + 2.5*math.log10(fwhm)
+    logger.debug("ZP results: ZP/FWHM=%f, final-ZP=%f" % (zp_interpol, zp_fwhm))
+
+    # print known_name
+    # print known_pos
+    # print known_fwhm
+    # print zp_interpol, fwhm, zp_fwhm
+
+    return zp_fwhm
+
+def estimate_mean_star_color(filtername, T=5000):
+
+    logger = logging.getLogger("MeanStarColor")
+
+    if (not filtername in filter_bandpass):
+        logger.warning("This filter (%s) is not registered" % (filtername))
+        return None
+
+    # compute the color of a average star (Teff=5000K) in XXX-J, where XXX is 
+    # the specified filter
+
+    # define constants
+    h = 6.6626e-34 # J s
+    kb =1.380e-23 # J/K
+    c = 3e8 # m/s
+    
+    def planck(l_ang, T):
+        lm = l_ang * 1e-10
+        return 2*h*c**2/(lm**5) * (1. / (numpy.exp(h*c/(lm*kb*T))-1))
+
+    spec_wl = numpy.arange(3000,15000,25)
+    flux = planck(spec_wl, T)
+
+    AB_calibspec = 0.11 / (spec_wl*1e-10)**2
+
+    # compute the mean spectral flux for J band
+    Jband_wl = (spec_wl > 11500) & (spec_wl < 13500)
+    Jband_mean = numpy.mean(flux[Jband_wl])
+
+    # Now get the left and right filter edge for the specified filter
+    _, _, _, _, left, right, _, _, _, _, _ = filter_bandpass[filtername]
+    Xband_wl = (spec_wl >= left) & (spec_wl <= right)
+    Xband_mean = numpy.mean(flux[Xband_wl])
+
+    Jmag = -2.5*numpy.log10(Jband_mean)
+    Xmag = -2.5*numpy.log10(Xband_mean)
+    logger.debug("Found X and J-magnitudes: %.3f / %.3f" % (Xmag, Jmag))
+
+    #
+    # Apply some correction to account for both bands being in AB magnitudes
+    #
+    Jband_AB = numpy.mean(AB_calibspec[Jband_wl])
+    Xband_AB = numpy.mean(AB_calibspec[Xband_wl])
+    logger.debug("AB zeropoint corrections: X = %.3f / J = %.3f" % (Xband_AB, Jband_AB))
+
+    #print Jmag, Xmag, -2.5*math.log10(Jband_AB), -2.5*math.log10(Xband_AB)
+    #print (-2.5*math.log10(Jband_AB)) - (-2.5*math.log10(Xband_AB))
+    AB_color_corr = (-2.5*math.log10(Jband_AB)) - (-2.5*math.log10(Xband_AB))
+
+    starcolor = (Xmag-Jmag)+AB_color_corr
+    logger.debug("Estimating mean star color X-J = %.3f (Teff=% 6dK)" % (starcolor, T))
+    return starcolor
+
+
+def find_closest_sdss_counterpart(filtername):
+
+    logger = logging.getLogger("Match2SDSS")
+
+    if (not filtername in filter_bandpass):
+        logger.warning("This is an unknown filter, defaulting to sdss_r")
+        return 'r'
+
+    # Look up the filter bandpass parameters
+    # most importantly, we will use the mean_pos value to find a good 
+    # filter match
+    _, meanpos, center, _, _, _, _, _, _, _, _ = filter_bandpass[filtername]
+
+    sdss_filters = numpy.array(['u', 'g', 'r', 'i', 'z'])
+    sdss_mean_pos = numpy.array([3557, 4825, 6261, 7672, 9097])
+
+    # compute the wavelength difference to all SDSS filters
+    d_lambda = numpy.fabs(sdss_mean_pos-meanpos)
+
+    # pick the closest
+    closest = numpy.argmin(d_lambda)
+
+    return sdss_filters[closest]
 
 
 def photcalib(source_cat, output_filename, filtername, exptime=1, 
@@ -636,7 +788,8 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     ra_range  = [ra_min, ra_max]
     dec_range = [dec_min, dec_max]
 
-    sdss_filter = sdss_equivalents[filtername]
+    # sdss_filter = sdss_equivalents[filtername]
+    sdss_filter = find_closest_sdss_counterpart(filtername)
     logger.debug("Translating filter: %s --> %s" % (filtername, sdss_filter))
     if (sdss_filter == None):
         # This filter is not covered by SDSS, can't perform photometric calibration
@@ -698,6 +851,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                                                                      radius=None,
                                                                      basedir=sitesetup.ippref_ref_dir,
                                                                      cattype="IPPRef")
+            #print "IPP:", _std_stars
             if (not _std_stars == None and _std_stars.shape[0] > 0):
                 detailed_return['catalog'] = "IPPRef"
                 std_stars = _std_stars
@@ -710,6 +864,11 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             logger.error("Illegal catalog name in the photcalib order: %s" % (catname))
             return error_return_value
 
+
+    if (std_stars == None or
+        type(std_stars) == numpy.ndarray and std_stars.shape[0] <= 0):
+        # No sources found, report a photometric calibration failure.
+        return error_return_value
 
     #
     # Now go through each of the extension
@@ -1057,6 +1216,11 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         zp_median_ = numpy.median(zp)
         zp_std_ = numpy.std(zp)
         zp_exptime = zp_median - zp_correction_exptime
+
+        logger.debug("PHOTCAL RESULTS: Clipped: %f +/- %f (%f, %f)" % (
+            zp_median, zp_std, zp_upper1sigma, zp_lower1sigma))
+        logger.debug("PHOTCAL RESULTS: Full: %f +/- %f --> %f" % (
+            zp_median_, zp_std_, zp_exptime))
 
         # compute the r.m.s. value of the distribution as well
         final_cat = small_errors[clipping_mask]
@@ -1701,6 +1865,11 @@ if __name__ == "__main__":
         logger.info("Results written to %s!\n" % (plotfile))
 
         podi_logging.shutdown_logging(options)
+    
+    elif (cmdline_arg_isset("-color")):
+        filtername = get_clean_cmdline()[1]
+        color = estimate_mean_star_color(filtername)
+        print color
 
     else:
         fitsfile = get_clean_cmdline()[1]

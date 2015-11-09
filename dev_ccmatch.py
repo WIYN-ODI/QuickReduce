@@ -24,6 +24,8 @@ import podi_search_ipprefcat
 from podi_wcs import *
 import podi_search_ipprefcat
 import podi_sitesetup as sitesetup
+from podi_photcalib import estimate_zeropoint, estimate_mean_star_color
+
 
 import Queue
 import multiprocessing
@@ -34,6 +36,7 @@ import podi_logging
 import logging
 
 create_debug_files = False
+create_debug_files2 = False
 
 def select_brightest(radec, mags, n):
     """ 
@@ -211,7 +214,7 @@ def count_matches(src_cat, ref_cat,
                                                     normed=False, 
                                                     weights=None)
         count_grid_2d += this_2d
-        if (create_debug_files): numpy.savetxt("cc_countgrid_%+0.3f_chunk%03d" % (debugangle, chunk), count_grid_2d)
+        if (create_debug_files2): numpy.savetxt("cc_countgrid_%+0.3f_chunk%03d" % (debugangle, chunk), count_grid_2d)
 
         # print "all-offsets:", all_offsets.shape, count_grid_2d.shape
 
@@ -236,7 +239,7 @@ def count_matches(src_cat, ref_cat,
         _mean = numpy.mean(smoothed[valid_pixelpos])
         _median = numpy.median(smoothed[valid_pixelpos])
 
-        if (create_debug_files):
+        if (create_debug_files2):
             # sys.stdout.write("\r%d / %d" % (cur_src, len(matches)))
             # sys.stdout.flush()
             # ax.imshow(count_grid_2d, interpolation='nearest', origin='low',
@@ -277,7 +280,7 @@ def count_matches(src_cat, ref_cat,
 
         # now determine the scatter in peak position across the last three chunks
         peak_std = numpy.std(peak_position_np[-3:, :], axis=0)
-        if (create_debug_files):
+        if (create_debug_files2):
             print "scatter in peak position:", peak_std, (peak_std<2).all()
             print "significance:", significance
 
@@ -287,7 +290,7 @@ def count_matches(src_cat, ref_cat,
         #
         if (chunk > 4):
             if ((peak_std > previous_peak_std).any()):
-                if (create_debug_files): print "Uncertainty in position is increasing, this is not good"
+                if (create_debug_files2): print "Uncertainty in position is increasing, this is not good"
                 # Mark this run as invalid
                 significance = -1.
                 break
@@ -295,19 +298,19 @@ def count_matches(src_cat, ref_cat,
             
         if (n_chunks > 3 and chunk < 3):
             # Try at least 3 chunks
-            if (create_debug_files): print "--> need more chunks"
+            if (create_debug_files2): print "--> need more chunks"
             continue
         elif (n_chunks <= 3 and chunk < n_chunks-1):
             # If less than 3 chunks, only finish after the last chunk to 
             # include all/sufficient sources
-            if (create_debug_files): print "--> waiting for last chunk"
+            if (create_debug_files2): print "--> waiting for last chunk"
             continue
 
         if ((peak_std < 2).all()): # scatter less than 2 arcsec in all directions
-            if (create_debug_files): print "We found a solution!"
+            if (create_debug_files2): print "We found a solution!"
             break
         if (no_gain_chunks >= 2):
-            if (create_debug_files): print "This seems to go no-where, aborting"
+            if (create_debug_files2): print "This seems to go no-where, aborting"
             significance = -2.
             break
 
@@ -326,13 +329,13 @@ def count_matches(src_cat, ref_cat,
     # Now that we have a solution, match the shifted source catalog 
     # and count the number of matches
     n_matches = -1
-    if (final_significance >= 0):
+    if (final_significance >= -3): #0):
         src_corrected = src_cat[:, 0:2] + (mean_peak_pos / 3600.) #(offset) * numpy.array([cos_dec, 1.])
         corr_tree = scipy.spatial.cKDTree(src_corrected)
         n_matches = corr_tree.count_neighbors(ref_tree, 2./3600., p=2) # match stars within 2 arcsec
 
-    logger.debug("done with entire cat (% 7s): %8.4f %8.4f %8.4f --> %8.4f % 6d" % (
-        str(debugangle), _max, _mean, _std, final_significance, n_matches))
+    logger.debug("done with entire cat (% 7s): max=%8.4f mean=%8.4f std=%8.4f --> sigma=%8.4f #matches=% 6d #searched=% 6d" % (
+        str(debugangle), _max, _mean, _std, final_significance, n_matches, n_searched))
 
     return offset, n_matches, n_searched, _max, _mean, _std
 
@@ -392,7 +395,7 @@ def rotate_shift_catalog(src_cat, center, angle, shift=None, verbose = False):
     src_rotated += [center_ra, center_dec]
 
     # if requested, add shift
-    if (not shift == None):
+    if (not type(shift) == type(None)):
         src_rotated += shift
     
     if (verbose): 
@@ -521,7 +524,7 @@ def count_matches_parallelwrapper(work_queue, return_queue,
 
         # print "Angle:",angle*60.," --> ",
         
-#        n_matches, offset = count_matches(src_rotated, ref_cat, 
+        #logger.debug("angle=%s src=%d ref=%d" % (angle, src_rotated.shape[0], ref_cat.shape[0]))
         cm_data = count_matches(src_rotated, ref_cat, 
                                 pointing_error=pointing_error, 
                                 matching_radius=matching_radius,
@@ -1069,6 +1072,7 @@ def verify_wcs_model(cat, hdulist):
     return comp
 
 
+counter = 1
 def optimize_wcs_solution(ota_cat, hdr, optimize_header_keywords):
 
     """
@@ -1079,8 +1083,15 @@ def optimize_wcs_solution(ota_cat, hdr, optimize_header_keywords):
 
     # Create a astLib WCS class to handle the conversion from X/Y to Ra/Dec
     astwcs = astWCS.WCS(hdr, mode='pyfits')
+    if (create_debug_files):
+        numpy.savetxt("ccmatch.optwcs%d.%d" % (len(optimize_header_keywords), hdr['OTA']), ota_cat)
+
+    
+    global counter
+    counter = 1
 
     def minimize_wcs_error(p, src_xy, ref_radec, astwcs, optimize_header_keywords):
+        global counter
 
         # Transfer all fitting parameters to astWCS
         for i in range(len(optimize_header_keywords)):
@@ -1090,7 +1101,12 @@ def optimize_wcs_solution(ota_cat, hdr, optimize_header_keywords):
 
         # Now compute all Ra/Dec values based on the new WCS solution
         src_radec = numpy.array(astwcs.pix2wcs(src_xy[:,0], src_xy[:,1]))
-
+        if (create_debug_files):
+            astwcs.header.totextfile(
+                "ccmatch.header-iter%02d--%d.%d" % (counter, len(optimize_header_keywords), hdr['OTA']),
+                clobber=True)
+            numpy.savetxt("ccmatch.optwcs-iter%d--%d.%d" % (counter, len(optimize_header_keywords), hdr['OTA']), src_radec)
+            counter += 1
         # This gives us the Ra/Dec values as 2-d array
         # compute difference from the Ra/Dec of the reference system
         src_ref = src_radec - ref_radec
@@ -1465,6 +1481,8 @@ def improve_wcs_solution(src_catalog,
         logger.debug("OTA %d: % 4d sources, have >= % 4d for this step : %s" % (
             ota, ota_cat.shape[0], min_ota_catalog_size, "yes" if ota_cat.shape[0] > min_ota_catalog_size else "no"))
 
+        if (create_debug_files):
+            numpy.savetxt("ccmatch.optimize%d.%d" % (len(headers_to_optimize), ota), ota_cat)
 
         # Don't optimize if we have to few stars to constrain solution
         if (ota_cat.shape[0] > min_ota_catalog_size):
@@ -1534,7 +1552,8 @@ def improve_wcs_solution(src_catalog,
 
         ota_full[:,0:2] = ota_radec
 
-        global_cat = ota_full if (global_cat == None) else numpy.append(global_cat, ota_full, axis=0)
+        global_cat = ota_full if (type(global_cat) == type(None)) \
+                     else numpy.append(global_cat, ota_full, axis=0)
 
   
     # Match the new, improved catalog with the reference catalog
@@ -1553,6 +1572,67 @@ def improve_wcs_solution(src_catalog,
     return global_cat, hdulist, matched_global
 
 
+
+
+def estimate_match_fraction(src_cat, primary_header, meanTeff = 5000):
+
+    logger = logging.getLogger("EstMatchFrac")
+
+    #
+    # Based on the exposure time and seeing, estimate a rough photometric 
+    # depth,and based on that depth, what fraction of stars we expect to 
+    # match between 2MASS and the ODI source catalog.
+    #
+    # If this fraction is too low, go up one step in search radius and try 
+    # again.
+    #
+    seeing_data = three_sigma_clip(src_cat[:, SXcolumn['fwhm_world']])
+    seeing = numpy.median(seeing_data) * 3600. # --> in arcsec
+    logger.debug("Found seeing measurement: %.3f" % (seeing))
+
+    # Now estimate a zeropoint for the specified filter ...
+    magzero = estimate_zeropoint(primary_header['FILTER'])
+    logger.debug("Received ZP estimate (filter: %s) of %.4f" % (
+        primary_header['FILTER'], magzero))
+
+    # also account for exposure time
+    exptime = primary_header['EXPMEAS'] if 'EXPMEAS' in primary_header else (
+        primary_header['EXPTIME'] if 'EXPTIME' in primary_header else 1.0)
+    zeropoint = magzero + 2.5*math.log10(exptime)
+    logger.debug("Accouting for exposure time, using inst. ZP = %.4f" % (zeropoint))
+
+    # Now calibrate all instrumental magnitudes for the 3'' aperture with this 
+    # zeropoint
+    cal_mags = src_cat[:, SXcolumn['mag_aper_3.0']]
+    cal_mags = cal_mags[cal_mags < 50] + zeropoint
+    
+    if (cal_mags.shape[0] < 5):
+        return 0.
+
+    # Count how many of these stars are likely brighter than the J=15.8 mag 
+    # cutoff of 2MASS
+
+    # Estimate X-J color index
+    mean_star_color = estimate_mean_star_color(
+        primary_header['FILTER'], T=meanTeff)
+    if (mean_star_color == None):
+        mean_star_color = 0.5
+
+    estimated_Jband = cal_mags - mean_star_color
+    numpy.savetxt("cal_mags", cal_mags)
+
+    n_brighter_than_2MASS_cutoff = numpy.sum(estimated_Jband < 15.8)
+    n_total = cal_mags.shape[0]
+
+    logger.debug("Star counts brighter than 2MASS/total: %d vs %d" % (
+        n_brighter_than_2MASS_cutoff, n_total))
+
+    # return the estimate for the matching-fraction
+    return float(n_brighter_than_2MASS_cutoff)/float(n_total)
+
+    
+
+
 #############################################################################
 #############################################################################
 #
@@ -1566,7 +1646,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             max_rotator_error=[-3,3.5],
             min_contrast=3.0,
             angle_steps=20, # arcmin
-            fov=0.8):
+            fov=0.8,
+            estimate_fmatch=True):
 
     """
 
@@ -1665,12 +1746,14 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     center_ra = None
     center_dec = None
     for ext in hdulist:
-        try:
+        if (ext.header['NAXIS'] == 2 and
+            ext.header['NAXIS1'] > 1 and 
+            ext.header['NAXIS2'] > 1 and
+            'CRVAL1' in ext.header and
+            'CRVAL2' in ext.header):
             center_ra = ext.header['CRVAL1']
             center_dec = ext.header['CRVAL2']
             break
-        except:
-            pass
     if (center_ra == None or center_dec == None):
         logger.info("Unable to find a field center")
         return return_value
@@ -1756,6 +1839,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # 
     # Get rid of all data except the coordinates
     # 
+    src_cat_long = numpy.array(src_cat)
     src_cat = src_cat[:,0:2]
 
     #
@@ -1774,11 +1858,22 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     use_only_isolated_reference_stars = False
 
+    # Estimate what fraction of 2mass stars are expected to be matched to 
+    # ODI sources
+    f_matched_expected = 0
+    if (estimate_fmatch):
+        f_matched_expected = estimate_match_fraction(
+            src_cat=src_cat_long, 
+            primary_header=hdulist[0].header,
+            meanTeff=4500)
+        logger.debug("Expecting match-ratios ~ %f" % (f_matched_expected))
+
+
     # max_pointing_error_list = numpy.array([numpy.max(numpy.array(max_pointing_error_list))])
     for i in range(max_pointing_error_list.shape[0]):
 
         pointing_error = max_pointing_error_list[i]
-        logger.info("Searching for WCS pointing with search radius %f arcmin" % (pointing_error))
+        logger.info("Searching for WCS pointing with search radius %5.1f arcmin" % (pointing_error))
 
         logger.debug("Attempting to find WCS solution with search radius %.1f arcmin ..." % (
             pointing_error))
@@ -1794,6 +1889,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             logger.critical("This should not happen. Please report this problem to the")
             logger.critical("author (kotulla@uwm.edu) and attach the debug.log file. Thanks!")
             logger.debug("Falling back to using the full sample.")
+            numpy.savetxt("wcs_rescue.src", src_raw)
+            numpy.savetxt("wcs_rescue.ref", ref_raw)
 
         if (create_debug_files): numpy.savetxt("ccmatch.matched_ref_cat.%d" % (pointing_error), ref_close)
 
@@ -1841,13 +1938,44 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         return_value['contrasts'][i] = contrast
         return_value['max_pointing_error_searched'] = pointing_error
 
-        if (contrast > min_contrast):
+        # Count the fraction of stars actually matched to 2MASS sources
+        logger.debug("Found %d matches" % (initial_guess[3]))
+        f_matches_found = initial_guess[3] / src_cat.shape[0]
+        logger.debug("Found matching ration of %.4f" % (f_matches_found))
+
+        current_best_rotation = initial_guess[0]
+        current_best_shift = initial_guess[1:3]
+        crossmatch_radius = 2./3600.
+        gc = rotate_shift_catalog(src_cat_long, (center_ra, center_dec), 
+                                       angle=current_best_rotation,
+                                       shift=current_best_shift,
+                                       verbose=False)
+        gm = kd_match_catalogs(gc, ref_cat, crossmatch_radius, max_count=1)
+        numpy.savetxt("matched_%f" % (pointing_error), gm)
+        numpy.savetxt("match_src", src_cat_long)
+
+        if (contrast > min_contrast and f_matches_found > sitesetup.wcs_match_multiplier * f_matched_expected):
             logger.debug("Found good WCS solution (%.2f sigma, search radius: %.2f arcmin)" % (
                 contrast, pointing_error))
             break
 
+    if (contrast > min_contrast and 
+        f_matches_found < sitesetup.wcs_match_multiplier * f_matched_expected):
+        #
+        # This solution fulfills the contrast criteria, but not the f_match criteria
+        # In the absence of a better alternative, use this solution anyway, 
+        # but also issue a warning
+        #
+        logger.warning("WCS solution has high contrast, but low matching fraction")
 
-    if (contrast < min_contrast):
+        # Add here: Add some header keywords to the output logging the 
+        # matching requirements and resultsxs
+        pass
+
+    elif (contrast < min_contrast):
+        #
+        # This solution seems to be really bad, so mark it as insufficient
+        #
         logger.debug("Failed finding a good enough WCS solution")
         return_value['hdulist'] = hdulist
         return_value['matched_src+2mass'] = None
@@ -1976,7 +2104,11 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                                        shift=current_best_shift,
                                        verbose=False)
     matched = kd_match_catalogs(src_rotated, ref_close, matching_radius=(2./3600.), max_count=1)
-    if (create_debug_files): numpy.savetxt("ccmatch.after_rotation", matched)
+    if (create_debug_files): 
+        print "XXX:", center_ra, center_dec, current_best_rotation, current_best_shift
+        numpy.savetxt("ccmatch.1.raw", src_raw)
+        numpy.savetxt("ccmatch.1.rotated", src_rotated)
+        numpy.savetxt("ccmatch.after_rotation", matched)
 
     # We only asked for rotation optimization, so 
     # end the processing right here
@@ -1991,10 +2123,10 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         logger.debug("All done here, returning")
         return return_value 
 
-    #newcat = recompute_radec_from_xy(hdulist, src_rotated)
-    #numpy.savetxt("ccmatch.newcat-afterrot", newcat)
-    #matched_newcat = kd_match_catalogs(newcat, ref_close, matching_radius=(2./3600.), max_count=1)
-    #numpy.savetxt("ccmatch.newcat-afterrot2", matched_newcat)
+    # newcat = recompute_radec_from_xy(hdulist, src_rotated)
+    # numpy.savetxt("ccmatch.newcat-afterrot", newcat)
+    # matched_newcat = kd_match_catalogs(newcat, ref_close, matching_radius=(2./3600.), max_count=1)
+    # numpy.savetxt("ccmatch.newcat-afterrot2", matched_newcat)
     
 
     #
@@ -2007,6 +2139,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     # First, most simple step: Refine the location of each OTA to account
     # for some large-scale distortion
+    #
     logger.debug("Optimizing each OTA separately, shift only (ODI: %d, 2MASS: %d)" % (
         src_rotated.shape[0], ref_close.shape[0]))
     global_cat, hdulist, matched_global = \
@@ -2321,9 +2454,9 @@ def compute_wcs_quality(odi_2mass_matched, hdr=None):
     results['RMS-RA'] = rms_dra
     results['RMS-DEC'] = rms_ddec
     results['RMS'] = rms_comb #numpy.hypot(rms_dra, rms_ddec)
-    results['SIGMA-RA'] = sigma_ra
-    results['SIGMA-DEC'] = sigma_dec
-    results['SIGMA'] = sigma_total #numpy.hypot(rms_dra, rms_ddec)
+    results['SIGMA-RA'] = sigma_ra if numpy.isfinite(sigma_ra) else -1.
+    results['SIGMA-DEC'] = sigma_dec if numpy.isfinite(sigma_dec) else -1.
+    results['SIGMA'] = sigma_total if numpy.isfinite(sigma_total) else -1. #numpy.hypot(rms_dra, rms_ddec)
     results['MEDIAN-RA'] = wcs_mean_dra
     results['MEDIAN-DEC'] = wcs_mean_ddec
     results['STARCOUNT'] = d_ra.shape[0]
@@ -2340,9 +2473,9 @@ def compute_wcs_quality(odi_2mass_matched, hdr=None):
         hdr["WCS_ERRA"] = (make_valid(results['MEDIAN-RA']),  "RA median error WCS matching [arcsec]")
         hdr["WCS_ERRD"] = (make_valid(results['MEDIAN-DEC']), "DEC median error of WCS matching [arcsec]")
         hdr["WCS_NSRC"] = (results['STARCOUNT'],              "number of sources for WCS calibration")
-        hdr["WCS_SIGA"] = (sigma_ra,                          "1-sigma width of WCS error in Ra")
-        hdr["WCS_SIGD"] = (sigma_dec,                         "1-sigma width of WCS error in Dec")
-        hdr["WCS_SIG"]  = (sigma_total,                       "1-sigma width of WCS error combined")
+        hdr["WCS_SIGA"] = (results['SIGMA-RA'],               "1-sigma width of WCS error in Ra")
+        hdr["WCS_SIGD"] = (results['SIGMA-DEC'],              "1-sigma width of WCS error in Dec")
+        hdr["WCS_SIG"]  = (results['SIGMA'],                  "1-sigma width of WCS error combined")
  
     return results
 
@@ -2486,6 +2619,13 @@ if __name__ == "__main__":
 
         # end_time = time.time()
         # print "count_matches took",end_time-start_time,"seconds"
+
+    elif (cmdline_arg_isset("-zeropoint")):
+        
+        filtername = get_clean_cmdline()[1]
+        zp = estimate_zeropoint(filtername)
+
+        print "ZP estimate:", zp
 
     else:
         mode = cmdline_arg_set_or_default('-mode', 'xxx')

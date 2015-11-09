@@ -88,6 +88,10 @@ gain_correct_frames = False
 from podi_definitions import *
 from podi_commandline import *
 
+import podi_logging
+import logging
+import time
+import itertools
 
 import podi_plotting
 
@@ -101,7 +105,7 @@ bordersize = 75
 max_polyorder=0
 
 
-def create_nonlinearity_data(inputfiles):
+def create_nonlinearity_data(inputfiles, output_filename="nonlin.dat"):
     """
 
     Prepare the non-linearity data by measuring the mean/median intensity level
@@ -170,6 +174,10 @@ def create_nonlinearity_data(inputfiles):
 
         hdulist.close()
 
+        outfile = open(output_filename, "w")
+        numpy.savetxt(outfile, all_data)
+        outfile.close()
+
         numpy.savetxt("alldata.tmp", all_data)
         stdout_write("\n\n")
 
@@ -195,9 +203,9 @@ def fit_nonlinearity_sequence(pinit, args):
         yfit = fit_fct(p,x)
         in_fit_range = numpy.isfinite(x) & numpy.isfinite(y)
         if (not fitrange_x == None):
-            in_fit_range = in_fit_range & (x >= fitrange_x[0]) & (x <= fitrange_x[1])
+            in_fit_range = in_fit_range & (x >= fitrange_x[0]) & (x < fitrange_x[1])
         if (not fitrange_y == None):
-            in_fit_range = in_fit_range & (y >= fitrange_y[0]) & (y <= fitrange_y[1])
+            in_fit_range = in_fit_range & (y >= fitrange_y[0]) & (y < fitrange_y[1])
         if (err == None):
             return ((y-yfit))[in_fit_range]
         return ((y-yfit)/err)[in_fit_range]
@@ -221,8 +229,11 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
 
     """
 
+    logger = logging.getLogger("NLFitter")
+    debug = False
+
     if (outputfits == None):
-        print "No output FITS filename given, not doing any work!"
+        logger.error("No output FITS filename given, not doing any work!")
         return
 
     otas = set(data[:,0])
@@ -235,25 +246,109 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
     result_coeffs = numpy.zeros(shape=(data.shape[0],polyorder-1))
     result_coeffuncert = numpy.zeros(shape=(data.shape[0],polyorder-1))
     result_lampgain = numpy.zeros(shape=(data.shape[0]))
+    result_satlevel = numpy.zeros(shape=(data.shape[0]))
 
+    total_working, total_broken = 0, 0
     for ota in otas:
+        logger.info("Starting fits for OTA %02d" % (ota))
+        working_cells = 0
+        broken_cells = 0
+
         for cellx in range(8):
             for celly in range(8):
-                stdout_write("\rFitting OTA %02d, cell %1d,%1d ..." % (ota, cellx, celly))
+                logger.debug("Fitting OTA %02d, cell %1d,%1d ..." % (ota, cellx, celly))
 
                 this_cell = (data[:,0] == ota) & (data[:,3] == cellx) & (data[:,4] == celly)
-
+                if (debug): print "working on", ota, cellx, celly
                 subset = data[this_cell]
                 #print ota, cellx, celly,":\n",subset
 
-                not_nans = numpy.isfinite(subset[:,7]) & numpy.isfinite(subset[:,9])
+                not_nans = numpy.isfinite(subset[:,7]) & (subset[:,7] > 0) #& numpy.isfinite(subset[:,9])
 
                 if (numpy.sum(not_nans) <= 0):
+                    logger.error("OTA %02d, cell %d,%d -- Not enough data points for fit" % (
+                        ota, cellx, celly))
+                    broken_cells += 1
                     continue
+
+                #print subset
+                #numpy.savetxt("subset__ota%02d_cell%d%d" % (ota, cellx, celly), subset)
+                #print not_nans
 
                 exptime = subset[:,5][not_nans]
                 medlevel = subset[:,7][not_nans]
                 stdlevel = subset[:,9][not_nans]
+
+                #
+                # Find the saturation limit
+                #
+                
+                # Find the largest intensity recorded
+                int_max = numpy.max(medlevel)
+
+                # compute the linear slope between zero flux and half the max intensity
+                half_max = 0.5 * int_max
+                idx_half_max = numpy.argmax(exptime[medlevel <= half_max])
+                t_half_max = exptime[idx_half_max] #numpy.max(exptime[medlevel <= half_max])
+                linear_slope = medlevel[idx_half_max] / t_half_max
+                logger.debug("linear slope: %f" % (linear_slope))
+
+                #
+                # Now go backwards from the largest exposure time, and check if 
+                # the increase in intensity between timesteps is compatible with 
+                # what would be expected from the time difference
+                #
+                #time.sleep(1)
+
+                satlevel = pow(2,16) - 1
+                if (debug): print satlevel
+
+                si = numpy.argsort(exptime)[::-1] # this sorts from long to short exposures
+                #print si.shape
+                saturated = numpy.empty((si.shape[0]), dtype=numpy.bool)
+                saturated[:] = False
+                for idx in range(si.shape[0]):
+                    cur_idx = si[idx]
+                    this_exptime = exptime[cur_idx]
+
+                    if (debug): print "CP::", idx, si[idx], this_exptime, medlevel[cur_idx]
+                    # search for the largest exposure time shorter than this one
+                    shorter_t = exptime < this_exptime
+                    if(numpy.sum(shorter_t) <= 0): break
+                    idx_next_shorter = numpy.argmax(exptime[shorter_t])
+                    
+                    delta_t = this_exptime - exptime[idx_next_shorter]
+                    delta_i = medlevel[cur_idx] - medlevel[idx_next_shorter]
+                    slope = delta_i / delta_t
+                    if (debug): print delta_t, delta_i, "-->", slope
+
+                    if (abs(slope-linear_slope)/linear_slope > 0.3):
+                        if (debug): print "found saturated intensity: %f\n" % (medlevel[cur_idx])
+                        saturated[cur_idx] = True
+                        
+                        #logger.info("found saturated intensity: %f" % (medlevel[cur_idx]))
+
+                if (debug):
+                    print "*******************\n"*2
+                    print medlevel[saturated]
+
+                if (numpy.sum(saturated) > 0):
+                    satlevel = numpy.min(medlevel[saturated]) 
+                    logger.debug("OTA %02d, cell %d,%d -- Found new saturation level: %.1f" % (
+                        ota, cellx, celly,satlevel))
+                fit_intensity_range = intensity_range[:]
+                if (fit_intensity_range[1] > satlevel):
+                    fit_intensity_range[1] = satlevel
+
+                #
+                # Check how many data points we have left
+                #
+                good = (exptime >= exptime_range[0]) & (exptime < exptime_range[1]) \
+                       & (medlevel >= fit_intensity_range[0]) & (medlevel < fit_intensity_range[1])
+                if (numpy.sum(good) <= polyorder):
+                    logger.warning("Not enough data for fit")
+                    # not enough data
+                    continue
 
                 pinit = numpy.zeros(polyorder)
 
@@ -267,7 +362,7 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
 
                 # pfit = fit[0]
                 # uncert = numpy.sqrt(numpy.diag(fit[1]))
-                args = (medlevel, exptime, None, intensity_range, exptime_range)
+                args = (medlevel, exptime, None, fit_intensity_range, exptime_range)
                 pfit, uncert = fit_nonlinearity_sequence(pinit, args)
 
 
@@ -286,19 +381,26 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
                 result_coeffs[result_count] = coefficients_normalized
                 result_coeffuncert[result_count] = coefficient_errors_normalized
                 result_lampgain[result_count] = linear_factor
-                
+                result_satlevel[result_count] = satlevel
+                working_cells += 1
+
                 result_count += 1
 
-    print "completed",result_count,"fits"
-    stdout_write(" done!\n")
+        total_working += working_cells
+        total_broken += broken_cells
+
+    logger.info("All cells processed, %d working, %d broken" % (
+        total_working, total_broken))
+    #stdout_write(" done!\n")
 
     # Prepare all data to be written to a fits file
     #print result_coeffs[:10,:]
     #print result_coeffuncert[:10,:]
 
     # Compute a relative gain factor
+    logger.info("Computing relative gain")
     mean_lampgain = numpy.mean(result_lampgain[:result_count])
-    print "mean lampgain =",mean_lampgain
+    logger.debug("mean lampgain = %f" % (mean_lampgain))
     result_relativegain = result_lampgain / mean_lampgain
 
     columns = [\
@@ -329,8 +431,16 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
                             )
     columns.append(col)
 
+    col = pyfits.Column(name="SATLEVEL", 
+                            format='E',
+                            array=result_satlevel[:result_count],
+                            disp="saturation level"
+                            )
+    columns.append(col)
+
     coldefs = pyfits.ColDefs(columns)
-    tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
+#    tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
+    tbhdu = pyfits.BinTableHDU.from_columns(columns)
 
     primhdu = pyfits.PrimaryHDU()
     primhdu.header["POLYORDR"] = polyorder
@@ -423,11 +533,26 @@ def apply_gain_correction(data, cellx, celly, nonlin_data, return_gain=False):
     """
 
     gain = nonlin_data['rel_gain'][cellx,celly]
-
+    # print cellx, celly, gain
     if (return_gain):
         return data * gain, gain
 
     return data * gain
+
+
+def apply_gain_correction_fullOTA(data, nonlin_data, binning=1):
+
+    logger = logging.getLogger("ApplyGainFullOTA")
+    logger.debug("Starting work")
+
+    for cx, cy in itertools.product(range(8), repeat=2):
+        x1,x2,y1,y2 = cell2ota__get_target_region(cx, cy, binning)
+        
+        cell = data[y1:y2, x1:x2]
+        cell_corr = apply_gain_correction(cell, cx, cy, nonlin_data, return_gain=False)
+        data[y1:y2, x1:x2] = cell_corr
+
+    logger.debug("done with work")
 
 
 def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
@@ -821,6 +946,8 @@ def find_nonlinearity_coefficient_file(target_mjd, options):
 
 if __name__ == "__main__":
 
+    options = read_options_from_commandline(None)
+    podi_logging.setup_logging(options)
 
     if (cmdline_arg_isset("-fit")):
         datafile = get_clean_cmdline()[1]
@@ -854,16 +981,14 @@ Creating all fits
                                  verbose=verbose
                                  )
         stdout_write("\n")
-        sys.exit(0)
 
-    if (cmdline_arg_isset("-load")):
+    elif (cmdline_arg_isset("-load")):
         fitsfile = get_clean_cmdline()[1]
         ota = int(get_clean_cmdline()[2])
         coeffs = load_nonlinearity_correction_table(fitsfile, ota)
         print coeffs
-        sys.exit(0)
 
-    if (cmdline_arg_isset("-correctraw")):
+    elif (cmdline_arg_isset("-correctraw")):
         infile = get_clean_cmdline()[1]
         hdulist = pyfits.open(infile)
         ota = int(hdulist[0].header['FPPOS'][2:4])
@@ -887,9 +1012,8 @@ Creating all fits
         hdulist.writeto(outfile, clobber=True)
 
         stdout_write(" done!\n\n")
-        sys.exit(0)
 
-    if (cmdline_arg_isset("-correct")):
+    elif (cmdline_arg_isset("-correct")):
         infile = get_clean_cmdline()[1]
         hdulist = pyfits.open(infile)
 
@@ -921,9 +1045,8 @@ Creating all fits
         hdulist.writeto(outfile, clobber=True)
 
         stdout_write(" done!\n\n")
-        sys.exit(0)
 
-    if (cmdline_arg_isset("-plotdatafit")):
+    elif (cmdline_arg_isset("-plotdatafit")):
         datafile = get_clean_cmdline()[1]
         ota = int(get_clean_cmdline()[2])
         cellx = int(get_clean_cmdline()[3])
@@ -933,9 +1056,8 @@ Creating all fits
 
         data = numpy.loadtxt(datafile)
         create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile)
-        sys.exit(0)
 
-    if (cmdline_arg_isset("-nonlinmap")):
+    elif (cmdline_arg_isset("-nonlinmap")):
         fitfile = get_clean_cmdline()[1]
         outputfile = get_clean_cmdline()[2]
         fluxlevel = float(get_clean_cmdline()[3])
@@ -944,9 +1066,8 @@ Creating all fits
         minmax = [min_value, max_value]
         labels = cmdline_arg_isset("-labels")
         create_nonlinearity_map(fitfile, outputfile, fluxlevel, minmax, labels=labels)
-        sys.exit(0)
 
-    if (cmdline_arg_isset("-cellbycellmap")):
+    elif (cmdline_arg_isset("-cellbycellmap")):
         fitfile = get_clean_cmdline()[1]
         outputfile = get_clean_cmdline()[2]
         min_value = cmdline_arg_set_or_default("-min", None)
@@ -955,17 +1076,19 @@ Creating all fits
         minmax = [min_value, max_value]
         labels = True #cmdline_arg_isset("-labels")
         plot_cellbycell_map(fitfile, outputfile, minmax, labels=labels, fontsize=fontsize)
-        sys.exit(0)
 
-    if (cmdline_arg_isset("-findfile")):
+    elif (cmdline_arg_isset("-findfile")):
         target_mjd = float(get_clean_cmdline()[1])
         options = podi_commandline.read_options_from_commandline(None)
         filename = find_nonlinearity_coefficient_file(target_mjd, options)
         print filename
-        sys.exit(0)
+
+    else:
+
+        # Read the input directory that contains the individual OTA files
+        inputfiles = get_clean_cmdline()[1:]
+        all_data = create_nonlinearity_data(inputfiles, "nonlin.data")
+        numpy.savetxt("nonlin.data", all_data)
 
 
-    # Read the input directory that contains the individual OTA files
-    inputfiles = get_clean_cmdline()[1:]
-    all_data = create_nonlinearity_data(inputfiles)
-    numpy.savetxt("nonlin.data", all_data)
+    podi_logging.shutdown_logging(options)

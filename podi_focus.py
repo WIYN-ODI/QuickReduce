@@ -8,7 +8,7 @@
 # If you find this program or parts thereof please make sure to
 # cite it appropriately (please contact the author for the most
 # up-to-date reference to use). Also if you find any problems 
-# or have suggestions on how to improve the code or its 
+# or have suggestions on how to improve the code or its lable
 # functionality please let me know. Comments and questions are 
 # always welcome. 
 #
@@ -74,9 +74,9 @@ import os
 import pyfits
 import numpy
 import scipy
-import pywcs
 from astLib import astWCS
 import jdcal
+import itertools
 
 import podi_plotting
 import matplotlib
@@ -591,7 +591,7 @@ def get_focus_measurement(filename, n_stars=5, output_dir="./", mp=False):
         
     number_jobs_queued = 0
     obsid = None
-    for (ota_x, ota_y) in available_ota_coords:
+    for (ota_x, ota_y) in itertools.product(range(8), repeat=2):
         ota = ota_x * 10 + ota_y
 
         filename = "%s/%s.%02d.fits" % (directory, basename, ota)

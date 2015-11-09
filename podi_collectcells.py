@@ -246,13 +246,15 @@ import ctypes
 import time
 import logging
 import itertools
+import bottleneck
 
 from podi_plotting import *
 
 gain_correct_frames = False
 from podi_definitions import *
 from podi_commandline import *
-import podi_findstars
+from wiyn_filters import *
+#import podi_findstars
 import podi_search_ipprefcat
 import podi_fixwcs
 import podi_fixwcs_rotation
@@ -270,6 +272,11 @@ import podi_logging
 import podi_cosmicrays
 import podi_illumcorr
 import podi_almanac
+import podi_focalplanelayout
+import podi_guidestars
+import podi_shifthistory
+
+from podi_reductionlog import *
 
 from astLib import astWCS
 
@@ -288,6 +295,27 @@ else:
     number_cpus = sitesetup.number_cpus
 
 
+
+
+def read_techdata(techdata_hdulist, ota_x, ota_y, wm_cellx, wm_celly):
+
+    logger = logging.getLogger("ReadTechData")
+    #logger.info("Reading from %s" % (str(techdata_hdulist)))
+
+    gain, readnoise, readnoise_e = None, None, None
+    cellidx_x = ota_x*8+wm_cellx
+    cellidx_y = ota_y*8+(7-wm_celly)
+
+
+    try:
+        gain = techdata_hdulist['GAIN'].data[cellidx_y, cellidx_x]
+        readnoise = techdata_hdulist['READNOISE'].data[cellidx_y, cellidx_x]
+        readnoise_e = techdata_hdulist['READNOISE_E'].data[cellidx_y, cellidx_x]
+    except:
+        logger.error("TECHDATA file is likely corrupted!")
+        pass
+
+    return gain, readnoise, readnoise_e
 
 
 def collect_reduce_ota(filename,
@@ -326,6 +354,7 @@ def collect_reduce_ota(filename,
 
     """
 
+    reduction_log = ReductionLog()
     data_products = {
         "hdu": None,
         "header": None,
@@ -340,6 +369,7 @@ def collect_reduce_ota(filename,
         'pupilghost-scaling': None,
         'pupilghost-template': None,
         'reduction_files_used': None,
+        'reduction_log': reduction_log,
         }
    
     if (not os.path.isfile(filename)):
@@ -348,6 +378,10 @@ def collect_reduce_ota(filename,
         # Create an fits extension to hold the output
         hdu = pyfits.ImageHDU()
         log_svn_version(hdu.header)
+
+        # Set the inherit keyword so that the headers removed from each 
+        # extension are instead inherited from the primary
+        hdu.header["INHERIT"] = (True, "Inherit headers from PrimaryHDU")
 
         # also create a tech-header to keep track of values used in this frame
         tech_header = pyfits.Header()
@@ -382,16 +416,28 @@ def collect_reduce_ota(filename,
         # Save the fppos as name for this extension
         ota_name = "OTA%02d" % ota
         extname = "OTA%02d.SCI" % ota
-        hdu.update_ext_name(extname)
+        hdu.name = extname
         hdu.header['OTA'] = (ota, "OTA designation")
 
         # podi_logging.podi_getlogger("%s - %s" % (obsid, extname), options['log_setup'])
         logger = logging.getLogger("%s - %s" % (obsid, extname))
 
+        fpl = podi_focalplanelayout.FocalPlaneLayout(hdulist[0])
+        logger.debug("Focalplane Layout: %s" % (fpl.layout))
+
         # Now copy the headers from the original file into the new one
+        firstkey = None
         cards = hdulist[0].header.cards
         for (keyword, value, comment) in cards:
+            firstkey = keyword if firstkey == None else firstkey
             hdu.header[keyword] = (value, comment)
+        add_fits_header_title(hdu.header, "Instrument telemetry from raw data", firstkey)
+
+        #
+        # Add default headers here
+        #
+        hdu.header['SOFTBIN'] = 0
+        add_fits_header_title(hdu.header, "Pipeline added/modified metadata", 'SOFTBIN')
 
         # Also read the MJD for this frame. This will be needed later for the correction
         mjd = hdu.header['MJD-OBS']
@@ -418,39 +464,10 @@ def collect_reduce_ota(filename,
 
         logger.info("Starting work on OTA %02d of %s ..." % (ota, obsid))
 
-        # Allocate some memory for the cells in one row
-        xtalk_corr = [None] * 8
-
         # Now go through each of the 8 lines
         logger.debug("Starting crosstalk correction (%s)" % (extname))
-        for row in range(8):
-            for column in range(8):
-                
-                # Allocate some more memory to hold the output of the cross-talk 
-                # correction of this frame
-                xtalk_corr[column] = numpy.zeros(hdulist[1].data.shape)
-
-                for xtalk_column in range(8):
-                    # Construct the name of each cell that's causing the crosstalk
-                    xy_name = "xy%d%d" % (xtalk_column, row)
-
-                    # Now go through the list of all cells in this row and add them to 
-                    # the corrected cell content output
-                    #print "Adding ",xy_name,"to ",extname, column, row, "(scaling",podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column],")"
-
-                    correction = hdulist[extname2id[xy_name]].data * podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column]
-                    if (column != xtalk_column):
-                        saturated = hdulist[extname2id[xy_name]].data >= podi_crosstalk.xtalk_saturation_limit
-                        correction[saturated] = -1 * podi_crosstalk.xtalk_saturated_correction
-
-                    xtalk_corr[column] += correction #hdulist[xy_name].data * podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column]
-                    #print xtalk_corr[column][100,100]
-
-            for column in range(8):
-                # Now all cells in this row have been corrected, let's write them 
-                # back into the hdulist so can can continue with the overscan subtraction etc.
-                xy_name = "xy%d%d" % (column, row)
-                hdulist[extname2id[xy_name]].data = xtalk_corr[column]
+        outcome = podi_crosstalk.apply_crosstalk_correction(
+            hdulist, fpl, extname2id, options, reduction_log)
         logger.debug("Done with crosstalk correction")
 
         #
@@ -494,6 +511,7 @@ def collect_reduce_ota(filename,
         # TECHDATA extension that holds GAINS and readout noises for each cell. 
         #
         techdata = None
+        techhdulist = None
         if (not options['techdata'] == None):
             techfile = None
 
@@ -506,28 +524,18 @@ def collect_reduce_ota(filename,
 
             else:
                 techfile= check_filename_directory(options['techdata'], "techdata_%s_bin%d.fits" % (filter_name, binning))
-                
+
             # Check if the specified file exists and read the data if possible
             if (os.path.isfile(techfile)):
                 logger.debug("Reading techdata from file %s" % (techfile))
                 techhdulist = pyfits.open(techfile)
-                try:
-                    techdata = techhdulist['TECHDATA'].header
-                    reduction_files_used['techdata'] = techfile
-                except:
-                    pass
-                techhdulist.close()
+                reduction_files_used['techdata'] = techfile
             else:
                 techfile = "%s/techdata.fits" % (sitesetup.exec_dir)
                 if (os.path.isfile(techfile)):
                     logger.debug("Reading techdata from file %s" % (techfile))
                     techhdulist = pyfits.open(techfile)
-                    try:
-                        techdata = techhdulist['TECHDATA'].header
-                        reduction_files_used['techdata'] = techfile
-                    except:
-                        pass
-                    techhdulist.close()
+                    reduction_files_used['techdata'] = techfile
                 else:
                     logger.debug("Was looking for techfile %s but couldn't find it" % (techfile))
 
@@ -536,6 +544,17 @@ def collect_reduce_ota(filename,
         all_readnoise = numpy.ones(shape=(8,8)) * -99
         all_readnoise_electrons = numpy.ones(shape=(8,8)) * -99
 
+        #
+        # Handle the trimcell option
+        #
+        hdu.header['TRIMCELL'] = (-1, "trim cell edges (-1: no)")
+        if (options['trimcell'] == None):
+            reduction_log.not_selected('trimcell')
+        else:
+            reduction_log.success('trimcell')
+            hdu.header['TRIMCELL'] = options['trimcell']
+
+        reduction_log.attempt('overscan')
         for wm_cellx, wm_celly in itertools.product(range(8),repeat=2):
             #if (not options['bgmode']):
             #    stdout_write("\r%s:   OTA %02d, cell %s ..." % (obsid, ota, hdulist[cell].header['EXTNAME']))
@@ -554,7 +573,7 @@ def collect_reduce_ota(filename,
 
 
             # Check if this is one of the broken cells
-            cellmode_id = get_cellmode(hdulist[0].header, hdulist[cell].header)
+            cellmode_id = get_cellmode(hdulist[0].header, hdulist[cell].header, fpl)
             if (not cellmode_id == 0):
                 # This means it either broken (id=-1) or in video-mode (id=1)
                 continue
@@ -569,7 +588,9 @@ def collect_reduce_ota(filename,
             # Now extract just the data section.
             # Values are hard-coded as some of the DATASEC keywords are wrong
             #
-            datasec = extract_datasec_from_cell(hdulist[cell].data, binning) #[0:494, 0:480] 
+            datasec = extract_datasec_from_cell(
+                hdulist[cell].data, binning,
+                trimcell=options['trimcell'])
             # print "datasec.shape=",datasec.shape
             # Now overscan subtract and insert into large frame
             overscan_region = extract_biassec_from_cell(hdulist[cell].data, binning)
@@ -588,7 +609,9 @@ def collect_reduce_ota(filename,
             #
             # Insert the reduced data-section of this cell into the large OTA frame
             #
-            bx, tx, by, ty = cell2ota__get_target_region(wm_cellx, wm_celly, binning)
+            bx, tx, by, ty = cell2ota__get_target_region(
+                wm_cellx, wm_celly, binning,
+                trimcell=options['trimcell'])
             merged[by:ty,bx:tx] = datasec
 
             #
@@ -596,21 +619,22 @@ def collect_reduce_ota(filename,
             # the tech-header by copying the information from the input techdata 
             # to the output techdata
             #
-            if (not techdata == None):
-                ids = "%02d%d%d" % (ota, wm_cellx, wm_celly)
-                for keybase in techdata_keywords:
-                    keyword = keybase+ids
-                    if (keyword in techdata):
-                        key, val, com = techdata.cards[keyword]
-                        tech_header[key] = (val, com)
+            if (not techhdulist == None):
+                gain, readnoise, readnoise_e = read_techdata(
+                    techhdulist, ota_c_x, ota_c_y, wm_cellx, wm_celly)
+                if (not gain == None and not readnoise == None):
+                    logger.debug("Using tech-data for gain & readnoise: %f %f" % (gain, readnoise))
+                else:
+                    logger.debug("No gain/readnoise data available")
+
                 # Also set the gain and readnoise values to be used later for the gain correction
                 all_gains[wm_cellx, wm_celly] = \
-                    techdata['GN__'+ids] if ('GN__'+ids in techdata) else \
-                        hdulist[cell].header['GAIN'] if 'GAIN' in hdulist[cell].header else backup_gain
+                    gain if not gain == None else \
+                    hdulist[cell].header['GAIN'] if 'GAIN' in hdulist[cell].header else backup_gain
                 all_readnoise[wm_cellx, wm_celly] = \
-                    techdata['RN__'+ids] if 'RN__'+ids in techdata else backup_readnoise
+                    readnoise if not gain == None else backup_readnoise 
                 all_readnoise_electrons[wm_cellx, wm_celly] = \
-                    techdata['RNE_'+ids] if 'RNE_'+ids in techdata else backup_readnoise_electrons
+                    readnoise_e if not readnoise_e == None else backup_readnoise_electrons
             else:
                 all_gains[wm_cellx, wm_celly] = \
                     hdulist[cell].header['GAIN'] if 'GAIN' in hdulist[cell].header else backup_gain
@@ -618,18 +642,22 @@ def collect_reduce_ota(filename,
                 all_readnoise_electrons[wm_cellx, wm_celly] = backup_readnoise_electrons
                 
             # work on next cell
-
+        reduction_log.success('overscan')
         logger.debug("Collected all cells for OTA %02d of %s" % (ota, obsid))
-        # for c in tech_header: print tech_header.cards[c]
 
         # 
         # At this point we have a 4x4 Kpixel array with all cells merged
         #
 
         # If we are to do some bias subtraction:
-        if (not options['bias_dir'] == None):
+        if (options['bias_dir'] == None):
+            reduction_log.not_selected('bias')
+        else:
             bias_filename = check_filename_directory(options['bias_dir'], "bias_bin%s.fits" % (binning))
-            if (os.path.isfile(bias_filename)):
+            if (not os.path.isfile(bias_filename)):
+                reduction_log.fail('bias')
+            else:
+
                 bias = pyfits.open(bias_filename)
                 reduction_files_used['bias'] = bias_filename
 
@@ -646,25 +674,30 @@ def collect_reduce_ota(filename,
                         except:
                             logger.warning("Unable to subtract bias, dimensions don't match (data: %s, bias: %s)" % (
                                 str(merged.shape), str(bias_ext.data.shape)))
+                            reduction_log.fail('bias')
                             pass
                         break
 
                 bias.close()
                 hdu.header.add_history("CC-BIAS: %s" % (os.path.abspath(bias_filename)))
                 del bias
+                reduction_log.success('bias')
  
         #
         # Do some dark subtraction:
         # Add at some point: use different darks for all detectors switched on 
         # to minimize the integration glow in guide-OTAs
         #
-        if (not options['dark_dir'] == None):
-
+        if (options['dark_dir'] == None):
+            reduction_log.not_selected('dark')
+        else:
             # For now assume all detectors are switched on
             detectorglow = "yes"
 
             dark_filename = check_filename_directory(options['dark_dir'], "dark_%s_bin%d.fits" % (detectorglow, binning))
-            if (os.path.isfile(dark_filename)):
+            if (not os.path.isfile(dark_filename)):
+                reduction_log.fail('dark')
+            else:
                 dark = pyfits.open(dark_filename)
                 reduction_files_used['dark'] = dark_filename
                 if ('EXPMEAS' in dark[0].header):
@@ -688,13 +721,15 @@ def collect_reduce_ota(filename,
                         except:
                             logger.warning("Unable to subtract dark, dimensions don't match (data: %s, dark: %s)" % (
                                 str(merged.shape), str(dark_ext.data.shape)))
+                            reduction_log.fail('dark')
                             pass
                         break
 
                 dark.close()
                 hdu.header.add_history("CC-DARK: %s" % (os.path.abspath(dark_filename)))
                 del dark
- 
+                reduction_log.success('dark')
+
         # By default, mark the frame as not affected by the pupilghost. This
         # might be overwritten if the flat-field has PG specifications.
         hdu.header['PGAFCTD'] = False
@@ -702,9 +737,13 @@ def collect_reduce_ota(filename,
         # If the third parameter points to a directory with flat-fields
         hdu.header['GAIN'] = 1.3
         gain_from_flatfield = None
-        if (not options['flat_dir'] == None):
+        if (options['flat_dir'] == None):
+            reduction_log.not_selected('flat')
+        else:
             flatfield_filename = check_filename_directory(options['flat_dir'], "flat_%s_bin%d.fits" % (filter_name, binning))
-            if (os.path.isfile(flatfield_filename)):
+            if (not os.path.isfile(flatfield_filename)):
+                reduction_log.fail('flat')
+            else:
                 flatfield = pyfits.open(flatfield_filename)
                 reduction_files_used['flat'] = flatfield_filename
 
@@ -721,12 +760,13 @@ def collect_reduce_ota(filename,
                         except:
                             logger.warning("Unable to apply flat-field, dimensions don't match (data: %s, flat: %s)" % (
                                 str(merged.shape), str(ff_ext.data.shape)))
+                            reduction_log.partial_fail('flat')
                             pass
 
                         # If normalizing with the flat-field, overwrite the gain
                         # keyword with the average gain value of the flatfield.
                         ff_gain = flatfield[0].header['GAIN'] \
-                                  if 'GAIN' in flatfield[0].header else 1.3
+			    if ('GAIN' in flatfield[0].header and flatfield[0].header['GAIN'] > 0) else -1.
                         gain_from_flatfield = ff_gain
                         
                         logger.debug("Checking if extension has PGAFCTD keyword: %s" % (str('PGAFCTD' in ff_ext.header)))
@@ -740,10 +780,7 @@ def collect_reduce_ota(filename,
                             # If this is not stored in the flat-field, assume some
                             # standard coordinates
                             logger.debug("Found an extension affected by pupilghost: %s" % (extname))
-                            if (extname in pupilghost_centers):
-                                pupilghost_center_x, pupilghost_center_y = pupilghost_centers[extname]
-                                hdu.header['PGCNTR_X'] = (pupilghost_center_x, "pupil ghost center position X")
-                                hdu.header['PGCNTR_Y'] = (pupilghost_center_y, "pupil ghost center position Y")
+
                             for pgheader in (
                                     'PGCENTER', 'PGCNTR_X', 'PGCNTR_Y',
                                     'PGTMPL_X', 'PGTMPL_Y', 
@@ -753,7 +790,10 @@ def collect_reduce_ota(filename,
                                     'PGROTANG',
                             ):
                                 if (pgheader in ff_ext.header):
-                                    hdu.header[pgheader] = ff_ext.header[pgheader]
+                                    hdu.header[pgheader] = (ff_ext.header[pgheader], ff_ext.header.comments[pgheader])
+
+                            pupilghost_center_x = ff_ext.header['PGCNTR_X'] if 'PGCNTR_X' in ff_ext.header else numpy.NaN
+                            pupilghost_center_y = ff_ext.header['PGCNTR_Y'] if 'PGCNTR_Y' in ff_ext.header else numpy.NaN
 
                             # if ('PGCNTR_X' in ff_ext.header):
                             #     pupilghost_center_x = ff_ext.header['PGCNTR_X']
@@ -766,15 +806,20 @@ def collect_reduce_ota(filename,
                 flatfield.close()
                 hdu.header.add_history("CC-FLAT: %s" % (os.path.abspath(flatfield_filename)))
                 del flatfield
+                reduction_log.success('flat')
 
         #
         # Apply illumination correction, if requested
         #
-        if (not options['illumcorr_dir'] == None):
+        if (options['illumcorr_dir'] == None):
+            reduction_log.not_selected('illumcorr')
+        else:
             illumcorr_filename = podi_illumcorr.get_illumination_filename(
                 options['illumcorr_dir'], filter_name, binning)
 
-            if (os.path.isfile(illumcorr_filename)):
+            if (not os.path.isfile(illumcorr_filename)):
+                reduction_log.fail('illumcorr')
+            else:
                 illumcorr = pyfits.open(illumcorr_filename)
                 reduction_files_used['illumination'] = illumcorr_filename
 
@@ -792,36 +837,41 @@ def collect_reduce_ota(filename,
                             logger.warning(
                                 "Unable to apply illumination correction, dimensions don't match (data: %s, i.c.: %s)" % (
                                 str(merged.shape), str(ff_ext.data.shape)))
+                            reduction_log.fail('illumcorr')
                             pass
                         break
                         
                 illumcorr.close()
                 del illumcorr
+                reduction_log.success('illumcorr')
 
         # Finally, apply bad pixel masks 
-        if (not options['bpm_dir'] == None):
-            # Determine which region file we need
-            region_file = "%s/bpm_%s.reg" % (options['bpm_dir'], fppos)
-            if (os.path.isfile(region_file)):
-                # Apply the bad pixel regions to file, marking
-                # all bad pixels as NaNs
-                logger.debug("Applying BPM file: %s" % (region_file))
-                mask_broken_regions(merged, region_file)
-                hdu.header.add_history("CC-BPM: %s" % (os.path.abspath(region_file)))
-                reduction_files_used['bpm'] = region_file
+        # Determine which region file we need
+        # This function only returns valid filenames, or None otherwise
+        bpm_region_file = fpl.get_badpixel_regionfile(options['bpm_dir'], fppos)
+        if (bpm_region_file == None):
+            reduction_log.not_selected('badpixels')
+        else:
+            # Apply the bad pixel regions to file, marking all bad pixels as NaNs
+            logger.debug("Applying BPM file: %s" % (bpm_region_file))
+            mask_broken_regions(merged, bpm_region_file, reduction_log=reduction_log)
+            reduction_files_used['bpm'] = bpm_region_file
 
         #
         # Now apply the gain correction
         #
 
         logger.debug("GAIN setting:"+str(options['gain_correct']))
-        if (options['gain_correct']):
+        if (not options['gain_correct']):
+            reduction_log.not_selected('gain')
+        else:
             # Correct for the gain variations in each cell
             logger.debug("Applying gain correction (OTA %02d) - method: %s" % (ota, 
                 options['gain_method'] if not options['gain_method'] == None else "default:techdata"))
 
             if (options['gain_method'] == 'relative'):
                 reduction_files_used['gain'] = nonlinearity_file
+                
                 # Find the relative gain correction factor based on the non-linearity correction data
                 logger.debug("Apply gain correction from nonlinearity data")
 
@@ -830,7 +880,7 @@ def collect_reduce_ota(filename,
                     merged[y1:y2, x1:x2], gain = podi_nonlinearity.apply_gain_correction(
                         merged[y1:y2, x1:x2], cx, cy, nonlin_data, return_gain=True)
                     all_gains[cx,cy] /= gain
-                
+                reduction_log.success('gain')
             elif (options['gain_method'] == 'header'):
                 logger.debug("Applying gain correction  with GAINS from header")
                 reduction_files_used['gain'] = filename
@@ -842,6 +892,7 @@ def collect_reduce_ota(filename,
                     gain = float(hdulist[cell].header['GAIN']) if 'GAIN' in hdulist[cell].header else backup_gain
                     merged[y1:y2, x1:x2] *= gain
                     all_gains[cx,cy] /= gain
+                reduction_log.success('gain')
 
             else:
                 if (not techdata == None):
@@ -857,7 +908,9 @@ def collect_reduce_ota(filename,
                         # print "Applying gain", gain, "to cell", cx, cy
                         merged[y1:y2, x1:x2] *= gain
                         all_gains[cx,cy] /= gain
+                    reduction_log.success('gain')
                 else:
+                    reduction_log.failed('gain')
                     logger.warning("GAIN correction using TECHDATA requested, but can't find a tech-data file")
 
 
@@ -903,7 +956,9 @@ def collect_reduce_ota(filename,
         #
         # Optionally, normalize the frame by some header value
         #
-        if ("normalize" in options):
+        if (not "normalize" in options):
+            reduction_log.not_selected('exptime_norm')
+        else:
             norm_factor = 1
             if (options['normalize'] == "EXPTIME" or
                 options['normalize'] == "EXPMEAS"):
@@ -924,11 +979,15 @@ def collect_reduce_ota(filename,
                     if ('EXPTIME' in hdu.header): hdu.header['EXPTIME'] /= norm_factor
                     if ('EXPMEAS' in hdu.header): hdu.header['EXPMEAS'] /= norm_factor
             hdu.header['NORMALIZ'] = (norm_factor, "normalization constant")
+            reduction_log.success('exptime_norm')
                 
         #
         # If persistency correction is requested, perform it now
         #
-        if (options['persistency_dir'] != None):
+        if (options['persistency_dir'] == None):
+            reduction_log.not_selected('persistency')
+            reduction_log.not_selected('saturation')
+        else:
             logger.debug("Applying persistency correction")
             if (options['verbose']): stdout_write("Applying persistency correction\n")
 
@@ -949,12 +1008,15 @@ def collect_reduce_ota(filename,
                 logger.debug("Using the following saturation frames: %s" % (str(saturated_thisframe)))
                 merged = podi_persistency.mask_saturation_defects(saturated_thisframe, ota, merged)
             hdu.header["SATMASK"] = saturated_thisframe
+            reduction_log.success('saturation')
 
             # Also pick all files within a given MJD range, and apply the 
             # appropriate correction (which, for now, is simply masking all pixels)
             filelist = podi_persistency.select_from_saturation_tables(full_filelist, mjd, 
                                                                       [1,options['max_persistency_time']])
-            if (len(filelist) > 0):
+            if (len(filelist) <= 0):
+                reduction_log.no_data('persistency')
+            else:
                 # Extract only the filenames from the filelist dictionary
                 persistency_files_used = []
                 for assoc_persistency_file, assoc_mjd in filelist.iteritems():
@@ -968,6 +1030,7 @@ def collect_reduce_ota(filename,
                     persistency_catalog_counter += 1
                     keyname = "PERSIS%02d" % (persistency_catalog_counter)
                     hdu.header[keyname] = filename
+                reduction_log.success('persistency')
 
 
         #
@@ -975,13 +1038,16 @@ def collect_reduce_ota(filename,
         #
         fringe_scaling = None
         fringe_scaling_median, fringe_scaling_std = -1, -1
-        if (options['fringe_dir'] != None):
-            fringe_filename = check_filename_directory(options['fringe_dir'], "fringe__%s.fits" % (filter_name))
-            fringe_vector_file = "%s/fringevectors__%s__OTA%02d.reg" % (options['fringe_vectors'], filter_name, ota)
-            reduction_files_used['fringemap'] = fringe_filename
-            reduction_files_used['fringevector'] = fringe_vector_file
+        if (options['fringe_dir'] == None):
+            reduction_log.not_selected('fringe')
+        else:
+            fringe_filename = fpl.get_fringe_filename(options['fringe_dir'])
+            fringe_vector_file = fpl.get_fringevector_regionfile(options['fringe_vectors'], ota)
             logger.debug("fringe file %s found: %s" % (fringe_filename, os.path.isfile(fringe_filename)))
             logger.debug("fringe vector %s found: %s" % (fringe_vector_file, os.path.isfile(fringe_vector_file)))
+            if (os.path.isfile(fringe_filename) and os.path.isfile(fringe_vector_file)):
+                reduction_files_used['fringemap'] = fringe_filename
+                reduction_files_used['fringevector'] = fringe_vector_file
             if (options['verbose']):
                 print "fringe file:",fringe_filename, "    found:",os.path.isfile(fringe_filename)
                 print "fringe vector:",fringe_vector_file, "    found:",os.path.isfile(fringe_vector_file)
@@ -998,7 +1064,7 @@ def collect_reduce_ota(filename,
                         if (options['verbose']): print "Working on fringe scaling for",extname
                         fringe_scaling = podi_fringing.get_fringe_scaling(merged, ext.data, fringe_vector_file)
                         data_products['fringe-template'] = ext.data
-                        if (not fringe_scaling == None):
+                        if (not type(fringe_scaling) == type(None)):
                             good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])
                             fringe_scaling_median = numpy.median(good_scalings)
                             fringe_scaling_std    = numpy.std(good_scalings)
@@ -1010,7 +1076,8 @@ def collect_reduce_ota(filename,
             #print "FRNG_STD", fringe_scaling_std
             hdu.header["FRNG_SCL"] = fringe_scaling_median
             hdu.header["FRNG_STD"] = fringe_scaling_std
-            hdu.header["FRNG_OK"] = (fringe_scaling != None)
+            hdu.header["FRNG_OK"] = (type(fringe_scaling) != type(None))
+            reduction_log.attempt('fringe')
 
         # Insert the DETSEC header so IRAF understands where to put the extensions
         start_x = ota_c_x * size_x #4096
@@ -1020,6 +1087,11 @@ def collect_reduce_ota(filename,
         detsec_str = "[%d:%d,%d:%d]" % (start_x, end_x, start_y, end_y)
         hdu.header["DETSEC"] = (detsec_str, "position of OTA in focal plane")
                 
+        hdu.header['LTM1_1'] = 1.0
+        hdu.header['LTM2_2'] = 1.0
+        hdu.header['LTV1'] = -start_x
+        hdu.header['LTV2'] = -start_y
+
         if (cmdline_arg_isset("-simplewcs") or options['wcs_distortion'] != None):
             logger.debug("Clearing existing WCS solution")
             #
@@ -1055,7 +1127,7 @@ def collect_reduce_ota(filename,
         #print numpy.degrees(coord_j2000.ra), numpy.degrees(coord_j2000.dec)  
         hdu.header['CRVAL1'] = numpy.degrees(coord_j2000.ra)  
         hdu.header['CRVAL2'] = numpy.degrees(coord_j2000.dec) 
-
+        
         # Compute total offsets as the sum from pointing and dither offset
         # Now add the pointing and dither offsets
         #print offset_total[0] / 3600. / numpy.cos(numpy.radians(hdu.header['CRVAL2']))
@@ -1083,37 +1155,21 @@ def collect_reduce_ota(filename,
 
 
         # Now add the canned WCS solution
-        if (options['wcs_distortion'] != None):
-            #print "Adding header from WCS minifits (%s)" % (extname)
-            wcs = pyfits.open(options['wcs_distortion'])
-            wcs_header = wcs[extname].header
-
-            # Modify the WCS solution to properly represents the WCS solution of binned data
-            # print "Correcting the WCS solution for binning factor",binning,"..."
-            for hdr_name in ('CRPIX1', 'CRPIX2'):
-                wcs_header[hdr_name] /= binning
-            for hdr_name in ('CD1_1', 'CD1_2', 'CD2_1', 'CD2_2'):
-                wcs_header[hdr_name] *= binning
-
-            reduction_files_used['wcs'] = options['wcs_distortion']
-
-            cards = wcs_header.cards
-            for (keyword, value, comment) in cards:
-                if (keyword == 'CRVAL1'):
-                    hdu.header["CRVAL1"] -= wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
-                elif (keyword == "CRVAL2"):
-                    hdu.header['CRVAL2'] -= wcs_header['CRVAL2']
-                else:
-                    hdu.header[keyword] = (value, comment)
-
-            # Make sure to write RAs that are positive
-            if (hdu.header["CRVAL1"] < 0):
-                hdu.header['CRVAL1'] += 360.
-                
+        if (options['wcs_distortion'] == None):
+            reduction_log.not_selected('wcs_dist')
+        else:
+            wcsdistort = fpl.apply_wcs_distortion(options['wcs_distortion'], hdu, binning, reduction_log)
+            reduction_files_used['wcs'] = fpl.get_wcs_distortion_file(options['wcs_distortion'])
+            if (options['simple-tan-wcs']):
+                hdu.header['CTYPE1'] = "RA---TAN"
+                hdu.header['CTYPE2'] = "DEC--TAN"
+            
         #
         # If requested, perform cosmic ray rejection
         #
-        if (options['crj'] > 0):
+        if (options['crj'] <= 0):
+            reduction_log.not_selected('crj')
+        else:
             logger.debug("Starting cosmic ray removal with %d iterations" % (options['crj']))
             corrected, mask = podi_cosmicrays.remove_cosmics(data=merged, 
                                                              n_iterations=options['crj'],
@@ -1126,6 +1182,7 @@ def collect_reduce_ota(filename,
                                                              binning=binning,
                                                              verbose=False,)
             merged = corrected
+            reduction_log.success('crj')
             logger.debug("Done with cosmic ray removal")
         hdu.header['CRJ_ITER'] = (options['crj'], "cosmic ray removal iterations")
         hdu.header['CRJ_SIGC'] = (options['crj_sigclip'], "CR sigma clipping threshold")
@@ -1138,6 +1195,23 @@ def collect_reduce_ota(filename,
         # NAXIS, NAXIS1, NAXIS2 are set correctly
         hdu.data = merged
 
+
+        # #
+        # # Return data as shared memory
+        # #
+        # # Allocate shared memory
+        # shmem_buffer = multiprocessing.RawArray(ctypes.c_float, merged.size)
+        # shmem_image = shmem_as_ndarray(shmem_buffer).reshape(merged.shape)
+        # # insert reduced image data into shared memory buffer
+        # shmem_image[:,:] = merged[:,:]
+
+        # #
+        # # Now set HDU properties and store the shared memory image
+        # #
+        # hdu.header['NAXIS1'] = merged.shape[1]
+        # hdu.header['NAXIS2'] = merged.shape[0]
+        # hdu.data = None #shmem_buffer
+        # data_products['shmem_image'] = shmem_buffer
 
         source_cat = None
         if (options['fixwcs']):
@@ -1153,6 +1227,7 @@ def collect_reduce_ota(filename,
             else:
                 logger.debug("Preparing source catalog")
                 tmphdulist = pyfits.HDUList([pyfits.PrimaryHDU(header=hdu.header, data=hdu.data)])
+
                 obsid = tmphdulist[0].header['OBSID']
                 process_id = os.getpid()
                 fitsfile = "%s/tmp.pid%d.%s_OTA%02d.fits" % (sitesetup.sextractor_cache_dir, process_id, obsid, ota)
@@ -1214,7 +1289,7 @@ def collect_reduce_ota(filename,
         # This is necessary both for the pupil ghost correction AND the fringing correction
         #
         starcat = None
-        if (source_cat != None):
+        if (not type(source_cat) == type(None)):
             ota_x, ota_y = source_cat[:,2], source_cat[:,3]
             starcat = (ota_x, ota_y)
         # Now sample the background, excluding regions close to known sources
@@ -1241,13 +1316,18 @@ def collect_reduce_ota(filename,
 
     pupilghost_scaling = None
     pupilghost_template = None
-    if (options['pupilghost_dir'] != None):
+    if (options['pupilghost_dir'] == None):
+        reduction_log.not_selected('pupilghost')
+    else:
         logger.debug("Getting ready to subtract pupil ghost from science frame")
         filter_level = get_filter_level(hdulist[0].header)
         filter_name = get_valid_filter_name(hdulist[0].header)
         # binning = ota_list[0].header['BINNING']
-        pg_template = "%s/pupilghost_template___level_%d__bin%d.fits" % (options['pupilghost_dir'], filter_level, binning)
-        logger.debug("looking for pupil ghost template %s..." % (pg_template))
+        pg_template = check_filename_directory(
+            options['pupilghost_dir'], 
+            "%s/pupilghost_template___level_%d__bin%d.fits" % (options['pupilghost_dir'], filter_level, binning))
+        logger.info("looking for pupil ghost template %s..." % (pg_template))
+
         # If we have a template for this level
         if (os.path.isfile(pg_template)):
             logger.debug("\n   Using pupilghost template %s, filter %s ... " % (pg_template, filter_name))
@@ -1257,34 +1337,61 @@ def collect_reduce_ota(filename,
             if (not 'PGAFCTD' in hdu.header or not hdu.header['PGAFCTD']):
                 # This frame does not contain the keyword labeling it as affected by
                 # the pupilghost. In that case we don't need to do anything
-                logger.debug("This extension (%s) does not have any pupilghost problem" % (extname))
+                logger.info("This extension (%s) does not have any pupilghost problem" % (extname))
+                reduction_log.not_required('pupilghost')
             else:
                 
                 reduction_files_used['pupilghost'] = pg_template
                 # print "redfiles used:", reduction_files_used
 
+                #
+                # Find center position of the pupilghost. Assume that the science 
+                # frames have the same pupilghost centering as the flatfield used for
+                # calibration, as this provides a more reliable center position.
+                #
+                logger.info("Using PG center position: %f %f" % (
+                    pupilghost_center_x, pupilghost_center_y))
+
+                pgcenter = numpy.array([pupilghost_center_x, pupilghost_center_y])
+                if (numpy.isnan(pupilghost_center_x) or numpy.isnan(pupilghost_center_y)):
+                    logger.info("At least one of the center positions in NaN, setting to 'data' instead")
+                    pgcenter = 'data'
+                    
                 # Compute the pupilghost image for this OTA at the right orientation
-                logger.debug("Starting pg scaling")
+                logger.info("Starting pg scaling")
                 pupilghost_template = podi_matchpupilghost.compute_pupilghost_template_ota(
                     hdu, pg_hdu,
                     rotate=True,
                     non_negative=True,
-                    source_center_coords='data'
+                    source_center_coords=pgcenter
                 )
+                
                 data_products['pupilghost-template'] = pupilghost_template
-
-                if (not pupilghost_template == None):
-                    pupilghost_scaling = podi_matchpupilghost.get_pupilghost_scaling_ota(
-                        science_hdu=hdu, pupilghost_frame=pupilghost_template, 
+                if (not type(pupilghost_template) == type(None)):
+                    print "PG-template:", extname, "\n", pupilghost_template
+                    _, pupilghost_scaling = podi_matchpupilghost.get_pupilghost_scaling_ota(
+                        science_hdu=hdu, 
+                        pupilghost_frame=pg_hdu, #pupilghost_template, 
                         n_samples=750, boxwidth=20, 
                         verbose=False,
-                        pg_matched=True)
-                    # print pupilghost_scaling
+                        pg_matched=True,
+                        return_all=True,
+                    )
+                    print pupilghost_scaling
                     data_products['pupilghost-scaling'] = pupilghost_scaling
                     logger.debug("PG scaling:\n%s" % (str(pupilghost_scaling)))
+                    reduction_log.attempt('pupilghost')
+                    if (pupilghost_scaling == None):
+                        logger.info("No PG samples found for OTA %s" % (extname))
+                    else:
+                        logger.info("Found %d PG scaling samples" % (pupilghost_scaling.shape[0]))
+                else:
+                    logger.debug("Could not compute PG template for OTA %s" % (extname))
+                    reduction_log.missing_data('pupilghost')
                 logger.debug("Done with pg scaling")
         else:
             logger.debug("No appropriate pupilghost template found!")
+            reduction_log.missing_data('pupilghost')
 
             # # Find the optimal scaling factor
             # logger.debug("Searching for optimal pupilghost scaling factor")
@@ -1293,6 +1400,14 @@ def collect_reduce_ota(filename,
             # logger.debug("Optimal scaling factor found: %.2f +/- %.2f" % (scaling, scaling_std))
 
     
+    # Write the reduction log
+    reduction_log.write_to_header(hdu.header)
+
+    # if one of the following headers exist, add a title before them
+    for key in ['COMMENT', 'HISTORY']:
+        if (key in hdu.header):
+            add_fits_header_title(hdu.header, "other information", key)
+            break
 
     data_products['hdu'] = hdu
     data_products['wcsdata'] = None #fixwcs_data
@@ -1323,13 +1438,58 @@ def collect_reduce_ota(filename,
 
 
 
+def apply_software_binning(hdu, softbin):
 
+    logger = logging.getLogger("Softbin")
+
+    logger.debug("Applying software binning of x%d to ext %s" %
+                (softbin, hdu.name))
+
+    # for software binning, bin data
+    data = hdu.data
+    # data_4d = data.reshape(data.shape[0]/softbin, softbin, softbin, data.shape[1]/softbin)
+    # data_binned_3 = bottleneck.nanmean(data_4d, axis=-1)
+    # data_binned_2 = bottleneck.nanmean(data_binned_3, axis=1)
+    # hdu.data = data_binned_2
+    hdu.data = rebin_image(data, softbin, operation=bottleneck.nanmean)
+
+    # also modify all WCS relevant headers
+    for hdrname in ['CD1_1', 'CD1_2', 'CD2_1', 'CD2_2']:
+        hdu.header[hdrname] *= softbin
+
+    for hdrname in [
+            'CRPIX1', 'CRPIX2',
+            ]:
+        hdu.header[hdrname] /= softbin
+
+    # also modify the DETSEC keyword so we can properly display the frame as 
+    # IRAF mosaic
+    detsec_str = hdu.header['DETSEC'][1:-1] # strip the [ and ]
+    n = []
+    for xy in detsec_str.split(","):
+        for from_to in xy.split(":"):
+            n.append(int(from_to))
+    n = numpy.array(n) / softbin
+    new_detsec = "[%d:%d,%d:%d]" % (n[0],n[1],n[2],n[3])
+    logger.debug(new_detsec)
+    hdu.header['DETSEC'] = new_detsec 
+
+    hdu.header['SOFTBIN'] = (softbin, "software binning")
+
+    #
+    # Add here: appropriate treatment for photometric zeropoint, etc
+    #
+
+    return hdu
 
 
 
 
 def parallel_collect_reduce_ota(queue, return_queue,
-                                options=None):
+                                options=None,
+                                shmem=None,
+                                shmem_dim=None,
+                                shmem_id=-1):
     """
     A minimal wrapper handling the parallel execution of collectcells.
 
@@ -1364,7 +1524,6 @@ def parallel_collect_reduce_ota(queue, return_queue,
             return
 
         filename, ota_id, wrapped_pipe = task
-        x = open("/tmp/ota%02d.id" % ota_id, "w")
         logger = logging.getLogger("WorkManager(OTA%02d)" % (ota_id))
 
         # Do the work
@@ -1393,7 +1552,7 @@ def parallel_collect_reduce_ota(queue, return_queue,
             else:
                 logger.critical("OTA did not return any data, empty/faulty file (%s)?" % (filename))
 
-            return_queue.put( (ota_id, data_products) )
+            return_queue.put( (ota_id, data_products, shmem_id) )
 
             queue.task_done()
             continue
@@ -1419,7 +1578,7 @@ def parallel_collect_reduce_ota(queue, return_queue,
 
         # Send the results from this OTA to the main process handler
         logger.debug("Sending results back to main process")
-        return_queue.put( (ota_id, data_products) )
+        return_queue.put( (ota_id, data_products, shmem_id) )
 
         # Now unpack the communication pipe
         logger.debug("Preparing communication pipe ...")
@@ -1438,30 +1597,69 @@ def parallel_collect_reduce_ota(queue, return_queue,
         # Finish work: fringe subtraction and pupilghost removal
         #
 
+        reduction_log = data_products['reduction_log']
+
+        #
+        # XXX: UNPACK SHMEM AND REPACK WHEN DONE
+        #
+
         try:
             # Remove fringing by subtracting the scaled fringe template
-            if (not fringe_template == None and final_parameters['fringe-scaling-median'] > 0):
+            if (not type(fringe_template) == type(None) and final_parameters['fringe-scaling-median'] > 0):
                 logger.debug("Subtracting fringes (%.2f)..." % (final_parameters['fringe-scaling-median']))
                 return_hdu.data -= (fringe_template * final_parameters['fringe-scaling-median'])
+                reduction_log.success('fringe')
         except:
             podi_logging.log_exception()
             pass
 
         try:
             # Also delete the pupilghost contribution
-            if (not pg_image == None and final_parameters['pupilghost-scaling-median'] > 0):
+            if (not type(pg_image) == type(None) and final_parameters['pupilghost-scaling-median'] > 0):
                 logger.debug("Subtracting pupilghost (%.2f)..." % (final_parameters['pupilghost-scaling-median']))
                 return_hdu.data -= (pg_image * final_parameters['pupilghost-scaling-median'])
+                reduction_log.success('pupilghost')
+
         except:
             podi_logging.log_exception()
             pass
+
+        ##################
+        #
+        # Now that actual reduction is done, apply software binning
+        #
+        ##################
+        if (not options['softbin'] == 0):
+            # check if its a multiple of 2
+            if (options['softbin'] in [2,4,8]):
+                return_hdu = apply_software_binning(return_hdu, options['softbin'])
+                reduction_log.success('softwarebin')
+            else:
+                reduction_log.fail('softwarebin')
+        else:
+            reduction_log.not_selected('softwarebin')
+
+        #
+        #
+        # Pack the image data into shared memory to bring down communication times
+        #
+        #
+        wx,wy = shmem_dim
+        shmem_image = shmem_as_ndarray(shmem).reshape((wy,wx))
+        logger.debug("Packing image return into shared memory (%d x %d)" % (wx, wy))
+        if (return_hdu.data.shape[1] > wx or
+            return_hdu.data.shape[0] > wy):
+            logger.critical("Image size exceeds allocated shared memory")
+        else:
+            shmem_image[:return_hdu.data.shape[0], :return_hdu.data.shape[1]] = return_hdu.data[:,:]
+            return_hdu.data = numpy.array(return_hdu.data.shape)
 
         # Add the complete ImageHDU to the return data stream
         data_products['hdu'] = return_hdu
 
         # Add the results to the return_queue so the master process can assemble the result file
         logger.debug("Adding results for OTA %02d to return queue" % (ota_id))
-        return_queue.put( (ota_id, data_products) )
+        return_queue.put( (ota_id, data_products, shmem_id) )
 
         pipe.close()
 
@@ -1711,6 +1909,7 @@ def prestage_data(options, input):
     return tmpdir, staged
 
 
+
 def unstage_data(options, staged, input):
 
     logger = logging.getLogger("Unstage")
@@ -1731,6 +1930,7 @@ def unstage_data(options, staged, input):
                 pass
 
     return
+
 
 def collectcells(input, outputfile,
                  process_tracker,
@@ -1798,13 +1998,13 @@ def collectcells(input, outputfile,
 
     **********************************************************************
     * This is podi_collectcells                                          *
-    * (c) 2012-2013: Ralf Kotulla, kotulla@uwm.edu                       *
-    *                University of Wisconsin (Milwaukee & Madison)       *
+    * (c) 2012-2015: Ralf Kotulla, kotulla@wisc.edu                      *
+    *                University of Wisconsin - Madison                   *
     *                WIYN Observatory, Inc                               *
     *                                                                    *
     * Please acknowledge the author when using any products generated    *
     * with this tool. For comments, questions or ideas for improvement   *
-    * please send an email to kotulla@uwm.edu. Thank you!                *
+    * please send an email to kotulla@wisc.edu. Thank you!               *
     **********************************************************************
 
 """
@@ -1867,13 +2067,11 @@ def collectcells(input, outputfile,
         unstage_data(options, staged_data, input)
         return
 
-    #print "Merging cells for frame %s" % (basename)
-
     if (outputfile == None):
         outputfile = "%s/%s.fits" % (directory, filebase)
 
     hdulist = None
-    for ota in all_otas:
+    for ota in podi_focalplanelayout.FocalPlaneLayout().create_radially_sorted_ota_list():
         filename = "%s/%s.%02d.fits" % (directory, filebase, ota)
         if (not os.path.isfile(filename)):
             filename = "%s/%s.%02d.fits.fz" % (directory, filebase, ota)
@@ -1889,6 +2087,9 @@ def collectcells(input, outputfile,
         stdout_write("Something is wrong here, can't find/open any of the files...")
         unstage_data(options, staged_data, input)
         return -1
+
+    fpl = podi_focalplanelayout.FocalPlaneLayout(hdulist[0])
+    logger.info("Focalplane Layout: %s" % (fpl.layout))
 
     obsid = hdulist[0].header['OBSID']
 
@@ -1934,6 +2135,7 @@ def collectcells(input, outputfile,
     input_header = hdulist[0].header
 
     binning = get_binning(hdulist[0].header)
+    obsid = hdulist[0].header['OBSID']
 
     # Check if the output file contains a new directory. 
     chk_directory, chk_filename = os.path.split(outputfile)
@@ -1972,14 +2174,17 @@ def collectcells(input, outputfile,
     #
     # Start assembling the new list of HDUs
     #
-    list_of_otas_to_collect = available_ota_coords
+    list_of_otas_to_collect = fpl.available_ota_coords
     if (options['central_only']):
-        list_of_otas_to_collect = central_array_ota_coords
+        list_of_otas_to_collect = fpl.central_array_ota_coords
+    if (not type(options['selectota']) == type(None)):
+        list_of_otas_to_collect = options['selectota']
+
     logger.debug("List of otas to collect: %s" % (str(list_of_otas_to_collect)))
 
     filtername = hdulist[0].header['FILTER']
-    if (filtername in blocked_out_otas):
-        exclude_ota = blocked_out_otas[filtername]
+    if (filtername in fpl.blocked_out_otas):
+        exclude_ota = fpl.blocked_out_otas[filtername]
         unblocked_otas = []
         for (ox, oy) in list_of_otas_to_collect:
             ota = ox * 10 + oy;
@@ -1995,7 +2200,7 @@ def collectcells(input, outputfile,
     ota_list[0].header["PIPELINE"] = (pipeline_name, "pipeline name")
     ota_list[0].header["PLVERSIO"] = (pipeline_version, "pipeline version")
     ota_list[0].header["PLAUTHOR"] = ("Ralf Kotulla", "pipeline author")
-    ota_list[0].header["PLEMAIL"] = ("kotulla@uwm.edu", "contact email")
+    ota_list[0].header["PLEMAIL"] = ("kotulla@wisc.edu", "contact email")
     add_fits_header_title(ota_list[0].header, "Pipeline information", 'PLVER')
     for key, value in options['additional_fits_headers'].iteritems():
         ota_list[0].header[key] = (value, "user-added keyword")
@@ -2015,8 +2220,20 @@ def collectcells(input, outputfile,
 
     processes = []
 
-    worker_args = (queue, return_queue, options)
+    #
+    # For easier user-understanding, add special keywords for each reduction step
+    #
 
+    worker_args = (queue, return_queue, options)
+    shmem_dims = (4096, 4096)
+    kw_worker_args= {
+        'queue': queue,
+        'return_queue': return_queue,
+        'options': options,
+        'shmem': None,
+        'shmem_dim': shmem_dims,
+    }
+    shmem_list = []
     number_extensions = 0
 
     list_of_otas_being_reduced = []
@@ -2103,7 +2320,15 @@ def collectcells(input, outputfile,
     else:
         for i in range(number_cpus):
             logger.debug("Starting a new process...")
-            p = multiprocessing.Process(target=parallel_collect_reduce_ota, args=worker_args)
+            #p = multiprocessing.Process(target=parallel_collect_reduce_ota, args=worker_args)
+
+            # Allocate shared memory for data return
+            new_shmem = multiprocessing.RawArray(ctypes.c_float, 4096*4096)
+            kw_worker_args['shmem'] = new_shmem
+            kw_worker_args['shmem_id'] = len(shmem_list)
+            shmem_list.append(new_shmem)
+
+            p = multiprocessing.Process(target=parallel_collect_reduce_ota, kwargs=kw_worker_args)
             p.start()
             processes.append(p)
             if (not process_tracker == None):
@@ -2175,6 +2400,43 @@ def collectcells(input, outputfile,
                                      "MJD at exposure end-point")
     add_fits_header_title(ota_list[0].header, "Additional time stamps", 'DATE-MID')
 
+    #
+    # Gather some information from the guider, compute statistics,
+    # and create the guide star diagnostic plots
+    #
+    guide_files = podi_guidestars.get_guidephotom_filelist(directory, obsid)
+    logger.debug("Found the following guide photometry files:\n-- %s" % (
+        "\n-- ".join(guide_files)))
+    guide_plot_filename = outputfile[:-5]+".guide.png"
+    guide_plot_title = "%(OBSID)s: %(OBJECT)s (%(FILTER)s, %(EXPTIME)d s)" % hdulist[0].header
+    guidestats = podi_guidestars.draw_guidestarplot(
+        guide_files, 
+        title=guide_plot_title,
+        plot_filename=guide_plot_filename)
+    #
+    # Now add some of the guide information to the FITS header
+    #
+    ota_list[0].header['N_GUIDES'] = (len(guidestats), 
+                                      'number of guide stars')
+    total_flux_max, total_flux_min, total_guide_samples = 0, 0, 0
+    for idx, starfile in enumerate(guidestats):
+        star = guidestats[starfile]
+        total_flux_max += star['flux_max']
+        total_flux_min += star['flux_min']
+        total_guide_samples += star['n_guide_samples']
+        ota_list[0].header['SGMA1F_%d' % (idx+1)] = star['flux_1sigma']
+        ota_list[0].header['SGMA3F_%d' % (idx+1)] = star['flux_3sigma']
+
+    # print "phot:", total_flux_max, total_flux_min
+    photometricity = (total_flux_min / total_flux_max) \
+                     if ((total_flux_max > 0) and (total_flux_min > 0)) else -1. 
+    ota_list[0].header['PHOTQUAL'] = (photometricity,
+                                      'degree of photometric stability (1=photometric)')
+    ota_list[0].header['GUIDSMPL'] = (0 if total_guide_samples <= 0 
+                                      else total_guide_samples/len(guidestats),
+                                      'avg number of guide frames per star')
+    add_fits_header_title(ota_list[0].header, "Guider statistics", "N_GUIDES")
+
     # We know enough about the current frame, so close the file
     hdulist.close()
     del hdulist
@@ -2197,10 +2459,13 @@ def collectcells(input, outputfile,
     intermediate_results_sent = {}
     pupilghost_scaling = None
     ota_missing_empty = []
+
+    global_reduction_log = ReductionLog()
+
     for i in range(len(list_of_otas_being_reduced)):
         #hdu, ota_id, wcsfix_data = return_queue.get()
         try:
-            ota_id, data_products = return_queue.get()
+            ota_id, data_products, shmem_id = return_queue.get()
         except (KeyboardInterrupt, SystemExit):
             while (not return_queue.empty()):
                 return_queue.get()
@@ -2225,7 +2490,14 @@ def collectcells(input, outputfile,
         # 
         if (len(processes) < len(list_of_otas_being_reduced)):
             # We don't have enough processes yet, start another one
-            p = multiprocessing.Process(target=parallel_collect_reduce_ota, args=worker_args)
+
+            # Allocate shared memory for data return
+            new_shmem = multiprocessing.RawArray(ctypes.c_float, 4096*4096)
+            kw_worker_args['shmem'] = new_shmem
+            kw_worker_args['shmem_id'] = len(shmem_list)
+            shmem_list.append(new_shmem)
+
+            p = multiprocessing.Process(target=parallel_collect_reduce_ota, kwargs=kw_worker_args)
             p.start()
             processes.append(p)
             logger.debug("Starting another process for another OTA")
@@ -2238,8 +2510,9 @@ def collectcells(input, outputfile,
 
 
         header = data_products['header']
-
+        
         if (header == None):
+            logger.info("OTA %d reporting empty header, ignoring" %(ota_id))
             ota_missing_empty.append(ota_id)
             continue
         
@@ -2248,16 +2521,17 @@ def collectcells(input, outputfile,
 
         sky_samples[header['EXTNAME']] = data_products['sky-samples']
 
-        if (not data_products['fringe_scaling'] == None):
-            fringe_scaling = data_products['fringe_scaling'] if fringe_scaling == None else \
+        if (not type(data_products['fringe_scaling']) == type(None)):
+            fringe_scaling = data_products['fringe_scaling'] if type(fringe_scaling) == type(None) else \
                 numpy.append(fringe_scaling, data_products['fringe_scaling'], axis=0)
             logger.debug("XXX fringe scaling:\n%s" % (str(fringe_scaling)))
 
         # Add something about pupilghost scaling XXXXXXXXXXXXX
-        if (not data_products['pupilghost-scaling'] == None):
-            pupilghost_scaling = data_products['pupilghost-scaling'] if (pupilghost_scaling == None) \
+        if (not type(data_products['pupilghost-scaling']) == type(None)):
+            pupilghost_scaling = data_products['pupilghost-scaling'] if (type(pupilghost_scaling) == type(None)) \
                 else numpy.append(pupilghost_scaling, data_products['pupilghost-scaling'], axis=0)
             
+        # print "\n\n\n\n",pupilghost_scaling,"\n\n\n\n"
 
     logger.debug("Received all intermediate data")
 
@@ -2277,7 +2551,11 @@ def collectcells(input, outputfile,
     # 
     logger.debug("Combining sky-samples from all OTAs into global sky value")
     sky_samples_global = None #numpy.empty(0)
-    valid_ext = otas_for_photometry[get_valid_filter_name(ota_list[0].header)]
+    # logger.info("Filtername: %s (%s)" % (
+    #     ota_list[0].header['FILTER'] if 'FILTER' in ota_list[0].header else "<NO FILTER KEYWORD>",
+    #     ota_list[0].header['FILTERID'] if 'FILTERID' in ota_list[0].header else "<NO FILTERID KEYWORD>"
+    #     ))
+    valid_ext = fpl.otas_for_photometry[get_valid_filter_name(ota_list[0].header)]
     sky_global_median = -1.
     for ext in sky_samples:
         # print ext, valid_ext, int(ext[3:5])
@@ -2290,7 +2568,7 @@ def collectcells(input, outputfile,
             # We don't know about this OTA, skip it
             continue
 
-        if (sky_samples[ext] == None):
+        if (type(sky_samples[ext]) == type(None)):
             logger.debug("Found empty sky-sample list: %s" % (ota_name))
             continue
 
@@ -2299,13 +2577,13 @@ def collectcells(input, outputfile,
         sky_plus_ota[:, -1] = ota_number
 
         not_a_guiding_ota = ota_headers[ota_name]['CELLMODE'].find("V") < 0
-        if (ota_number in valid_ext and not_a_guiding_ota and not sky_samples[ext] == None):
-            if (sky_samples_global == None):
+        if (ota_number in valid_ext and not_a_guiding_ota and not type(sky_samples[ext]) == type(None)):
+            if (type(sky_samples_global) == type(None)):
                 sky_samples_global = sky_plus_ota 
             else:
                 sky_samples_global = numpy.append(sky_samples_global, sky_plus_ota, axis=0)
         
-        if (sky_samples_global == None):
+        if (type(sky_samples_global) == type(None)):
             continue
         logger.debug("Entire list of sky-samples now contains % 4d entries" % (sky_samples_global.shape[0]))
 
@@ -2358,11 +2636,20 @@ def collectcells(input, outputfile,
     add_fits_header_title(ota_list[0].header, "Derived global data", 'SKYLEVEL')
     logger.debug("All sky-related FITS header entries written")
 
+    ota_list[0].header['CRJ'] = (options['crj'] > 0, "cosmic ray removal done")
+    ota_list[0].header['CRJ_ITER'] = (options['crj'], "cosmic ray removal iterations")
+    ota_list[0].header['CRJ_SIGC'] = (options['crj_sigclip'], "CR sigma clipping threshold")
+    ota_list[0].header['CRJ_SIGF'] = (options['crj_sigfrac'], "CR threshold for neighboring pixels")
+    ota_list[0].header['CRJ_OBJL'] = (options['crj_objlim'], "CR contrast to underlying object")
+    ota_list[0].header['CRJ_SATU'] = (options['crj_saturation'], "CR saturation limit")
+    ota_list[0].header['CRJ_METH'] = (options['crj_method'], "CR implementation")
+    add_fits_header_title(ota_list[0].header, "Cosmic-ray rejection setting", 'CRJ')
+        
     #
     # Compute the global fringe scaling 
     # 
     fringe_scaling_median = fringe_scaling_std = 0
-    if (not options['fringe_dir'] == None and not fringe_scaling == None): #.shape[0] > 0):
+    if (not options['fringe_dir'] == None and not type(fringe_scaling) == type(None)): #.shape[0] > 0):
         logger.debug("Computing average fringe scaling amplitude")
         # Determine the global scaling factor
         good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])
@@ -2375,39 +2662,21 @@ def collectcells(input, outputfile,
     ota_list[0].header["FRNG_SCL"] = (fringe_scaling_median, "median fringe scaling")
     ota_list[0].header["FRNG_STD"] = (fringe_scaling_std, "fringe scaling uncertainty")
     logger.debug("Fringe scaling: %.3f +/- %.3f" % (fringe_scaling_median, fringe_scaling_std))
+    add_fits_header_title(ota_list[0].header, "Metadata combined from individual OTAs", 'FRNG_SCL')
 
     #
     # Compute the global median pupil-ghost contribution
     #
     pupilghost_scaling_median = pupilghost_scaling_std = 0.
-    if (options['pupilghost_dir'] != None and not pupilghost_scaling == None):
+    if (options['pupilghost_dir'] != None and not type(pupilghost_scaling) == type(None)):
         logger.debug("Computing global pupilghost scaling")
-        ratio = pupilghost_scaling[:,4] / pupilghost_scaling[:,5]
-        pg_max = numpy.max(pupilghost_scaling[:,5])
-        strong_pg_signal = pupilghost_scaling[:,5] > 0.4*pg_max
-        valid_ratios = ratio[strong_pg_signal]
-        good_ratios, valid = three_sigma_clip(ratio, return_mask=True) #[strong_pg_signal])
 
-        median_ratio = numpy.median(valid_ratios)
-        logger.debug("median_ratio = %f" % (median_ratio))
-        logger.debug("error = %f" % (numpy.std(valid_ratios)))
-        logger.debug("clipped median: %f" % (numpy.median(good_ratios)))
-        logger.debug("clipped std: %f" % (numpy.std(good_ratios)))
+        pupilghost_scaling_median, pg_background = podi_matchpupilghost.iterate_reject_scaling_factors(
+            pupilghost_scaling, iterations=3,
+            significant_only=False)
 
-        #numpy.savetxt("merged_all", merged_all)
-        #numpy.savetxt("merged_clipped", good_ratios)
+        logger.info("Found PG scaling: %.3f (BG: %.2f)" % (pupilghost_scaling_median, pg_background))
 
-        clipped_median = numpy.median(good_ratios)
-        clipped_std = numpy.std(good_ratios)
-        pupilghost_scaling_median = clipped_median
-        pupilghost_scaling_std = clipped_std
-
-        #ota_list[0].header["PUPLGOST"] = (pg_template, "p.g. template")
-        # filter_name = ota_list[0].header['FILTER']
-        # if (filter_name in podi_matchpupilghost.scaling_factors):
-        #     bg_scaled = podi_matchpupilghost.scaling_factors[filter_name]*sky_global_median
-        #     ota_list[0].header["PUPLGFA2"] = (bg_scaled, "analytical pupilghost scaling")
-        stdout_write(" done!\n")
     else:
         pupilghost_scaling_median = -1.
     ota_list[0].header["PUPLGFAC"] = (pupilghost_scaling_median, "pupilghost scaling")
@@ -2434,27 +2703,60 @@ def collectcells(input, outputfile,
     
     # Send off the initial bunch of results to the worker threads
     # logger.debug("Intermediate results:\n%s" % (str(intermediate_results_sent)))
+    logger.debug("Received %d intermediate results!" % (len(intermediate_results)))
+
+    n_intermed_results_sent = 0
     for i in range(number_cpus):
         
-        if (i < len(intermediate_results)):
+        #if (i < len(intermediate_results)):
+        for j in range(len(intermediate_results)):
 
-            target_ota_id = intermediate_results[i]['ota-id']
-            if (target_ota_id in ota_missing_empty):
+            if (intermediate_results[j]['sent']):
                 continue
 
-            pipe_send = intermediate_results[i]['pipe-send']
+            target_ota_id = intermediate_results[j]['ota-id']
+            if (target_ota_id in ota_missing_empty):
+                logger.debug("OTA %d is listed as missing" % (target_ota_id))
+                continue
+
+            pipe_send = intermediate_results[j]['pipe-send']
 
             # Sent the intermediate results
             logger.debug("Sending finalization data back to ota-id %02d" % (target_ota_id))
             pipe_send.send(intermed_results)
-            intermediate_results[i]['sent'] = True
+            intermediate_results[j]['sent'] = True
+            n_intermed_results_sent += 1
+            break
 
         else:
             break
+    logger.debug("Sent off %d intermediate results back to workers!" % (n_intermed_results_sent))
 
+
+    #
+    # Finish off work
+    #
+    # logger.debug("Original OTA list: %s" % (" - ".join(["%d%d"% (x,y) for (x,y) in list_of_otas_being_reduced])))
+    # logger.debug("Known faulty/missing: %s" % (" - ".join(ota_missing_empty)))
+    # print "---------"
+    # print "expected:",list_of_otas_being_reduced
+    # print "missing:", ota_missing_empty
+    # print "missing_x",
+    # for x in ota_missing_empty:
+    #     try:
+    #         print list_of_otas_being_reduced[x],
+    #     except:
+    #         print "XXX",
+    #         pass
+    # print
+    # # print "missing_x: ", [list_of_otas_being_reduced[x] for x in ota_missing_empty]
+    # print "---------"
+
+    recv_start = time.time()
+    n_expected_results = len(list_of_otas_being_reduced) - len(ota_missing_empty)
     for i in range(len(list_of_otas_being_reduced) - len(ota_missing_empty)):
         try:
-            ota_id, data_products = return_queue.get()
+            ota_id, data_products, shmem_id = return_queue.get()
         except (KeyboardInterrupt, SystemExit):
             while (not return_queue.empty()):
                 return_queue.get()
@@ -2463,27 +2765,62 @@ def collectcells(input, outputfile,
             return
 
         # We received a final answer, so if necessary send off another intermediate results
-        logger.debug("received final answer from OTA-ID %02d" % (ota_id))
+        try:
+            logger.debug("received final answer from OTA-ID %02d [c=%d, FP=%s], expecting %d [%d] more" % (
+                ota_id, i, 
+                str(list_of_otas_to_collect[ota_id-1]), 
+                n_expected_results-(i+1), n_expected_results))
+        except:
+            podi_logging.log_exception()
+            print "Error with logger.info statement"
+            pass
+
         for j in range(len(intermediate_results)):
-            if (not intermediate_results[j]['sent']):
-                target_ota_id = intermediate_results[j]['ota-id']
-                pipe_send = intermediate_results[j]['pipe-send']
-                pipe_send.send(intermed_results)
-                intermediate_results[j]['sent'] = True
-                # logger.info("sending new instructions:\nIntermed results sent:\n%s" % (str(intermediate_results_sent)))
-                break
+            if (intermediate_results[j]['sent']):
+                continue
+            target_ota_id = intermediate_results[j]['ota-id']
+            if (target_ota_id in ota_missing_empty):
+                #logger.info("OTA %d is listed as missing" % (target_ota_id))
+                continue
+            pipe_send = intermediate_results[j]['pipe-send']
+            # Sent the intermediate results
+            logger.debug("Sending finalization data back to ota-id %02d" % (target_ota_id))
+            pipe_send.send(intermed_results)
+            intermediate_results[j]['sent'] = True
+            n_intermed_results_sent += 1
+            break
+
+        # for j in range(len(intermediate_results)):
+        #     if (not intermediate_results[j]['sent']):
+        #         target_ota_id = intermediate_results[j]['ota-id']
+        #         pipe_send = intermediate_results[j]['pipe-send']
+        #         pipe_send.send(intermed_results)
+        #         intermediate_results[j]['sent'] = True
+        #         logger.info("sending new instructions:\nIntermed results sent:\n%s" % (str(intermediate_results_sent)))
+        #         break
 
         for j in range(len(intermediate_results)): 
             if (intermediate_results[j]['ota-id'] == ota_id):
                 # Close the communication pipes
+                logger.debug("Closing intermediate results pipe for ota %d" % (ota_id))
                 intermediate_results[j]['pipe-send'].close()
                 intermediate_results[j]['pipe-recv'].close()
         
         hdu = data_products['hdu']
         if (hdu == None):
             continue
-        
+
+        #
+        # Unpack shared memory buffer using the information from the fits header
+        #
+        wx, wy = hdu.data[0], hdu.data[1]
+        logger.debug("Unpacking shared memory: (ID: %d, %d x %d)" % (shmem_id, wx,wy))
+        shmem_buffer = shmem_list[shmem_id]
+        shmem_image = shmem_as_ndarray(shmem_buffer).reshape(shmem_dims)
+        hdu.data = numpy.copy(shmem_image[:wy,:wx])
+
         ota_list[ota_id] = hdu
+
         extname = hdu.header['EXTNAME']
 
         wcsfix_data = data_products['wcsdata']
@@ -2496,8 +2833,8 @@ def collectcells(input, outputfile,
         global_gain_sum += (hdu.header['GAIN'] * hdu.header['NGAIN'])
         global_gain_count += hdu.header['NGAIN']
 
-        if (not data_products['sourcecat'] == None):
-            global_source_cat = data_products['sourcecat'] if (global_source_cat == None) \
+        if (not type(data_products['sourcecat']) == type(None)):
+            global_source_cat = data_products['sourcecat'] if (type(global_source_cat) == type(None)) \
                 else numpy.append(global_source_cat, data_products['sourcecat'], axis=0)
 
         if ('tech-header' in data_products):
@@ -2505,21 +2842,31 @@ def collectcells(input, outputfile,
             # print "techdata for ota",ota_id,"\n",data_products['tech-header']
 
 
+        #
+        # Collect all information for the global reduction log
+        #
+        ota_reduction_log = data_products['reduction_log']
+        global_reduction_log.combine(ota_reduction_log)
+
+    recv_end = time.time()
+    logger.debug("RECEIVING: %f" % ((recv_end - recv_start)))
+    
     podi_logging.ppa_update_progress(60, "Detrending done, starting calibration")
 
     #
     # Update the global gain variables
     #
-    ota_list[0].header['GAIN'] = ((global_gain_sum / global_gain_count), "global average gain [e-/ADU]")
-    ota_list[0].header['NGAIN'] = (global_gain_count, "number of cells contribution to gain")
+    ota_list[0].header['GAIN'] = (-1, "global average gain [e-/ADU]")
+    ota_list[0].header['NGAIN'] = (0, "number of cells contribution to gain")
+
+    if (global_gain_count > 0):
+        ota_list[0].header['GAIN'] = global_gain_sum / global_gain_count
+        ota_list[0].header['NGAIN'] = global_gain_count
 
     # Compute the noise of the sky-level based on gain and readnoise XXXXXXX
-    if (sky_global_median > 0):
-        ota_list[0].header["SKYNOISE"] = (math.sqrt( 8.**2 + sky_global_median*ota_list[0].header['GAIN'] ), 
-                                          "noise level of sky background")
-    else:
-        ota_list[0].header["SKYNOISE"] = (invalid_sky_level_value, "noise level of sky background")
-
+    ota_list[0].header["SKYNOISE"] = (invalid_sky_level_value, "noise level of sky background")
+    if (sky_global_median > 0 and global_gain_count > 0 and ota_list[0].header['GAIN'] > 0):
+        ota_list[0].header["SKYNOISE"] = math.sqrt( 8.**2 + sky_global_median*ota_list[0].header['GAIN'])
 
     logger.debug("all data received from worker processes!")
     logger.info("Starting post-processing")
@@ -2591,10 +2938,6 @@ def collectcells(input, outputfile,
             # so delete it from each of the extensions
             del ota.header[header]
                 
-        # Set the inherit keyword so that the headers removed from each 
-        # extension are instead inherited from the primary
-        ota.header["INHERIT"] = (True, "Inherit headers from PrimaryHDU")
-
         for header in headers_to_delete_from_otas:
             # As above, make sure header exists
             if (not header in ota.header):
@@ -2603,6 +2946,25 @@ def collectcells(input, outputfile,
 
     add_fits_header_title(ota_list[0].header, "Exposure- and instrument-specific data", first_inherited_header)
 
+    #
+    # Correct all pixel coordinates by the softbin factor to keep things consistent
+    #
+    if (not options['softbin'] == 0):
+        # check if its a multiple of 2
+        sb = options['softbin']
+        if (sb in [2,4,8]):
+            # We did some software binning
+            
+            #
+            # Correct all source positions given in pixels
+            #
+            if (not type(global_source_cat) == type(None)):
+                headers = ['x', 'y', 'fwhm_image']
+                for h in headers:
+                    global_source_cat[:,SXcolumn[h]] /= sb
+
+            # Correct the sky sampling positions and box sizes
+                       
 
     #
     # Fix the WCS if requested
@@ -2615,13 +2977,17 @@ def collectcells(input, outputfile,
     ota_list[0].header['ASTRMCAT'] = ("", "astrometric reference catalog")
     add_fits_header_title(ota_list[0].header, "World Coordinate System", 'WCSFIXED')
 
-    enough_stars_for_fixwcs = not global_source_cat == None \
+    enough_stars_for_fixwcs = not type(global_source_cat) == type(None) \
                               and global_source_cat.shape[0]>3
     if (options['fixwcs']):
         if (enough_stars_for_fixwcs):
             logger.debug("Found enough stars for astrometric calibration")
+            global_reduction_log.attempt('wcscal')
         else:
             logger.info("Couldn't find enough stars for astrometric calibration!")
+            global_reduction_log.fail('wcscal')
+    else:
+        global_reduction_log.not_selected('wcscal')
 
     logger.debug("Next up: fixwcs")
     if (options['fixwcs'] 
@@ -2659,11 +3025,38 @@ def collectcells(input, outputfile,
         ota_list[0].header['WCSMINQ']  = (sitesetup.min_wcs_quality,
                                           "Minimum WCS quality for successful calibration")
         ota_list[0].header['WCSCAL'] = ccmatched['valid_wcs_solution']
-        
+
+        #
+        # Now add some headers to visualize the WCS quality (i.e. number of 
+        # matched sources for each OTA)
+        #
+        ota_list[0].header['WCSDETAL'] = "     0     1     2     3     4     5     6     7"
+        matched_cat = ccmatched['matched_src+2mass']
+        numpy.savetxt("xx.dump", matched_cat)
+        for otay in range(8)[::-1]:
+            wcs_qual_string = ""
+            for otax in range(8):
+
+                _ota = otax * 10 + otay
+
+                n_src_odi = numpy.sum((global_source_cat[:,SXcolumn['ota']] == _ota))
+                n_matched = numpy.sum((matched_cat[:, SXcolumn['ota']] == _ota))
+
+                if (n_src_odi <= 0):
+                    wcs_qual_string += "     ."
+                elif (n_matched >= 1e5):
+                    wcs_qual_string += " +++++"
+                else:
+                    wcs_qual_string += " %5d" % (n_matched)
+            
+            logger.debug("WCSDTL_%d --> %s" % (otay, wcs_qual_string))
+            ota_list[0].header["WCSDTL_%d" % otay] = wcs_qual_string
+                
         if (not ccmatched['valid_wcs_solution']):
 
             # This disabled the photometric calibration afterwards
             enough_stars_for_fixwcs = False
+            global_reduction_log.fail('wcscal')
 
         else:
             # Also extract some of the matched/calibrated catalogs
@@ -2698,8 +3091,8 @@ def collectcells(input, outputfile,
                                      array=odi_2mass_cat[:, 8], disp='source OTA'),
             ]
             coldefs = pyfits.ColDefs(columns)
-            matchedhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
-            matchedhdu.update_ext_name("CAT.ODI+2MASS", comment=None)
+            matchedhdu = pyfits.BinTableHDU.from_columns(coldefs)
+            matchedhdu.name = "CAT.ODI+2MASS"
             matchedhdu.header['MATCHRAD'] = (2., "matching radius in arcsec")
             ota_list.append(matchedhdu)
 
@@ -2707,8 +3100,13 @@ def collectcells(input, outputfile,
             # This also writes to the Primary and OTA-level headers
             wcs_quality = dev_ccmatch.global_wcs_quality(odi_2mass_cat, ota_list)
             # print "WCS quality =",wcs_quality
-            ota_list[0].header['WCSXRMS'] = wcs_quality['full']['RMS-RA']
-            ota_list[0].header['WCSYRMS'] = wcs_quality['full']['RMS-DEC']
+            ota_list[0].header['WCSXRMS'] = \
+                wcs_quality['full']['RMS-RA'] if numpy.isfinite(wcs_quality['full']['RMS-RA']) else -1.
+            ota_list[0].header['WCSYRMS'] = \
+                wcs_quality['full']['RMS-DEC'] if numpy.isfinite(wcs_quality['full']['RMS-DEC']) else -1.
+
+            global_reduction_log.success('wcscal')
+
 
         # Compute the image quality using all detected sources
         # Make sure to only include round source (elongation < 1.3) and decent 
@@ -2870,7 +3268,17 @@ def collectcells(input, outputfile,
     # If requested, perform photometric calibration
     #
     logger.debug("Next up: photcalib")
-    if (options['photcalib'] 
+
+    if (not options['photcalib']):
+        # update global reduction log
+        global_reduction_log.not_selected('photcal')
+
+    elif ((options['photcalib'] and options['fixwcs'] and not enough_stars_for_fixwcs) or 
+          (options['photcalib'] and not options['fixwcs'])):
+        # update reduction log
+        global_reduction_log.skip_after_fail('photcal')
+
+    elif (options['photcalib'] 
         and options['fixwcs']
         and enough_stars_for_fixwcs):
         zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = 99., 99., None, 99.
@@ -2910,6 +3318,12 @@ def collectcells(input, outputfile,
         ota_list[0].header["MAGZERO"] = (photcalib_details['median'], "phot. zeropoint corr for exptime")
         ota_list[0].header["MAGZSIG"] = (photcalib_details['std'], "phot ZP dispersion")
         ota_list[0].header["MAGZERR"] = (photcalib_details['stderrofmean'], "phot ZP uncertainty")
+
+        if (photcalib_details['median'] > 0 and
+            photcalib_details['median'] < 50):
+            global_reduction_log.success('photcal')
+        else:
+            global_reduction_log.fail('photcal')
 
         flux_scaling = 1.0
         if (photcalib_details['n_raw'] > 0 and
@@ -3067,58 +3481,70 @@ def collectcells(input, outputfile,
     # Also make sure to compute real Ra/Dec values from OTA, X, and Y
     #
     logger.debug("Creating the SKYLEVEL table extension")
-    sky_samples_final = numpy.empty((0,sky_samples_global.shape[1]))
-    sky_otas = set(sky_samples_global[:,-1])
-    # print sky_otas
-    for sky_ota in sky_otas:
-        sky_extname = "OTA%02d.SCI" % (sky_ota)
-        # find the right HDU extension to compute the WCS solution
-        for cur_ext in ota_list:
-            if ('EXTNAME' in cur_ext.header and
-                cur_ext.header['EXTNAME'] == sky_extname):
-                logger.debug("Computing Ra/Dec for sky-samples in %s" % (sky_extname))
-                # Found the right OTA
-                in_this_ota = (sky_samples_global[:, -1] == sky_ota)
-                if (numpy.sum(in_this_ota) <= 0):
-                    continue
-                sky_ota = sky_samples_global[in_this_ota]
-                wcs = astWCS.WCS(cur_ext.header, mode='pyfits')
-                ota_radec = numpy.array(wcs.pix2wcs(sky_ota[:,2]-1.0, sky_ota[:,3]-1.0))
-                # print ota_radec
-                sky_ota[:, 0:2] = ota_radec
-                sky_samples_final = numpy.append(sky_samples_final, sky_ota, axis=0)
-                break
-    sky_columns = [
-        pyfits.Column(name='RA', format='D', unit='degrees',
-                      array=sky_samples_final[:,0], disp='RA of box center'),
-        pyfits.Column(name='DEC', format='D', unit='degrees',
-                      array=sky_samples_final[:,1], disp='DEC of box center'),
-        pyfits.Column(name='X', format='D', unit='pixel',
-                      array=sky_samples_final[:,2], disp='X position of box center'),
-        pyfits.Column(name='Y', format='D', unit='pixel',
-                      array=sky_samples_final[:,3], disp='Y position of box center'),
-        pyfits.Column(name='INTENSITY', format='D', unit='counts',
-                      array=sky_samples_final[:,4], disp='median counts in box'),
-        pyfits.Column(name='MIN_D', format='D', unit='pixel',
-                      array=sky_samples_final[:,2], disp='distance to closest source'),
-        pyfits.Column(name='OTA', format='I2', unit='',
-                      array=sky_samples_final[:,2], disp='source OTA'),
-    ]
-    sky_coldefs = pyfits.ColDefs(sky_columns)
-    sky_tbhdu = pyfits.new_table(sky_coldefs, tbtype='BinTableHDU')
-    sky_tbhdu.update_ext_name("SKYLEVEL", comment=None)
-    # Copy a bunch of headers from the primary HDUu to the SKYLEVEL hdu
-    for key in [
-            "SKYLEVEL", "SKYBG", 'SKYBGCLP', 'SKYBGMIN', 'SKYBGSTD', 'SKYSMPLS',
-            'SKYL1SIG', 'SKYU1SIG', 'SKYL2SIG', 'SKYU2SIG', 'SKY_LO5P', 'SKY_LO5S',
-            ]:
-        sky_tbhdu.header[key] = ota_list[0].header[key]
-    ota_list.append(sky_tbhdu)
-    # numpy.savetxt("skyfinal", sky_samples_final)
+    if (not type(sky_samples_global) == type(None)):
+        sky_samples_final = numpy.empty((0,sky_samples_global.shape[1]))
+        sky_otas = set(sky_samples_global[:,-1])
 
-    if (not options['nonsidereal'] == None):
+        # print sky_otas
+        for sky_ota in sky_otas:
+            sky_extname = "OTA%02d.SCI" % (sky_ota)
+            # find the right HDU extension to compute the WCS solution
+            for cur_ext in ota_list:
+                if ('EXTNAME' in cur_ext.header and
+                    cur_ext.header['EXTNAME'] == sky_extname):
+                    logger.debug("Computing Ra/Dec for sky-samples in %s" % (sky_extname))
+                    # Found the right OTA
+                    in_this_ota = (sky_samples_global[:, -1] == sky_ota)
+                    if (numpy.sum(in_this_ota) <= 0):
+                        continue
+                    sky_ota = sky_samples_global[in_this_ota]
+                    wcs = astWCS.WCS(cur_ext.header, mode='pyfits')
+                    ota_radec = numpy.array(wcs.pix2wcs(sky_ota[:,2]-1.0, sky_ota[:,3]-1.0))
+                    # print ota_radec
+                    sky_ota[:, 0:2] = ota_radec
+                    sky_samples_final = numpy.append(sky_samples_final, sky_ota, axis=0)
+                    break
+        sky_columns = [
+            # RA of box center
+            pyfits.Column(name='RA', format='D', unit='degrees',
+                          array=sky_samples_final[:,0], disp='F10.6'),
+            # DEC of box center
+            pyfits.Column(name='DEC', format='D', unit='degrees',
+                          array=sky_samples_final[:,1], disp='F10.6'),
+            # X position of box center
+            pyfits.Column(name='X', format='D', unit='pixel',
+                          array=sky_samples_final[:,2], disp='F10.4'),
+            # Y position of box center
+            pyfits.Column(name='Y', format='D', unit='pixel',
+                          array=sky_samples_final[:,3], disp='F10.4'),
+            # median counts in box
+            pyfits.Column(name='INTENSITY', format='D', unit='counts',
+                          array=sky_samples_final[:,4], disp='E12.5E2'),
+            # distance to closest source
+            pyfits.Column(name='MIN_D', format='D', unit='pixel',
+                          array=sky_samples_final[:,2], disp='F8.3'),
+            # source OTA
+            pyfits.Column(name='OTA', format='I2', unit='',
+                          array=sky_samples_final[:,2], disp='I2.2'),
+        ]
+        sky_coldefs = pyfits.ColDefs(sky_columns)
+        sky_tbhdu = pyfits.BinTableHDU.from_columns(sky_coldefs)
+        sky_tbhdu.name = "SKYLEVEL"
+        # Copy a bunch of headers from the primary HDUu to the SKYLEVEL hdu
+        for key in [
+                "SKYLEVEL", "SKYBG", 'SKYBGCLP', 'SKYBGMIN', 'SKYBGSTD', 'SKYSMPLS',
+                'SKYL1SIG', 'SKYU1SIG', 'SKYL2SIG', 'SKYU2SIG', 'SKY_LO5P', 'SKY_LO5S',
+                ]:
+            sky_tbhdu.header[key] = ota_list[0].header[key]
+        ota_list.append(sky_tbhdu)
+        # numpy.savetxt("skyfinal", sky_samples_final)
+
+    if (options['nonsidereal'] == None):
+        global_reduction_log.not_selected('nonsidereal')
+    else:
         logger.info("Starting non-sidereal WCS modification")
-        apply_nonsidereal_correction(ota_list, options, logger)
+        apply_nonsidereal_correction(ota_list, options, logger, 
+                                     reduction_log=global_reduction_log)
 
         if ('ref' in options['nonsidereal'] and
             os.path.isfile(options['nonsidereal']['ref'])):
@@ -3162,20 +3588,8 @@ def collectcells(input, outputfile,
 
 
     #
-    # Prepare the Tech-HDU and add it to output HDU
-    #
-    techhdu = pyfits.ImageHDU(name='TECHDATA')
-    # Now add all tech-data to the techhdu
-    for techhdr in all_tech_headers:
-        for (key, value, comment) in techhdr.cards:
-            techhdu.header[key] = (value, comment)
-    ota_list.append(techhdu)
-
-
-    #
     # Create an association table from the master reduction files used.
-    # 
-    
+    #
     master_reduction_files_used = collect_reduction_files_used(master_reduction_files_used, 
                                                                additional_reduction_files)
     assoc_table = create_association_table(master_reduction_files_used)
@@ -3187,6 +3601,34 @@ def collectcells(input, outputfile,
     #
     podi_almanac.add_ephem_data_to_header(ota_list[0].header, None)
 
+    #
+    # Check if we find a shift-history, and if so, create the shift history plot
+    #
+    used_ot_shifting = False
+    for _ox, _oy in fpl.available_ota_coords:
+        _ota = _ox * 10 + _oy
+        shift_history_file = "%s/%s.%02d_shift.fits" % (directory, filebase, _ota)
+        if (os.path.isfile(shift_history_file)):
+            used_ot_shifting = True
+            break
+        else:
+            shift_history_file += ".fz"
+            if (os.path.isfile(shift_history_file)):
+                used_ot_shifting = True
+                break
+    if (used_ot_shifting):
+        logger.info("Creating shift-history plot from %s" % (shift_history_file))
+        plottitle = "Shift-history for %(OBSID)s (%(OBJECT)s, %(FILTER)s, %(EXPTIME)ds, #shifts=%%(nshifts)d)" \
+                    % ota_list[0].header
+#            obsid, object, , exptime)
+        podi_shifthistory.view_shift_history(
+            filename=shift_history_file,
+            plot_filename=outputfile[:-5]+".otshift",
+            extension_list=options['plotformat'],
+            title=plottitle,)
+
+
+    global_reduction_log.write_to_header(ota_list[0].header)
 
     #print "Waiting for a bit"
     #afw.wait()
@@ -3219,7 +3661,7 @@ def collectcells(input, outputfile,
     return 0
 
 
-def apply_nonsidereal_correction(ota_list, options, logger=None):
+def apply_nonsidereal_correction(ota_list, options, logger=None, reduction_log=None):
     # This WCS in this frame should be corrected for non-sidereal tracking
     # Tracking rates are given in arcseconds per hour
     # Note that d_ra is given as dRA*cos(dec)
@@ -3235,6 +3677,8 @@ def apply_nonsidereal_correction(ota_list, options, logger=None):
              'ref_mjd' in options['nonsidereal'])):
         logger.debug("One of the nonsidereal option missing, skipping non-sidereal correction")
         logger.debug("Available options are:"+str(options['nonsidereal']))
+        if (not reduction_log == None):
+            reduction_log.fail('nonsidereal')
         return
              
     mjd = ota_list[0].header['MJD-OBS']
@@ -3271,6 +3715,8 @@ def apply_nonsidereal_correction(ota_list, options, logger=None):
             dra_corrected*3600., ddec_t*3600, ota_list[ext].header['EXTNAME'])
         )
 
+    if (not reduction_log == None):
+        reduction_log.success('nonsidereal')
     return [dra_t, ddec_t]
 
 
@@ -3497,8 +3943,8 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
     )
 
     coldefs = pyfits.ColDefs(columns)
-    tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
-    tbhdu.update_ext_name("CAT.PHOTCALIB", comment=None)
+    tbhdu = pyfits.BinTableHDU.from_columns(coldefs)
+    tbhdu.name = "CAT.PHOTCALIB"
 
     return tbhdu
 
@@ -3531,9 +3977,9 @@ def twomasscat_to_tablehdu(catalog):
         ]
 
     coldefs = pyfits.ColDefs(columns)
-    tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
+    tbhdu = pyfits.BinTableHDU.from_columns(coldefs)
 
-    tbhdu.update_ext_name("CAT.2MASS", comment=None)
+    tbhdu.name = "CAT.2MASS"
     return tbhdu
 
 
@@ -3644,9 +4090,9 @@ def odi_sources_to_tablehdu(source_cat):
         )
 
     coldefs = pyfits.ColDefs(columns)
-    tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
+    tbhdu = pyfits.BinTableHDU.from_columns(coldefs)
 
-    tbhdu.update_ext_name("CAT.ODI", comment=None)
+    tbhdu.name = "CAT.ODI"
     return tbhdu
 
 
@@ -3701,10 +4147,19 @@ def check_filename_directory(given, default_filename):
 
     if (given == None):
         return None
-    elif (os.path.isfile(given)):
-        return given
-    elif (os.path.isdir(given)):
-        return "%s/%s" % (given, default_filename)
+
+    if (not type(given) == list):
+        _g = [given]
+    else:
+        _g = given
+
+    for g in _g:
+        if (os.path.isfile(g)):
+            return g
+        else:
+            fn = "%s/%s" % (g, default_filename)
+            if (os.path.isfile(fn)):
+                return fn
 
     return ""
 

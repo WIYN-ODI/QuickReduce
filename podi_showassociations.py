@@ -43,6 +43,35 @@ import numpy
 from podi_definitions import *
 from podi_commandline import *
 
+import podi_logging
+import logging
+
+def read_associations(hdulist):
+
+    logger = logging.getLogger("ReadAssocData")
+
+    try:
+        assoctable = hdulist['ASSOCIATIONS']
+    except:
+        logger.error("Couldn't find association table")
+        return None
+
+    reduction_steps = assoctable.data.field('correction')
+    filenames = assoctable.data.field('filename_full')
+    
+    assocs = {}
+    for idx in range(reduction_steps.shape[0]):
+        if (not reduction_steps[idx] in assocs):
+            assocs[reduction_steps[idx]] = []
+
+        # We already have that step
+        assocs[reduction_steps[idx]].append(filenames[idx])
+
+    return assocs
+    
+
+
+
 def show_associations(inputfile, show_full_file):
 
     try:

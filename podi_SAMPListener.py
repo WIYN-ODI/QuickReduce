@@ -660,6 +660,219 @@ def handle_qr_stack_request(private_key, sender_id, msg_id, mtype, params, extra
 
 
 
+
+#################################################################################
+#
+#
+# QR Mastercal functionality
+#
+# this uses the qr.mastercal message
+#
+#
+#################################################################################
+
+# define a message queue to handle remote executions
+mastercals_queue = multiprocessing.JoinableQueue()
+
+def handle_mastercals_request(params, logger, options):
+
+    # print "\n================"*3,params,"\n================"*3
+
+    str_filelist = params['filelist']
+    logger.debug("Received 'filelist': %s" % (str_filelist))
+
+    print str_filelist
+
+
+    # print "starting work on file",str_filelist
+
+    #
+    # Get rid of all files that do not exist
+    #
+    filelist = []
+    for fitsfile in str_filelist.split(","):
+        if (os.path.isfile(fitsfile)):
+            logger.debug("Found valid input file: %s" % (fitsfile))
+            filelist.append(fitsfile)
+        elif (os.path.isdir(fitsfile)):
+            logger.debug("Found directory name")
+            if (fitsfile[-1] == "/"):
+                fitsfile = fitsfile[:-1]
+            basedir, filebase = os.path.split(fitsfile)
+            fitsfile = "%s/%s.33.fits" % (fitsfile, filebase)
+            filelist.append(fitsfile)
+
+
+    # print "filelist = ",filelist
+
+    # We need at least one file to work on
+    if (len(filelist) <= 0):
+        logger.info("No valid files found to create MasterCalibrations!")
+        return
+
+    logger.info("Input filelist:\n%s" % ("\n".join([" --> %s" % fn for fn in filelist])))
+
+    # Find name of output directory
+    print options['calib_dir']
+    if (options['calib_dir'] == []):
+        # No cals directory given, this is no longer allowed!!!
+        logger.error("Need a -cals directory to support the make_calibrations mode")
+        return
+
+    #
+    # Just to be safe, translate the first -cals directory name from local to remote
+    #
+    remote_out_dirname = setup.translate_filename_local2remote(options['calib_dir'][0])
+    logger.info("Storing user-generated master calibration products in %s" % (
+        remote_out_dirname))
+
+
+    #
+    # Now translate the directory/filenames of all input files as well
+    #
+    filelist_remote = []
+    for fn in filelist:
+        filelist_remote.append(setup.translate_filename_local2remote(fn))
+        
+    logger.info("Input files:\n-- %s" % ("\n-- ".join(filelist_remote)))
+
+
+    #
+    # Now we have the list of input files, and the output filename, 
+    # lets go and initate the ssh request and get to work
+    #
+    qr_command = """
+
+    %(qrdir)s/podi_makecalibrations.py
+    from_cmdline
+    %(outdir)s
+    -nonlinearity
+    -redo
+    %(filelist)s
+
+    """ % {
+        "qrdir": setup.remote_podi_dir,
+        "outdir": remote_out_dirname,
+        "filelist": " ".join(filelist_remote),
+        }
+
+    logger.info("Executing\n\n\n%s\n" % (" ".join(qr_command.split())))
+    
+    ssh_command = "ssh %(username)s@%(host)s %(qr_command)s" % {
+        'username': setup.ssh_user,
+        'host': setup.ssh_host,
+        'qr_command': qr_command,
+    }
+    logger.info("SSH command:\n%s" % (" ".join(ssh_command.split())))
+
+    #
+    # Now execute the actual swarpstack command
+    #
+    if (not cmdline_arg_isset("-dryrun")):
+        logger.info("Creating calibrations remotely on %s" % (setup.ssh_host))
+        start_time = time.time()
+        process = subprocess.Popen(ssh_command.split(), 
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE)
+        _stdout, _stderr = process.communicate()
+        logger.info(str(_stdout))
+        end_time = time.time()
+        logger.info("Master Calibrations completed successfully (%.2f seconds)" % (end_time - start_time))
+    else:
+        logger.info("Skipping execution (-dryrun given):\n\n%s\n\n" % (" ".join(ssh_command.split())))
+
+    return
+
+
+
+
+def workerprocess___qr_mastercals(queue, options):
+    print "QR MasterCals worker process started, ready for action..."
+
+    logger = logging.getLogger("QRMasterCals")
+    logger.info("MasterCal Listener started")
+
+    while (True):
+        try:
+            # print "\n\nWaiting for stuff to do\n\n"
+            task = queue.get()
+        except KeyboardInterrupt, SystemExit:
+            # print "worker received termination notice"
+            # Ignore the shut-down command here, and wait for the official 
+            # shutdown command from main task
+            continue
+
+        if (task == None):
+            logger.info("Shutting down worker")
+            queue.task_done()
+            break
+
+        
+        params = task
+        # print params
+
+        try:
+            handle_mastercals_request(params, logger, options)
+        except:
+            podi_logging.log_exception()
+            pass
+
+        # Mark this task as done, this means we are ready for the next one.
+        queue.task_done()
+        continue
+
+    return
+
+ 
+
+def handle_qr_mastercals_request(private_key, sender_id, msg_id, mtype, params, extra):
+    """
+    
+    This function is a callback handler that is called everytime a message
+    is received from the SAMP hub.
+
+    """
+
+    logger = logging.getLogger("QRMasterCalHandler")
+
+    # print "\n"*5
+    # print params
+    str_filelist = params['filelist']
+    print params
+    print str_filelist
+
+    # print "adding timestamp"
+    params['timestamp'] = datetime.datetime.now()
+
+    # print "copying extras"
+    for key, value in extra.iteritems():
+        params[key] = value
+
+    # print "adding to queue"
+    logger.info("Adding new mastercals-request to work queue")
+    mastercals_queue.put(params)
+
+    # print "added msg to queue"
+
+    print "Done with this one, hungry for more!"
+    # print "\n"*5
+    return
+
+
+#################################################################################
+#
+# end of MasterCals
+#
+#################################################################################
+
+
+
+
+
+
+
+
+
 def create_client(metadata, wait=0):
 
     # Create client, connect to Hub, and install message listener
@@ -680,6 +893,9 @@ def create_client(metadata, wait=0):
 
         # Also define a new listener to listen to incoming qr.stack commands
         cli1.bindReceiveMessage("qr.stack", handle_qr_stack_request)
+
+        # Also define a new listener to listen to incoming qr.stack commands
+        cli1.bindReceiveMessage("qr.mastercal", handle_qr_mastercals_request)
 
     except:
         print "Problem with bindReceiveMessage"
@@ -733,6 +949,21 @@ def SAMPListener():
     )
     qr_stacking_process.start()
 
+
+    #
+    # Also setup the QR MasterCals worker process
+    # 
+    print "Starting execution process..."
+    options = read_options_from_commandline(ignore_errors=True)
+    print options
+    qr_mastercals_process = multiprocessing.Process(
+        target=workerprocess___qr_mastercals,
+        kwargs={
+            'queue': mastercals_queue,
+            'options': options,
+            }
+    )
+    qr_mastercals_process.start()
 
     print "Setup complete, waiting for messages..."
     quiet = cmdline_arg_isset("-quiet")

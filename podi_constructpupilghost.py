@@ -33,10 +33,18 @@ import math
 import scipy.optimize
 import bottleneck
 import dev_pgcenter
+import multiprocessing
+from astLib import astWCS
+import podi_showassociations as podi_associations
 
 from podi_definitions import *
 from podi_commandline import *
+import podi_imcombine
+
 az_knot_limit = [50,600]
+
+import logging
+import podi_logging
 
 write_intermediate = True
 use_buffered_files  = True
@@ -60,6 +68,48 @@ def get_median_level(data, radii, ri, ro):
     return median, pixelcount
 
 
+
+def fit_spline_background(radii, flux, logger=None):
+
+    if (logger == None):
+        logger = logging.getLogger("FitSpline")
+
+    # data = numpy.loadtxt("/home/work/odi_commissioning/pupilghost/radial__x")
+    bad = numpy.isnan(radii) | numpy.isnan(flux)
+    exclude = (radii > 1150) & (radii < 3950)
+    r = radii.copy()[~bad & ~exclude]
+    f = flux.copy()[~bad & ~exclude]
+    _min, _max = numpy.min(r), numpy.max(r)
+    #print "min/max:", _min, _max
+
+    t = numpy.arange(_min+50,_max-50, 100)
+    exclude = (t > 1100) & (t < 4000)
+    t = numpy.sort(numpy.append(t[~exclude], [1101,1102, 4001, 4002]))
+    #print "t:", t
+
+    # Now fit a spline to the data
+    #print "R:",r
+    spl = scipy.interpolate.LSQUnivariateSpline(x=r, y=f, t=t)
+
+    # generate a smooth curve for plotting & debugging
+    xxx = numpy.arange(_min,_max,10)
+    numpy.savetxt("radial.spline",
+                  numpy.append(xxx.reshape((-1,1)),
+                               spl(xxx).reshape((-1,1)), axis=1))
+
+
+    numpy.savetxt("radial.t",
+                  numpy.append(t.reshape((-1,1)),
+                               spl(t).reshape((-1,1)), axis=1))
+
+    # now take the original profile, and normalize/background subtract it
+    f_spline = spl(radii)
+    f_fixed = (flux-f_spline) / f_spline
+    numpy.savetxt("radial.fixed",
+                  numpy.append(radii.reshape((-1,1)),
+                               f_fixed.reshape((-1,1)), axis=1))
+
+    return spl
 
 
 def get_radii_angles(data_fullres, center, binfac, verbose=False):
@@ -87,25 +137,122 @@ def get_radii_angles(data_fullres, center, binfac, verbose=False):
 
 
 
-def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False):
+def mp_pupilghost_slice(job_queue, result_queue, bpmdir, binfac):
+
+    _logger = logging.getLogger("MPSlice")
+    _logger.debug("Worker started")
+
+    while (True):
+
+        task = job_queue.get()
+        if (task == None):
+            job_queue.task_done()
+            break
+
+        filename, extname = task
+
+        _, bn = os.path.split(filename)
+        logger = logging.getLogger("%s(%s)" % (bn[:-5], extname))
+        logger.debug("Starting work")
+
+        hdulist = pyfits.open(filename)
+        input_hdu = hdulist[extname]
+        rotator_angle = hdulist[0].header['ROTSTART'] 
+
+        logger.info("Searching for center ...")
+        centering = dev_pgcenter.find_pupilghost_center(input_hdu, verbose=False)
+        fx, fy, fr, vx, vy, vr = centering
+        center_x = vx
+        center_y = vy
+
+
+        #stdout_write("Using center position %d, %d for OTA %s\n" % (center_y, center_x, extname))
+        logger.info("Adding OTA %s, center @ %d, %d" % (extname, center_x, center_y))
+
+        data = input_hdu.data
+        if (bpmdir != None):
+            bpmfile = "%s/bpm_xy%s.reg" % (bpmdir, extname[3:5])
+            logger.debug("Masking bad pixels from %s" % (bpmfile))
+            mask_broken_regions(data, bpmfile, verbose=False)
+
+        # Convert into radii and angles to make sure we can subtract the background
+        binned, radius, angle = get_radii_angles(data, (center_y, center_x), binfac)
+        #print binned.shape, radius.shape, angle.shape, (center_y, center_x)
+
+        # Fit and subtract the background
+        bgsub, profiles, normfactor = subtract_background(
+            binned, radius, angle, radius_range, binfac, logger=logger)
+
+        #
+        # Add some normalization here to bring all PG sectors to the same level
+        #
+        logger.info("Need PG normalization here")
+
+        #
+        # Insert this raw frame into the larger frame
+        #
+        combined = numpy.zeros(shape=(9000/binfac,9000/binfac), dtype=numpy.float32)
+        combined[:,:] = numpy.NaN
+
+        # Use center position to add the new frame into the combined frame
+        # bx, by are the pixel position of the bottom left corner of the frame to be inserted
+        bx = combined.shape[1] / 2 - center_x/binfac
+        by = combined.shape[0] / 2 - center_y/binfac
+        tx, ty = bx + bgsub.shape[0], by + bgsub.shape[1]
+        #print "insert target: x=", bx, tx, "y=", by, ty
+        #combined[bx:tx, by:ty] = binned #bgsub[:,:]
+        combined[by:ty, bx:tx] = bgsub[:,:]
+
+        angle_mismatch = compute_angular_misalignment(input_hdu.header)
+
+        # Rotated around center to match the ROTATOR angle from the fits header
+        full_angle = rotator_angle + angle_mismatch
+        combined_rotated = rotate_around_center(combined, full_angle, mask_nans=True, spline_order=1)
+        #combined_rotated = combined
+
+        # Apply normalization
+        # combined_rotated /= normfactor
+
+        imghdu = pyfits.ImageHDU(data=combined_rotated)
+        imghdu.header['EXTNAME'] = extname
+        imghdu.header['ROTANGLE'] = rotator_angle
+
+        imghdu.header['OTA'] = int(extname[3:5])
+        imghdu.header['PGCNTRFX'] = fx
+        imghdu.header['PGCNTRFY'] = fy
+        imghdu.header['PGCNTRFR'] = fr
+        imghdu.header['PGCNTRVX'] = vx
+        imghdu.header['PGCNTRVY'] = vy
+        imghdu.header['PGCNTRVR'] = vr
+
+        result_queue.put((imghdu, extname, centering, angle_mismatch, profiles, normfactor))
+        job_queue.task_done()
+
+    _logger.debug("Worker shutting down")
+    return
+
+
+def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False, ncpus=4):
 
     hdu_ref = pyfits.open(filename)
+
+    logger = logging.getLogger("MakePGSlice")
 
     hdus = []
     centers = []
 
     rotator_angle = hdu_ref[0].header['ROTSTART'] 
-    stdout_write("\nLoading frame %s ...\n" % (filename))
+    logger.info("Loading frame %s ..." % (filename))
 
     #combined_file = "pg_combined_%+04d.fits" % numpy.around(rotator_angle)
     #print "combined-file:",combined_file
 
-    output_filename = "pg_%+04d.fits" % (rotator_angle)
+    output_filename = "pg_%+04d.fits" % (numpy.round(rotator_angle))
     if (os.path.isfile(output_filename) and not clobber):
-        stdout_write("output filename %s already exists, skipping\n" % (output_filename))
+        logger.warning("output filename %s already exists, skipping\n" % (output_filename))
         return None
 
-    stdout_write("creating pupilghost slice %s ...\n" % (output_filename))
+    logger.info("creating pupilghost slice %s ..." % (output_filename))
     
     datas = []
     extnames = []
@@ -113,12 +260,36 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
 
     hdulist = [pyfits.PrimaryHDU()]
 
+    job_queue = multiprocessing.JoinableQueue()
+    result_queue = multiprocessing.Queue()
+
+    #
+    # Start workers
+    #
+    processes = []
+    logger.info("Starting work using %d CPUs" % (ncpus))
+
+    for i in range(ncpus):
+        p = multiprocessing.Process(
+            target=mp_pupilghost_slice,
+            kwargs={
+                'job_queue': job_queue,
+                'result_queue': result_queue,
+                'bpmdir': bpmdir,
+                'binfac': binfac,
+                },
+            )
+        p.start()
+        processes.append(p)
+
+    jobs_ordered = 0
+    pupilghost_centers = ['OTA33.SCI', 'OTA34.SCI', 'OTA43.SCI', 'OTA44.SCI']
     for i in range(1, len(hdu_ref)):
 
         extname = hdu_ref[i].header['EXTNAME']
-
+        
         if (extname in pupilghost_centers):
-            print "\n\n\n\n\n",extname
+            #print "\n\n\n\n\n",extname
 
             #
             # Determine center position
@@ -126,73 +297,184 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False)
             # old method: use fixed values
             # center_x, center_y = pupilghost_centers[extname]
 
-            input_hdu = hdu_ref[i]
+            job_queue.put((filename, extname))
+            jobs_ordered += 1
 
-            fx, fy, fr, vx, vy, vr = dev_pgcenter.find_pupilghost_center(input_hdu, verbose=False)
-            center_x = vx
-            center_y = vy
+    #
+    # Send quit command
+    # 
+    for p in processes:
+        job_queue.put(None)
+        
+    #
+    # Collect results
+    #
+    centerings = {}
+    all_datas = []
+    d_angles = {}
+    all_profiles = {}
+    for i in range(jobs_ordered):
+        result = result_queue.get()
+
+        imghdu, extname, centering, angle_mismatch, profiles, normfactor = result
+        all_datas.append(imghdu.data)
+        hdulist.append(imghdu)
+        logger.info("Done with OTA %s" % (extname))
+        centerings[extname] = centering
+        d_angles[extname] = angle_mismatch
+        all_profiles[extname] = profiles
+
+        numpy.savetxt("PG_profiles.%s" % (extname), profiles)
+
+    #
+    # Combine all profiles
+    # 
+    
+    # First, put them all on the same radius grid
+    norm_radius = numpy.linspace(800, 4300, 140) # steps of 25 pixels
+    profile_interpol, profile_interpol_raw = {}, {}
+    profiles_matched = numpy.empty((norm_radius.shape[0], len(all_profiles)))
+    profiles_matched_raw = numpy.empty((norm_radius.shape[0], len(all_profiles)))
+
+    for idx, extname in enumerate(all_profiles):
+        prof = all_profiles[extname]
+
+        # compute the interpolator for the spline-BG subtracted profile
+        interpol = scipy.interpolate.interp1d(
+            x=prof[:,0], y=prof[:,3], 
+            kind='linear', axis=-1, copy=True, 
+            bounds_error=False, fill_value=numpy.NaN,
+            assume_sorted=False)
+        profile_interpol[extname] = interpol
+        profiles_matched[:,idx] = interpol(norm_radius)
+
+        # as above, for the simple normalized profile
+        interpol_raw = scipy.interpolate.interp1d(
+            x=prof[:,0], y=prof[:,1], 
+            kind='linear', axis=-1, copy=True, 
+            bounds_error=False, fill_value=numpy.NaN,
+            assume_sorted=False)
+        profile_interpol_raw[extname] = interpol_raw
+        profiles_matched_raw[:,idx] = interpol_raw(norm_radius)
 
 
-            #stdout_write("Using center position %d, %d for OTA %s\n" % (center_y, center_x, extname))
-            stdout_write("Adding OTA %s, center @ %d, %d\n" % (extname, center_x, center_y))
+    # Now we have all 4 sectors combined
+    # --> compute mean brightness for each radius
+    #profiles_matched = numpy.array(profiles_matched)
+    mean_radial_profile = bottleneck.nanmean(profiles_matched, axis=1)
+    mean_radial_profile_raw = bottleneck.nanmean(profiles_matched_raw, axis=1)
+    numpy.savetxt("meanprofile", mean_radial_profile)
+    numpy.savetxt("profiles_all", profiles_matched)
 
-            data = hdu_ref[i].data
-            if (bpmdir != None):
-                bpmfile = "%s/bpm_xy%s.reg" % (bpmdir, extname[3:5])
-                mask_broken_regions(data, bpmfile, verbose=False)
+    #
+    # Now we have the mean profile
+    #
+    above_10_percent_max = mean_radial_profile > 0.1*numpy.max(mean_radial_profile)
+    mean_intensity = numpy.mean(mean_radial_profile[above_10_percent_max])
+    mean_intensity_raw = numpy.mean(mean_radial_profile_raw[above_10_percent_max])
+    logger.debug("mean intensities: spline-bgsub: %f  --   linear bgsub: %f" % (
+        mean_intensity, mean_intensity_raw))
 
-            #hdus.append(hdu_ref[i])
-            #centers.append((center_y, center_x))
+    # Now compute the scaling factors for each of the quadrants
+    scale_all = profiles_matched / mean_radial_profile.reshape((-1,1))
+    scale = numpy.sum((scale_all*profiles_matched)[above_10_percent_max], axis=0) \
+            / numpy.sum(profiles_matched[above_10_percent_max], axis=0)
 
-            data = hdu_ref[i].data
-            print "data-shape=",data.shape
+    # also fold in the normalization to mean intensity of 1
+    final_scale = scale * mean_intensity
+    logger.info("Final scaling: %s" % (str(final_scale)))
 
-            # Convert into radii and angles to make sure we can subtract the background
-            binned, radius, angle = get_radii_angles(data, (center_y, center_x), binfac)
-            print binned.shape, radius.shape, angle.shape, (center_y, center_x)
+    # and apply the scaling factors to each background-subtracted slice
+    for sector in range(len(all_datas)):
+        logger.debug("Applying scaling: Sector %d, scale=%8.6f, shape=%d,%d" % (
+            sector+1, final_scale[sector], all_datas[sector].shape[0], all_datas[sector].shape[1]))
+        all_datas[sector] /= final_scale[sector]
 
-            # Fit and subtract the background
-            bgsub = subtract_background(binned, radius, angle, radius_range, binfac)
+    # also apply the scaling and normalization to the actual profiles to keep 
+    # things consistent
+    profiles_matched /= final_scale
+    profiles_matched_raw /= final_scale
+    mean_radial_profile /= mean_intensity
+    mean_radial_profile_raw /= mean_intensity_raw
 
-            #
-            # Insert this rawframe into the larger frame
-            #
-            combined = numpy.zeros(shape=(9000/binfac,9000/binfac), dtype=numpy.float32)
-            combined[:,:] = numpy.NaN
+    #
+    # Create some keywords to report what was done
+    #
+    norm_angle = numpy.round(rotator_angle if rotator_angle > 0 else rotator_angle + 360.)
+    centerf_str = centerv_str = d_angle_str = norm_str = ""
+    ota_str = ""
+    for idx, extname in enumerate(pupilghost_centers):
+        fx, fy, fr, vx, vy, vr = centerings[extname]
+        ota_str += "%s;" % (extname)
+        centerv_str += "%+05d,%+05d;" % (vx, vy)
+        centerf_str += "%+05d,%+05d;" % (fx, fy)
+        da = d_angles[extname]
+        d_angle_str += "%+6.1f;" % (da * 60.)
+        norm_str += "%.5f;" % (final_scale[idx] * 100.)
+    
+    
 
-            # Use center position to add the new frame into the combined frame
-            # bx, by are the pixel position of the bottom left corner of the frame to be inserted
-            bx = combined.shape[1] / 2 - center_x/binfac
-            by = combined.shape[0] / 2 - center_y/binfac
-            tx, ty = bx + bgsub.shape[0], by + bgsub.shape[1]
-            print "insert target: x=", bx, tx, "y=", by, ty
-            #combined[bx:tx, by:ty] = binned #bgsub[:,:]
-            combined[by:ty, bx:tx] = bgsub[:,:]
+    #
+    # Now combine the slices from each of the contributing OTAs
+    # 
+    logger.info("Combining all OTA slices")
+    combined = podi_imcombine.imcombine_data(all_datas, operation='nanmean.bn')
 
-            # Rotated around center to match the ROTATOR angle from the fits header
-            combined_rotated = rotate_around_center(combined, rotator_angle, mask_nans=True, spline_order=1)
+    comb_hdu = pyfits.ImageHDU(data=combined)
+    comb_hdu.name = "COMBINED"
+    comb_hdu.header['CNTRF%03d' % (norm_angle)] = (centerf_str[:-1], "PG center, fixed r [px]")
+    comb_hdu.header['CNTRV%03d' % (norm_angle)] = (centerv_str[:-1], "PG center, var. r [px]")
+    comb_hdu.header['ALPHA%03d' % (norm_angle)] = (d_angle_str[:-1], "OTA angle [arcmin]")
+    comb_hdu.header['NORM_%03d' % (norm_angle)] = (norm_str[:-1], "sector normalizations")
+    comb_hdu.header['OTAORDER'] = ota_str[:-1]
+    comb_hdu.header['ROTANGLE'] = rotator_angle
+    comb_hdu.header['RNDANGLE'] = norm_angle
+    hdulist.append(comb_hdu)
 
-            imghdu = pyfits.ImageHDU(data=combined_rotated)
-            imghdu.header.update('EXTNAME', extname)
-            imghdu.header.update('ROTANGLE', rotator_angle)
+    hdulist[0].header['RNDANGLE'] = norm_angle
 
-            imghdu.header['OTA'] = int(extname[3:5])
-            imghdu.header['PGCNTRFX'] = fx
-            imghdu.header['PGCNTRFY'] = fy
-            imghdu.header['PGCNTRFR'] = fr
-            imghdu.header['PGCNTRVX'] = vx
-            imghdu.header['PGCNTRVY'] = vy
-            imghdu.header['PGCNTRVR'] = vr
+    #
+    # Copy the associations table
+    #
+    try:
+        assoctable = hdu_ref['ASSOCIATIONS']
+        logger.debug("Transfering the assocations table")
+        hdulist.append(assoctable)
+    except:
+        logger.warning("No associations table found, unable to transfer table")
 
-            hdulist.append(imghdu)
+    #
+    # Add the sector radial profiles as FITS table into the output file
+    #
+    new_shape = (profiles_matched.shape[0], profiles_matched.shape[1], 1)
 
+    for src in [(mean_radial_profile, profiles_matched, "PROFILE"),
+                (mean_radial_profile_raw, profiles_matched_raw, "RAWPROFILE"),
+                ]:
+        mrp, pm, name = src
+
+        profile_img = numpy.append(mrp.reshape((-1,1)),
+                                   pm, axis=1)
+        #profile_img = numpy.empty((pm.shape[0], pm[1]+1))
+        #profile_img[:,0] = mean_radial_profile
+
+        # prepare image extension
+        prof_hdu = pyfits.ImageHDU(data=profile_img)
+        prof_hdu.name = name
+        prof_hdu.header['CRPIX1'] = 1.
+        prof_hdu.header['CRVAL1'] = norm_radius[0]
+        prof_hdu.header['CD1_1'] = norm_radius[1] - norm_radius[0]
+        prof_hdu.header['CTYPE1'] = "RADIUS"
+        hdulist.append(prof_hdu)
+        
+    logger.info("All done!")
     HDUlist = pyfits.HDUList(hdulist)
     HDUlist.writeto(output_filename, clobber=True)
 
-    return rotator_angle
+    return rotator_angle, norm_angle
 
 
-def subtract_background(data, radius, angle, radius_range, binfac):
+def subtract_background(data, radius, angle, radius_range, binfac, logger=None):
     """
     This routine takes the input in polar coordinates and fits a straight line
     to the radial profile inside and outside of the allowed range. This is 
@@ -207,8 +489,11 @@ def subtract_background(data, radius, angle, radius_range, binfac):
     - binfac (the binning used for the data)
     """
 
+    if (logger == None):
+        logger = logging.getLogger("BGSub")
+
     # Compute the radial bin size in binned pixels
-    print "subtracting background - binfac=",binfac
+    logger.debug("subtracting background - binfac=%d" % (binfac))
     r_inner, r_outer, dr_full = radius_range
     dr = dr_full/binfac
     r_inner /= binfac
@@ -226,7 +511,7 @@ def subtract_background(data, radius, angle, radius_range, binfac):
     # Compute the background level as a linear interpolation of the levels 
     # inside and outside of the pupil ghost
     #
-    stdout_write("   Computing background-level ...")
+    logger.info("Computing background-level ...")
     # Define the background ring levels
     radii = numpy.arange(0, max_radius, dr)
     background_levels = numpy.zeros(shape=(n_radii))
@@ -241,9 +526,9 @@ def subtract_background(data, radius, angle, radius_range, binfac):
             ro = numpy.min([ro, r_inner])
         elif (ro > r_outer):
             ri = numpy.max([ri, r_outer])
-        else:
-            # Skip the rings within the pupil ghost range for now
-            continue
+#        else:
+#            # Skip the rings within the pupil ghost range for now
+#            continue
         
         #print i, ri, ro
         median, count = get_median_level(data, radius, ri, ro)
@@ -254,36 +539,101 @@ def subtract_background(data, radius, angle, radius_range, binfac):
     # only linearly (if at all) with radius
     # define our (line) fitting function
     
-    fitfunc = lambda p, x: p[0] + p[1] * x
-    errfunc = lambda p, x, y, err: (y - fitfunc(p, x)) / err
+    #print "XXXXXXX", radii.shape, background_levels.shape
+    numpy.savetxt("radial__%s" % ("x"),
+                  numpy.append(radii.reshape((-1,1)),
+                               background_levels.reshape((-1,1)), axis=1))
+    #print "saved"
 
-    bg_for_fit = background_levels
-    bg_for_fit[numpy.isnan(background_levels)] = 0
-    pinit = [0.0, 0.0] # Assume no slope and constant level of 0
-    out = scipy.optimize.leastsq(errfunc, pinit,
-                           args=(radii, background_levels, background_level_errors), full_output=1)
+    # Find average intensity at the largest radii
+    avg_level = bottleneck.nanmedian(background_levels[radii>4000])
+    #print "avg_level=",avg_level
 
-    pfinal = out[0]
-    covar = out[1]
-    stdout_write(" best-fit: %.2e + %.3e * x\n" % (pfinal[0], pfinal[1]))
+    #
+    # Compute a profile without background interpolation to allow for easier 
+    # scaling of the pupilghost when subtracting the pupilghost from the data 
+    # frames
+    #
+    #
+    # Normalize profile
+    #
+    normalize_region = ((radii < 1100) & (radii > 600)) |  \
+                       ((radii > 4000) & (radii < 4600))
+    normalize_flux = numpy.mean(background_levels[normalize_region])
+    logger.info("normalization flux = %f" % (normalize_flux))
+
+    #
+    # Subtract background and normalize all measurements
+    #
+    normalized_bgsub_profile = (background_levels - normalize_flux) / normalize_flux
+
+
+
+    # fitfunc = lambda p, x: p[0] + p[1] * x
+    # errfunc = lambda p, x, y, err: (y - fitfunc(p, x)) / err
+
+    # bg_for_fit = background_levels
+    # #bg_for_fit[numpy.isnan(background_levels)] = 0
+    # bg_for_fit[((radii > ri) & (radii < ro))] = 0
+    # pinit = [0.0, 0.0] # Assume no slope and constant level of 0
+    # out = scipy.optimize.leastsq(errfunc, pinit,
+    #                        args=(radii, background_levels, background_level_errors), full_output=1)
+
+    # pfinal = out[0]
+    # covar = out[1]
+    # stdout_write(" best-fit: %.2e + %.3e * x\n" % (pfinal[0], pfinal[1]))
     #print pfinal
     #print covar
 
-    #
-    # Now we have the fit for the background, compute the 2d background 
-    # image and subtract it out
-    #
-    x = numpy.linspace(0, max_radius, 100)
-    y_fit = radii * pfinal[1] + pfinal[0]
-    background = pfinal[0] + pfinal[1] * radius
+    # #
+    # # Now we have the fit for the background, compute the 2d background 
+    # # image and subtract it out
+    # #
+    # x = numpy.linspace(0, max_radius, 100)
+    # y_fit = radii * pfinal[1] + pfinal[0]
+    # background = pfinal[0] + pfinal[1] * radius
     
-    bg_sub = data - background
+    # bg_sub = ((data - normalize_flux) / normalize_flux) - background
 
+    # bg_sub_profile = background_levels - (pfinal[0] + pfinal[1]*radii)
+    # numpy.savetxt("radial__%s" % ("bgsub"),
+    #               numpy.append(radii.reshape((-1,1)),
+    #                            bg_sub_profile.reshape((-1,1)), axis=1))
+
+    #
+    # Use the profile and fit a spline to the underlying shape
+    #
+    spl = fit_spline_background(radii, background_levels, logger=logger)
+
+    background_1d = spl(radius.flatten())
+    background_2d = background_1d.reshape(radius.shape)
+
+    bg_sub = (data - background_2d) / background_2d
+    
     #if (write_intermediate):
     #    bgsub_hdu = pyfits.PrimaryHDU(data=bg_sub)
     #    bgsub_hdu.writeto("bgsub.fits", clobber=True)
     
-    return bg_sub
+
+
+    #
+    # Combine all radial template profiles so we can store them in the output 
+    # file. This is required to allow for faster and more accurate scaling
+    # of the pupilghost during subtraction from the data files
+    #
+    profiles = numpy.empty((radii.shape[0], 4))
+    profiles[:,0] = radii[:]
+    profiles[:,1] = normalized_bgsub_profile[:]
+    profiles[:,2] = spl(radii[:])
+    profiles[:,3] = (background_levels - profiles[:,2]) / profiles[:,2]
+    peak_flux = numpy.max(profiles[:,3][numpy.isfinite(profiles[:,3])])
+
+    # numpy.savetxt("radial__%s" % ("norm+bgsub"),
+    #               numpy.append(radii.reshape((-1,1)),
+    #                            normalized_bgsub_profile.reshape((-1,1)), axis=1))
+
+    
+    return bg_sub, profiles, peak_flux
 
 
 
@@ -386,14 +736,204 @@ def create_radial_pupilghost(filename, outputfile, radial_opts, verbose=True):
 
         # and save the pupil ghost
         hdulist[ext].data = radial_pupilghost
-        stdout_write(" done!\n")
+        #stdout_write(" done!\n")
 
     # Now we are done with all profiles, write the results to the output file
     clobberfile(outputfile)
     stdout_write("writing output file ...")
     hdulist.writeto(outputfile, clobber=True)
-    stdout_write(" done!\n")
+    #stdout_write(" done!\n")
 
+
+
+def compute_angular_misalignment(header, l=256):
+
+    #
+    # Make copy so we don't accidently change the input header
+    #
+    ext = pyfits.ImageHDU(header=header)
+
+    #
+    # Get valid WCS system
+    #
+    ext.header['NAXIS'] = 2
+    ext.header['NAXIS1'] = l
+    ext.header['NAXIS2'] = l
+    ext.header['CRVAL1'] = 0.0
+    ext.header['CRVAL2'] = 0.0
+    wcs = astWCS.WCS(ext.header, mode='pyfits')
+
+    # compute zero-point
+    radec_0_0 = numpy.array(wcs.pix2wcs(0,0))
+    wcs.header['CRVAL1'] -= radec_0_0[0]
+    if (wcs.header['CRVAL1'] < 0): wcs.header['CRVAL1'] += 360.
+    wcs.header['CRVAL2'] -= radec_0_0[1]
+    wcs.header['CRVAL1'] += 10. # add some offset to RA to avoid problems around RA=0=360
+    wcs.updateFromHeader()
+
+    #
+    # compute points at origin and along both axes
+    #
+    radec_0_0 = numpy.array(wcs.pix2wcs(0,0))
+    #print radec_0_0-[10.,0]
+    radec_0_100 = numpy.array(wcs.pix2wcs(0,l)) - radec_0_0
+    radec_100_0 = numpy.array(wcs.pix2wcs(l,0)) - radec_0_0
+    radec_100_100 = numpy.array(wcs.pix2wcs(l,l)) - radec_0_0
+
+    #
+    # convert vectors into angles
+    #
+    #print radec_100_0, radec_0_100
+    angle_100_0 = numpy.degrees(numpy.arctan2(radec_100_0[0], radec_100_0[1]))
+    angle_0_100 = numpy.degrees(numpy.arctan2(radec_0_100[0], radec_0_100[1]))
+    angle_100_100 = numpy.degrees(numpy.arctan2(radec_100_100[0], radec_100_100[1]))
+
+    #print angle_100_100 - 45.
+
+    #
+    # Then from the difference between perfect alignment compute misalignment
+    #
+    d = 90. - angle_100_0
+    #print "\n",angle_100_0, angle_0_100, angle_100_0 - angle_0_100, d, 0.5*(d-angle_0_100)
+    angle_error = 0.5*(d-angle_0_100)
+
+    angle_error = angle_100_100 - 45.
+
+    rot = wcs.getRotationDeg()
+    if (rot > 180): rot -= 360.
+    #print rot
+
+    #print "Angle_Misalignment (%s) = %f deg" % (ext.name, angle_error)
+
+    return angle_error
+
+
+def combine_pupilghost_slices(out_filename, filelist, op='sigclipmean'):
+
+    logger = logging.getLogger("CombinePG")
+
+    print filelist
+    
+    # 
+    # Gather information about rotation angles and center positions
+    # Also collect the association data.
+    #
+    rotangles = numpy.ones(len(filelist)) * -9999
+    headers = [None] * len(filelist)
+
+    #
+    # Prepare the association data
+    #
+    assoc_table = {}
+    logger.info("Reading data from input files")
+
+    for idx, fn in enumerate(filelist):
+        hdulist = pyfits.open(fn)
+        
+        # Read the center and angle keywords from the "COMBINED" extension
+        comb_hdu = hdulist['COMBINED']
+        _ra = comb_hdu.header['ROTANGLE']
+        rotangles[idx] = _ra if _ra > 0 else _ra + 360.
+        headers[idx] = comb_hdu.header
+        logger.debug("%s: %.2f" % (fn, _ra))
+        
+        # comb_hdu.header['CNTRF%03d' % (norm_angle)] = (centerf_str[:-1], "PG center, fixed r [px]")
+        # comb_hdu.header['CNTRV%03d' % (norm_angle)] = (centerv_str[:-1], "PG center, var. r [px]")
+        # comb_hdu.header['ALPHA%03d' % (norm_angle)] = (d_angle_str[:-1], "OTA angle [arcmin]")
+        # comb_hdu.header['OTAORDER'] = ota_str[:-1]
+
+        this_assoc = {'pupilghost-slice': fn }
+        assoc_table = collect_reduction_files_used(assoc_table, this_assoc)
+
+        # Read the assocation table of this frame
+        in_assoc  = podi_associations.read_associations(hdulist)
+        if (not in_assoc == None):
+            logger.debug("Found assocations:\n%s" % (str(in_assoc)))
+            assoc_table = collect_reduction_files_used(assoc_table, in_assoc)
+
+#    return
+
+    #
+    # Now sort the rotator angles from smallest to largest
+    #
+    angle_sort = numpy.argsort(rotangles)
+
+    #
+    # Combine all frames
+    #
+    logger.info("Stacking all slices into master pupilghost template")
+    combined_hdulist = podi_imcombine.imcombine(
+        filelist, 
+        outputfile=None,
+        operation=op, #nanmean.bn',
+        return_hdu=True,
+        subtract=None, scale=None)
+
+    print combined_hdulist
+    combined = combined_hdulist['COMBINED']
+
+    combined.header['STACK_OP'] = op
+
+    #
+    # Add the sorted keywords back into the resulting file
+    #
+    logger.info("Adding metadata")
+    primhdu = pyfits.PrimaryHDU()
+    
+    try:
+        prev_hdr = None
+        for header, label in [
+                ('CNTRF%03d', "center, fixed radius"), 
+                ('CNTRV%03d', "center, var. radius"),
+                ('ALPHA%03d', "angle mismatch [arcmin]"),
+                ('NORM_%03d', "sector normalizations"),
+                
+        ]:
+            first_hdr = None
+            for i in range(rotangles.shape[0]):
+                idx = angle_sort[i]
+                rotangle = rotangles[idx]
+                round_angle = headers[idx]['RNDANGLE']
+                keyname = header % round_angle
+                #logger.info("Adding key: %s" % (keyname))
+                combined.header[keyname] = headers[idx][keyname]
+                #primhdu.header[keyname] = headers[idx][keyname]
+                first_hdr = keyname if first_hdr == None else first_hdr
+                if (prev_hdr == None):
+                    print "adding header",keyname," somewhere"
+                    primhdu.header.append((keyname, headers[idx][keyname]))
+                    prev_hdr = keyname
+                else:
+                    print "adding header",keyname,"after",prev_hdr
+                    primhdu.header.insert(prev_hdr, (keyname, headers[idx][keyname]), after=True)
+                prev_hdr = keyname
+
+            add_fits_header_title(primhdu.header, label, first_hdr)
+
+        combined.header['OTAORDER'] = headers[0]['OTAORDER']
+    except:
+        podi_logging.log_exception()
+        pass
+
+    print assoc_table
+    assoc_hdu = create_association_table(assoc_table)
+
+    out_hdulist = [primhdu, combined, assoc_hdu]
+    for name in ['PROFILE', 'RAWPROFILE']:
+        try:
+            logger.info("Adding in extension %s" % (name))
+            out_hdulist.append(combined_hdulist[name])
+        except:
+            logger.warning("Unable to find extension %s" % (name))
+            pass
+
+    combined_hdulist.writeto("dummy.fits", clobber=True)
+
+    logger.info("Writing output to %s" % (out_filename))
+    out_hdulist = pyfits.HDUList(out_hdulist) #[primhdu, combined, assoc_hdu])
+    out_hdulist.writeto(out_filename, clobber=True)
+
+    logger.info("Work complete!")
 
 #################################
 #
@@ -403,6 +943,9 @@ def create_radial_pupilghost(filename, outputfile, radial_opts, verbose=True):
 #################################
 if __name__ == "__main__":
 
+    options = read_options_from_commandline(None)
+    podi_logging.setup_logging(options)
+    
     print """\
 
   fit-pupilghost tool
@@ -427,18 +970,52 @@ if __name__ == "__main__":
         radial_opts = (r_inner, r_outer, dr)
 
         create_radial_pupilghost(filename, outputfile, radial_opts)
+
+    elif (cmdline_arg_isset("-spline")):
+
+        data = numpy.loadtxt(get_clean_cmdline()[1])
+
+        spl = fit_spline_background(data[:,0], data[:,1])
+
+
+    elif (cmdline_arg_isset("-angles")):
+
+        filename = get_clean_cmdline()[1]
+        hdulist = pyfits.open(filename)
+        l = 4096
+
+        for ext in hdulist:
+            if (not is_image_extension(ext)):
+                continue
+     
+            angle_error = compute_angular_misalignment(ext.header)
+            print "Angle_Misalignment (%s) = %f deg" % (ext.name, angle_error)
+
+    elif (cmdline_arg_isset("-combine")):
+
+        out_filename = get_clean_cmdline()[1]
+        filelist = get_clean_cmdline()[2:]
+
+        # combine all images
+        combine_pupilghost_slices(out_filename, filelist, op='nanmean.bn')
+
     else:
         r_inner = float(cmdline_arg_set_or_default("-ri",  700))
         r_outer = float(cmdline_arg_set_or_default("-ro", 4000))
         dr = float(cmdline_arg_set_or_default("-dr", 20))
 
         filenames = get_clean_cmdline()[1:]
+        ncpus = int(cmdline_arg_set_or_default("-ncpu", multiprocessing.cpu_count()))
+
         print filenames
 
         radius_range = (r_inner, r_outer, dr)
 
         for inputfile in filenames:
-            make_pupilghost_slice(inputfile, binfac, bpmdir, radius_range, clobber=False)
+            make_pupilghost_slice(inputfile, binfac, bpmdir, radius_range, 
+                                  clobber=False, ncpus=ncpus)
+
+    podi_logging.shutdown_logging(options)
 
     sys.exit(0)
 

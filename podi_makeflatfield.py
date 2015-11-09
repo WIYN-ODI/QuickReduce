@@ -35,8 +35,18 @@ import scipy
 
 from podi_definitions import *
 from podi_commandline import *
+import podi_focalplanelayout
 
-def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=3, batchmode_hdu=None):
+import podi_logging
+import logging
+
+def normalize_flatfield(filename, outputfile, 
+                        binning_x=8, binning_y=8, 
+                        repeats=3, 
+                        batchmode_hdu=None):
+
+    logger = logging.getLogger("NormFlatField")
+    logger.debug("Starting to normalize %s" % (str(batchmode_hdu)))
 
     if (not batchmode_hdu == None):
         hdulist = batchmode_hdu
@@ -44,14 +54,15 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
         hdulist = pyfits.open(filename)
 
     filter = hdulist[0].header['FILTER']
-    # print "This is filter",filter    # print "Using binning %d,%d" % (binning_x, binning_y)
 
-    if (filter in otas_to_normalize_ff):
-        list_of_otas_to_normalize = otas_to_normalize_ff[filter]
-    else:
-        list_of_otas_to_normalize = central_2x2
+    fpl = podi_focalplanelayout.FocalPlaneLayout(hdulist)
 
-    flatfield_data = numpy.zeros(shape=(13*4096*4096/(binning_x*binning_y)), dtype=numpy.float32)
+    list_of_otas_to_normalize = fpl.get_science_area_otas(filter, include_vignetted=False)
+    logger.debug("Using these OTAs to normalize overall flux:\n%s" % (", ".join(["%02d" % ota for ota in list_of_otas_to_normalize])))
+
+    flatfield_data = numpy.zeros(
+        shape=(len(list_of_otas_to_normalize)*4096*4096/(binning_x*binning_y)), 
+        dtype=numpy.float32)
     flatfield_data[:] = numpy.NaN
 
     # also prepare to store the global gain value
@@ -84,7 +95,7 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
 
         # We now know that we should include this OTA in the
         # calculation of the flat-field normalization
-        stdout_write("\rAdding OTA %02d to flat-field ..." % fppos)
+        logger.debug("Adding OTA %02d to flat-field ..." % fppos)
         #flatfield_data = numpy.concatenate((flatfield_data, extension.data.flatten()))
         #flatfield_data[extension,:,:] = extension.data
 
@@ -106,7 +117,7 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
     flatfield_data = flatfield_data[:datapos][finite]
 
     # Now we are through all flatfields, compute the median value
-    stdout_write(" computing median ...")
+    logger.debug(" computing median ...")
     sigma_min, sigma_max = -1e5, 1e6
     for i in range(repeats):
 
@@ -120,13 +131,14 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
         #print i, numpy.sum(valid), datapos, ff_median_level, ff_std, sigma_min, sigma_max
         
     if (ff_median_level <= 0):
-        print "Something went wrong or this is no flatfield frame"
+        logger.error("Something went wrong or this is no flatfield frame")
         ff_median_level = 1.0
 
-    stdout_write("\b\b\b(% 7.1f) ..." % (ff_median_level))
-    
+    #stdout_write("\b\b\b(% 7.1f) ..." % (ff_median_level))
+    logger.debug("Found median level % 7.1f ADU, normalizing ..." % (ff_median_level))
+
     # Now normalize all OTAs with the median flatfield level
-    stdout_write(" normalizing ...")
+    #stdout_write(" normalizing ...")
 
     # Create a new HDU list for the normalized output
     hdu_out = [] #pyfits.PrimaryHDU(header=hdulist[0].header)]
@@ -150,16 +162,17 @@ def normalize_flatfield(filename, outputfile, binning_x=8, binning_y=8, repeats=
 
     #
     # compute the global gain value and store it in primary header
-    # 
-    global_gain = gain_sum / gain_count
-    hdulist[0].header['GAIN'] = global_gain
+    #
+    logger.debug("Computing global gain value (sum=%.1f, #=%d)" % (gain_sum, gain_count))
+    global_gain = gain_sum / gain_count if (gain_count > 0) else -1
+    hdulist[0].header['GAIN'] = global_gain if (gain_count > 0) else -1.
     hdulist[0].header['NGAIN'] = gain_count
 
-    stdout_write(" writing results ...")
+    logger.debug("writing results to file (%s) ..." % (outputfile))
     if (os.path.isfile(outputfile)):
 	os.remove(outputfile)
     hdulist.writeto(outputfile, clobber=True)
-    stdout_write(" done!\n")
+    logger.info("done!")
        
 if __name__ == "__main__":
 

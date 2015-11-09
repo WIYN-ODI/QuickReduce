@@ -263,7 +263,8 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
     #print skytable[:3]
     
     # Select entries that match our list
-    if (verbose): print "# Searching for stars within %.1f degress around %f , %f ..." % (radius, ra, dec)
+    # print ra, dec, radius, type(ra), type(dec), type(radius)
+    #logger.debug("# Searching for stars within %.1f degress around %f , %f ..." % (radius, ra, dec))
 
     if (not radius == None and radius > 0):
         min_dec = dec - radius
@@ -322,7 +323,11 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
             if (verbose): print "Reading IPPRef catalog"
             catalogfile = "%s/%s.cpt" % (basedir, catalogname)
 
-            hdu_cat = pyfits.open(catalogfile)
+            try:
+                hdu_cat = pyfits.open(catalogfile)
+            except:
+                logger.warning("Unable to open IPPRef file %s" % (catalogfile))
+                continue
 
             # Read the RA and DEC values
             cat_ra  = hdu_cat['DVO_AVERAGE_ELIXIR'].data.field('RA')
@@ -358,7 +363,12 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
             if (verbose): print "Reading 2mass catalog"
             catalogfile = "%s/%s.fits" % (basedir, catalogname)
 
-            hdu_cat = pyfits.open(catalogfile)
+            try:
+                hdu_cat = pyfits.open(catalogfile)
+            except:
+                logger.warning("Unable to open catalog (%s) file %s" % (
+                    cattype, catalogfile))
+                continue
 
             # Read the RA and DEC values
             cat_ra  = hdu_cat[1].data.field('ra')
@@ -441,7 +451,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
             print "This catalog name is not known"
             return None
 
-        if (full_catalog == None):
+        if (type(full_catalog) == type(None)):
             full_catalog = array_to_add
         else:
             full_catalog = numpy.append(full_catalog, array_to_add, axis=0)
