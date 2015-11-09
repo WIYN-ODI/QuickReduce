@@ -398,6 +398,7 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
     #print result_coeffuncert[:10,:]
 
     # Compute a relative gain factor
+    logger.info("Computing relative gain")
     mean_lampgain = numpy.mean(result_lampgain[:result_count])
     logger.debug("mean lampgain = %f" % (mean_lampgain))
     result_relativegain = result_lampgain / mean_lampgain
