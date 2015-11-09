@@ -169,9 +169,9 @@ def add_ephem_data_to_header(hdr, time_overwrite):
                        "azimuth of Moon during obs [deg]")
 
     # separation between sun/moon and target
-    hdr['SUNANGLE']   = (numpy.degrees(ephem.separation(body, sun)),
+    hdr['SUN__D']   = (numpy.degrees(ephem.separation(body, sun)),
                        "angle between target and sun [deg]")
-    hdr['MOONANGL']   = (numpy.degrees(ephem.separation(body, moon)),
+    hdr['MOON_D']   = (numpy.degrees(ephem.separation(body, moon)),
                        "angle between target and moon [deg]")
     logger.debug("Distance object-moon (sun): %7.3f (%7.3f)" % (
         ephem.separation(body, moon), ephem.separation(body, sun)))
