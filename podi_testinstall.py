@@ -239,6 +239,10 @@ def update_sitesetup():
     changes = changes | ask_for_option('sextractor_cache_dir', 
                    "Directory to hold temporary files for use by sextractor", 
                    "/tmp/", True, config_array)
+
+    changes = changes | ask_for_option('flat_order', 
+                   "Order of flat-fields to use", 
+                   ['tflat', 'dflat', 'flat'], False, config_array)
     
     config_array.append("")
 
