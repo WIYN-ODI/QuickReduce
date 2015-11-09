@@ -424,188 +424,196 @@ def compute_techdata_mpwrapper(input_queue, return_queue):
     return
 
 
-def compute_techdata(calib_biaslist, calib_flatlist, output_dir, options, n_frames=2):
+#def compute_techdata(calib_biaslist, calib_flatlist, output_dir, options, n_frames=2):
+def compute_techdata(calib_biaslist, flat_names, output_dir, options, n_frames=2):
 
+    
     for binning in calib_biaslist:
-        if (not binning in calib_flatlist):
-            continue
-
-        bin_flatlist = calib_flatlist[binning]
         bin_biaslist = calib_biaslist[binning]
+        
+        for flat_type in flat_names:
 
-        for filtername in bin_flatlist:
-            #print filtername
-
-            #print bin_flatlist
-            #print bin_flatlist[filtername]
-
-            out_filename = "%s/techdata_%s_bin%d.fits" % (output_dir, filtername, binning)
-
-            if (os.path.isfile(out_filename)):
-                logger.info("Techdata for %s, bin %d already exists, skipping" % (
-                        filtername, binning))
+            try:
+                flatfilters = flat_names[flat_type][binning]
+                # print flatfilters
+            except:
                 continue
 
-            if (len(bin_flatlist[filtername]) < n_frames or
-                len(bin_biaslist) < n_frames):
-                logger.warning("Insufficient data to create techdata for filter %s, binning %d (%d biases, %d flats, need >= %d)" % (
-                    filtername, binning, len(bin_biaslist), len(bin_flatlist[filtername]), n_frames))
-                continue
+            for filtername in flatfilters: #bin_flatlist:
 
-            association_table = {}
-
-            biaslist = bin_biaslist
-            flatlist = bin_flatlist[filtername]
-
-            #print biaslist
-            #print flatlist
-            
-            #
-            # Run all otas in parallel as usual
-            #
-            work_queue = multiprocessing.JoinableQueue()
-            result_queue = multiprocessing.Queue()
-
-            # Figure out what files we need
-            bias_construct = []
-            flat_construct = []
-            for filename in biaslist:
-                fitspos = filename.find(".fits")
-                base = filename[:fitspos-2]
-                ext = filename[fitspos:]
-                bias_construct.append( (base, ext) )
-            for filename in flatlist:
-                fitspos = filename.find(".fits")
-                base = filename[:fitspos-2]
-                ext = filename[fitspos:]
-                flat_construct.append( (base, ext) )
-                
-            #
-            # Construct the filenames all biases and flats for each of the 
-            # extensions and send the files off for processing
-            #
-            #print bias_construct
-            #print flat_construct
-
-            fpl = podi_focalplanelayout.FocalPlaneLayout(flatlist[0])
-
-            list_of_otas_to_collect = fpl.available_ota_coords
-            number_parallel_jobs = 0
-            for (otax, otay) in list_of_otas_to_collect:
-                ota = otax * 10 + otay
-                #print otax, otay
-
-                ota_biases = []
-                ota_flats = []
-
-                for (base, ext) in bias_construct:
-                    biasfile = "%s%d%d%s" % (base, otax, otay, ext)
-                    if (os.path.isfile(biasfile)):
-                        ota_biases.append(biasfile)
-                        collect_reduction_files_used(association_table, {"raw": biasfile})
-                for (base, ext) in flat_construct:
-                    flatfile = "%s%d%d%s" % (base, otax, otay, ext)
-                    if (os.path.isfile(flatfile)):
-                        ota_flats.append(flatfile)
-                        collect_reduction_files_used(association_table, {"raw": flatfile})
-
-                n_use = numpy.min([n_frames, 
-                                   len(ota_biases), 
-                                   len(ota_flats)
-                            ])
-                
-                # Add this list of files to the work queue
-                work_queue.put( (ota_biases[:n_use], ota_flats[:n_use], ota) )
-                number_parallel_jobs += 1
-
-            # Start worker processes
-            worker_args = (work_queue, result_queue)
-            processes = []
-            for i in range(sitesetup.number_cpus):
-                p = multiprocessing.Process(target=compute_techdata_mpwrapper, args=worker_args)
-                p.start()
-                processes.append(p)
-                time.sleep(0.01)
-
-                # Also send on termination note per process
-                work_queue.put(None)
-
-            # Prepare the Tech-HDU
-            techhdu = pyfits.ImageHDU(name='TECHDATA')
-
-            # Start assembling the full TECHDATA file
-            prim_header = pyfits.PrimaryHDU()
-            techdata_hdu_ = [prim_header]
-
-            # Create the extensions that store the TECHDATA as images, with one 
-            # pixel per OTA cell
-
-            techdata_extnames = ['GAIN', 'READNOISE', 'READNOISE_E']
-            techdata_extnames_var = ['%s.VAR' % (n) for n in techdata_extnames]
- 
-            for extnames in itertools.chain(techdata_extnames,
-                                            techdata_extnames_var):
-
-                # set all image data to 64x64 pixels filled with NaNs
-                img_raw = numpy.zeros((64,64))
-                img_raw[:,:] = numpy.NaN
-
-                # Create one ImageHDU to hold the image 
-                value_hdu = pyfits.ImageHDU(data=img_raw)
-                value_hdu.name = extnames
-                techdata_hdu_.append(value_hdu)
-                logger.debug("Creating TECHDATA extension %s" % (extnames))
-
-            # open any of the files to get some info about filter, etc.
-            assoc_hdu = create_association_table(association_table, verbose=False)
-            techdata_hdu_.append(assoc_hdu)
-
-            #
-            # Create the full HDU so we can access individual extensions 
-            # via their extension names
-            #
-            techdata_hdu = pyfits.HDUList(techdata_hdu_)
-
-            # Receive all results 
-            for i in range(number_parallel_jobs):
-                results = result_queue.get()
-                if (results == None):
-                    continue
-                ota, avg, std = results
-                logger.info("Adding results for OTA %02d to tech-hdu" % (ota))
-
-                ota_x, ota_y = int(numpy.floor(ota/10.)), int(ota%10)
-
-                #
-                # Now we have the data for a single OTA, so all we need to do is
-                # to copy the data into the appropriate TECHDATA HDU image
-                #
-                #logger.info
                 try:
-                    for idx, extname in enumerate(techdata_extnames):
-                        techdata_hdu[extname].data[ota_y*8:(ota_y+1)*8,
-                                                   ota_x*8:(ota_x+1)*8] = avg[idx].T[::-1,:]
-                    
-
-                    for idx, extname in enumerate(techdata_extnames_var):
-                        techdata_hdu[extname].data[ota_y*8:(ota_y+1)*8,
-                                                   ota_x*8:(ota_x+1)*8] = std[idx].T[::-1,:]
-
+                    flatlist = flat_names[flat_type][binning][filtername]
                 except:
-                    logger.critical("Could not extract results for OTA %02d" % (ota))
-                    pass
+                    continue
 
-            # next OTA
+                out_filename = "%s/techdata_%s_%s_bin%d.fits" % (output_dir, flat_type, filtername, binning)
 
-            
-            #
-            # Construct a filename and write the techdata hdu to file
-            #
-            logger.info("Assembling TECHDATA output file")
-            out_filename = "%s/techdata_%s_bin%d.fits" % (output_dir, filtername, binning)
-            clobberfile(out_filename)
-            techdata_hdu.writeto(out_filename, clobber=True)
-            logger.info("wrote TECHDATA output to file: %s" % (out_filename))
+                if (os.path.isfile(out_filename) and not cmdline_arg_isset("-redo")):
+                    logger.info("Techdata for %s, bin %d already exists, skipping" % (
+                            filtername, binning))
+                    continue
+                clobberfile(out_filename)
+
+                if (len(flatlist) < n_frames or
+                    len(bin_biaslist) < n_frames):
+                    logger.warning("Insufficient data to create techdata for filter %s, binning %d (%d biases, %d flats, need >= %d)" % (
+                        filtername, binning, len(bin_biaslist), len(flatlist), n_frames))
+                    continue
+
+                logger.info("Computing TECHDATA for %s, filter %s, binning %d" % (
+                    flat_type, filtername, binning))
+
+                association_table = {}
+
+                biaslist = bin_biaslist
+
+                #print biaslist
+                #print flatlist
+
+                #
+                # Run all otas in parallel as usual
+                #
+                work_queue = multiprocessing.JoinableQueue()
+                result_queue = multiprocessing.Queue()
+
+                # Figure out what files we need
+                bias_construct = []
+                flat_construct = []
+                for filename in biaslist:
+                    fitspos = filename.find(".fits")
+                    base = filename[:fitspos-2]
+                    ext = filename[fitspos:]
+                    bias_construct.append( (base, ext) )
+                for filename in flatlist:
+                    fitspos = filename.find(".fits")
+                    base = filename[:fitspos-2]
+                    ext = filename[fitspos:]
+                    flat_construct.append( (base, ext) )
+
+                #
+                # Construct the filenames all biases and flats for each of the 
+                # extensions and send the files off for processing
+                #
+                #print bias_construct
+                #print flat_construct
+
+                fpl = podi_focalplanelayout.FocalPlaneLayout(flatlist[0])
+
+                list_of_otas_to_collect = fpl.available_ota_coords
+                number_parallel_jobs = 0
+                for (otax, otay) in list_of_otas_to_collect:
+                    ota = otax * 10 + otay
+                    #print otax, otay
+
+                    ota_biases = []
+                    ota_flats = []
+
+                    for (base, ext) in bias_construct:
+                        biasfile = "%s%d%d%s" % (base, otax, otay, ext)
+                        if (os.path.isfile(biasfile)):
+                            ota_biases.append(biasfile)
+                            collect_reduction_files_used(association_table, {"raw": biasfile})
+                    for (base, ext) in flat_construct:
+                        flatfile = "%s%d%d%s" % (base, otax, otay, ext)
+                        if (os.path.isfile(flatfile)):
+                            ota_flats.append(flatfile)
+                            collect_reduction_files_used(association_table, {"raw": flatfile})
+
+                    n_use = numpy.min([n_frames, 
+                                       len(ota_biases), 
+                                       len(ota_flats)
+                                ])
+
+                    # Add this list of files to the work queue
+                    work_queue.put( (ota_biases[:n_use], ota_flats[:n_use], ota) )
+                    number_parallel_jobs += 1
+
+                # Start worker processes
+                worker_args = (work_queue, result_queue)
+                processes = []
+                for i in range(sitesetup.number_cpus):
+                    p = multiprocessing.Process(target=compute_techdata_mpwrapper, args=worker_args)
+                    p.start()
+                    processes.append(p)
+                    time.sleep(0.01)
+
+                    # Also send on termination note per process
+                    work_queue.put(None)
+
+                # Prepare the Tech-HDU
+                techhdu = pyfits.ImageHDU(name='TECHDATA')
+
+                # Start assembling the full TECHDATA file
+                prim_header = pyfits.PrimaryHDU()
+                techdata_hdu_ = [prim_header]
+
+                # Create the extensions that store the TECHDATA as images, with one 
+                # pixel per OTA cell
+
+                techdata_extnames = ['GAIN', 'READNOISE', 'READNOISE_E']
+                techdata_extnames_var = ['%s.VAR' % (n) for n in techdata_extnames]
+
+                for extnames in itertools.chain(techdata_extnames,
+                                                techdata_extnames_var):
+
+                    # set all image data to 64x64 pixels filled with NaNs
+                    img_raw = numpy.zeros((64,64))
+                    img_raw[:,:] = numpy.NaN
+
+                    # Create one ImageHDU to hold the image 
+                    value_hdu = pyfits.ImageHDU(data=img_raw)
+                    value_hdu.name = extnames
+                    techdata_hdu_.append(value_hdu)
+                    logger.debug("Creating TECHDATA extension %s" % (extnames))
+
+                # open any of the files to get some info about filter, etc.
+                assoc_hdu = create_association_table(association_table, verbose=False)
+                techdata_hdu_.append(assoc_hdu)
+
+                #
+                # Create the full HDU so we can access individual extensions 
+                # via their extension names
+                #
+                techdata_hdu = pyfits.HDUList(techdata_hdu_)
+
+                # Receive all results 
+                for i in range(number_parallel_jobs):
+                    results = result_queue.get()
+                    if (results == None):
+                        continue
+                    ota, avg, std = results
+                    logger.debug("Adding results for OTA %02d to tech-hdu" % (ota))
+
+                    ota_x, ota_y = int(numpy.floor(ota/10.)), int(ota%10)
+
+                    #
+                    # Now we have the data for a single OTA, so all we need to do is
+                    # to copy the data into the appropriate TECHDATA HDU image
+                    #
+                    #logger.info
+                    try:
+                        for idx, extname in enumerate(techdata_extnames):
+                            techdata_hdu[extname].data[ota_y*8:(ota_y+1)*8,
+                                                       ota_x*8:(ota_x+1)*8] = avg[idx].T[::-1,:]
+
+
+                        for idx, extname in enumerate(techdata_extnames_var):
+                            techdata_hdu[extname].data[ota_y*8:(ota_y+1)*8,
+                                                       ota_x*8:(ota_x+1)*8] = std[idx].T[::-1,:]
+
+                    except:
+                        logger.critical("Could not extract results for OTA %02d" % (ota))
+                        pass
+
+                # next OTA
+
+
+                #
+                # Construct a filename and write the techdata hdu to file
+                #
+                logger.info("Assembling TECHDATA output file")
+                techdata_hdu.writeto(out_filename, clobber=True)
+                logger.info("wrote TECHDATA output to file: %s" % (out_filename))
 
         # next filter
 
@@ -755,6 +763,14 @@ podi_makecalibrations.py input.list calib-directory
     if (options['nonlinearity-set']):
         logger.info("Applying non-linearity correction")
 
+    # Check if we are to throw all flats (DFLATs _and_ TFLATs) into the same 
+    # output file, or keep them separate (default)
+    combine_flats = cmdline_arg_isset("-combineflats")
+    if (combine_flats):
+        logger.info("Creating combined frames from DFLATs and TFLATs")
+    else:
+        logger.info("Creating DFLATs and TFLATs separately")
+        
     #
     # Read the list of files
     #
@@ -763,7 +779,8 @@ podi_makecalibrations.py input.list calib-directory
     bias_list = []
 
     filters = []
-    flat_list = []
+    dflat_list = []
+    tflat_list = []
 
     stdout_write("####################\n#\n# Sighting input data\n#\n####################\n")
     if (filelist_filename == "from_cmdline"):
@@ -779,6 +796,8 @@ podi_makecalibrations.py input.list calib-directory
     calib_bias_list = {}
     calib_dark_list = {}
     calib_flat_list = {}
+    calib_tflat_list = {}
+    calib_dflat_list = {}
 
     for full_filename in input_file_list:
         if (len(full_filename)<=1):
@@ -802,6 +821,8 @@ podi_makecalibrations.py input.list calib-directory
         if (not binning in calib_bias_list):
             calib_bias_list[binning] = []
             calib_dark_list[binning] = []
+            calib_dflat_list[binning] = {}
+            calib_tflat_list[binning] = {}
             calib_flat_list[binning] = {}
 
         logger.info("   %s --> %s BIN=%d" % (directory, obstype, binning))
@@ -809,9 +830,18 @@ podi_makecalibrations.py input.list calib-directory
         filter = hdulist[0].header['FILTER']
         if (obstype in ["DFLAT", "TFLAT"]):
             filter_list.append(filter)
-            if (not filter in calib_flat_list[binning]):
-                calib_flat_list[binning][filter] = []
-            calib_flat_list[binning][filter].append(ota00)
+            if (combine_flats):
+                if (not filter in calib_flat_list[binning]):
+                    calib_flat_list[binning][filter] = []
+                calib_flat_list[binning][filter].append(ota00)
+            elif (obstype == "DFLAT"):
+                if (not filter in calib_dflat_list[binning]):
+                    calib_dflat_list[binning][filter] = []
+                calib_dflat_list[binning][filter].append(ota00)
+            elif (obstype == "TFLAT"):
+                if (not filter in calib_tflat_list[binning]):
+                    calib_tflat_list[binning][filter] = []
+                calib_tflat_list[binning][filter].append(ota00)
         elif (obstype == "DARK"):
             filter = None
             calib_dark_list[binning].append(ota00)
@@ -983,6 +1013,11 @@ podi_makecalibrations.py input.list calib-directory
     logger = logging.getLogger("MakeCalibration_Flat")
     logger.debug("Flat-field filter set: %s" % (filter_set))
 
+    flatnames = {'flat': calib_flat_list,
+                 'dflat': calib_dflat_list,
+                 'tflat': calib_tflat_list,
+                 }
+
     if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "flat"): 
 
         cmdline_opts = read_options_from_commandline()
@@ -993,197 +1028,212 @@ podi_makecalibrations.py input.list calib-directory
 
         for binning in binning_set:
             for filter in filter_set:
-                gain_readnoise_flat[binning] = []
 
-                flat_frame = "%s/flat_%s_bin%d.fits" % (output_directory, filter, binning)
+                for flat_type in flatnames:
 
-                # From the full filelist, extract only the dark frames with the right binning
-                logger.info("Preparing files for flat-field %s (bin=%d)" % (filter, binning))
 
-                flat_list = []
-                for (filename, obstype, _filter, bin) in calib_file_list:
-                    if (obstype in ["DFLAT", "TFLAT"] and binning == bin and filter == _filter):
-                        flat_list.append(filename)
+                    logger.info("Next up: %s for filter %s (bin=%d)" % (
+                        flat_type.upper(), filter, binning))
 
-                if (len(flat_list) <= 0):
-                    continue
+                    try:
+                        # logger.info("Trying FLAT: %s %s %s" % (flat_type, binning, filter))
+                        flat_list = flatnames[flat_type][binning][filter]
+                        logger.info("File-list (%s, bin=%d, filter=%s):\n -- %s" % (
+                            flat_type, binning, filter, "\n -- ".join(flat_list)))
+                    except:
+                        continue
+                        pass
 
-                # Overwrite the pupil ghost correction so we don't do it twice
-                options['pupilghost_dir'] = None
-                logger.debug("overwriting (for now) pupilghost dir=%s" % (pupilghost_dir))
+                    gain_readnoise_flat[binning] = []
 
-                flats_to_stack = []
-                if (not os.path.isfile(flat_frame) or cmdline_arg_isset("-redo")):
-                    stdout_write("####################\n#\n# Reducing flat-field %s (binning=%d)\n#\n####################\n" % (filter, binning))
-                    for cur_flat in flat_list:
-                        logger.debug("Running collectcells for flat-frame %s" % (cur_flat))
-                        # if (verbose): print "Collecting cells for flat",cur_flat
-                        # First run collectcells
-                        dummy, basename = os.path.split(cur_flat)
-                        flat_outfile = "%s/nflat.b%d.%s.%s.fits" % (tmp_directory, binning, filter, strip_fits_extension_from_filename(basename))
-                        if (not os.path.isfile(flat_outfile) or cmdline_arg_isset("-redo")):
-                            #wcs_solution = os.path.split(os.path.abspath(sys.argv[0]))[0]+"/wcs_distort2.fits"
-                            #wcs_solution = cmdline_arg_set_or_default("-wcs", wcs_solution)
-                            hdu_list = collectcells(cur_flat, flat_outfile,
-                                                    process_tracker=None,
-                                                    options=options,
-                                                    batchmode=True, showsplash=False)
+                    flat_frame = "%s/%s_%s_bin%d.fits" % (output_directory, flat_type, filter, binning)
 
-                            # # Save the HDU if we need it later to compute gain and read-noise
-                            # if (compute_gain_readnoise 
-                            #     and len(gain_readnoise_flat[binning]) < nframes_gain_readnoise):
-                            #     gain_readnoise_flat[binning].append(hdu_list)
+                    # flat_list = []
+                    # for (filename, obstype, _filter, bin) in calib_file_list:
+                    #     if (obstype in ["DFLAT", "TFLAT"] and binning == bin and filter == _filter):
+                    #         flat_list.append(filename)
 
-                            normalize_flatfield(None, flat_outfile, binning_x=8, binning_y=8, repeats=3, batchmode_hdu=hdu_list)
-
-                        flats_to_stack.append(flat_outfile)
-                    #print flats_to_stack
-
-                    logger.info("Stacking %d frames into %s ..." % (len(flats_to_stack), flat_frame))
-                    flat_hdus = imcombine(flats_to_stack, flat_frame, "sigmaclipmean", return_hdu=True)
-
-                    if (flat_hdus == None):
-                        # There was a problem with the stacking, so skip to the next flat-field
+                    if (len(flat_list) <= 0):
                         continue
 
-                    # Relabel the file
-                    flat_hdus[0].header['OBJECT'] = "master-flat %s" % (filter)
+                    # Overwrite the pupil ghost correction so we don't do it twice
+                    options['pupilghost_dir'] = None
+                    logger.debug("overwriting (for now) pupilghost dir=%s" % (pupilghost_dir))
 
-                    logger.info("Stacking %s done!" % (flat_frame))
+                    flats_to_stack = []
+                    if (not os.path.isfile(flat_frame) or cmdline_arg_isset("-redo")):
+                        #stdout_write("####################\n#\n# Reducing flat-field %s (binning=%d)\n#\n####################\n" % (filter, binning))
+                        logger.info("\n####################\n#\n# Reducing %s-field %s (binning=%d)\n#\n####################\n" % (
+                            flat_type, filter, binning))
+                        for cur_flat in flat_list:
+                            logger.debug("Running collectcells for flat-frame %s" % (cur_flat))
+                            # if (verbose): print "Collecting cells for flat",cur_flat
+                            # First run collectcells
+                            dummy, basename = os.path.split(cur_flat)
+                            flat_outfile = "%s/nflat.b%d.%s.%s.fits" % (tmp_directory, binning, filter, strip_fits_extension_from_filename(basename))
+                            if (not os.path.isfile(flat_outfile) or cmdline_arg_isset("-redo")):
+                                #wcs_solution = os.path.split(os.path.abspath(sys.argv[0]))[0]+"/wcs_distort2.fits"
+                                #wcs_solution = cmdline_arg_set_or_default("-wcs", wcs_solution)
+                                hdu_list = collectcells(cur_flat, flat_outfile,
+                                                        process_tracker=None,
+                                                        options=options,
+                                                        batchmode=True, showsplash=False)
 
-                    #
-                    # Now apply the pupil ghost correction 
-                    # Only do this if requested via keyword -pupilghost=(dirname)
-                    #
-                    logger.info("PG-dir: %s" % (pupilghost_dir))
-                    if (not pupilghost_dir == None): #options['pupilghost_dir'] != None):
-                        # Reset the pupil ghost option to enable it here
-                        options['pupilghost_dir'] = pupilghost_dir
+                                # # Save the HDU if we need it later to compute gain and read-noise
+                                # if (compute_gain_readnoise 
+                                #     and len(gain_readnoise_flat[binning]) < nframes_gain_readnoise):
+                                #     gain_readnoise_flat[binning].append(hdu_list)
 
-                        logger.info("Performing pupil ghost correction ...")
-                        # Get level os active filter and determine what the template filename is
-                        filter_level = get_filter_level(flat_hdus[0].header)
+                                normalize_flatfield(None, flat_outfile, binning_x=8, binning_y=8, repeats=3, batchmode_hdu=hdu_list)
 
-                        pg_filename = "pupilghost_template___level_%d__bin%d.fits" % (filter_level, binning)
-                        pg_template = check_filename_directory(options['pupilghost_dir'], pg_filename)
-                        logger.info("Using template file %s" % (pg_template))
+                            flats_to_stack.append(flat_outfile)
+                        #print flats_to_stack
 
-                        # If we have a template for this level
-                        if (os.path.isfile(pg_template) and filter in valid_PG_filters):
-                            logger.info("Using pupilghost template in  %s ... " % (pg_template))
+                        logger.info("Stacking %d frames into %s ..." % (len(flats_to_stack), flat_frame))
+                        flat_hdus = imcombine(flats_to_stack, flat_frame, "sigmaclipmean", return_hdu=True)
 
-                            pg_hdu = pyfits.open(pg_template)
+                        if (flat_hdus == None):
+                            # There was a problem with the stacking, so skip to the next flat-field
+                            continue
 
-                            all_pg_samples = None
-                            pg_templates = {}
-                            for ota_ext in flat_hdus:
-                                if (not is_image_extension(ota_ext)):
-                                    continue
+                        # Relabel the file
+                        flat_hdus[0].header['OBJECT'] = "master-flat %s" % (filter)
 
-                                ota_ext.header['PGAFCTD'] = (False, "affected by pupilghost")
-                                ota = ota_ext.header['OTA']
+                        logger.info("Stacking %s done!" % (flat_frame))
+
+                        #
+                        # Now apply the pupil ghost correction 
+                        # Only do this if requested via keyword -pupilghost=(dirname)
+                        #
+                        logger.info("PG-dir: %s" % (pupilghost_dir))
+                        if (not pupilghost_dir == None): #options['pupilghost_dir'] != None):
+                            # Reset the pupil ghost option to enable it here
+                            options['pupilghost_dir'] = pupilghost_dir
+
+                            logger.info("Performing pupil ghost correction ...")
+                            # Get level os active filter and determine what the template filename is
+                            filter_level = get_filter_level(flat_hdus[0].header)
+
+                            pg_filename = "pupilghost_template___level_%d__bin%d.fits" % (filter_level, binning)
+                            pg_template = check_filename_directory(options['pupilghost_dir'], pg_filename)
+                            logger.info("Using template file %s" % (pg_template))
+
+                            # If we have a template for this level
+                            if (os.path.isfile(pg_template) and filter in valid_PG_filters):
+                                logger.info("Using pupilghost template in  %s ... " % (pg_template))
+
+                                pg_hdu = pyfits.open(pg_template)
+
+                                all_pg_samples = None
+                                pg_templates = {}
+                                for ota_ext in flat_hdus:
+                                    if (not is_image_extension(ota_ext)):
+                                        continue
+
+                                    ota_ext.header['PGAFCTD'] = (False, "affected by pupilghost")
+                                    ota = ota_ext.header['OTA']
+
+                                    #
+                                    # Compute PG template for the correct rotator angle
+                                    #
+                                    # ota_ext.header['ROTSTART'] = flat_hdus[0].header['ROTSTART']
+                                    # ota_ext.header['FILTER'] = flat_hdus[0].header['FILTER']
+                                    pg_template = podi_matchpupilghost.compute_pupilghost_template_ota(
+                                        ota_ext, pg_hdu, 
+                                        rotate=flat_hdus[0].header['ROTSTART'], verbose=True, non_negative=True,
+                                        source_center_coords='data'
+                                    )
+
+                                    if (pg_template == None):
+                                        continue
+
+                                    pg_templates[ota_ext.name] = pg_template
+
+                                    #
+                                    # Load the relative gain values for this OTA. This 
+                                    # allows us to largely compensate cell-to-cell 
+                                    # intensity variations and obtain a more reliable 
+                                    # pupilghost scaling factor
+                                    #
+                                    mjd = flat_hdus[0].header['MJD-OBS']
+                                    nonlinearity_file = options['nonlinearity']
+                                    if (options['nonlinearity'] == None or 
+                                        options['nonlinearity'] == "" or
+                                        not os.path.isfile(nonlinearity_file)):
+                                        nonlinearity_file = podi_nonlinearity.find_nonlinearity_coefficient_file(mjd, options)
+                                    logger.debug("Using non-linearity coefficients from file %s"  % (nonlinearity_file))
+                                    nonlin_data = podi_nonlinearity.load_nonlinearity_correction_table(nonlinearity_file, ota)
+
+                                    ff_data_tmp = numpy.array(ota_ext.data)
+                                    #pyfits.HDUList([pyfits.PrimaryHDU(data=ff_data_tmp)]).writeto("xx0_%d.fits" % (ota), clobber=True)
+                                    podi_nonlinearity.apply_gain_correction_fullOTA(ff_data_tmp, nonlin_data, binning)
+                                    #pyfits.HDUList([pyfits.PrimaryHDU(data=ff_data_tmp)]).writeto("xx1_%d.fits" % (ota), clobber=True)
+                                    # pack the new gain-corrected data in a proper HDU
+                                    # copying the header from the original extension
+                                    ff_hdu_tmp = pyfits.ImageHDU(data=ff_data_tmp, header=ota_ext.header)
+                                    #pyfits.HDUList([pyfits.PrimaryHDU(), ff_hdu_tmp]).writeto("xx_%d.fits" % (ota), clobber=True)
+
+                                    #
+                                    # XXX CHECK WHY REL_GAIN VALUES ARE SO CLOSE TO 1.0000
+                                    #
+
+                                    _, full_samples = podi_matchpupilghost.get_pupilghost_scaling_ota(
+                                        science_hdu=ff_hdu_tmp, 
+                                        pupilghost_frame=pg_hdu,
+                                        n_samples=750, boxwidth=20, 
+                                        verbose=False,
+                                        pg_matched=False,
+                                        return_all=True)
+
+                                    numpy.savetxt("flat_pg_samples.%d" % (ota), full_samples)
+
+                                    all_pg_samples = full_samples if all_pg_samples == None else \
+                                                     numpy.append(all_pg_samples, full_samples, axis=0)
 
                                 #
-                                # Compute PG template for the correct rotator angle
+                                # Now we have all samples, so compute PG scaling factor
                                 #
-                                # ota_ext.header['ROTSTART'] = flat_hdus[0].header['ROTSTART']
-                                # ota_ext.header['FILTER'] = flat_hdus[0].header['FILTER']
-                                pg_template = podi_matchpupilghost.compute_pupilghost_template_ota(
-                                    ota_ext, pg_hdu, 
-                                    rotate=flat_hdus[0].header['ROTSTART'], verbose=True, non_negative=True,
-                                    source_center_coords='data'
-                                )
-                                
-                                if (pg_template == None):
-                                    continue
+                                pg_scaling, bg = podi_matchpupilghost.iterate_reject_scaling_factors(
+                                    all_pg_samples, iterations=3, significant_only=False)
+                                logger.info("PG scaling results: bg=%.1f scale=%.3f" % (bg, pg_scaling))
 
-                                pg_templates[ota_ext.name] = pg_template
+                                if (cmdline_arg_isset("-pgscale")):
+                                    pg_scaling = float(get_cmdline_arg("-pgscale"))
+                                    logger.info("Overwriting PG scaling: scale=%f" % (pg_scaling))
 
                                 #
-                                # Load the relative gain values for this OTA. This 
-                                # allows us to largely compensate cell-to-cell 
-                                # intensity variations and obtain a more reliable 
-                                # pupilghost scaling factor
+                                # And subtract template
                                 #
-                                mjd = flat_hdus[0].header['MJD-OBS']
-                                nonlinearity_file = options['nonlinearity']
-                                if (options['nonlinearity'] == None or 
-                                    options['nonlinearity'] == "" or
-                                    not os.path.isfile(nonlinearity_file)):
-                                    nonlinearity_file = podi_nonlinearity.find_nonlinearity_coefficient_file(mjd, options)
-                                logger.debug("Using non-linearity coefficients from file %s"  % (nonlinearity_file))
-                                nonlin_data = podi_nonlinearity.load_nonlinearity_correction_table(nonlinearity_file, ota)
+                                for extname in pg_templates:
+                                    flat_hdus[extname].data -= (pg_templates[extname] * pg_scaling)
 
-                                ff_data_tmp = numpy.array(ota_ext.data)
-                                #pyfits.HDUList([pyfits.PrimaryHDU(data=ff_data_tmp)]).writeto("xx0_%d.fits" % (ota), clobber=True)
-                                podi_nonlinearity.apply_gain_correction_fullOTA(ff_data_tmp, nonlin_data, binning)
-                                #pyfits.HDUList([pyfits.PrimaryHDU(data=ff_data_tmp)]).writeto("xx1_%d.fits" % (ota), clobber=True)
-                                # pack the new gain-corrected data in a proper HDU
-                                # copying the header from the original extension
-                                ff_hdu_tmp = pyfits.ImageHDU(data=ff_data_tmp, header=ota_ext.header)
-                                #pyfits.HDUList([pyfits.PrimaryHDU(), ff_hdu_tmp]).writeto("xx_%d.fits" % (ota), clobber=True)
 
-                                #
-                                # XXX CHECK WHY REL_GAIN VALUES ARE SO CLOSE TO 1.0000
-                                #
+                                # if (filter in podi_matchpupilghost.scaling_factors and
+                                #     podi_matchpupilghost.scaling_factors[filter] > 0):
 
-                                _, full_samples = podi_matchpupilghost.get_pupilghost_scaling_ota(
-                                    science_hdu=ff_hdu_tmp, 
-                                    pupilghost_frame=pg_hdu,
-                                    n_samples=750, boxwidth=20, 
-                                    verbose=False,
-                                    pg_matched=False,
-                                    return_all=True)
+                                #     scaling = podi_matchpupilghost.scaling_factors[filter]
 
-                                numpy.savetxt("flat_pg_samples.%d" % (ota), full_samples)
+                                #     # Also save a copy before the pupil ghost correction.
+                                #     if (cmdline_arg_isset("-keepprepg")):
+                                #         logger.debug("Writing flat-field before pupil ghost correction ...")
+                                #         flat_hdus.writeto(flat_frame[:-5]+".prepg.fits", clobber=True)
 
-                                all_pg_samples = full_samples if all_pg_samples == None else \
-                                                 numpy.append(all_pg_samples, full_samples, axis=0)
+                                #     podi_matchpupilghost.subtract_pupilghost(flat_hdus, pg_hdu, scaling)
+                                #     flat_hdus[0].header["PUPLGOST"] = (pg_template, "p.g. template")
+                                #     flat_hdus[0].header["PUPLGFAC"] = (scaling, "pupilghost scaling")
+                                #     logger.debug("Pupilghost subtraction complete")
+                            else:
+                                logger.info("Couldn't find the pupilghost template for level %d" % (filter_level))
+                                logger.debug("Missing pg-template file: %s" % (pg_template))
 
-                            #
-                            # Now we have all samples, so compute PG scaling factor
-                            #
-                            pg_scaling, bg = podi_matchpupilghost.iterate_reject_scaling_factors(
-                                all_pg_samples, iterations=3, significant_only=False)
-                            logger.info("PG scaling results: bg=%.1f scale=%.3f" % (bg, pg_scaling))
-
-                            if (cmdline_arg_isset("-pgscale")):
-                                pg_scaling = float(get_cmdline_arg("-pgscale"))
-                                logger.info("Overwriting PG scaling: scale=%f" % (pg_scaling))
-
-                            #
-                            # And subtract template
-                            #
-                            for extname in pg_templates:
-                                flat_hdus[extname].data -= (pg_templates[extname] * pg_scaling)
-
-                            
-                            # if (filter in podi_matchpupilghost.scaling_factors and
-                            #     podi_matchpupilghost.scaling_factors[filter] > 0):
-
-                            #     scaling = podi_matchpupilghost.scaling_factors[filter]
-
-                            #     # Also save a copy before the pupil ghost correction.
-                            #     if (cmdline_arg_isset("-keepprepg")):
-                            #         logger.debug("Writing flat-field before pupil ghost correction ...")
-                            #         flat_hdus.writeto(flat_frame[:-5]+".prepg.fits", clobber=True)
-
-                            #     podi_matchpupilghost.subtract_pupilghost(flat_hdus, pg_hdu, scaling)
-                            #     flat_hdus[0].header["PUPLGOST"] = (pg_template, "p.g. template")
-                            #     flat_hdus[0].header["PUPLGFAC"] = (scaling, "pupilghost scaling")
-                            #     logger.debug("Pupilghost subtraction complete")
-                        else:
-                            logger.info("Couldn't find the pupilghost template for level %d" % (filter_level))
-                            logger.debug("Missing pg-template file: %s" % (pg_template))
-
-                    # And finally write the (maybe pupilghost-corrected) flat-field to disk
-                    flat_hdus.writeto(flat_frame, clobber=True)
-                else:
-                    logger.info("Flatfield (%s) already exists, nothing to do!\n" % (filter))
-                if (not cmdline_arg_isset("-keeptemps")):
-                    for file in flats_to_stack:
-                        logger.debug("Deleting tmp-file %s" % (file))
-                        clobberfile(file)
+                        # And finally write the (maybe pupilghost-corrected) flat-field to disk
+                        flat_hdus.writeto(flat_frame, clobber=True)
+                    else:
+                        logger.info("Flatfield (%s) already exists, nothing to do!\n" % (filter))
+                    if (not cmdline_arg_isset("-keeptemps")):
+                        for file in flats_to_stack:
+                            logger.debug("Deleting tmp-file %s" % (file))
+                            clobberfile(file)
 
     #            options['pupilghost_dir'] = pupilghost_dir
 
@@ -1195,7 +1245,7 @@ podi_makecalibrations.py input.list calib-directory
         and compute_gain_readnoise):
         logger.info("Computing gain and readnoise for each cell")
         techdatafile = "%s/techdata_bin%d.fits" % (output_directory, binning)
-        compute_techdata(calib_bias_list, calib_flat_list, 
+        compute_techdata(calib_bias_list, flatnames, #calib_flat_list, 
                          output_directory, options, 
                          n_frames=nframes_gain_readnoise)
                                        
