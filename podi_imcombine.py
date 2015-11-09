@@ -359,10 +359,10 @@ def imcombine_subprocess(extension, filelist, shape, operation, queue, verbose,
     for file_number in range(len(filelist)):
         filename = filelist[file_number]
         hdulist = pyfits.open(filename)
-        for i in range(1, len(hdulist)):
+        for i in range(0, len(hdulist)):
             if (not is_image_extension(hdulist[i])):
                 continue
-            fppos = hdulist[i].header['EXTNAME']
+            fppos = hdulist[i].name #header['EXTNAME']
 
             if (not fppos == extension):
                 continue
@@ -445,13 +445,13 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
     #
     # Now loop over all extensions and compute the mean
     #
-    for cur_ext in range(1, len(ref_hdulist)):
+    for cur_ext in range(0, len(ref_hdulist)):
 
         data_blocks = []
         # Check what OTA we are dealing with
         if (not is_image_extension(ref_hdulist[cur_ext])):
             continue
-        ref_fppos = ref_hdulist[cur_ext].header['EXTNAME']
+        ref_fppos = ref_hdulist[cur_ext].name #header['EXTNAME']
 
         stdout_write("\rCombining frames for OTA %s (#% 2d/% 2d) ..." % (ref_fppos, cur_ext, len(ref_hdulist)-1))
         logger.debug("Combining frames for OTA %s (#% 2d/% 2d) ..." % (ref_fppos, cur_ext, len(ref_hdulist)-1))
