@@ -1226,8 +1226,7 @@ def collect_reduce_ota(filename,
                                                    extension_id=ota)
             else:
                 logger.debug("Preparing source catalog")
-                tmphdulist = pyfits.HDUList([pyfits.PrimaryHDU(header=hdu.header, data=hdu.data)])
-
+                tmphdulist = pyfits.HDUList([pyfits.PrimaryHDU(header=hdu.header, data=merged)])
                 obsid = tmphdulist[0].header['OBSID']
                 process_id = os.getpid()
                 fitsfile = "%s/tmp.pid%d.%s_OTA%02d.fits" % (sitesetup.sextractor_cache_dir, process_id, obsid, ota)
@@ -1909,7 +1908,6 @@ def prestage_data(options, input):
     return tmpdir, staged
 
 
-
 def unstage_data(options, staged, input):
 
     logger = logging.getLogger("Unstage")
@@ -1930,6 +1928,9 @@ def unstage_data(options, staged, input):
                 pass
 
     return
+
+
+        
 
 
 def collectcells(input, outputfile,
