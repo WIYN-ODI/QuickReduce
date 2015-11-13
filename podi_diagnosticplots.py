@@ -167,6 +167,7 @@ R.M.S. %(RMS-RA)0.3f'' / %(RMS-DEC)0.3f''
             logger.debug("saving file: %s.%s" % (filename, ext))
             fig.savefig(filename+"."+ext, dpi=100,bbox_inches='tight')
 
+    matplotlib.pyplot.close(fig)
     matplotlib.pyplot.close()
 
     return
@@ -418,6 +419,7 @@ def plot_wcsdiag_shift(radec, d_radec,
             fig.set_size_inches(8,6)
             fig.savefig(filename+"."+ext, dpi=100,bbox_inches='tight')
 
+    matplotlib.pyplot.close(fig)
     matplotlib.pyplot.close()
     logger.debug("done!")
 
@@ -865,6 +867,7 @@ def photocalib_zeropoint(output_filename,
         else:
             fig.savefig(output_filename+".png", dpi=100,bbox_inches='tight')
 
+    matplotlib.pyplot.close(fig)
     matplotlib.pyplot.close()
     logger.debug("done!")
 
@@ -1148,6 +1151,7 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
         else:
             fig.savefig(output_filename+".png", dpi=100)
 
+    matplotlib.pyplot.close(fig)
     matplotlib.pyplot.close()
   
 
@@ -1380,6 +1384,7 @@ def plot_psfshape_map(ra, dec, elongation, angle, fwhm,
         else:
             fig.savefig(output_filename+".png", dpi=100,bbox_inches='tight')
 
+    matplotlib.pyplot.close(fig)
     matplotlib.pyplot.close()
     logger.debug("done!")
 

@@ -457,6 +457,8 @@ if __name__ == "__main__":
 
         fig.show()
         matplotlib.pyplot.show()
+        matplotlib.pyplot.close(fig)
+        matplotlib.pyplot.close()
 
     else:
         all_entries = None

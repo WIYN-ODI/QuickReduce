@@ -1133,7 +1133,9 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         zp_radial_plot = create_qa_filename(output_filename, "photZP_radial", options)+".png"
         logger.debug("Saving plot to %s" % (zp_radial_plot))
         fig.savefig(zp_radial_plot)
-
+        matplotlib.pyplot.close(fig)
+        matplotlib.pyplot.close()
+    
 
     # Set some default values for most return results
     zp_median = 99

@@ -110,10 +110,6 @@ def count_matches(src_cat, ref_cat,
     idx_y -= (grid_size-1)/2.
     valid_pixelpos = numpy.hypot(idx_x, idx_y) < (pointing_error * 3600)
 
-    import matplotlib.pyplot as plt
-    fig = plt.figure(figsize=(15, 15))
-    ax = fig.add_subplot(111)
-
     #
     # Split catalog into chunks to limit momory usage 
     # and hopefully speed things up
@@ -240,6 +236,10 @@ def count_matches(src_cat, ref_cat,
         _median = numpy.median(smoothed[valid_pixelpos])
 
         if (create_debug_files2):
+            import matplotlib.pyplot as plt
+            fig = plt.figure(figsize=(15, 15))
+            ax = fig.add_subplot(111)
+
             # sys.stdout.write("\r%d / %d" % (cur_src, len(matches)))
             # sys.stdout.flush()
             # ax.imshow(count_grid_2d, interpolation='nearest', origin='low',
@@ -250,6 +250,8 @@ def count_matches(src_cat, ref_cat,
             figname = "progress_chunk_%03d.png" % (chunk) if debugangle==None \
                       else "progress_%.2fdeg_chunk%03d.png" % (debugangle, chunk)
             fig.savefig(figname)
+            plt.close(fig)
+            plt.close()
 
             print "\npeak at:", peak_pos, "max=%f std=%f mean=%f median=%f" % (
                 numpy.max(count_grid_2d), numpy.std(count_grid_2d), numpy.mean(count_grid_2d), numpy.median(count_grid_2d)
