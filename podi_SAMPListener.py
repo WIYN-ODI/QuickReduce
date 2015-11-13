@@ -88,13 +88,13 @@ def worker_slave(queue):
 
     """
 
-    print "Worker process started, ready for action..."
+    logger = logging.getLogger("SAMPWorker")
+
+    logger.info("Worker process started, ready for action...")
 
     if (not setup.use_ssh):
         # If we reduce frames locally, prepare the QR logging.
         options['clobber'] = False
-
-    logger = logging.getLogger("SAMPWorker")
 
     while (True):
         try:
@@ -107,13 +107,13 @@ def worker_slave(queue):
             continue
 
         if (task == None):
-            print "Shutting down worker"
+            logger.info("Shutting down worker")
             queue.task_done()
             break
 
         filename, object_name, obsid = task
 
-        print "starting work on file",filename
+        logger.info("starting work on file %s" % (filename))
 
         ccopts = ""
         if (len(sys.argv) > 2):
@@ -122,8 +122,8 @@ def worker_slave(queue):
         # print "ccopts=",ccopts
 
         if (cmdline_arg_isset("-dryrun")):
-            print "Sending off file",filename,"for reduction"
-            print "task done!"
+            logger.info("DRYRUN: Sending off file %s for reduction" % (filename))
+            # print "task done!"
             queue.task_done()
             continue
 
@@ -151,16 +151,24 @@ def worker_slave(queue):
                 logger.info("Out-sourcing work to %(user)s@%(host)s via ssh" % kw)
                 process = subprocess.Popen(ssh_command.split(), 
                                            stdout=subprocess.PIPE,
-                                           stderr=subprocess.PIPE)
+                                           stderr=subprocess.PIPE,
+                                           close_fds=True)
                 _stdout, _stderr = process.communicate()
+                process.stdout.close()
+                process.stderr.close()
+                try:
+                    process.terminate()
+                except:
+                    pass
 
-                print "*"*80
+                #print "*"*80
                 if (not _stdout == "" and not _stdout == None):
-                    print _stdout
-                    print "*"*80
+                    logger.info("Received STDOUT:\n%s" % (_stdout))
+                    #print "*"*80
                 if (not _stderr == "" and not _stderr == None):
-                    print _stderr
-                    print "*"*80
+                    logger.info("Received STDERR:\n%s" % (_stderr))
+                    #print _stderr
+                    #print "*"*80
                 
             else:
                 # Run locally
@@ -198,19 +206,27 @@ def worker_slave(queue):
                 }
 
                 ssh_command = "ssh %(user)s@%(host)s %(collectcells)s %(filename)s %(outputfile)s %(options)s -noclobber" % kw
-
+                
                 process = subprocess.Popen(ssh_command.split(), 
                                            stdout=subprocess.PIPE,
-                                           stderr=subprocess.PIPE)
+                                           stderr=subprocess.PIPE,
+                                           close_fds=True)
                 _stdout, _stderr = process.communicate()
+                process.stdout.close()
+                process.stderr.close()
+                try:
+                    process.terminate()
+                except:
+                    pass
 
-                print "*"*80
+                #print "*"*80
                 if (not _stdout == "" and not _stdout == None):
-                    print _stdout
-                    print "*"*80
+                    logger.info("Received STDOUT:\n%s" % (_stdout))
+                    #print "*"*80
                 if (not _stderr == "" and not _stderr == None):
-                    print _stderr
-                    print "*"*80
+                    logger.info("Received STDERR:\n%s" % (_stderr))
+                    #print _stderr
+                    #print "*"*80
 
             else:
                 logger.info("Running collectcells (%s)" % (filename))
@@ -231,9 +247,10 @@ def worker_slave(queue):
                 else:
                     cmd = "fits %s" % (local_filename)
 
-                print "filename", filename
-                print "remote file", remote_inputfile
-                print "local file", local_filename
+                logger.info("Forwarding file to ds9")
+                logger.debug("filename: %s" % (filename))
+                logger.debug("remote file: %s" % (remote_inputfile))
+                logger.debug("local file: %s" % (local_filename))
 
                 try:
                     cli1 = sampy.SAMPIntegratedClient(metadata = metadata)
@@ -241,7 +258,8 @@ def worker_slave(queue):
                     cli1.enotifyAll(mtype='ds9.set', cmd=cmd)
                     cli1.disconnect()
                 except:
-                    print "Problems sending message to ds9"
+                    logger.error("Problems sending message to ds9")
+                    podi_logging.log_exception()
                     pass
 
 
@@ -301,6 +319,7 @@ def receive_msg(private_key, sender_id, msg_id, mtype, params, extra):
 
     """
 
+    logger = logging.getLogger("MsgRevc")
 
     #print "\n"*5,"new file received!\n"
     #print private_key, sender_id, msg_id, mtype, params, extra
@@ -308,11 +327,11 @@ def receive_msg(private_key, sender_id, msg_id, mtype, params, extra):
     #                    "samp.result": {"result": "ok guys"}})
 
     filename = params['filename']
-    print "\nReceived command to reduce %s (at %s) ..." % (
+    logger.info("Received command to reduce %s (at %s) ..." % (
         filename, datetime.datetime.now().strftime("%H:%M:%S.%f")
-        )
+        ))
     if (not os.path.isdir(filename)):
-        print "filename %s is not a valid directory" % (filename)
+        logger.error("filename %s is not a valid directory" % (filename))
         return
         
     fits_file = get_filename_from_input(filename)
@@ -326,19 +345,19 @@ def receive_msg(private_key, sender_id, msg_id, mtype, params, extra):
 
     else:
         
-        print """
+        logger.info("""
 
 Received input %s
    (translated to %s) ...
 This is not a OBJECT or FOCUS frame.
 I was told to ignore these kind of frames.
 \
-""" % (filename, fits_file)
+""" % (filename, fits_file))
         return
             
 #    worker_queue.put( (filename, object_name, obsid) )
 
-    print "Done with this one, hungry for more!"
+    logger.info("Done with this one, hungry for more!")
     return
 
 
@@ -575,10 +594,10 @@ def handle_swarp_request(params, logger):
 
 
 def workerprocess___qr_stack(queue):
-    print "QR stacking worker process started, ready for action..."
+    #print "QR stacking worker process started, ready for action..."
 
     logger = logging.getLogger("QRStacker")
-    logger.info("Listener started")
+    logger.info("QR Stacking Listener started")
 
     while (True):
         try:
@@ -773,9 +792,17 @@ def handle_mastercals_request(params, logger, options):
         start_time = time.time()
         process = subprocess.Popen(ssh_command.split(), 
                                    stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE)
+                                   stderr=subprocess.PIPE,
+                                   close_fds=True)
         _stdout, _stderr = process.communicate()
-        logger.info(str(_stdout))
+        logger.debug(str(_stdout))
+        process.stdout.close()
+        process.stderr.close()
+        try:
+            process.terminate()
+        except:
+            pass
+
         end_time = time.time()
         logger.info("Master Calibrations completed successfully (%.2f seconds)" % (end_time - start_time))
     else:
@@ -787,7 +814,7 @@ def handle_mastercals_request(params, logger, options):
 
 
 def workerprocess___qr_mastercals(queue, options):
-    print "QR MasterCals worker process started, ready for action..."
+    #print "QR MasterCals worker process started, ready for action..."
 
     logger = logging.getLogger("QRMasterCals")
     logger.info("MasterCal Listener started")
@@ -838,8 +865,8 @@ def handle_qr_mastercals_request(private_key, sender_id, msg_id, mtype, params, 
     # print "\n"*5
     # print params
     str_filelist = params['filelist']
-    print params
-    print str_filelist
+    #print params
+    #print str_filelist
 
     # print "adding timestamp"
     params['timestamp'] = datetime.datetime.now()
@@ -854,7 +881,7 @@ def handle_qr_mastercals_request(private_key, sender_id, msg_id, mtype, params, 
 
     # print "added msg to queue"
 
-    print "Done with this one, hungry for more!"
+    logger.info("Done with this MasterCal request, hungry for more!")
     # print "\n"*5
     return
 
@@ -875,6 +902,8 @@ def handle_qr_mastercals_request(private_key, sender_id, msg_id, mtype, params, 
 
 def create_client(metadata, wait=0):
 
+    logger = logging.getLogger("ClientMgr")
+
     # Create client, connect to Hub, and install message listener
     cli1 = sampy.SAMPIntegratedClient(metadata = metadata)
 
@@ -884,7 +913,7 @@ def create_client(metadata, wait=0):
         if (wait>0): time.sleep(wait)
         return None
     except :
-        print "some other problem with connecting"
+        logger.error("some other problem with connecting")
         raise
 
     try:
@@ -898,7 +927,7 @@ def create_client(metadata, wait=0):
         cli1.bindReceiveMessage("qr.mastercal", handle_qr_mastercals_request)
 
     except:
-        print "Problem with bindReceiveMessage"
+        logger.error("Problem with bindReceiveMessage")
 
     return cli1
 
@@ -912,10 +941,12 @@ def SAMPListener():
    *******************************************************************
 """
 
-    # Create a client
-    print "Starting receiver ..."
+    logger = logging.getLogger("SAMPListener")
 
-    print "Trying to connect to Hub ..."
+    # Create a client
+    logger.info("Starting receiver ...")
+
+    logger.info("Trying to connect to Hub ...")
     try:
         while (True):
             cli1 = create_client(metadata)
@@ -925,10 +956,12 @@ def SAMPListener():
                 break
 
     except KeyboardInterrupt, SystemExit:
-        print "\rAborting and shutting down SAMPListener ..."
-        sys.exit(0)
+        logger.info("\rAborting and shutting down SAMPListener ...")
+        #sys.exit(0)
+        return 
 
-    print "Starting execution process..."
+
+    logger.info("Starting QR worker process...")
     worker_process = multiprocessing.Process(target=worker_slave,
                                       kwargs={
                                           'queue': worker_queue,
@@ -940,7 +973,7 @@ def SAMPListener():
     #
     # Also setup the QR stacking worker process
     # 
-    print "Starting execution process..."
+    logger.info("Starting QR stacking process...")
     qr_stacking_process = multiprocessing.Process(
         target=workerprocess___qr_stack,
         kwargs={
@@ -953,7 +986,7 @@ def SAMPListener():
     #
     # Also setup the QR MasterCals worker process
     # 
-    print "Starting execution process..."
+    logger.info("Starting QR MasterCal worker process...")
     options = read_options_from_commandline(ignore_errors=True)
     print options
     qr_mastercals_process = multiprocessing.Process(
@@ -965,7 +998,7 @@ def SAMPListener():
     )
     qr_mastercals_process.start()
 
-    print "Setup complete, waiting for messages..."
+    logger.info("Setup complete, waiting for messages...")
     quiet = cmdline_arg_isset("-quiet")
     quiet_string = "|/-\\"
     quiet_pos = 0
@@ -992,7 +1025,7 @@ def SAMPListener():
 
                 # This means that most likely there's no Hub (anymore)
                 # Try to connect
-                print "\nLost connection to hub, trying to re-establish it ..."
+                logger.info("Lost connection to hub, trying to re-establish it ...")
                 while (True):
                     cli1 = create_client(metadata)
                     if (cli1 == None):
@@ -1015,28 +1048,29 @@ def SAMPListener():
     print # to get off the "current system time" line
     try:
         # Disconnect from hub
-        print "Disconnecting from SAMP Hub ..."
+        logger.info("Disconnecting from SAMP Hub ...")
         cli1.disconnect()
     except:
         pass
 
     # Finish up left over work
     try:
-        print "Finishing up work (%d jobs), please wait ..." % (worker_queue.qsize())
+        logger.info("Finishing up work (%d jobs), please wait ..." % (worker_queue.qsize()))
     except:
-        print "Finishing up work, please wait ..."
+        logger.info("Finishing up work, please wait ...")
     worker_queue.put(None)
     worker_process.join()
 
     # Also shut down the QR stacking process
     try:
-        print "Finishing up %d stacking jobs, please wait ..." % (stacking_queue.qsize())
+        logger.info("Finishing up %d stacking jobs, please wait ..." % (stacking_queue.qsize()))
     except:
-        print "Finishing up stacking jobs, please wait ..."
+        logger.info("Finishing up stacking jobs, please wait ...")
     stacking_queue.put(None)
     qr_stacking_process.join()
 
-    print "All done, goodbye!"
+    logger.info("All done, goodbye!")
+
 
 
 if __name__ == "__main__":
