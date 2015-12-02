@@ -338,6 +338,7 @@ class FocalPlaneLayout(object):
             "odi_r": self.all_otas,
             "odi_i": self.all_otas,
             "odi_z": self.all_otas,
+            "odi_u": self.all_otas,
             #
             # All other filters
             #
