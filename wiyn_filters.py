@@ -223,6 +223,7 @@ filter_bandpass = {
 
 list_of_valid_filter_ids = {
     "4": "odi_g",
+    "w106": "odi_u",
     "w104": "odi_g",
     "w105": "odi_r",
     "w103": "odi_i",
