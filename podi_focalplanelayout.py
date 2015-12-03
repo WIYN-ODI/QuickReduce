@@ -673,3 +673,26 @@ class FocalPlaneLayout(object):
         return None
         
         
+    def get_detector_generation(self, otaid_hdr):
+
+        if (type(otaid_hdr) == pyfits.header.Header):
+            try:
+                ota_id = otaid_hdr['OTA_ID']
+            except:
+                return -1
+        else:
+            ota_id = otaid_hdr
+
+        lots = {
+            3: ['8101'],
+            6: ['13838', '13880', '13835', '13901', '13968', '13974', 
+                '13879', '13923', '13792', '13902', '13947', '13946', 
+                '13837',],
+            7: ['17198', '17187', '17234', '17253', '17297', '17231',
+                '17277', '17190', '17144', '17121', '17341', '17278',
+                '17275', '17166', '17167', '17122',]
+        }
+
+        for lot in lots:
+            if (ota_id in lots[lot]):
+                return lot
