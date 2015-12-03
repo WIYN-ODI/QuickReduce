@@ -10,6 +10,20 @@ MAG_AUTO
 FWHM_IMAGE               FWHM assuming a gaussian core                             [pixel]
 FWHM_WORLD               FWHM assuming a gaussian core                             [deg]
 
+BACKGROUND               Background at centroid position                           [count]
+EXT_NUMBER
+NUMBER
+
+# X2_IMAGE                 Variance along x                                          [pixel**2]
+# Y2_IMAGE                 Variance along y                                          [pixel**2]
+# XY_IMAGE                 Covariance between x and y                                [pixel**2]
+
+# BACKGROUND               Background at centroid position                           [count]
+
+# X2WIN_IMAGE              Windowed variance along x                                 [pixel**2]
+# Y2WIN_IMAGE              Windowed variance along y                                 [pixel**2]
+# XYWIN_IMAGE              Windowed covariance between x and y                       [pixel**2]
+
 #A_IMAGE                  Profile RMS along major axis                              [pixel]
 #B_IMAGE                  Profile RMS along minor axis                              [pixel]
 #THETA_IMAGE              Position angle (CCW/x)                                    [deg]

@@ -92,6 +92,7 @@ from podi_commandline import *
 import podi_sitesetup as sitesetup
 import podi_logging
 import logging
+import podi_focalplanelayout
 
 numpy.seterr(divide='ignore', invalid='ignore')
 
@@ -109,7 +110,9 @@ SXFocusColumn = {
     "extension": 4,
     "mag_auto": 6,
     "fwhm_image": 7,
-    "fwhm_world": 8
+    "fwhm_world": 8,
+    "background": 9,
+    "ota_lot": 10,
 }
 
 def mp_measure_focus(queue_in, queue_ret, verbose=False):
@@ -159,7 +162,18 @@ def mp_measure_focus(queue_in, queue_ret, verbose=False):
 
 def measure_focus_ota(filename, n_stars=5):
     """
-    Create a saturation table for a given OTA exposure.
+
+    Obtain a focus measurement from teh specified filename. To do so,
+
+    1) run source extractor to get FWHM measurements and positions for all sources
+
+    2) group sources into vertical sequences as expected from the function 
+       of the focus tool
+
+    3) assign physical focus positions to each measurement
+
+    4) return final catalog back to master so a final, combined focus curve
+       can be assembled.
 
     """
 
@@ -177,6 +191,7 @@ def measure_focus_ota(filename, n_stars=5):
 
     obsid = hdulist[0].header['OBSID']
     ota = hdulist[1].header['WN_OTAX'] * 10 + hdulist[1].header['WN_OTAY']
+    ota_id = hdulist[0].header['OTA_ID']
 
     logger = logging.getLogger("MeasureFocusOTA: %s(%02d)" % (obsid, ota))
     logger.info("Starting work ...")
@@ -297,7 +312,28 @@ def measure_focus_ota(filename, n_stars=5):
         cell_cat[:,SXFocusColumn['x']] += x1
         cell_cat[:,SXFocusColumn['y']] += y1
 
+        #
+        # get overscan-level data for this cell
+        #
+        binning = get_binning(hdulist[i].header)
+        overscan_data = extract_biassec_from_cell(hdulist[i].data, binning)
+        overscan_level = numpy.mean(overscan_data)
+        cell_cat[:, SXFocusColumn['background']] -= overscan_level
+
         corr_cat = cell_cat if corr_cat == None else numpy.append(corr_cat, cell_cat, axis=0)
+
+    # 
+    # Attach to each measurement what detector lot it came from
+    #
+    fpl = podi_focalplanelayout.FocalPlaneLayout(hdulist)
+    detector_lot = fpl.get_detector_generation(ota_id)
+    corr_cat[:, SXFocusColumn['ota_lot']] = detector_lot
+
+    #
+    # Also override the extension number in the source catalog with the 
+    # position in the overall focal plane
+    #
+    corr_cat[:, SXFocusColumn['extension']] = ota
 
 
     # print "\n\n\n\ntotal corrected catalog:",corr_cat.shape
@@ -642,7 +678,7 @@ def get_focus_measurement(filename, n_stars=5, output_dir="./", mp=False):
 
         return_queue.task_done()
 
-    # Join each process to make thre they terminate(d) correctly
+    # Join each process to make sure they terminate(d) correctly
     logger.debug("Joining process to ensure proper termination")
     for p in processes:
         p.join()
@@ -655,7 +691,24 @@ def get_focus_measurement(filename, n_stars=5, output_dir="./", mp=False):
         return
 
     logger.info("Found a grand total of %d focus positions" % (all_foci.shape[0]))
+    # print all_foci.shape
 
+    with open("allfoci", "w") as f:
+        for s in range(all_foci.shape[0]):
+            numpy.savetxt(f, all_foci[s,:,:])
+            print >>f, "\n"
+    # numpy.savetxt("allfoci", all_foci.reshape((-1,all_foci.shape[2])))
+
+    #
+    # Eliminate all focus measurements that could be affected by the low-light 
+    # CTE problem
+    #
+    min_background = numpy.min(all_foci[:,:,SXFocusColumn['background']], axis=1)
+    detector_lots = all_foci[:,0,SXFocusColumn['ota_lot']]
+    bad = (detector_lots < 7) & (min_background < 100)
+    logger.info("Excluding %d focus samples that might have CTE issues" % (numpy.sum(bad)))
+    all_foci = all_foci[~bad]
+    
     stats = get_mean_focuscurve(all_foci)
     pfit, uncert, fwhm_median, fwhm_std, fwhm_cleaned, best_focus_position, best_focus = stats
 
@@ -718,7 +771,7 @@ def get_mean_focuscurve(foci):
 
     best_focus_position = -pfit[1] / (2 * pfit[2])
     best_focus = poly_fit(pfit, best_focus_position)
-    logger.info("best focus (%s): %f at position %f" % (
+    logger.info("best focus (%s): %.3f'' at position %.0f" % (
         "maximum" if pfit[2] < 0 else "minimum",
         best_focus, best_focus_position))
     
