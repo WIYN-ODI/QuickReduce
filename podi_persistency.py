@@ -301,9 +301,8 @@ def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo
                 ]
             # Create the table extension
             coldefs = pyfits.ColDefs(columns)
-            tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
-            tbhdu.update_ext_name(extension_name, comment="catalog of saturated pixels")
-
+            tbhdu = pyfits.BinTableHDU.from_columns(coldefs)
+            tbhdu.name = extension_name
             ota_list.append(tbhdu)
             
         return_queue.task_done()
@@ -434,9 +433,9 @@ def create_saturation_catalog_ota(filename, output_dir, verbose=True,
         ]
     # Create the table extension
     coldefs = pyfits.ColDefs(columns)
-    tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
+    tbhdu = pyfits.BinTableHDU.from_columns(coldefs)
     extension_name = "OTA%02d.SATPIX" % (ota)
-    tbhdu.update_ext_name(extension_name, comment="catalog of saturated pixels")
+    tbhdu.name = extension_name
 
     if (return_numpy_catalog):
         logger.debug("Returning results as numpy catalog")
@@ -1245,8 +1244,7 @@ def create_new_persistency_map(shape=None, write_fits=None):
         ext_name = "OTA%02d.PERS" % (ota)
 
         # Create the ImageHDU
-        imghdu = pyfits.ImageHDU(data=data)
-        imghdu.update_ext_name(ext_name)
+        imghdu = pyfits.ImageHDU(data=data, name=ext_name)
 
         # Add some additional info so we can display it in ds9:
         detsec = '[%d:%d,%d:%d]' % (ota_x*iraf_size_x, ota_x*iraf_size_x+px, ota_y*iraf_size_y, ota_y*iraf_size_y+py)
