@@ -125,6 +125,8 @@ import tempfile
 import shutil
 import warnings
 import time
+import itertools
+import bottleneck
 
 try:
     sys.path.append(sitesetup.exec_dir+"/test")
@@ -132,6 +134,57 @@ try:
     import podi_ephemerides
 except:
     pass
+
+
+def is_guide_ota(primhdu, ext, w=20):
+
+    logger = logging.getLogger("IsGuideOTA")
+
+    binning = primhdu.header['BINNING']
+    skylevel = primhdu.header['SKYLEVEL']
+    gain = primhdu.header['GAIN']
+    skynoise = primhdu.header['SKYNOISE']
+
+    logger.debug("Checking OTA %s (bin=%d, sky=%.1f, skynoise=%.2f)" % (
+        ext.name, binning, skylevel, skynoise))
+
+    if (not is_image_extension(ext)):
+        logger.debug("extension is not a valid image extension")
+        return False
+
+    excesses = numpy.empty((8,8))
+    excesses[:,:] = numpy.NaN
+
+    for cx, cy in itertools.product(range(8), repeat=2):
+
+        #
+        # Get pixel coord for this cell
+        #
+        
+        x1,x2,y1,y2 = cell2ota__get_target_region(cx, cy, binning=binning, trimcell=0)
+        x21 = (x2-x1)/2
+
+        # extract the mean value in the bottom corner
+        corner = bottleneck.nanmean(ext.data[y1:y1+w, x1:x1+w].astype(numpy.float32))
+
+        # also get the value in the bottom center
+        center = bottleneck.nanmean(ext.data[y1:y1+w, x1+x21-w/2:x1+x21+w//2].astype(numpy.float32))
+
+        excess = corner - center
+        #print ext.name, cx, cy, corner, center, excess
+            
+        excesses[cx,cy] = excess
+
+    _mean = bottleneck.nanmean(excesses)
+    _median = bottleneck.nanmedian(excesses)
+
+    is_guideota = (_median > 10*skynoise)
+    logger.debug("Found corner excess mean=%.1f, median=%.1f --> guide-OTA: %s" % (
+        _mean, _median, "YES" if is_guideota else "NO"))
+
+    return is_guideota
+
+
 
 def mp_prepareinput(input_queue, output_queue, swarp_params, options):
 
@@ -348,6 +401,11 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                         ext.header['CELLMODE'].find("V") >= 0):
                         logger.debug("skipping ota %s as requested" % (ext.header['EXTNAME']))
                         continue
+                    if (swarp_params['skip_guide_otas']):
+                        if (is_guide_ota(hdulist[0], ext)):
+                            logger.info("OTA %s is likely guide-OTA, skipping" % (ext.name))
+                            continue
+
                     ota_list.append(ext)
 
                 # Save the modified OTA list for later
@@ -2016,6 +2074,8 @@ def read_swarp_params(filelist):
     params['illumcorrfiles'] = cmdline_arg_set_or_default("-illumcorrfiles", None)
 
     params['normalize_sky'] = cmdline_arg_isset("-normsky")
+
+    params['skip_guide_otas'] = cmdline_arg_isset("-rmguideota")
 
     return params
 
