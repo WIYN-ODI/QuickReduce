@@ -656,11 +656,14 @@ def mp_swarp_single(sgl_queue, dum):
                                    stdout=subprocess.PIPE, 
                                    stderr=subprocess.PIPE)
             (swarp_stdout, swarp_stderr) = ret.communicate()
-            logger.debug("swarp stdout:\n"+swarp_stdout)
-            if (len(swarp_stderr) > 0 and ret.returncode != 0):
-                logger.warning("swarp stderr:\n"+swarp_stderr)
-            else:
-                logger.debug("swarp stderr:\n"+swarp_stderr)
+            if (sitesetup.log_shell_output):
+                logger.debug("\nCommand:\n%s\n--> Returncode: %d\n---\nStd.Out:\n%s\n---\nStd.Err:\n%s\n---", 
+                             swarp_cmd, ret.returncode, swarp_stdout, swarp_stderr)
+            # logger.debug("swarp stdout:\n"+swarp_stdout)
+            # if (len(swarp_stderr) > 0 and ret.returncode != 0):
+            #     logger.warning("swarp stderr:\n"+swarp_stderr)
+            # elif (sitesetup.log_shell_output):
+            #     logger.debug("swarp stderr:\n"+swarp_stderr)
 
             # Add some basic headers from input file to the single file
             # this is important for the differencing etc.
@@ -689,15 +692,31 @@ def mp_swarp_single(sgl_queue, dum):
         #
         # Apply the mask if requested
         #
-        if (single_created_ok and not swarp_params['mask'] == None and create_mask):
-            
+        if (single_created_ok and create_mask and swarp_params['mask-list']):
+            # not swarp_params['mask'] == None and 
+
+            #
+            # Based on the MJD of this frame, determine the best mask-frame
+            #
+            try:
+                frame_mjd = hdulist[0].header['MJD-OBS']
+            except:
+                frame_mjd = 0
+            diff_mjd = numpy.fabs(swarp_params['mask-mjds'] - frame_mjd)
+            # Find the frame with the smallest delta_mjd
+            idx = numpy.argmin(diff_mjd)
+            mask_file = swarp_params['mask-list'][idx]
+            logger.info("Using mask %s for frame %s" % (mask_file, prepared_file))
+ 
             #
             # Apply the non-sidereal correction to the mask
             # (only in non-sidereal mode)
             #
             this_mask = single_file[:-5]+".maskraw.fits"
-            mask_hdu = pyfits.open(swarp_params['mask'])
+            logger.info("This mask: %s" % (this_mask))
+            mask_hdu = pyfits.open(mask_file) #swarp_params['mask'])
 
+            logger.info("Applying non-sid corr: %s" % (str(nonsidereal_dradec)))
             if (not nonsidereal_dradec == None):
                 
                 d_radec = numpy.array(nonsidereal_dradec)
@@ -715,6 +734,7 @@ def mp_swarp_single(sgl_queue, dum):
             clobberfile(this_mask)
             mask_hdu.writeto(this_mask, clobber=True)
             mask_hdu.close()
+            logger.info("wrote raw mask with fudged WCS: %s" % (this_mask))
 
             #
             # Swarp the mask to the identical pixelgrid as the single frame
@@ -735,6 +755,7 @@ def mp_swarp_single(sgl_queue, dum):
                 -CENTER %(center_ra)f,%(center_dec)f
                 -IMAGE_SIZE %(imgsizex)d,%(imgsizey)d
                 -RESAMPLE_DIR %(resample_dir)s
+                -RESAMPLING_TYPE BILINEAR
                 -PIXEL_SCALE %(pixelscale)f \
                 -PIXELSCALE_TYPE %(pixelscale_type)s \
                 -COMBINE Y \
@@ -759,12 +780,14 @@ def mp_swarp_single(sgl_queue, dum):
             logger.info("Matching global mask to frame ...")
             try:
                 start_time = time.time()
-                logger.debug(" ".join(swarp_mask.split()))
+                logger.debug("Matching global mask to frame:\n"+" ".join(swarp_mask.split()))
                 ret = subprocess.Popen(swarp_mask.split(), 
                                        stdout=subprocess.PIPE, 
                                        stderr=subprocess.PIPE)
                 (swarp_stdout, swarp_stderr) = ret.communicate()
-                # logger.debug("swarp stdout:\n"+swarp_stdout)
+                if (sitesetup.log_shell_output):
+                    logger.debug("\nCommand:\n%s\n--> Returncode: %d\n---\nStd.Out:\n%s\n---\nStd.Err:\n%s\n---", 
+                                 swarp_cmd, ret.returncode, swarp_stdout, swarp_stderr)
                 # if (len(swarp_stderr) > 0 and ret.returncode != 0):
                 #     logger.warning("swarp stderr:\n"+swarp_stderr)
                 # else:
@@ -774,6 +797,7 @@ def mp_swarp_single(sgl_queue, dum):
             except:
                 pass
 
+            logger.info("Done with aligned mask: %s" % (mask_aligned))
 
             #
             # Multiply the weight mask of this single frame with the mask, 
@@ -792,6 +816,100 @@ def mp_swarp_single(sgl_queue, dum):
         hdulist.close()
         sgl_queue.task_done()
 
+
+def create_mask(fitsfile, swarp_params):
+
+    logger.info("Creating mask (from %s)" % (fitsfile))
+
+    unique_singledir = swarp_params['unique_singledir']
+    #
+    # Extract only the first extension
+    # 
+    hdulist = pyfits.open(fitsfile)
+
+    # Get the mid-stack MJD date to find the closest mask in time when 
+    # multiple masks are given
+    mjd = hdulist[0].header['MJD-OBS']
+    if ('MJD-MID' in hdulist[0].header): mjd = hdulist[0].header['MJD-MID']
+
+    _, fitsbase = os.path.split(os.path.abspath(fitsfile))
+    image_only_fits = "%s/%s.primaryonly.fits" % (unique_singledir, fitsbase)
+    pyfits.HDUList([hdulist[0]]).writeto(image_only_fits, clobber=True)
+
+    #
+    # We use source-extractor to create the mask
+    #        
+    sex_default = "%s/.config/swarpstack_mask.conf" % (sitesetup.exec_dir)
+    params_default = "%s/.config/swarpstack_mask.params" % (sitesetup.exec_dir)
+    segmentation_file = "%s/%s.segmentation.fits" % (unique_singledir, fitsbase)
+
+    sex_cmd = """
+    %(sex)s 
+    -c %(config)s 
+    -PARAMETERS_NAME %(params)s
+    -DETECT_THRESH %(nsigma)f 
+    -DETECT_MINAREA %(minarea)f
+    -CHECKIMAGE_TYPE SEGMENTATION
+    -CHECKIMAGE_NAME %(segmentation_file)s
+    %(inputfits)s
+    """ % {
+        'sex': sitesetup.sextractor,
+        'config': sex_default,
+        'params': params_default,
+        'nsigma': swarp_params['mask-nsigma'],
+        'minarea': swarp_params['mask-npix'],
+        'segmentation_file': segmentation_file,
+        'inputfits': image_only_fits,
+        #swarp_params['mask-fits'],
+        }
+
+    # print "\n"*5,sex_cmd,"\n"*5
+    # print " ".join(sex_cmd.split())
+
+    #
+    # Run SourceExtractor to compute the segmentation map
+    #
+    try:
+        start_time = time.time()
+        logger.debug("Computing segmentation map:\n%s" % (" ".join(sex_cmd.split())))
+        
+        ret = subprocess.Popen(sex_cmd.split(), 
+                               stdout=subprocess.PIPE, 
+                               stderr=subprocess.PIPE) #, shell=True)
+        (sex_stdout, sex_stderr) = ret.communicate()
+        if (sitesetup.log_shell_output):
+            logger.debug("\nCommand:\n%s\n--> Returncode: %d\n---\nStd.Out:\n%s\n---\nStd.Err:\n%s\n---", 
+                         sex_cmd, ret.returncode, sex_stdout, sex_stderr)
+
+        # logger.debug("sex stdout:\n"+sex_stdout)
+        # if (len(sex_stderr) > 0 and ret.returncode != 0):
+        #     logger.warning("sex stderr:\n"+sex_stderr)
+        # else:
+        #     logger.debug("sex stderr:\n"+sex_stderr)
+        end_time = time.time()
+        logger.info("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
+    except OSError as e:
+        podi_logging.log_exception()
+        print >>sys.stderr, "Execution failed:", e
+
+    #
+    # Now convert the segmentation mask into a object mask
+    # 
+    seghdu = pyfits.open(segmentation_file)
+    weight = numpy.zeros(shape=seghdu[0].data.shape, dtype=numpy.float32)
+    weight[seghdu[0].data > 0] = 1.
+
+    maskhdu = pyfits.HDUList([pyfits.PrimaryHDU(data=weight, header=seghdu[0].header.copy())])
+    maskfile = "%s/%s.mask.fits" % (unique_singledir, fitsbase)
+    clobberfile(maskfile)
+    maskhdu.writeto(maskfile, clobber=True)
+
+    seghdu.close()
+    maskhdu.close()
+    del seghdu
+    del maskhdu
+
+    return maskfile, mjd
 
 
 def swarpstack(outputfile, 
@@ -835,91 +953,23 @@ def swarpstack(outputfile,
 
     ############################################################################
     #
-    # Prepare the mask file if one is requested
+    # Prepare the mask file(s) if requested
     #
     ############################################################################
     if (not swarp_params['mask-fits'] == None and
         swarp_params['mask'] == None):
 
-        logger.info("Creating mask (from %s)" % (swarp_params['mask-fits']))
+        mask_list = []
+        mask_mjds = []
+        for mf in swarp_params['mask-fits']:
+            maskfile, mjd = create_mask(mf, swarp_params)
+            mask_list.append(maskfile)
+            mask_mjds.append(mjd)
 
-        #
-        # Extract only the first extension
-        # 
-        hdulist = pyfits.open(swarp_params['mask-fits'])
-        image_only_fits = "%s/mask_primaryonly.fits" % (unique_singledir)
-        pyfits.HDUList([hdulist[0]]).writeto(image_only_fits, clobber=True)
-
-        #
-        # We use source-extractor to create the mask
-        #        
-        sex_default = "%s/.config/swarpstack_mask.conf" % (sitesetup.exec_dir)
-        params_default = "%s/.config/swarpstack_mask.params" % (sitesetup.exec_dir)
-        segmentation_file = "%s/mask_segmentation.fits" % (unique_singledir)
-
-        sex_cmd = """
-        %(sex)s 
-        -c %(config)s 
-        -PARAMETERS_NAME %(params)s
-        -DETECT_THRESH %(nsigma)f 
-        -DETECT_MINAREA %(minarea)f
-        -CHECKIMAGE_TYPE SEGMENTATION
-        -CHECKIMAGE_NAME %(segmentation_file)s
-        %(inputfits)s
-        """ % {
-            'sex': sitesetup.sextractor,
-            'config': sex_default,
-            'params': params_default,
-            'nsigma': swarp_params['mask-nsigma'],
-            'minarea': swarp_params['mask-npix'],
-            'segmentation_file': segmentation_file,
-            'inputfits': image_only_fits,
-            #swarp_params['mask-fits'],
-            }
-
-        # print "\n"*5,sex_cmd,"\n"*5
-        # print " ".join(sex_cmd.split())
-
-        #
-        # Run SourceExtractor to compute the segmentation map
-        #
-        try:
-            start_time = time.time()
-            logger.debug("Computing segmentation map:\n%s" % (" ".join(sex_cmd.split())))
-
-            ret = subprocess.Popen(sex_cmd.split(), 
-                                   stdout=subprocess.PIPE, 
-                                   stderr=subprocess.PIPE) #, shell=True)
-            (sex_stdout, sex_stderr) = ret.communicate()
-            # logger.debug("sex stdout:\n"+sex_stdout)
-            # if (len(sex_stderr) > 0 and ret.returncode != 0):
-            #     logger.warning("sex stderr:\n"+sex_stderr)
-            # else:
-            #     logger.debug("sex stderr:\n"+sex_stderr)
-            end_time = time.time()
-            logger.info("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
-        except OSError as e:
-            podi_logging.log_exception()
-            print >>sys.stderr, "Execution failed:", e
-
-        #
-        # Now convert the segmentation mask into a object mask
-        # 
-        seghdu = pyfits.open(segmentation_file)
-        weight = numpy.zeros(shape=seghdu[0].data.shape, dtype=numpy.float32)
-        weight[seghdu[0].data > 0] = 1.
-
-        maskhdu = pyfits.HDUList([pyfits.PrimaryHDU(data=weight, header=seghdu[0].header.copy())])
-        maskfile = "%s/mask.fits" % (unique_singledir)
-        clobberfile(maskfile)
-        maskhdu.writeto(maskfile, clobber=True)
-
-        seghdu.close()
-        maskhdu.close()
-        del seghdu
-        del maskhdu
-
-        swarp_params['mask'] = maskfile
+        swarp_params['mask-list'] = mask_list
+        swarp_params['mask-mjds'] = numpy.array(mask_mjds)
+            
+        # swarp_params['mask'] = maskfile
 
     logger.info("Removing some OTAs from input: %s" % (str(options['skip_otas'])))
 
@@ -1144,6 +1194,10 @@ def swarpstack(outputfile,
             #print retcode.stdout.readlines()
             #print retcode.stderr.readlines()
             (swarp_stdout, swarp_stderr) = ret.communicate()
+            if (sitesetup.log_shell_output):
+                logger.debug("\nCommand:\n%s\n--> Returncode: %d\n---\nStd.Out:\n%s\n---\nStd.Err:\n%s\n---", 
+                             swarp_cmd, ret.returncode, swarp_stdout, swarp_stderr)
+
             # logger.debug("swarp stdout:\n"+swarp_stdout)
             # if (len(swarp_stderr) > 0 and ret.returncode != 0):
             #     logger.warning("swarp stderr:\n"+swarp_stderr)
@@ -1574,6 +1628,9 @@ def swarpstack(outputfile,
                                        stdout=subprocess.PIPE, 
                                        stderr=subprocess.PIPE)
             (swarp_stdout, swarp_stderr) = ret.communicate()
+            if (sitesetup.log_shell_output):
+                logger.debug("\nCommand:\n%s\n--> Returncode: %d\n---\nStd.Out:\n%s\n---\nStd.Err:\n%s\n---", 
+                             swarp_cmd, ret.returncode, swarp_stdout, swarp_stderr)
 
             # logger.debug("swarp stdout:\n"+swarp_stdout)
             # if (len(swarp_stderr) > 0 and ret.returncode != 0):
@@ -1933,18 +1990,18 @@ def read_swarp_params(filelist):
                 params['clip-ampfrac'] = float(items[1])
 
     params['mask-fits'] = None
-    params['mask-npix'] = 5
-    params['mask-nsigma'] = 2
+    params['mask-npix'] = cmdline_arg_set_or_default("-masknpix", 5)
+    params['mask-nsigma'] = cmdline_arg_set_or_default("-masknsigma", 2)
+    params['mask-list'] = None
+    params['mask-mjds'] = None
     if (cmdline_arg_isset("-maskframe")):
         vals = get_cmdline_arg("-maskframe").split(",")
-        if (len(vals) >= 1):
-            if (os.path.isfile(vals[0])):
-                params['mask-fits'] = vals[0]
-        if (len(vals) >= 2 and not params['mask-fits'] == None):
-            params['mask-nsigma'] = float(vals[1])
-        if (len(vals) >= 3 and not params['mask-fits'] == None):
-            params['mask-npix'] = float(vals[2])
-        
+        mask_list = []
+        for filename in vals:
+            if (os.path.isfile(filename)):
+                mask_list.append(filename)
+        if (mask_list): params['mask-fits'] = mask_list
+    
     params['mask'] = None
     if (cmdline_arg_isset("-mask")):
         mask = get_cmdline_arg("-mask")
