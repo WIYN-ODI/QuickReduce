@@ -890,6 +890,14 @@ def mp_swarp_single(sgl_queue, dum):
             weightmap_hdu.close()
 
         hdulist.close()
+
+        if (swarp_params['aggressive_clean']):
+            clobberfile(prepared_file)
+            prepared_file_weight = prepared_file[:-5]+".weight.fits"
+            clobberfile(prepared_file_weight)
+
+            # XXX ALSO DELETE INTERMEDIATE MASK FILES 
+
         sgl_queue.task_done()
 
 
@@ -1171,6 +1179,14 @@ def swarpstack(outputfile,
             swarp_params['reference_file'] = None
 
     logging.debug("Using modified input list: %s" % (str(inputlist)))
+
+    #
+    # Open the first frame in the list, and preserve its header.
+    # This header will be (partially) merged into the final output
+    #
+    hdulist = pyfits.open(inputlist[0])
+    reference_header = hdulist[0].header.copy()
+    hdulist.close()
 
     ############################################################################
     #
@@ -1724,8 +1740,12 @@ def swarpstack(outputfile,
         # Finally, open the output file and copy a bunch of headers into it
         hdustack = pyfits.open(dic['imageout'], mode='update')
         # Also open the first frame in the stack to be used as data source
-        firsthdu = pyfits.open(inputlist[0])
 
+        #
+        # Add some exposure-specific data from the reference header back to the 
+        # output file
+        #
+        #firsthdu = pyfits.open(inputlist[0])
         if ('FILE0001' in hdustack[0].header):
             add_fits_header_title(hdustack[0].header, "Input files as written by swarp", 'FILE0001')
 
@@ -1734,8 +1754,8 @@ def swarpstack(outputfile,
                 'FILTER', 'FILTERID', 'FILTDSCR', 
                 'OBSID', 'OBJECT', 
                 'DATE-OBS', 'TIME-OBS', 'MJD-OBS']:
-            if (hdrkey in firsthdu[0].header):
-                key, val, com = firsthdu[0].header.cards[hdrkey]
+            if (hdrkey in reference_header):
+                key, val, com = reference_header.cards[hdrkey]
                 hdustack[0].header[key] = (val, com)
         add_fits_header_title(hdustack[0].header, "Headers inherited from input frames", 'TARGRA')
 
@@ -1836,7 +1856,6 @@ def swarpstack(outputfile,
         add_fits_header_title(hdustack[0].header, "Non-sidereal/ephemerides configuration", 'NONSIDRL')
 
 
-        firsthdu.close()
         add_fits_header_title(hdustack[0].header, "SwarpStack parameters supplied by user", 'MAGZERO')
 
         if (not valid_nonsidereal_reference == None):
@@ -1876,8 +1895,12 @@ def swarpstack(outputfile,
         # print options['additional_fits_headers']
         first_useradded_key = None
         for key, value in options['additional_fits_headers'].iteritems():
-            if (first_useradded_key == None): first_useradded_key = key
-            hdustack[0].header[key] = (value, "user-added keyword")
+            if (key in hdustack[0].header):
+                # if key exists, leave comment unchanged
+                hdustack[0].header[key] = value
+            else:
+                if (first_useradded_key == None): first_useradded_key = key
+                hdustack[0].header[key] = (value, "user-added keyword")
         if (len(options['additional_fits_headers']) > 0 and not first_useradded_key == None):
             add_fits_header_title(hdustack[0].header, 
                                   "user-added keywords", first_useradded_key)
@@ -2111,6 +2134,8 @@ def read_swarp_params(filelist):
             wipecells[ota_name].append((cellx, celly))
         params['wipe_cells'] = wipecells
         logger.debug("wipe-cells final: %s" % (str(wipecells)))
+
+    params['aggressive_clean'] = cmdline_arg_isset('-ocdclean')
 
     return params
 
