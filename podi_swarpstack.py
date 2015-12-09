@@ -455,6 +455,24 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                 gain /= fluxscale_value
                 skylevel *= fluxscale_value
 
+            if (not swarp_params['wipe_cells'] == None):
+                binning = hdulist[0].header['BINNING']
+                # XXX ADD SUPPORT FOR SOFTWARE BINNING AS WELL HERE !!!
+                logger.info("Wiping out specified cells")
+                for ext in hdulist:
+                    if (not is_image_extension(ext)):
+                        continue
+                    if (ext.name in swarp_params['wipe_cells']):
+                        # We have some cells to wipe
+                        for (cell_x, cell_y) in swarp_params['wipe_cells'][ext.name]:
+                            # Get coordinates for this cell, for the given binning
+                            logger.debug("Wiping out cell %d,%d in OTA %s" % (cell_x, cell_y, ext.name))
+                            x1, x2, y1, y2 = cell2ota__get_target_region(cell_x, cell_y, binning=binning)
+                            #_was = bottleneck.nanmedian(ext.data[y1:y2, x1:x2].astype(numpy.float32))
+                            ext.data[y1:y2, x1:x2] = numpy.NaN
+                            #logger.info("%d:%d, %d:%d --> %f --> %f"  %(
+                            #    x1,x2,y1,y2, _was, bottleneck.nanmedian(ext.data[y1:y2, x1:x2].astype(numpy.float32))))
+
             # Check if the corrected file already exists - if not create it
             #if (not os.path.isfile(corrected_filename)):
             logger.debug("Writing correctly prepared file--> %s" % (corrected_filename))
@@ -2076,6 +2094,23 @@ def read_swarp_params(filelist):
     params['normalize_sky'] = cmdline_arg_isset("-normsky")
 
     params['skip_guide_otas'] = cmdline_arg_isset("-rmguideota")
+
+    params['wipe_cells'] = None
+    if (cmdline_arg_isset("-wipecells")):
+        wipecells = {}
+        wc = get_cmdline_arg("-wipecells")
+        logger.debug("wipecells: %s" % (wc))
+        for _wc in wc.split(","):
+            # print _wc
+            _ota,_cell = _wc.split(".")
+            ota = int(_ota)
+            ota_name = "OTA%02d.SCI" % (ota)
+            cellx,celly = int(_cell[0]), int(_cell[1])
+            if (not ota_name in wipecells):
+                wipecells[ota_name] = []
+            wipecells[ota_name].append((cellx, celly))
+        params['wipe_cells'] = wipecells
+        logger.debug("wipe-cells final: %s" % (str(wipecells)))
 
     return params
 
