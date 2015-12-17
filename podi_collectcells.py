@@ -2503,10 +2503,10 @@ def collectcells(input, outputfile,
             del otas_not_checked_in[idx]
         except:
             podi_logging.log_exception()
-        logger.info("Received intermed. results from OTAs (%2d/%2d): %s" % (
+        logger.debug("Received intermed. results from OTAs (%2d/%2d): %s" % (
             len(otas_checked_in), len(list_of_otas_being_reduced), 
             ",".join(["%02d" % x for x in otas_checked_in])))
-        logger.info("OTAs yet to report intermed. results back (%2d/%2d): %s" % (
+        logger.debug("OTAs yet to report intermed. results back (%2d/%2d): %s" % (
             len(otas_not_checked_in), len(list_of_otas_being_reduced), 
             ",".join(["%02d" % x for x in otas_not_checked_in])))
         
