@@ -2257,9 +2257,12 @@ def collectcells(input, outputfile,
 
     # Set up all the communication pipes to communicate data back to the process
     communication = {}
+    ota_from_otaid = {}
     for ota_id in range(len(list_of_otas_to_collect)):
         ota_c_x, ota_c_y = list_of_otas_to_collect[ota_id]        
         ota = ota_c_x * 10 + ota_c_y
+
+        ota_from_otaid[ota_id+1] = ota
 
         if (cmdline_arg_isset('-singleota')):
             single_ota = int(get_cmdline_arg("-singleota"))
@@ -2477,6 +2480,8 @@ def collectcells(input, outputfile,
 
     global_reduction_log = ReductionLog()
 
+    otas_checked_in = []
+    otas_not_checked_in = [x*10+y for (x,y) in list_of_otas_being_reduced]
     for i in range(len(list_of_otas_being_reduced)):
         #hdu, ota_id, wcsfix_data = return_queue.get()
         try:
@@ -2490,6 +2495,21 @@ def collectcells(input, outputfile,
 
         logger.debug("Received intermediate results from OTA-ID %02d" % (ota_id))
         podi_logging.ppa_update_progress(int(50.*(i+1)/len(list_of_otas_being_reduced)), "Reducing")
+
+        _ota = ota_from_otaid[ota_id]
+        otas_checked_in.append(_ota)
+        idx = otas_not_checked_in.index(_ota)
+        try:
+            del otas_not_checked_in[idx]
+        except:
+            podi_logging.log_exception()
+        logger.info("Received intermed. results from OTAs (%2d/%2d): %s" % (
+            len(otas_checked_in), len(list_of_otas_being_reduced), 
+            ",".join(["%02d" % x for x in otas_checked_in])))
+        logger.info("OTAs yet to report intermed. results back (%2d/%2d): %s" % (
+            len(otas_not_checked_in), len(list_of_otas_being_reduced), 
+            ",".join(["%02d" % x for x in otas_not_checked_in])))
+        
 
         # Mark this ota as not fully complete. This is important later on when
         # we report intermediate results back for completion
@@ -2527,10 +2547,10 @@ def collectcells(input, outputfile,
         header = data_products['header']
         
         if (header == None):
-            logger.info("OTA %d reporting empty header, ignoring" %(ota_id))
+            logger.warning("OTA %d reporting empty header, ignoring" %(ota_id))
             ota_missing_empty.append(ota_id)
             continue
-        
+
         extname = header['EXTNAME']
         ota_headers[extname] = header
 
