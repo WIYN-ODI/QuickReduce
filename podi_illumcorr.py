@@ -154,7 +154,8 @@ def apply_illumination_correction(input_hdu, illumcorr_hdu, output_file=None):
     
     return input_hdu
 
-def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False):
+def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
+                               mask_guide_otas=True):
 
     root = logging.getLogger("CompIllumination")
 
@@ -174,6 +175,24 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False):
         hdulist = pyfits.open(fitsfile)
         obsid = hdulist[0].header['OBSID']
         logger = logging.getLogger("CompIllum(%s)" % (obsid))
+
+        # # mask out guide-otas
+        # if (not mask_guide_otas):
+        #     input2sex_file = fitsfile
+        # else:
+        #     ota_list = [hdulist[0]]
+        #     for ext in hdulist:
+        #         if (not is_image_extension(ext)):
+        #             continue
+        #         if (is_guide_ota(hdulist[0], ext)):
+        #             # do not include
+        #             continue
+        #         ota_list.append(ext)
+        #     hdulist = pyfits.HDUList(ota_list)
+        #     input2sex_file = "%s/%s" % (
+        #         sitesetup.swarp_single_dir,
+        #         os.path.basename(fitsfile))
+        #     hdulist.writeto(input2sex_file, clobber=True)
 
         # Run Sextractor
         segmask = "%s/%s_segmentation.fits" % (tmp_dir, obsid)
@@ -239,6 +258,10 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False):
                 if (ext.header['CELLMODE'].find("V") >= 0):
                     # This is a video extension, do not use it
                     continue
+                if (mask_guide_otas):
+                    if (is_guide_ota(hdulist[0], ext)):
+                        # do not include
+                        continue
 
                 # Now search for the right extension in the mask frame
                 found_mask = False
@@ -268,7 +291,6 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False):
                 if (not found_mask):
                     logger.debug("Can't find extension %s in mask" % (ext.name))
 
-
             logger.debug("writing masked frame to %s" % (masked_frame))
 
             clobberfile(masked_frame)
@@ -286,7 +308,8 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False):
     return
 
 
-def prepare_illumination_correction(filelist, outfile, tmpdir=".", redo=False):
+def prepare_illumination_correction(filelist, outfile, tmpdir=".", redo=False,
+                                    mask_guide_otas=True):
 
     logger = logging.getLogger("CreateIllumCorr")
 
@@ -308,6 +331,7 @@ def prepare_illumination_correction(filelist, outfile, tmpdir=".", redo=False):
                                               'return_queue': return_queue,
                                               'tmp_dir': tmpdir,
                                               'redo': redo,
+                                              'mask_guide_otas': mask_guide_otas,
                                           },
                                     # args=(queue, return_queue),
         )
@@ -420,7 +444,9 @@ if __name__ == "__main__":
 
         print outfile, "\n"*5
 
-        prepare_illumination_correction(filelist, outfile, tmpdir, redo)
+        prepare_illumination_correction(filelist, outfile, tmpdir, redo,
+                                        mask_guide_otas=True,
+        )
 
     elif (cmdline_arg_isset("-apply1")):
 
