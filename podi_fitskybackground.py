@@ -88,6 +88,59 @@ min_found = 200
 max_tried = 1.5*min_found
 
 
+def sample_background_using_ds9_regions(hdu, sky_regions):
+
+    wcs = astWCS.WCS(hdu.header, mode='pyfits')
+    pixelscale = wcs.getPixelSizeDeg() * 3600.
+
+    data = hdu.data
+
+    center_xy = wcs.wcs2pix(sky_regions[:,0], sky_regions[:,1])
+    # print center_xy
+    center_xy = numpy.array(center_xy)
+    
+    cx = center_xy[:,0]
+    cy = center_xy[:,1]
+    width = sky_regions[:,2]/2. / pixelscale
+    height = sky_regions[:,3]/2. / pixelscale
+
+    in_ota = ((cx + width) > 0) & ((cx - width) < data.shape[1]) & \
+             ((cy + height) > 0) & ((cy - height) < data.shape[0])
+    
+    cx = cx[in_ota]
+    cy = cy[in_ota]
+    w = width[in_ota]
+    h = height[in_ota]
+
+    if (cx.size <= 0):
+        # no boxes in this OTA
+        return None
+        
+    left = numpy.floor(cx - w).astype(numpy.int)
+    right = numpy.ceil(cx + w).astype(numpy.int)
+    top = numpy.ceil(cy + h).astype(numpy.int)
+    bottom = numpy.floor(cy + h).astype(numpy.int)
+
+    left[left < 0] = 0
+    bottom[bottom < 0] = 0
+        
+    results = []
+    for box in range(cx.shape[0]):
+
+        cutout = data[bottom[box]:top[box], left[box]:right[box]]
+        median = bottleneck.nanmedian(cutout.astype(numpy.float32))
+        if (numpy.isfinite(median)):
+            results.append([cx[box], cy[box], median])
+
+    #print results
+    if (len(results) <= 0):
+        return None
+
+    return numpy.array(results)
+        
+        
+
+
 def sample_background(data, wcs, starcat, min_found=200, boxwidth=30, 
                       fit_regions=[], box_center=None,
                       min_box_spacing=5,

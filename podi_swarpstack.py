@@ -117,6 +117,7 @@ from podi_definitions import *
 import podi_sitesetup as sitesetup
 import podi_illumcorr
 import multiprocessing
+from podi_fitskybackground import sample_background_using_ds9_regions
 
 import podi_logging
 import logging
@@ -127,6 +128,7 @@ import warnings
 import time
 import itertools
 import bottleneck
+import ephem
 
 try:
     sys.path.append(sitesetup.exec_dir+"/test")
@@ -419,8 +421,28 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                     master_reduction_files_used, {"illumination": illum_file})
                 podi_illumcorr.apply_illumination_correction(hdulist, illum_file)
 
+            if (not swarp_params['wipe_cells'] == None):
+                binning = hdulist[0].header['BINNING']
+                # XXX ADD SUPPORT FOR SOFTWARE BINNING AS WELL HERE !!!
+                logger.info("Wiping out specified cells")
+                for ext in hdulist:
+                    if (not is_image_extension(ext)):
+                        continue
+                    if (ext.name in swarp_params['wipe_cells']):
+                        # We have some cells to wipe
+                        for (cell_x, cell_y) in swarp_params['wipe_cells'][ext.name]:
+                            # Get coordinates for this cell, for the given binning
+                            logger.debug("Wiping out cell %d,%d in OTA %s" % (cell_x, cell_y, ext.name))
+                            x1, x2, y1, y2 = cell2ota__get_target_region(cell_x, cell_y, binning=binning)
+                            #_was = bottleneck.nanmedian(ext.data[y1:y2, x1:x2].astype(numpy.float32))
+                            ext.data[y1:y2, x1:x2] = numpy.NaN
+                            #logger.info("%d:%d, %d:%d --> %f --> %f"  %(
+                            #    x1,x2,y1,y2, _was, bottleneck.nanmedian(ext.data[y1:y2, x1:x2].astype(numpy.float32))))
+
+
             skylevel = 0.
-            if (not swarp_params['subtract_back'] == 'swarp' and not swarp_params['subtract_back'] == False):
+            if (not swarp_params['subtract_back'] == False and
+                not swarp_params['subtract_back'] in ['swarp', "_REGIONS_"]):
                 skylevel = numpy.NaN
                 if (swarp_params['subtract_back'] in hdulist[0].header):
                     skylevel = hdulist[0].header[swarp_params['subtract_back']]
@@ -440,6 +462,35 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                         logger.debug("Subtracting skylevel (%f) from extension %s" % (skylevel, ext.name))
             elif (swarp_params['subtract_back'] == 'swarp'):
                 skylevel = hdulist[0].header['SKYLEVEL']
+            elif (swarp_params['subtract_back'] == "_REGIONS_"):
+                #
+                # Get measurements for each of the sky-regions in the current OTA
+                #
+                all_sky_samples = None
+                for ext in hdulist:
+                    if (not is_image_extension(ext)):
+                        continue
+                    sky_samples = sample_background_using_ds9_regions(ext, swarp_params['sky_regions'])
+                    if (sky_samples == None):
+                        continue
+                    #print sky_samples.shape
+                    #print all_sky_samples.shape if all_sky_samples != None else "XXX"
+                    all_sky_samples = sky_samples if all_sky_samples == None else \
+                                      numpy.append(all_sky_samples, sky_samples, axis=0)
+                numpy.savetxt(os.path.basename(input_file)+".sky", all_sky_samples)
+                logger.info("Found %d sky-samples in user-defined regions" % (all_sky_samples.shape[0]))
+                #
+                # Now we have all sky-samples across the entire focal plane
+                #
+                cleaned = three_sigma_clip(all_sky_samples[:,2])
+                skylevel = numpy.median(cleaned)
+                skynoise = numpy.std(cleaned)
+                logger.info("custom: %f vs %f (+/- %f)" % (skylevel, hdulist[0].header['SKYLEVEL'], skynoise))
+                for ext in hdulist:
+                    if (not is_image_extension(ext)):
+                        continue
+                    ext.data -= skylevel
+                    logger.debug("Subtracting ds9/user skylevel (%f) from extension %s" % (skylevel, ext.name))
             else:
                 skylevel = hdulist[0].header['SKYLEVEL']
 
@@ -454,24 +505,6 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                 # Apply fluxscaling to GAIN and SKYLEVLE as well
                 gain /= fluxscale_value
                 skylevel *= fluxscale_value
-
-            if (not swarp_params['wipe_cells'] == None):
-                binning = hdulist[0].header['BINNING']
-                # XXX ADD SUPPORT FOR SOFTWARE BINNING AS WELL HERE !!!
-                logger.info("Wiping out specified cells")
-                for ext in hdulist:
-                    if (not is_image_extension(ext)):
-                        continue
-                    if (ext.name in swarp_params['wipe_cells']):
-                        # We have some cells to wipe
-                        for (cell_x, cell_y) in swarp_params['wipe_cells'][ext.name]:
-                            # Get coordinates for this cell, for the given binning
-                            logger.debug("Wiping out cell %d,%d in OTA %s" % (cell_x, cell_y, ext.name))
-                            x1, x2, y1, y2 = cell2ota__get_target_region(cell_x, cell_y, binning=binning)
-                            #_was = bottleneck.nanmedian(ext.data[y1:y2, x1:x2].astype(numpy.float32))
-                            ext.data[y1:y2, x1:x2] = numpy.NaN
-                            #logger.info("%d:%d, %d:%d --> %f --> %f"  %(
-                            #    x1,x2,y1,y2, _was, bottleneck.nanmedian(ext.data[y1:y2, x1:x2].astype(numpy.float32))))
 
             # Check if the corrected file already exists - if not create it
             #if (not os.path.isfile(corrected_filename)):
@@ -1980,6 +2013,45 @@ def get_reference_mjd(item):
     return ref_mjd, ref_obsid
 
 
+def interpret_ds9_size(s):
+    if (s.endswith('"')):
+        return float(s[:-1])
+    elif (s.endswith("'")):
+        return float(s[:-1])*60.
+    else:
+        return -1
+
+def read_sky_regions_file(filename):
+
+    logger = logging.getLogger("SkyRegions")
+    logger.debug("Reading from file %s" % (filename))
+
+    region_list = []
+    with open(filename, "r") as fn:
+        lines = fn.readlines()
+
+        for line in lines:
+            if (not line.startswith("box(")):
+                continue
+            #print line.strip()
+
+            coords = line.strip()[4:-1].split(',')
+
+            radec = ephem.Equatorial(coords[0], coords[1])
+            ra = numpy.degrees(radec.ra)
+            dec = numpy.degrees(radec.dec)
+
+            width = interpret_ds9_size(coords[2])
+            height  = interpret_ds9_size(coords[3])
+
+            # print line.strip(),"-->", coords, "-->", ra, dec, width, height
+
+            region_list.append([ra, dec, width, height])
+
+    logger.debug("Read %d regions" % (len(region_list)))
+
+    return numpy.array(region_list)
+
 def read_swarp_params(filelist):
 
     params = {}
@@ -1990,8 +2062,16 @@ def read_swarp_params(filelist):
 
     # params['subtract_back'] = cmdline_arg_isset("-bgsub")
     params['subtract_back'] = False
+    params['sky_regions'] = None
+    params['sky_regions_file'] = None
     if (cmdline_arg_isset("-bgsub")):
         params['subtract_back'] = cmdline_arg_set_or_default("-bgsub", 'swarp')
+
+        if (not params['subtract_back'] == None and
+            os.path.isfile(params['subtract_back'])):
+            params['sky_regions_file'] = params['subtract_back']
+            params['subtract_back'] = "_REGIONS_"
+            params['sky_regions'] = read_sky_regions_file(params['sky_regions_file'])
 
     params['reuse_singles'] = cmdline_arg_isset("-reusesingles")
     params['use_nonsidereal'] = cmdline_arg_isset("-nonsidereal")
