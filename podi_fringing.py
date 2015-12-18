@@ -103,9 +103,9 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False,
 
     # First loop over all filenames and make sure all files exist
     hdu_filelist = []
-    for file in input_filelist:
-        if (os.path.isfile(file)):
-            hdu_filelist.append(pyfits.open(file))
+    for filename in input_filelist:
+        if (os.path.isfile(filename)):
+            hdu_filelist.append(filename) #pyfits.open(file))
 
     if (len(hdu_filelist) <= 0):
         stdout_write("No existing files found in input list, hence nothing to do!\n")
@@ -115,7 +115,7 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False,
     # Note that file headers are copied from the first file
 
     # Create the primary extension of the output file
-    ref_hdulist = hdu_filelist[0]
+    ref_hdulist = pyfits.open(hdu_filelist[0])  #hdu_filelist[0]
     primhdu = pyfits.PrimaryHDU(header=ref_hdulist[0].header)
     fpl = podi_focalplanelayout.FocalPlaneLayout(ref_hdulist)
 
@@ -132,13 +132,14 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False,
     #
     # Now loop over all extensions and compute the mean
     #
-    for cur_ext in range(1, len(ref_hdulist)):
-        
-        data_blocks = []
+    for extid, ext in enumerate(ref_hdulist):
+
         # Check what OTA we are dealing with
-        if (not is_image_extension(ref_hdulist[cur_ext])):
+        if (not is_image_extension(ext)):
             continue
-        extname = ref_hdulist[cur_ext].header['EXTNAME']
+
+        data_blocks = []
+        extname = ext.name 
 
         if (filtername in fpl.otas_for_photometry):
             useful_otas = fpl.otas_for_photometry[filtername]
@@ -146,13 +147,15 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False,
             if (not ota_id in useful_otas):
                 continue
         
-        stdout_write("\rCombining frames for OTA %s (#% 2d/% 2d) ..." % (extname, cur_ext, len(ref_hdulist)-1))
+        stdout_write("\rCombining frames for OTA %s (#%2d/%2d) ..." % (extname, extid, len(ref_hdulist)))
 
         # Now open all the other files, look for the right extension, and copy their image data to buffer
-        for file_number in range(0, len(filelist)):
+        #for file_number in range(0, len(filelist)):
+        for filename in hdu_filelist:
 
             try:
-                this_hdu = hdu_filelist[file_number][extname]
+                hdulist = pyfits.open(filename)
+                this_hdu = hdulist[extname]
             except:
                 continue
 
@@ -162,11 +165,12 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False,
                 continue
             
             skylevel = this_hdu.header['SKY_MEDI']
+
             if (skymode == 'global'):
-                skylevel = hdu_filelist[file_number][0].header['SKYLEVEL']
-            if ("EXPTIME" in hdu_filelist[file_number][0].header):
-                exptime = hdu_filelist[file_number][0].header['EXPTIME']
-                filter = hdu_filelist[file_number][0].header['FILTER']
+                skylevel = hdulist[0].header['SKYLEVEL']
+            if ("EXPTIME" in hdulist[0].header):
+                exptime = hdulist[0].header['EXPTIME']
+                filter = hdulist[0].header['FILTER']
                 if (filter in avg_sky_countrates):
                     max_skylevel = 2 * avg_sky_countrates[filter] * exptime
                     if (skylevel > max_skylevel):
@@ -178,7 +182,7 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False,
             data_blocks.append(fringing)
 
             # delete the data block to free some memory, since we won't need it anymore
-            del this_hdu.data
+            hdulist.close()
 
         stdout_write(" combining ...")
         #combined = podi_imcombine.imcombine_data(data_blocks, "nanmedian")
@@ -188,7 +192,7 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False,
         # Insert the imcombine'd frame into the output HDU
         # Copy all headers from the reference HDU
         # stdout_write(" creating HDU ...")
-        hdu = pyfits.ImageHDU(header=ref_hdulist[cur_ext].header, data=combined)
+        hdu = pyfits.ImageHDU(header=ext.header, data=combined)
 
         # Append the new HDU to the list of result HDUs
         out_hdulist.append(hdu)
