@@ -41,6 +41,8 @@ import subprocess
 import scipy
 import scipy.ndimage
 import scipy.special
+import scipy.stats
+import scipy.spatial
 from bottleneck import nanmean, nanmedian
 
 from podi_commandline import *
