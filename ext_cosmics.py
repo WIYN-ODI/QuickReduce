@@ -20,8 +20,11 @@ import os
 import numpy as np
 np.seterr(all='ignore')
 import math
-import scipy.signal as signal
-import scipy.ndimage as ndimage
+try:
+    import scipy.signal as signal
+    import scipy.ndimage as ndimage
+except:
+    pass
 import pyfits
 
 
