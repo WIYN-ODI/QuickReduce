@@ -88,10 +88,10 @@ min_found = 200
 max_tried = 1.5*min_found
 
 
-
 def sample_background(data, wcs, starcat, min_found=200, boxwidth=30, 
                       fit_regions=[], box_center=None,
-                      min_box_spacing=5):
+                      min_box_spacing=5,
+                      combine_method=bottleneck.nanmedian):
 
     # Now pick a number of random data points, and keep 
     # searching until we either found 50 per OTA or have tried 100 times
@@ -144,7 +144,7 @@ def sample_background(data, wcs, starcat, min_found=200, boxwidth=30,
             min_distance = dr_sorted[0]
 
         #sky_level = numpy.median(cutout)
-        sky_level = bottleneck.nanmedian(cutout)
+        sky_level = combine_method(cutout)
 
         ra, dec = 0., 0.
         if (wcs != None):
@@ -547,7 +547,8 @@ if __name__ == "__main__":
             bgsample = sample_background(data=hdulist[i].data, wcs=None, 
                                          starcat=src_cat, min_found=n_samples, 
                                          boxwidth=boxsize, 
-                                         fit_regions=[], box_center=None)
+                                         fit_regions=[], box_center=None,
+                                         combine_method=numpy.average)
             numpy.savetxt(output_base+".OTA%02d" % ota, bgsample)
             
     else:
