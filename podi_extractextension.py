@@ -39,13 +39,11 @@ import numpy
 from podi_definitions import *
 from podi_commandline import *
 
-if __name__ == "__main__":
 
-    inputfile = get_clean_cmdline()[1]
-    outputfile = get_clean_cmdline()[-1]
+def extract_headers(inputfile, outputfile, extensions):
+
 
     hdulist = pyfits.open(inputfile)
-
 
     if (cmdline_arg_isset("-cleanprimary")):
         primhdu = pyfits.PrimaryHDU()
@@ -54,7 +52,7 @@ if __name__ == "__main__":
 
     outlist = [primhdu]
 
-    for extension in get_clean_cmdline()[2:-1]:
+    for extension in extensions:
 
         try:
             ext = hdulist[extension]
@@ -66,9 +64,29 @@ if __name__ == "__main__":
 
         outlist.append(ext)
 
+    if (cmdline_arg_isset("-singleext")):
+        # Merge header from 1st and 2nd extension
+        cards = outlist[1].header.cards
+        for (keyword, value, comment) in cards:
+            if (not keyword in outlist[1].header):
+                outlist[1].header[keyword] = (value, comment)
+        hdu_out = pyfits.HDUList([pyfits.PrimaryHDU(header=outlist[1].header,
+                                                    data=outlist[1].data)])
+        hdu_out.writeto(outputfile, clobber=True)
+        return
+
     if (len(outlist) > 1):
         print "writing"
         hdu_out = pyfits.HDUList(outlist)
         hdu_out.writeto(outputfile, clobber=True)
     else:
         print "couldn't find any extension"
+
+
+
+if __name__ == "__main__":
+
+    inputfile = get_clean_cmdline()[1]
+    outputfile = get_clean_cmdline()[-1]
+    extensions = get_clean_cmdline()[2:-1]
+    extract_headers(inputfile, outputfile, extensions)
