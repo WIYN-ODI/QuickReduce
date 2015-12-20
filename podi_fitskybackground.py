@@ -119,7 +119,7 @@ def sample_background_using_ds9_regions(hdu, sky_regions):
     left = numpy.floor(cx - w).astype(numpy.int)
     right = numpy.ceil(cx + w).astype(numpy.int)
     top = numpy.ceil(cy + h).astype(numpy.int)
-    bottom = numpy.floor(cy + h).astype(numpy.int)
+    bottom = numpy.floor(cy - h).astype(numpy.int)
 
     left[left < 0] = 0
     bottom[bottom < 0] = 0
