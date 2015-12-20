@@ -155,7 +155,9 @@ def apply_illumination_correction(input_hdu, illumcorr_hdu, output_file=None):
     return input_hdu
 
 def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
-                               mask_guide_otas=True):
+                               mask_guide_otas=True,
+                               mask_regions=None,
+):
 
     root = logging.getLogger("CompIllumination")
 
@@ -198,7 +200,8 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
         segmask = "%s/%s_segmentation.fits" % (tmp_dir, obsid)
         masked_frame = "%s/%s_masked.fits" % (tmp_dir, obsid)
 
-        if (not (os.path.isfile(segmask) and os.path.isfile(masked_frame)) or redo):
+        #if (not (os.path.isfile(segmask) and os.path.isfile(masked_frame)) or redo):
+        if (not os.path.isfile(segmask) or redo):
             logger.info("Starting work (source detection, masking, normalization) ...")
         else:
             logger.info("No work necessary, re-using existing data ...")
@@ -246,6 +249,7 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
         hdu_out = []
         hdu_out.append(hdulist[0])
 
+        print mask_regions
         if (not os.path.isfile(masked_frame) or redo):
             logger.debug("Preparing masked frame: %s" % (masked_frame))
 
@@ -263,6 +267,12 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
                         # do not include
                         continue
 
+                if (not type(mask_regions) == type(None)):
+                    print "Masking regions"
+                    mask_regions_using_ds9_regions(ext, mask_regions)
+
+                # hdu_out.append(ext)
+
                 # Now search for the right extension in the mask frame
                 found_mask = False
                 for mask_ext in mask_hdu:
@@ -271,6 +281,7 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
                         found_mask = True
                         logger.debug("found the mask for extension %s" % (ext.name))
                         
+                        print "smoothing"
                         mask_grown = scipy.ndimage.filters.convolve(
                             input=mask_ext.data, 
                             weights=numpy.ones((10,10)), 
@@ -287,6 +298,7 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
                         ext.data /= hdulist[0].header['SKYLEVEL']
 
                         hdu_out.append(ext)
+
 
                 if (not found_mask):
                     logger.debug("Can't find extension %s in mask" % (ext.name))
@@ -309,7 +321,9 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
 
 
 def prepare_illumination_correction(filelist, outfile, tmpdir=".", redo=False,
-                                    mask_guide_otas=True):
+                                    mask_guide_otas=True,
+                                    mask_regions=None,
+):
 
     logger = logging.getLogger("CreateIllumCorr")
 
@@ -332,6 +346,7 @@ def prepare_illumination_correction(filelist, outfile, tmpdir=".", redo=False,
                                               'tmp_dir': tmpdir,
                                               'redo': redo,
                                               'mask_guide_otas': mask_guide_otas,
+                                              'mask_regions': mask_regions,
                                           },
                                     # args=(queue, return_queue),
         )
@@ -441,11 +456,18 @@ if __name__ == "__main__":
         outfile = get_clean_cmdline()[1]
         tmpdir = cmdline_arg_set_or_default("-tmp", sitesetup.swarp_singledir)
         redo = cmdline_arg_isset("-redo")
+        mask_regions = cmdline_arg_set_or_default("-mask", None)
+
+        if (not mask_regions == None):
+            print "Loading ds9 regions to mask from %s" % (mask_regions)
+            mask_regions = read_sky_regions_file(mask_regions)
+            print mask_regions
 
         print outfile, "\n"*5
 
         prepare_illumination_correction(filelist, outfile, tmpdir, redo,
                                         mask_guide_otas=True,
+                                        mask_regions=mask_regions,
         )
 
     elif (cmdline_arg_isset("-apply1")):

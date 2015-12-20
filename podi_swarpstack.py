@@ -1966,45 +1966,6 @@ def get_reference_mjd(item):
     return ref_mjd, ref_obsid
 
 
-def interpret_ds9_size(s):
-    if (s.endswith('"')):
-        return float(s[:-1])
-    elif (s.endswith("'")):
-        return float(s[:-1])*60.
-    else:
-        return -1
-
-def read_sky_regions_file(filename):
-
-    logger = logging.getLogger("SkyRegions")
-    logger.debug("Reading from file %s" % (filename))
-
-    region_list = []
-    with open(filename, "r") as fn:
-        lines = fn.readlines()
-
-        for line in lines:
-            if (not line.startswith("box(")):
-                continue
-            #print line.strip()
-
-            coords = line.strip()[4:-1].split(',')
-
-            radec = ephem.Equatorial(coords[0], coords[1])
-            ra = numpy.degrees(radec.ra)
-            dec = numpy.degrees(radec.dec)
-
-            width = interpret_ds9_size(coords[2])
-            height  = interpret_ds9_size(coords[3])
-
-            # print line.strip(),"-->", coords, "-->", ra, dec, width, height
-
-            region_list.append([ra, dec, width, height])
-
-    logger.debug("Read %d regions" % (len(region_list)))
-
-    return numpy.array(region_list)
-
 def read_swarp_params(filelist):
 
     params = {}

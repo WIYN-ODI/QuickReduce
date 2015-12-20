@@ -45,7 +45,10 @@ import scipy.stats
 import scipy.spatial
 import bottleneck
 import itertools
+import ephem
+
 from bottleneck import nanmean, nanmedian
+from astLib import astWCS
 
 from podi_commandline import *
 import podi_sitesetup as sitesetup
@@ -1320,3 +1323,95 @@ def is_guide_ota(primhdu, ext, w=20):
         _mean, _median, "YES" if is_guideota else "NO"))
 
     return is_guideota
+
+
+def interpret_ds9_size(s):
+    if (s.endswith('"')):
+        return float(s[:-1])
+    elif (s.endswith("'")):
+        return float(s[:-1])*60.
+    else:
+        return -1
+
+def read_sky_regions_file(filename):
+
+    logger = logging.getLogger("SkyRegions")
+    logger.debug("Reading from file %s" % (filename))
+
+    region_list = []
+    with open(filename, "r") as fn:
+        lines = fn.readlines()
+
+        for line in lines:
+            if (not line.startswith("box(")):
+                continue
+            #print line.strip()
+
+            coords = line.strip()[4:-1].split(',')
+
+            radec = ephem.Equatorial(coords[0], coords[1])
+            ra = numpy.degrees(radec.ra)
+            dec = numpy.degrees(radec.dec)
+
+            width = interpret_ds9_size(coords[2])
+            height  = interpret_ds9_size(coords[3])
+
+            # print line.strip(),"-->", coords, "-->", ra, dec, width, height
+
+            region_list.append([ra, dec, width, height])
+
+    logger.debug("Read %d regions" % (len(region_list)))
+
+    return numpy.array(region_list)
+
+def mask_regions_using_ds9_regions(hdu, regions, fill_value=numpy.NaN):
+
+    logger = logging.getLogger("MaskDS9Regions")
+    logger.debug("Masking %d regions in ext. %s with %f" % (
+        regions.shape[0], hdu.name, fill_value))
+
+    wcs = astWCS.WCS(hdu.header, mode='pyfits')
+    pixelscale = wcs.getPixelSizeDeg() * 3600.
+
+    data = hdu.data
+
+    center_xy = wcs.wcs2pix(regions[:,0], regions[:,1])
+    # print center_xy
+    center_xy = numpy.array(center_xy)
+    
+    cx = center_xy[:,0]
+    cy = center_xy[:,1]
+    width = regions[:,2]/2. / pixelscale
+    height = regions[:,3]/2. / pixelscale
+
+    in_ota = ((cx + width) > 0) & ((cx - width) < data.shape[1]) & \
+             ((cy + height) > 0) & ((cy - height) < data.shape[0])
+    
+    cx = cx[in_ota]
+    cy = cy[in_ota]
+    w = width[in_ota]
+    h = height[in_ota]
+
+    if (cx.size <= 0):
+        # no boxes in this OTA
+        logger.debug("No regions to mask in this OTA!")
+        return None
+        
+    left = numpy.floor(cx - w).astype(numpy.int)
+    right = numpy.ceil(cx + w).astype(numpy.int)
+    top = numpy.ceil(cy + h).astype(numpy.int)
+    bottom = numpy.floor(cy - h).astype(numpy.int)
+
+    left[left < 0] = 0
+    bottom[bottom < 0] = 0
+        
+    mask_area = numpy.sum((top - bottom) * (right - left))
+    for box in range(cx.shape[0]):
+        data[bottom[box]:top[box], left[box]:right[box]] = fill_value
+        logger.info("Masking (%s): X=%4d-%4d, Y=%4d-%4d (cx/cy/w/h=%4d,%4d,%4d,%4d)" % (
+            hdu.name, left[box], right[box], bottom[box], top[box],
+            cx[box], cy[box], w[box], h[box]))
+        
+    logger.debug("Masked out %d pixels" % (mask_area))
+
+    return mask_area
