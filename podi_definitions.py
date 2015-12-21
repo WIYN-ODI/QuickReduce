@@ -1408,10 +1408,55 @@ def mask_regions_using_ds9_regions(hdu, regions, fill_value=numpy.NaN):
     mask_area = numpy.sum((top - bottom) * (right - left))
     for box in range(cx.shape[0]):
         data[bottom[box]:top[box], left[box]:right[box]] = fill_value
-        logger.info("Masking (%s): X=%4d-%4d, Y=%4d-%4d (cx/cy/w/h=%4d,%4d,%4d,%4d)" % (
+        logger.debug("Masking (%s): X=%4d-%4d, Y=%4d-%4d (cx/cy/w/h=%4d,%4d,%4d,%4d)" % (
             hdu.name, left[box], right[box], bottom[box], top[box],
             cx[box], cy[box], w[box], h[box]))
         
     logger.debug("Masked out %d pixels" % (mask_area))
 
     return mask_area
+
+
+def read_wipecells_list():
+
+    logger = logging.getLogger("ReadWipeCells")
+
+    if (not cmdline_arg_isset("-wipecells")):
+        return None
+
+    wipecells = {}
+    wc = get_cmdline_arg("-wipecells")
+    logger.debug("wipecells: %s" % (wc))
+    for _wc in wc.split(","):
+        # print _wc
+        _ota,_cell = _wc.split(".")
+        ota = int(_ota)
+        ota_name = "OTA%02d.SCI" % (ota)
+        cellx,celly = int(_cell[0]), int(_cell[1])
+        if (not ota_name in wipecells):
+            wipecells[ota_name] = []
+        wipecells[ota_name].append((cellx, celly))
+    logger.debug("wipe-cells final: %s" % (str(wipecells)))
+
+    return wipecells
+
+def wipecells(ext, wipecells_list, binning=1, fillvalue=numpy.NaN):
+
+    logger = logging.getLogger("WipeCells")
+    
+    if (not is_image_extension(ext) or
+        not ext.name in wipecells_list):
+        return
+
+    # We have some cells to wipe
+    for (cell_x, cell_y) in wipecells_list[ext.name]:
+        # Get coordinates for this cell, for the given binning
+        logger.debug("Wiping out cell %d,%d in OTA %s" % (cell_x, cell_y, ext.name))
+        x1, x2, y1, y2 = cell2ota__get_target_region(cell_x, cell_y, binning=binning)
+        #_was = bottleneck.nanmedian(ext.data[y1:y2, x1:x2].astype(numpy.float32))
+        ext.data[y1:y2, x1:x2] = fillvalue
+        #logger.info("%d:%d, %d:%d --> %f --> %f"  %(
+        #    x1,x2,y1,y2, _was, bottleneck.nanmedian(ext.data[y1:y2, x1:x2].astype(numpy.float32))))
+
+    return
+
