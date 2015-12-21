@@ -157,6 +157,8 @@ def apply_illumination_correction(input_hdu, illumcorr_hdu, output_file=None):
 def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
                                mask_guide_otas=True,
                                mask_regions=None,
+                               bpm_dir=None,
+                               wipe_cells=None,
 ):
 
     root = logging.getLogger("CompIllumination")
@@ -178,23 +180,60 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
         obsid = hdulist[0].header['OBSID']
         logger = logging.getLogger("CompIllum(%s)" % (obsid))
 
-        # # mask out guide-otas
-        # if (not mask_guide_otas):
-        #     input2sex_file = fitsfile
-        # else:
-        #     ota_list = [hdulist[0]]
-        #     for ext in hdulist:
-        #         if (not is_image_extension(ext)):
-        #             continue
-        #         if (is_guide_ota(hdulist[0], ext)):
-        #             # do not include
-        #             continue
-        #         ota_list.append(ext)
-        #     hdulist = pyfits.HDUList(ota_list)
-        #     input2sex_file = "%s/%s" % (
-        #         sitesetup.swarp_single_dir,
-        #         os.path.basename(fitsfile))
-        #     hdulist.writeto(input2sex_file, clobber=True)
+        #
+        # Prepare the input file
+        # - mask out guide OTAs
+        # - apply bad pixel masks
+        # - mask large regions according to user ds9 specs
+        #
+        
+        # mask out guide-otas
+        input2sex_file = fitsfile
+        input_file_modified = False
+        print "XXX=", mask_guide_otas, type(mask_regions)
+        ota_list = [hdulist[0]]
+        for ext in hdulist[1:]:
+
+            if (not is_image_extension(ext)):
+                # input_file_modified = True
+                # don't save file if all we do is skip table extensions
+                continue
+
+            if (ext.header['CELLMODE'].find("V") >= 0):
+                # This is a video extension, do not use it
+                input_file_modified = True
+                continue
+
+            if (mask_guide_otas):
+                if (is_guide_ota(hdulist[0], ext)):
+                    # do not include
+                    input_file_modified = True
+                    continue
+
+            if (not type(mask_regions) == type(None)):
+                print "Masking regions"
+                mask_regions_using_ds9_regions(ext, mask_regions)
+                input_file_modified = True
+
+            if (not bpm_dir == None):
+                bpmfile = "%s/bpm_xy%s.reg" % (bpm_dir, ext.name[3:5])
+                print "apply bpm from %s" % (bpmfile)
+                if (os.path.isfile(bpmfile)):
+                    mask_broken_regions(ext.data, bpmfile)
+                    input_file_modified = True
+
+            print wipe_cells
+            if (not wipe_cells == None):
+                wipecells(ext, wipe_cells)
+
+            ota_list.append(ext)
+
+        if (input_file_modified):
+            hdulist = pyfits.HDUList(ota_list)
+            input2sex_file = "%s/%s" % (
+                sitesetup.swarp_singledir,
+                os.path.basename(fitsfile))
+            hdulist.writeto(input2sex_file, clobber=True)
 
         # Run Sextractor
         segmask = "%s/%s_segmentation.fits" % (tmp_dir, obsid)
@@ -220,7 +259,8 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
                 'params': "%s/.config/illumcorr.param" % (sitesetup.exec_dir),
                 'filtername': "%s/.config/gauss_5.0_9x9.conv" % (sitesetup.exec_dir),
                 'segfile': segmask,
-                'image': fitsfile,
+#                'image': fitsfile,
+                'image': input2sex_file,
                 }
             
             logger.debug("Starting Sextractor:\n%s" % (" ".join(sex_cmd.split())))
@@ -259,17 +299,18 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
                 if (not is_image_extension(ext)):
                     continue
 
-                if (ext.header['CELLMODE'].find("V") >= 0):
-                    # This is a video extension, do not use it
-                    continue
-                if (mask_guide_otas):
-                    if (is_guide_ota(hdulist[0], ext)):
-                        # do not include
-                        continue
+                # if (ext.header['CELLMODE'].find("V") >= 0):
+                #     # This is a video extension, do not use it
+                #     continue
 
-                if (not type(mask_regions) == type(None)):
-                    print "Masking regions"
-                    mask_regions_using_ds9_regions(ext, mask_regions)
+                # if (mask_guide_otas):
+                #     if (is_guide_ota(hdulist[0], ext)):
+                #         # do not include
+                #         continue
+
+                # if (not type(mask_regions) == type(None)):
+                #     print "Masking regions"
+                #     mask_regions_using_ds9_regions(ext, mask_regions)
 
                 # hdu_out.append(ext)
 
@@ -311,6 +352,9 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
 
             mask_hdu.close()
 
+        if (input_file_modified):
+            clobberfile(input2sex_file)
+
         return_queue.put(masked_frame)
         queue.task_done()
 
@@ -323,6 +367,8 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
 def prepare_illumination_correction(filelist, outfile, tmpdir=".", redo=False,
                                     mask_guide_otas=True,
                                     mask_regions=None,
+                                    bpm_dir=None,
+                                    wipe_cells=None,
 ):
 
     logger = logging.getLogger("CreateIllumCorr")
@@ -347,6 +393,8 @@ def prepare_illumination_correction(filelist, outfile, tmpdir=".", redo=False,
                                               'redo': redo,
                                               'mask_guide_otas': mask_guide_otas,
                                               'mask_regions': mask_regions,
+                                              'bpm_dir': bpm_dir,
+                                              'wipe_cells': wipe_cells,
                                           },
                                     # args=(queue, return_queue),
         )
@@ -457,6 +505,8 @@ if __name__ == "__main__":
         tmpdir = cmdline_arg_set_or_default("-tmp", sitesetup.swarp_singledir)
         redo = cmdline_arg_isset("-redo")
         mask_regions = cmdline_arg_set_or_default("-mask", None)
+        bpm_dir = cmdline_arg_set_or_default("-bpm", None)
+        wipe_cells = read_wipecells_list()
 
         if (not mask_regions == None):
             print "Loading ds9 regions to mask from %s" % (mask_regions)
@@ -468,6 +518,8 @@ if __name__ == "__main__":
         prepare_illumination_correction(filelist, outfile, tmpdir, redo,
                                         mask_guide_otas=True,
                                         mask_regions=mask_regions,
+                                        bpm_dir=bpm_dir,
+                                        wipe_cells=wipe_cells,
         )
 
     elif (cmdline_arg_isset("-apply1")):
