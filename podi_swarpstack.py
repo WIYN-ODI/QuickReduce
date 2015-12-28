@@ -1371,7 +1371,7 @@ def swarpstack(outputfile,
                'fluxscale_kw': fluxscale_kw, #'none' if swarp_params['no-fluxscale'] else 'FLXSCALE'
                'fluxscale_value': 1.0, #fluxscale_value,
                'fileid': i+1,
-               'delete_tmpfiles': "N" if keep_intermediates else "Y",
+               'delete_tmpfiles': "N" if swarp_params['keep_resamp_files'] else "Y",
            }
 
         single_file = "%(singledir)s/%(obsid)s.%(fileid)d.fits" % dic
@@ -1573,7 +1573,7 @@ def swarpstack(outputfile,
                    'bgopts': bg_opts,
                    'inputfile': prepared_file,
                    'fileid': fileid,
-                   'delete_tmpfiles': "N" if keep_intermediates else "Y",
+                   'delete_tmpfiles': "N" if swarp_params['keep_resamp_files'] else "Y",
                }
             
             swarp_opts = """\
@@ -2111,6 +2111,7 @@ def read_swarp_params(filelist):
     params['wipe_cells'] = read_wipecells_list()
 
     params['aggressive_clean'] = cmdline_arg_isset('-ocdclean')
+    params['keep_resamp_files'] = cmdline_arg_isset('-keepresamp')
 
     return params
 
