@@ -110,6 +110,7 @@ import sys
 import pyfits
 import subprocess
 import math
+import shutil
 
 from podi_commandline import *
 from podi_definitions import *
@@ -185,6 +186,18 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
         # Keep track of what files are being used for this stack
         master_reduction_files_used = collect_reduction_files_used(
             {}, {"calibrated": input_file} ) #ret['corrected_file']})
+
+        if (swarp_params['preswarp_only']):
+            logger.info("No prepping, working towards pre-swarp only")
+            ret['corrected_file'] = input_file
+            ret['gain'] = 1.0
+            ret['skylevel'] = 0.0
+            ret['weight'] = 1.
+            ret["master_reduction_files"] = master_reduction_files_used
+            hdulist.close()
+            output_queue.put(ret)
+            input_queue.task_done()
+            continue
 
         #
         # Compute on how to scale the flux values
@@ -1320,6 +1333,16 @@ def swarpstack(outputfile,
             #             - output_info[0].header['CD1_2'] * output_info[0].header['CD2_1']) * 3600.
             logger.info("Computing pixelscale from data: %.4f arcsec/pixel" % (swarp_params['pixelscale']))
     
+    if (swarp_params['preswarp_only']):
+        # For only the pre-swarp frame, we are done here
+        outputfile = outputfile+".fits"
+        clobberfile(outputfile)
+        #hdulist = pyfits.open(header_only_file)
+        # add association table
+        #hdulist.writeto(outputfile)
+        shutil.copy(header_only_file, outputfile)
+        return
+
     #############################################################################
     #
     # Prepare the individual frames, rectified and re-projected 
@@ -2112,6 +2135,8 @@ def read_swarp_params(filelist):
 
     params['aggressive_clean'] = cmdline_arg_isset('-ocdclean')
     params['keep_resamp_files'] = cmdline_arg_isset('-keepresamp')
+
+    params['preswarp_only'] = cmdline_arg_isset('-preswarponly')
 
     return params
 
