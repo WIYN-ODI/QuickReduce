@@ -243,6 +243,10 @@ def update_sitesetup():
     changes = changes | ask_for_option('flat_order', 
                    "Order of flat-fields to use", 
                    ['tflat', 'dflat', 'flat'], False, config_array)
+
+    changes = changes | ask_for_option('per_ota_timeout', 
+                   "Emergency timeout to prevent a stalled program when a child-process dies", 
+                   300, False, config_array)
     
     config_array.append("")
 

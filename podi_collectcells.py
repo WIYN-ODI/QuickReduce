@@ -2482,16 +2482,29 @@ def collectcells(input, outputfile,
 
     otas_checked_in = []
     otas_not_checked_in = [x*10+y for (x,y) in list_of_otas_being_reduced]
-    for i in range(len(list_of_otas_being_reduced)):
-        #hdu, ota_id, wcsfix_data = return_queue.get()
+    timeouts_left = 3
+    while (len(otas_checked_in) < len(list_of_otas_being_reduced)):
         try:
-            ota_id, data_products, shmem_id = return_queue.get()
+            ota_id, data_products, shmem_id = return_queue.get(timeout=sitesetup.per_ota_timeout)
+        except Queue.Empty:
+            timeouts_left -= 1
+            logger.warning("Received timeout, %d left before!" % (timeouts_left))
+            if (timeouts_left <= 0):
+                logger.error("No timeouts remaining, program stalled, aborting execution!")
+                unstage_data(options, staged_data, input)
+                return None
+            i -= 1
+            continue
         except (KeyboardInterrupt, SystemExit):
             while (not return_queue.empty()):
                 return_queue.get()
             raise
             unstage_data(options, staged_data, input)
             return
+
+        if (timeouts_left < 3):
+            logger.info("Received valid data, resetting timeout counter!")
+            timeouts_left = 3
 
         logger.debug("Received intermediate results from OTA-ID %02d" % (ota_id))
         podi_logging.ppa_update_progress(int(50.*(i+1)/len(list_of_otas_being_reduced)), "Reducing")
