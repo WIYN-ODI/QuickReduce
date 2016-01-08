@@ -910,6 +910,9 @@ podi_makecalibrations.py input.list calib-directory
                                      process_tracker=None,
                                      batchmode=False,
                                      showsplash=False)
+                        if (bias_hdu == None):
+                            logger.error("Collectcells did not return the expected data!")
+                            continue
 
                     # # Save the HDU if we need it later to compute gain and read-noise
                     # if (compute_gain_readnoise 
@@ -1078,6 +1081,9 @@ podi_makecalibrations.py input.list calib-directory
                                                         process_tracker=None,
                                                         options=options,
                                                         batchmode=True, showsplash=False)
+                                if (hdu_list == None):
+                                    logger.error("Collectcells did not return the expected data!")
+                                    continue
 
                                 # # Save the HDU if we need it later to compute gain and read-noise
                                 # if (compute_gain_readnoise 
