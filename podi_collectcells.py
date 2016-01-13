@@ -1528,16 +1528,19 @@ def parallel_collect_reduce_ota(queue, return_queue,
 
     # Setup the multi-processing-safe logging
     podi_logging.podi_logger_setup(options['log_setup'])
+
+    logger = logging.getLogger("WorkManager")
+    logger.debug("Process started")
+
     while (True):
         task = queue.get()
-        if (task == None):
-            logger = logging.getLogger("WorkManager")
-            logger.debug("Received termination signal, shutting down")
-            queue.task_done()
-            return
+        # if (task == None):
+        #     logger.info("Received termination signal, shutting down")
+        #     queue.task_done()
+        #     return
 
         filename, ota_id, wrapped_pipe = task
-        logger = logging.getLogger("WorkManager(OTA%02d)" % (ota_id))
+        logger = logging.getLogger("WorkManager(OTA-ID:%02d)" % (ota_id))
 
         # Do the work
         try:
@@ -1678,7 +1681,9 @@ def parallel_collect_reduce_ota(queue, return_queue,
 
         #cmd_queue.task_done()
         queue.task_done()
-        
+        logger.debug("Done with work, shutting down!")
+        break
+
     return
 
 
@@ -2258,6 +2263,7 @@ def collectcells(input, outputfile,
     # Set up all the communication pipes to communicate data back to the process
     communication = {}
     ota_from_otaid = {}
+    mp_params = {}
     for ota_id in range(len(list_of_otas_to_collect)):
         ota_c_x, ota_c_y = list_of_otas_to_collect[ota_id]        
         ota = ota_c_x * 10 + ota_c_y
@@ -2292,7 +2298,8 @@ def collectcells(input, outputfile,
         wrapped_pipe = multiprocessing.reduction.reduce_connection(pipe_recv)
         
         queue.put( (filename, ota_id+1, wrapped_pipe) )
-        del wrapped_pipe
+        mp_params[ota] = (filename, ota_id+1, wrapped_pipe)
+        # del wrapped_pipe
         ota_ids_being_reduced.append(ota_id+1)
 
         # save some data we need later on for the intermediate results
@@ -2355,7 +2362,7 @@ def collectcells(input, outputfile,
                 if (verbose): print "done adding to process-tracker"
 
             # Tell all workers to shut down when no more data is left to work on
-            queue.put(None)
+            #queue.put(None)
             time.sleep(0.01)
 
         
@@ -2484,23 +2491,91 @@ def collectcells(input, outputfile,
     otas_not_checked_in = [x*10+y for (x,y) in list_of_otas_being_reduced]
     timeouts_left = 3
     while (len(otas_checked_in) < len(list_of_otas_being_reduced)):
+        need_another_process = False
+        received_results = False
         try:
             ota_id, data_products, shmem_id = return_queue.get(timeout=sitesetup.per_ota_timeout)
+            received_results = True
         except Queue.Empty:
-            timeouts_left -= 1
-            logger.warning("Received timeout, %d left before!" % (timeouts_left))
-            if (timeouts_left <= 0):
-                logger.error("No timeouts remaining, program stalled, aborting execution!")
-                unstage_data(options, staged_data, input)
-                return None
-            i -= 1
-            continue
+            if (len(processes) < len(list_of_otas_being_reduced)):
+                #
+                # This means we haven't sent off all OTAs for reduction
+                #
+                pass
+                # Just wait a little longer
+                continue
+            else:
+                #
+                # All OTAs have an assigned process, so we are 
+                # only waiting for them to finish
+                #
+
+                timeouts_left -= 1
+                logger.warning("Received timeout (%d s), %d left before re-submission!" % (sitesetup.per_ota_timeout, timeouts_left))
+                if (timeouts_left <= 0):
+                    logger.error("No timeouts remaining, program stalled, adding another process to compensate!")
+
+                    #
+                    # Add another instance
+                    #
+                    need_another_process = True
+
+                    #
+                    # pick one of the OTAs that's missing/not yet returned
+                    #
+                    _ota_id = otas_not_checked_in[0]
+                    logger.error("OTAs yet to report intermed. results back (%2d/%2d): %s" % (
+                        len(otas_not_checked_in), len(list_of_otas_being_reduced), 
+                        ",".join(["%02d" % x for x in otas_not_checked_in])))
+                    logger.info("Re-queing work for OTA-ID %d" % (_ota_id))
+
+                    q_params = mp_params[_ota_id]
+                    queue.put( q_params )
+                    timeouts_left = 3
+
+                # unstage_data(options, staged_data, input)
+                # return None
+                # i -= 1
+            pass
         except (KeyboardInterrupt, SystemExit):
             while (not return_queue.empty()):
                 return_queue.get()
             raise
             unstage_data(options, staged_data, input)
             return
+
+        #
+        # We received one entry. Check if we need to start another process
+        # If all processes are running we should have as many processes as
+        # we have OTAs to be reduced
+        #
+        # Doing this in here ensures we only have a limited number of processes 
+        # doing active work, hence keeping the machine from overloading.
+        # 
+        if (len(processes) < len(list_of_otas_being_reduced) or need_another_process):
+            # We don't have enough processes yet, start another one
+
+            # Allocate shared memory for data return
+            new_shmem = multiprocessing.RawArray(ctypes.c_float, 4096*4096)
+            kw_worker_args['shmem'] = new_shmem
+            kw_worker_args['shmem_id'] = len(shmem_list)
+            shmem_list.append(new_shmem)
+
+            p = multiprocessing.Process(target=parallel_collect_reduce_ota, kwargs=kw_worker_args)
+            p.start()
+            processes.append(p)
+            logger.debug("Starting another process for another OTA")
+            if (need_another_process):
+                logger.info("Adding another process to make up for the dead one!")
+            if (not process_tracker == None):
+                if (verbose): print "Adding current slave process to process-tracker...", i
+                process_tracker.put(p.pid)
+                if (verbose): print "done adding to process-tracker"
+            # Also send another quit command for this process
+            #queue.put(None)
+
+        if (not received_results):
+            continue
 
         if (timeouts_left < 3):
             logger.info("Received valid data, resetting timeout counter!")
@@ -2522,40 +2597,11 @@ def collectcells(input, outputfile,
         logger.debug("OTAs yet to report intermed. results back (%2d/%2d): %s" % (
             len(otas_not_checked_in), len(list_of_otas_being_reduced), 
             ",".join(["%02d" % x for x in otas_not_checked_in])))
-        
+
 
         # Mark this ota as not fully complete. This is important later on when
         # we report intermediate results back for completion
         intermediate_results_sent[ota_id] = False
-
-        #
-        # We received one entry. Check if we need to start another process
-        # If all processes are running we should have as many processes as
-        # we have OTAs to be reduced
-        #
-        # Doing this in here ensures we only have a limited number of processes 
-        # doing active work, hence keeping the machine from overloading.
-        # 
-        if (len(processes) < len(list_of_otas_being_reduced)):
-            # We don't have enough processes yet, start another one
-
-            # Allocate shared memory for data return
-            new_shmem = multiprocessing.RawArray(ctypes.c_float, 4096*4096)
-            kw_worker_args['shmem'] = new_shmem
-            kw_worker_args['shmem_id'] = len(shmem_list)
-            shmem_list.append(new_shmem)
-
-            p = multiprocessing.Process(target=parallel_collect_reduce_ota, kwargs=kw_worker_args)
-            p.start()
-            processes.append(p)
-            logger.debug("Starting another process for another OTA")
-            if (not process_tracker == None):
-                if (verbose): print "Adding current slave process to process-tracker...", i
-                process_tracker.put(p.pid)
-                if (verbose): print "done adding to process-tracker"
-            # Also send another quit command for this process
-            queue.put(None)
-
 
         header = data_products['header']
         
