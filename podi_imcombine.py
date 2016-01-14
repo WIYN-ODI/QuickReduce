@@ -62,6 +62,9 @@ import scipy.stats
 import podi_logging
 import logging
 
+from podi_definitions import *
+from podi_commandline import *
+
 import Queue
 import threading
 import multiprocessing
@@ -115,7 +118,7 @@ def weighted_mean(_line):
     
     return bottleneck.nansum(_line*weight_2d, axis=1)/bottleneck.nansum(weight_2d, axis=1)
 
-def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_filelist, operation):
+def parallel_compute(queue, return_queue, shmem_buffer, shmem_results, size_x, size_y, len_filelist, operation):
     #queue, shmem_buffer, shmem_results, size_x, size_y, len_filelist = worker_args
 
     buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len_filelist))
@@ -124,9 +127,10 @@ def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_fil
     logger = logging.getLogger("ParallelImcombine")
     logger.debug("Operation: %s, #samples/pixel: %d" % (operation, len_filelist))
 
+
     while (True):
-        cmd_quit, line = queue.get()
-        if (cmd_quit):
+        line = queue.get()
+        if (line == None):
             queue.task_done()
             break
 
@@ -251,7 +255,7 @@ def parallel_compute(queue, shmem_buffer, shmem_results, size_x, size_y, len_fil
         else:
             result_buffer[line,:] = numpy.mean(buffer[line,:,:], axis=1)             
             
-
+        return_queue.put(line)
         queue.task_done()
 
     buffer = None
@@ -295,40 +299,65 @@ def imcombine_sharedmem_data(shmem_buffer, operation, sizes):
     size_x, size_y, n_frames = sizes
     shmem_results = multiprocessing.RawArray(ctypes.c_float, size_x*size_y)
 
+    logger = logging.getLogger("CombineMgr")
+
     #
     # Set up the parallel processing environment
     #
     queue = multiprocessing.JoinableQueue()
-
-    #result_buffer = numpy.zeros(shape=(buffer.shape[0], buffer.shape[1]), dtype=numpy.float32)
-    processes = []
-    for i in range(number_cpus):
-        worker_args = (queue, shmem_buffer, shmem_results,
-                       size_x, size_y, n_frames, operation)
-        p = multiprocessing.Process(target=parallel_compute, args=worker_args)
-        p.start()
-        processes.append(p)
+    return_queue = multiprocessing.Queue()
 
     # Now compute median/average/sum/etc
     buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, n_frames))
     for line in range(buffer.shape[0]):
         #print "Adding line",line,"to queue"
-        queue.put((False,line))
+        queue.put(line)
+        
+    lines_done = numpy.zeros((buffer.shape[0]), dtype=numpy.bool)
+    lines_read = 0
 
-    # Tell all workers to shut down when no more data is left to work on
+    #result_buffer = numpy.zeros(shape=(buffer.shape[0], buffer.shape[1]), dtype=numpy.float32)
+    processes = []
     for i in range(number_cpus):
-        queue.put((True,None))
+        worker_args = (queue, return_queue,
+                       shmem_buffer, shmem_results,
+                       size_x, size_y, n_frames, operation)
+        p = multiprocessing.Process(target=parallel_compute, args=worker_args)
+        p.start()
+        processes.append(p)
+
+    while (lines_read < buffer.shape[0] and numpy.sum(lines_done) < buffer.shape[0]):
+        try:
+            line = return_queue.get(timeout=5)
+            lines_read += 1
+            try:
+                lines_done[line] = True
+            except:
+                pass
+        except Queue.Empty:
+            logger.error("Encountered timeout while combinging data")
+            # something bad has happened to one of the workers
+            # find one of the lines that has not been processed yet
+            missing_lines = (numpy.arange(buffer.shape[0]))[~lines_done]
+            logger.info("Re-queuing %d lines for processing" % (missing_lines.shape[0]))
+            for line in missing_lines:
+                queue.put(line)
+        except:
+            podi_logging.log_exception()
+
+       
+        
+    # Tell all workers to shut down when no more data is left to work on
+    logger.debug("telling all workers to shut down!")
+    for i in range(number_cpus):
+        logger.debug("telling all worker %d to shut down!" % (i))
+        queue.put((None))
 
     # Once all command are sent out to the workers, join them to speed things up
-    try:
-        queue.join()
-    except KeyboardInterrupt:
-        for p in processes:
-            p.terminate()
-        sys.exit(-1)
-
+    logger.debug("Terminating workers!")
     for p in processes:
         p.terminate()
+        p.join(timeout=1)
 
     results = numpy.copy(shmem_as_ndarray(shmem_results).reshape((size_x, size_y)))
 
@@ -453,8 +482,8 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
             continue
         ref_fppos = ref_hdulist[cur_ext].name #header['EXTNAME']
 
-        stdout_write("\rCombining frames for OTA %s (#% 2d/% 2d) ..." % (ref_fppos, cur_ext, len(ref_hdulist)-1))
-        logger.debug("Combining frames for OTA %s (#% 2d/% 2d) ..." % (ref_fppos, cur_ext, len(ref_hdulist)-1))
+        stdout_write("\rCombining frames for OTA %s (#% 2d/% 2d) ..." % (ref_fppos, cur_ext+1, len(ref_hdulist)))
+        logger.debug("Combining frames for OTA %s (#% 2d/% 2d) ..." % (ref_fppos, cur_ext+1, len(ref_hdulist)))
 
         #
         # Add some weird-looking construct to move the memory allocation and actual 
@@ -537,6 +566,9 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
 
 if __name__ == "__main__":
 
+    options = read_options_from_commandline(None)
+    podi_logging.setup_logging(options)
+
     outputfile = get_clean_cmdline()[1]
 
     filelist = get_clean_cmdline()[2:]
@@ -547,3 +579,5 @@ if __name__ == "__main__":
     scale = cmdline_arg_set_or_default("-scale", None)
     
     imcombine(filelist, outputfile, operation, subtract=subtract, scale=scale)
+
+    podi_logging.shutdown_logging(options)
