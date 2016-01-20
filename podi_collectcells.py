@@ -1992,6 +1992,7 @@ def unstage_data(options, staged, input):
 
 
 
+import cPickle as pickle
 
 class reduce_collect_otas (object):
 
@@ -2003,7 +2004,7 @@ class reduce_collect_otas (object):
 
         self.logger = logging.getLogger("QRWorker")
 
-        self.info = {}
+        self.info = []
 
         self.queue = multiprocessing.JoinableQueue()
         self.final_results_queue = multiprocessing.Queue()
@@ -2024,6 +2025,7 @@ class reduce_collect_otas (object):
         self.intermediate_results_done.acquire()
 
         self.id2filename = {}
+        self.filename2id = {}
 
         self.files_to_reduce = []
         
@@ -2068,11 +2070,11 @@ class reduce_collect_otas (object):
             # Make sure all workers that should be working are doing so
             #
             workers_alive = 0
-            for fn in self.info:
-                if (self.info[fn]['complete']):
+            for job in self.info:
+                if (job['complete']):
                     continue
 
-                process = self.info[fn]['process']
+                process = job['process']
                 if (process == None):
                     continue
 
@@ -2087,16 +2089,21 @@ class reduce_collect_otas (object):
                     print "Found dead process: %d" % (pid)
                     process.terminate()
                     process.join(timeout=0.01)
-                    self.info[fn]['process'] = None
+                    job['process'] = None
                     self.active_workers -= 1
                     continue
 
                 workers_alive += 1
             print "%d workers still alive" % (workers_alive)
 
-            fns = [f for f in self.info]
-            self.logger.info("filenames being reduced:\n- %s" % ("\n -".join(fns)))
+            fns = ["%s" % (f['filename']) for f in self.info]
+            self.logger.info("filenames being reduced:\n- %s" % ("\n- ".join(fns)))
             self.logger.info("filename-list:\n- %s" % ("\n -".join(self.files_to_reduce)))
+
+            if (not os.path.isfile("self_info")):
+                with open("self_info", "w") as p:
+                    p.write(str(self.info))
+                    p.close()
 
             #
             # Start new workers if we have CPUs available
@@ -2106,27 +2113,28 @@ class reduce_collect_otas (object):
                     self.active_workers, self.number_cpus))
                 # Check all workers, and start one if we find one that's not alive
                 started_new_process = False
-                for fn in self.files_to_reduce: #self.info:
-                    if (self.info[fn]['process'] == None):
+                # for fn in self.files_to_reduce: #self.info:
+                for job in self.info:
+                    if (job['process'] == None):
                         
-                        #if (not self.info[fn]['process'].is_alive()):
-                        self.logger.info("starting worker for %s" % (fn))
-                        print "\n\n\n", fn, self.info[fn]['args'],"\n\n\n"
+                        #if (not job['process'].is_alive()):
+                        self.logger.info("starting worker for %s" % (job['filename']))
+                        print "\n\n\nSTARTING:", id, job['filename'],"\n\n\n"
 
                         p = multiprocessing.Process(target=parallel_collect_reduce_ota, 
-                                                    kwargs=self.info[fn]['args'])
+                                                    kwargs=job['args'])
 
-                        self.info[fn]['process'] = p
-                        self.info[fn]['process'].start()
+                        job['process'] = p
+                        job['process'].start()
 
-                        if (not self.info[fn]['intermediate_data'] == None):
+                        if (not job['intermediate_data'] == None):
                             # this process is being started after intermediate data
                             # has already been sent
                             # --> re-queue one more intermediate to allow completion
-                            self.intermediate_queue.put(self.info[fn]['intermediate_queue_msg'])
+                            self.intermediate_queue.put(job['intermediate_queue_msg'])
 
                         self.active_workers += 1
-                        #process_ids.append(self.info[fn]['process'].pid)
+                        #process_ids.append(job['process'].pid)
                         started_new_process = True
                         break
                 if (started_new_process):
@@ -2135,7 +2143,7 @@ class reduce_collect_otas (object):
             if (x%10 == 0): 
                 print "still feeding workers"
                 print ",".join(["%d" % (p) for p in process_ids])
-            time.sleep(1)
+            time.sleep(2)
         
     def collect_intermediate_results(self):
         print "Starting to collect intermediate results", len(self.info)
@@ -2175,10 +2183,10 @@ class reduce_collect_otas (object):
             self.intermediate_results_done.release()
         print "Terminating feeder"
         #self.feed_worker_thread.terminate()
-        for fn in self.info:
+        for job in self.info:
             try:
                 print "terminating process for %s" % (fn)
-                p = self.info[fn]['process']
+                p = job['process']
                 p.terminate()
                 p.join()
                 print "done!"
@@ -2186,25 +2194,31 @@ class reduce_collect_otas (object):
                 pass
 
     def broadcast_intermediate_data(self, intermed_data):
-        for fn in self.info:
-            self.info[fn]['intermediate_data'] = intermed_data
-            msg = (self.info[fn]['ota_id'], intermed_data)
-            self.info[fn]['intermediate_queue_msg'] = msg
-            self.logger.info("XXX: %d, %s" % (self.info[fn]['ota_id'], str(intermed_data)))
+        for job in self.info:
+            job['intermediate_data'] = intermed_data
+            msg = (job['ota_id'], intermed_data)
+            job['intermediate_queue_msg'] = msg
+            self.logger.info("XXX: %d, %s" % (job['ota_id'], str(intermed_data)))
             self.intermediate_queue.put(msg)
             self.logger.debug("Putting one set of intermediate data back in work queue")
             self.active_workers += 1
+
     def wait_for_workers_to_finish(self):
         for i in range(len(self.info)):
             result = self.final_results_queue.get()
 
             # mark the dataset as complete
             ota_id, data_products, shmem_id = result
-            fn = self.id2filename[ota_id]
-            self.info[fn]['complete'] = True
-            self.logger.info("File %s, ID %d marked as complete" % (fn, ota_id))
-            self.active_workers -= 1
-            self.final_results.append(result)
+
+            # find the right job
+            for job in self.info:
+                if (job['ota_id'] == id):
+                    # fn = self.id2filename[ota_id]
+                    job['complete'] = True
+                    self.logger.info("File %s, ID %d marked as complete" % (job['filename'], ota_id))
+                    self.active_workers -= 1
+                    self.final_results.append(result)
+                    break
 
         # Now we are all done
         self.quit = True
@@ -2214,27 +2228,34 @@ class reduce_collect_otas (object):
 
     def reduce_file(self, filename, id):
 
-        if (not filename in self.info):
-            self.info[filename] = {}
-        else:
-            self.logger.error("we are already working on %s" % (filename))
+        for job in self.info:
+            if (job['ota_id'] == id or job['filename'] == filename):
+                self.logger.error("we are already working on %s" % (filename))
+                return None
+
+        job = {}
 
         self.id2filename[id] = filename
+        self.filename2id[filename] = id
 
         #
         # Setup a new process for this file
         #
-        self.info[filename]['args'] = self.kw_worker_args
-        self.info[filename]['args']['filename'] = filename
-        self.info[filename]['args']['ota_id'] = id
-        self.info[filename]['args']['shmem'] = multiprocessing.RawArray(ctypes.c_float, 4096*4096)
-        self.info[filename]['args']['shmem_id'] = len(self.info)
-        self.info[filename]['intermediate_data'] = None
-        self.info[filename]['ota_id'] = id
-        self.info[filename]['complete'] = False
+        job['args'] = self.kw_worker_args
+        job['args']['filename'] = filename
+        job['args']['ota_id'] = id
+        job['args']['shmem'] = multiprocessing.RawArray(ctypes.c_float, 4096*4096)
+        job['args']['shmem_id'] = len(self.info)
+        job['intermediate_data'] = None
+        job['filename'] = filename
+        job['ota_id'] = id
+        job['complete'] = False
 
-        self.logger.info("Setting up reduction for %s (ID: %d) -> %s" % (filename, id, self.info[filename]['args']['filename']))
-        self.info[filename]['process'] = None
+        self.logger.info("Setting up reduction for %s (ID: %d) -> %s" % (filename, id, job['args']['filename']))
+        job['process'] = None
+
+        print "\n\n\n ======= ", id, filename, " ========== \n", job,"\n\n\n"
+        self.info.append(job)
 
         self.files_to_reduce.append(filename)
         pass
