@@ -1498,7 +1498,7 @@ def apply_software_binning(hdu, softbin):
 
 
 
-def parallel_collect_reduce_ota(queue, return_queue,
+def parallel_collect_reduce_ota(queue, return_queue, intermediate_queue,
                                 options=None,
                                 shmem=None,
                                 shmem_dim=None,
@@ -1606,8 +1606,24 @@ def parallel_collect_reduce_ota(queue, return_queue,
         # Wait to hear back with the rest of the instructions
         #
         logger.debug("Waiting to hear back with fringe/pupilghost scaling")
-        final_parameters = pipe.recv()
+        while (True):
+            # wait for instruction for my OTA-ID
+            _ota_id, final_parameters = intermediate_queue.get()
+            if (not _ota_id == ota_id):
+                # this is not meant for me, so put it back
+                intermediate_queue.put((_ota_id, final_parameters))
+                time.sleep(0.1)
+            else:
+                # got what I need
+                break
+        #_final_parameters = pipe.recv()
+        #logger.info("OTA-ID %02d received PIPE final parameters:\n%s" % (ota_id, _final_parameters))
+        
         logger.debug("OTA-ID %02d received final parameters:\n%s" % (ota_id, final_parameters))
+
+        # XXX HACK
+        if (_ota_id == 22):
+            return
 
         #
         # Finish work: fringe subtraction and pupilghost removal
@@ -2237,6 +2253,7 @@ def collectcells(input, outputfile,
     #result_buffer = numpy.zeros(shape=(buffer.shape[0], buffer.shape[1]), dtype=numpy.float32)
     queue = multiprocessing.JoinableQueue()
     return_queue = multiprocessing.Queue()
+    intermediate_queue = multiprocessing.Queue()
 
     processes = []
 
@@ -2249,6 +2266,7 @@ def collectcells(input, outputfile,
     kw_worker_args= {
         'queue': queue,
         'return_queue': return_queue,
+        'intermediate_queue': intermediate_queue,
         'options': options,
         'shmem': None,
         'shmem_dim': shmem_dims,
@@ -2800,6 +2818,8 @@ def collectcells(input, outputfile,
     logger.debug("Received %d intermediate results!" % (len(intermediate_results)))
 
     n_intermed_results_sent = 0
+    otas_to_be_finalized = []
+    finalization_message = {}
     for i in range(number_cpus):
         
         #if (i < len(intermediate_results)):
@@ -2817,7 +2837,11 @@ def collectcells(input, outputfile,
 
             # Sent the intermediate results
             logger.debug("Sending finalization data back to ota-id %02d" % (target_ota_id))
-            pipe_send.send(intermed_results)
+            #pipe_send.send(intermed_results)
+            intermediate_queue.put((target_ota_id, intermed_results))
+            otas_to_be_finalized.append(target_ota_id)
+            finalization_message[target_ota_id] = (target_ota_id, intermed_results)
+
             intermediate_results[j]['sent'] = True
             n_intermed_results_sent += 1
             break
@@ -2847,10 +2871,34 @@ def collectcells(input, outputfile,
     # print "---------"
 
     recv_start = time.time()
+    timeouts_left = 3
     n_expected_results = len(list_of_otas_being_reduced) - len(ota_missing_empty)
-    for i in range(len(list_of_otas_being_reduced) - len(ota_missing_empty)):
+    otas_checked_in_final = []
+    #    for i in range(len(list_of_otas_being_reduced) - len(ota_missing_empty)):
+    retry_count = {}
+    while (len(otas_checked_in_final) < len(otas_to_be_finalized)):
         try:
-            ota_id, data_products, shmem_id = return_queue.get()
+            ota_id, data_products, shmem_id = return_queue.get(timeout=sitesetup.per_ota_timeout)
+            received_results = True
+        except Queue.Empty:
+            timeouts_left -= 1
+            if (timeouts_left <= 0):
+                # We have a timeout - meaning that one of the worker process
+                # either didn't get the final message, or has died since
+                #
+                # find an OTA that has'nt reported back yet
+                for _ota in otas_to_be_finalized:
+                    if (not _ota in otas_checked_in_final):
+                        # this OTA hasn't report back yet
+                        intermediate_queue.put(finalization_message[_ota])
+                        if (not _ota in retry_count):
+                            retry_count[_ota] = 0
+                        else:
+                            retry_count[_ota] +=1 
+                        timeouts_left = 3
+                        if (retry_count[_ota] > 2):
+                            break
+            continue
         except (KeyboardInterrupt, SystemExit):
             while (not return_queue.empty()):
                 return_queue.get()
@@ -2858,6 +2906,14 @@ def collectcells(input, outputfile,
             unstage_data(options, staged_data, input)
             return
 
+        if (received_results):
+            otas_checked_in_final.append(ota_id)
+
+        logger.info("OTAS final: %s" % (",".join(["%02d" % (i) for i in otas_checked_in_final])))
+        logger.info("OTAS req'd: %s" % (",".join(["%02d" % (i) for i in otas_to_be_finalized])))
+            #otas_to_be_finalized.append(target_ota_id)
+
+        timeouts_left = 3
         # We received a final answer, so if necessary send off another intermediate results
         try:
             logger.debug("received final answer from OTA-ID %02d [c=%d, FP=%s], expecting %d [%d] more" % (
@@ -2879,7 +2935,11 @@ def collectcells(input, outputfile,
             pipe_send = intermediate_results[j]['pipe-send']
             # Sent the intermediate results
             logger.debug("Sending finalization data back to ota-id %02d" % (target_ota_id))
-            pipe_send.send(intermed_results)
+
+            intermediate_queue.put((target_ota_id, intermed_results))
+            otas_to_be_finalized.append(target_ota_id)
+            #pipe_send.send(intermed_results)
+
             intermediate_results[j]['sent'] = True
             n_intermed_results_sent += 1
             break
