@@ -247,6 +247,8 @@ import time
 import logging
 import itertools
 import bottleneck
+import errno
+import psutil
 
 from podi_plotting import *
 
@@ -1498,7 +1500,11 @@ def apply_software_binning(hdu, softbin):
 
 
 
-def parallel_collect_reduce_ota(queue, return_queue, intermediate_queue,
+def parallel_collect_reduce_ota(queue, 
+                                final_results_queue, 
+                                intermediate_queue,
+                                intermediate_results_queue,
+                                filename, ota_id,
                                 options=None,
                                 shmem=None,
                                 shmem_dim=None,
@@ -1532,31 +1538,33 @@ def parallel_collect_reduce_ota(queue, return_queue, intermediate_queue,
     logger = logging.getLogger("WorkManager")
     logger.debug("Process started")
 
-    while (True):
-        task = queue.get()
-        # if (task == None):
-        #     logger.info("Received termination signal, shutting down")
-        #     queue.task_done()
-        #     return
+    # while (True):
+    #     task = queue.get()
+    #     # if (task == None):
+    #     #     logger.info("Received termination signal, shutting down")
+    #     #     queue.task_done()
+    #     #     return
 
-        filename, ota_id, wrapped_pipe = task
+    #     filename, ota_id, wrapped_pipe = task
+    for _x in range(1):
         logger = logging.getLogger("WorkManager(OTA-ID:%02d)" % (ota_id))
 
         # Do the work
         try:
             data_products = collect_reduce_ota(filename, options=options)
-        except (KeyboardInterrupt, SystemExit):
-            queue.task_done()
-            while (not queue.empty()):
-                queue.get()
-                queue.task_done()
-            break
+        # except (KeyboardInterrupt, SystemExit):
+        #     queue.task_done()
+        #     while (not queue.empty()):
+        #         queue.get()
+        #         queue.task_done()
+        #     break
         except:
             # All other problems:
             # Note them in the debug log, and raise the error for further 
             # processing
             podi_logging.log_exception("parallel_collectcells")
             raise
+
 
         return_hdu = data_products['hdu']
         # print data_products
@@ -1568,10 +1576,15 @@ def parallel_collect_reduce_ota(queue, return_queue, intermediate_queue,
             else:
                 logger.critical("OTA did not return any data, empty/faulty file (%s)?" % (filename))
 
-            return_queue.put( (ota_id, data_products, shmem_id) )
+            #
+            # Send error message back via intermediate result_queue back to master 
+            #
 
-            queue.task_done()
-            continue
+            # return_queue.put( (ota_id, data_products, shmem_id) )
+
+            #queue.task_done()
+            #continue
+            return
 
 
         extname = return_hdu.header['FPPOS'] if (not return_hdu == None and 'FPPOS' in return_hdu.header) else "???"
@@ -1593,22 +1606,24 @@ def parallel_collect_reduce_ota(queue, return_queue, intermediate_queue,
         data_products['header'] = return_hdu.header
 
         # Send the results from this OTA to the main process handler
-        logger.debug("Sending results back to main process")
-        return_queue.put( (ota_id, data_products, shmem_id) )
+        logger.info("Sending results back to main process")
+        intermediate_results_queue.put( (ota_id, data_products, shmem_id) )
 
         # Now unpack the communication pipe
         logger.debug("Preparing communication pipe ...")
-        logger.debug(str(wrapped_pipe))
-        fct, params = wrapped_pipe
-        pipe = fct(*params)
+        #logger.debug(str(wrapped_pipe))
+        #fct, params = wrapped_pipe
+        #pipe = fct(*params)
 
         #
         # Wait to hear back with the rest of the instructions
         #
-        logger.debug("Waiting to hear back with fringe/pupilghost scaling")
+        logger.info("Waiting to hear back with fringe/pupilghost scaling")
         while (True):
             # wait for instruction for my OTA-ID
-            _ota_id, final_parameters = intermediate_queue.get()
+            ret = intermediate_queue.get()
+            print ret, " // ", ota_id
+            _ota_id, final_parameters = ret
             if (not _ota_id == ota_id):
                 # this is not meant for me, so put it back
                 intermediate_queue.put((_ota_id, final_parameters))
@@ -1616,6 +1631,7 @@ def parallel_collect_reduce_ota(queue, return_queue, intermediate_queue,
             else:
                 # got what I need
                 break
+
         #_final_parameters = pipe.recv()
         #logger.info("OTA-ID %02d received PIPE final parameters:\n%s" % (ota_id, _final_parameters))
         
@@ -1691,12 +1707,12 @@ def parallel_collect_reduce_ota(queue, return_queue, intermediate_queue,
 
         # Add the results to the return_queue so the master process can assemble the result file
         logger.debug("Adding results for OTA %02d to return queue" % (ota_id))
-        return_queue.put( (ota_id, data_products, shmem_id) )
-
-        pipe.close()
+        final_results_queue.put( (ota_id, data_products, shmem_id) )
+        time.sleep(0.1)
+        # pipe.close()
 
         #cmd_queue.task_done()
-        queue.task_done()
+        #queue.task_done()
         logger.debug("Done with work, shutting down!")
         break
 
@@ -1966,6 +1982,277 @@ def unstage_data(options, staged, input):
 
 
         
+
+
+
+
+
+
+
+
+
+
+
+class reduce_collect_otas (object):
+
+    def __init__(self, options, number_cpus):
+
+        self.options = options
+        self.number_cpus = number_cpus
+        self.quit = False
+
+        self.logger = logging.getLogger("QRWorker")
+
+        self.info = {}
+
+        self.queue = multiprocessing.JoinableQueue()
+        self.final_results_queue = multiprocessing.Queue()
+        self.intermediate_queue = multiprocessing.Queue()
+        self.intermediate_results_queue = multiprocessing.Queue()
+        self.shmem_dims = (4096, 4096)
+        self.kw_worker_args= {
+            'queue': self.queue,
+            'intermediate_results_queue': self.intermediate_results_queue,
+            'final_results_queue': self.final_results_queue,
+            'intermediate_queue': self.intermediate_queue,
+            'options': self.options,
+            'shmem': None,
+            'shmem_dim': self.shmem_dims,
+        }
+
+        self.intermediate_results_done = multiprocessing.Lock()
+        self.intermediate_results_done.acquire()
+
+        self.id2filename = {}
+
+        self.files_to_reduce = []
+        
+        self.active_workers = 0
+
+        #
+        # Start feeding the workers
+        #
+        self.feed_worker_thread = threading.Thread(
+            target=self.feed_workers,
+            )
+
+        #
+        # Also start a worker to collect intermediate data
+        #
+        self.collect_intermediate_results_thread = threading.Thread(
+            target=self.collect_intermediate_results
+            )
+        self.intermediate_results_complete = False
+
+        self.intermediate_data_back_to_workers = None
+        self.intermediate_results = []
+
+        self.final_results = []
+        pass
+
+
+    def start(self):
+        self.feed_worker_thread.start()
+        self.collect_intermediate_results_thread.start()
+
+    def feed_workers(self):
+        self.workers_started = 0
+        should_be_working = []
+        process_ids = []
+
+        print "Starting to feed workers"
+
+        x = 0
+        while (not self.quit):
+            #
+            # Make sure all workers that should be working are doing so
+            #
+            workers_alive = 0
+            for fn in self.info:
+                if (self.info[fn]['complete']):
+                    continue
+
+                process = self.info[fn]['process']
+                if (process == None):
+                    continue
+
+                pid = process.pid
+                if (pid == None):
+                    # not started yet
+                    continue
+
+                ps = psutil.Process(pid)
+                if (ps.status() in [psutil.STATUS_ZOMBIE,
+                                    psutil.STATUS_DEAD]):
+                    print "Found dead process: %d" % (pid)
+                    process.terminate()
+                    process.join(timeout=0.01)
+                    self.info[fn]['process'] = None
+                    self.active_workers -= 1
+                    continue
+
+                workers_alive += 1
+            print "%d workers still alive" % (workers_alive)
+
+            fns = [f for f in self.info]
+            self.logger.info("filenames being reduced:\n- %s" % ("\n -".join(fns)))
+            self.logger.info("filename-list:\n- %s" % ("\n -".join(self.files_to_reduce)))
+
+            #
+            # Start new workers if we have CPUs available
+            #
+            if (self.active_workers < self.number_cpus):
+                self.logger.info("we have some capacity to start new workers (%d < %d)" % (
+                    self.active_workers, self.number_cpus))
+                # Check all workers, and start one if we find one that's not alive
+                started_new_process = False
+                for fn in self.files_to_reduce: #self.info:
+                    if (self.info[fn]['process'] == None):
+                        
+                        #if (not self.info[fn]['process'].is_alive()):
+                        self.logger.info("starting worker for %s" % (fn))
+                        print "\n\n\n", fn, self.info[fn]['args'],"\n\n\n"
+
+                        p = multiprocessing.Process(target=parallel_collect_reduce_ota, 
+                                                    kwargs=self.info[fn]['args'])
+
+                        self.info[fn]['process'] = p
+                        self.info[fn]['process'].start()
+
+                        if (not self.info[fn]['intermediate_data'] == None):
+                            # this process is being started after intermediate data
+                            # has already been sent
+                            # --> re-queue one more intermediate to allow completion
+                            self.intermediate_queue.put(self.info[fn]['intermediate_queue_msg'])
+
+                        self.active_workers += 1
+                        #process_ids.append(self.info[fn]['process'].pid)
+                        started_new_process = True
+                        break
+                if (started_new_process):
+                    continue
+            x += 1
+            if (x%10 == 0): 
+                print "still feeding workers"
+                print ",".join(["%d" % (p) for p in process_ids])
+            time.sleep(1)
+        
+    def collect_intermediate_results(self):
+        print "Starting to collect intermediate results", len(self.info)
+        self.intermediate_results_collected = 0
+
+        while (self.intermediate_results_collected < len(self.info) and
+               not self.quit):
+
+            try:
+                results = self.intermediate_results_queue.get(timeout=0.1)
+            except Queue.Empty:
+                continue
+
+            self.intermediate_results.append(results)
+
+            print "received some results!"
+            self.intermediate_results_collected += 1
+            self.active_workers -= 1
+
+        print "***\n"*5,"All intermediate progress data received","\n***"*5
+        self.intermediate_results_done.release()
+        self.intermediate_results_complete = True
+
+    def wait_for_intermediate_results(self):
+        self.intermediate_results_done.acquire()
+        self.intermediate_results_done.release()
+
+        # Now we have all results
+        return self.intermediate_results
+
+    def get_intermediate_results(self):
+        return self.intermediate_results
+
+    def abort(self):
+        self.quit = True
+        if (not self.intermediate_results_complete):
+            self.intermediate_results_done.release()
+        print "Terminating feeder"
+        #self.feed_worker_thread.terminate()
+        for fn in self.info:
+            try:
+                print "terminating process for %s" % (fn)
+                p = self.info[fn]['process']
+                p.terminate()
+                p.join()
+                print "done!"
+            except:
+                pass
+
+    def broadcast_intermediate_data(self, intermed_data):
+        for fn in self.info:
+            self.info[fn]['intermediate_data'] = intermed_data
+            msg = (self.info[fn]['ota_id'], intermed_data)
+            self.info[fn]['intermediate_queue_msg'] = msg
+            self.logger.info("XXX: %d, %s" % (self.info[fn]['ota_id'], str(intermed_data)))
+            self.intermediate_queue.put(msg)
+            self.logger.debug("Putting one set of intermediate data back in work queue")
+            self.active_workers += 1
+    def wait_for_workers_to_finish(self):
+        for i in range(len(self.info)):
+            result = self.final_results_queue.get()
+
+            # mark the dataset as complete
+            ota_id, data_products, shmem_id = result
+            fn = self.id2filename[ota_id]
+            self.info[fn]['complete'] = True
+            self.logger.info("File %s, ID %d marked as complete" % (fn, ota_id))
+            self.active_workers -= 1
+            self.final_results.append(result)
+
+        # Now we are all done
+        self.quit = True
+
+    def get_final_results(self):
+        return self.final_results
+
+    def reduce_file(self, filename, id):
+
+        if (not filename in self.info):
+            self.info[filename] = {}
+        else:
+            self.logger.error("we are already working on %s" % (filename))
+
+        self.id2filename[id] = filename
+
+        #
+        # Setup a new process for this file
+        #
+        self.info[filename]['args'] = self.kw_worker_args
+        self.info[filename]['args']['filename'] = filename
+        self.info[filename]['args']['ota_id'] = id
+        self.info[filename]['args']['shmem'] = multiprocessing.RawArray(ctypes.c_float, 4096*4096)
+        self.info[filename]['args']['shmem_id'] = len(self.info)
+        self.info[filename]['intermediate_data'] = None
+        self.info[filename]['ota_id'] = id
+        self.info[filename]['complete'] = False
+
+        self.logger.info("Setting up reduction for %s (ID: %d) -> %s" % (filename, id, self.info[filename]['args']['filename']))
+        self.info[filename]['process'] = None
+
+        self.files_to_reduce.append(filename)
+        pass
+
+        #, directory, filebase, otas):
+
+        # print "Reducing these files:"
+        # for ota in otas:
+        #     filename = "%s/%s.%02d.fits" % (directory, filebase, ota)
+        #     print filename
+
+
+
+
+
+
+
+
 
 
 def collectcells(input, outputfile,
@@ -2282,6 +2569,9 @@ def collectcells(input, outputfile,
     communication = {}
     ota_from_otaid = {}
     mp_params = {}
+
+    worker = reduce_collect_otas(options, number_cpus)
+
     for ota_id in range(len(list_of_otas_to_collect)):
         ota_c_x, ota_c_y = list_of_otas_to_collect[ota_id]        
         ota = ota_c_x * 10 + ota_c_y
@@ -2307,82 +2597,92 @@ def collectcells(input, outputfile,
         #print "Commanding work for extension",ota
         list_of_otas_being_reduced.append(list_of_otas_to_collect[ota_id])
 
-        # Setup some way of communicating with the workers
-        msg_pipe = multiprocessing.Pipe(duplex=False)
-        pipe_recv, pipe_send = msg_pipe
-        # Make sure to pass the receiver pipe to the worker so it can listen 
-        # for instructions. Do some python wrapping to be able to transport a 
-        # pipe object though a pipe/queue
-        wrapped_pipe = multiprocessing.reduction.reduce_connection(pipe_recv)
+        # # Setup some way of communicating with the workers
+        # msg_pipe = multiprocessing.Pipe(duplex=False)
+        # pipe_recv, pipe_send = msg_pipe
+        # # Make sure to pass the receiver pipe to the worker so it can listen 
+        # # for instructions. Do some python wrapping to be able to transport a 
+        # # pipe object though a pipe/queue
+        # wrapped_pipe = multiprocessing.reduction.reduce_connection(pipe_recv)
         
-        queue.put( (filename, ota_id+1, wrapped_pipe) )
-        mp_params[ota] = (filename, ota_id+1, wrapped_pipe)
-        # del wrapped_pipe
+        # queue.put( (filename, ota_id+1, wrapped_pipe) )
+        # mp_params[ota] = (filename, ota_id+1, wrapped_pipe)
+        # # del wrapped_pipe
         ota_ids_being_reduced.append(ota_id+1)
 
-        # save some data we need later on for the intermediate results
-        intres = {'ota-id': ota_id+1,
-                  'sent': False,
-                  'queued': True,
-                  'pipe-recv': pipe_recv,
-                  'pipe-send': pipe_send,
-        }
-        intermediate_results.append(intres)
+        # # save some data we need later on for the intermediate results
+        # intres = {'ota-id': ota_id+1,
+        #           'sent': False,
+        #           'queued': True,
+        #           'pipe-recv': pipe_recv,
+        #           'pipe-send': pipe_send,
+        # }
+        # intermediate_results.append(intres)
 
+        worker.reduce_file(filename, ota_id+1)
+
+        
     logger.debug("list_of_otas_being_reduced=\n%s" % (str(list_of_otas_being_reduced)))
 
     logger.info("Performing instrumental detrending")
     podi_logging.ppa_update_progress(0, "Starting work")
+    worker.start()
+
+    logger.info("Waiting for de-trending to proceed before continuing!")
+    worker.wait_for_intermediate_results()
 
     # Create all processes to handle the actual reduction and combination
     #print "Creating",number_cpus,"worker processes"
-    if ('profile' in options or number_cpus == 0):
-        # 
-        # If profiling is activated, run one only one processor and in non-multiprocessing mode
-        #
-        # Tell all workers to shut down when no more data is left to work on
-        #for i in range(len(processes)):
-        if (verbose): stdout_write("Sending quit command!\n")
-        queue.put((True,None,None))
+    # if ('profile' in options or number_cpus == 0):
+    #     # 
+    #     # If profiling is activated, run one only one processor and in non-multiprocessing mode
+    #     #
+    #     # Tell all workers to shut down when no more data is left to work on
+    #     #for i in range(len(processes)):
+    #     if (verbose): stdout_write("Sending quit command!\n")
+    #     queue.put((True,None,None))
 
-        while (True):
-            print "Doing work single-processed"
-            cmd_quit, filename, ota_id = queue.get()
-            if (cmd_quit):
-                queue.task_done()
-                break
+    #     while (True):
+    #         print "Doing work single-processed"
+    #         cmd_quit, filename, ota_id = queue.get()
+    #         if (cmd_quit):
+    #             queue.task_done()
+    #             break
 
-            # Do the work
-            data_products = collect_reduce_ota(filename, options=options)
+    #         # Do the work
+    #         data_products = collect_reduce_ota(filename, options=options)
 
-            # Add the results to the return_queue so the master process can assemble the result file
-            # print "Adding results for OTA",ota_id,"to return queue"
-            # return_queue.put( (hdu, ota_id, wcsfix_data) )
-            return_queue.put( (ota_id, data_products) )
-            queue.task_done()
-    else:
-        for i in range(number_cpus):
-            logger.debug("Starting a new process...")
-            #p = multiprocessing.Process(target=parallel_collect_reduce_ota, args=worker_args)
+    #         # Add the results to the return_queue so the master process can assemble the result file
+    #         # print "Adding results for OTA",ota_id,"to return queue"
+    #         # return_queue.put( (hdu, ota_id, wcsfix_data) )
+    #         return_queue.put( (ota_id, data_products) )
+    #         queue.task_done()
+    # else:
+    #     for i in range(number_cpus):
+    #         logger.debug("Starting a new process...")
+    #         #p = multiprocessing.Process(target=parallel_collect_reduce_ota, args=worker_args)
 
-            # Allocate shared memory for data return
-            new_shmem = multiprocessing.RawArray(ctypes.c_float, 4096*4096)
-            kw_worker_args['shmem'] = new_shmem
-            kw_worker_args['shmem_id'] = len(shmem_list)
-            shmem_list.append(new_shmem)
+    #         # Allocate shared memory for data return
+    #         new_shmem = multiprocessing.RawArray(ctypes.c_float, 4096*4096)
+    #         kw_worker_args['shmem'] = new_shmem
+    #         kw_worker_args['shmem_id'] = len(shmem_list)
+    #         shmem_list.append(new_shmem)
 
-            p = multiprocessing.Process(target=parallel_collect_reduce_ota, kwargs=kw_worker_args)
-            p.start()
-            processes.append(p)
-            if (not process_tracker == None):
-                if (verbose): print "Adding current slave process to process-tracker...", i
-                process_tracker.put(p.pid)
-                if (verbose): print "done adding to process-tracker"
+    #         p = multiprocessing.Process(target=parallel_collect_reduce_ota, kwargs=kw_worker_args)
+    #         p.start()
+    #         processes.append(p)
+    #         if (not process_tracker == None):
+    #             if (verbose): print "Adding current slave process to process-tracker...", i
+    #             process_tracker.put(p.pid)
+    #             if (verbose): print "done adding to process-tracker"
 
-            # Tell all workers to shut down when no more data is left to work on
-            #queue.put(None)
-            time.sleep(0.01)
+    #         # Tell all workers to shut down when no more data is left to work on
+    #         #queue.put(None)
+    #         time.sleep(0.01)
 
+
+
+    
         
 
     ############################################################
@@ -2505,121 +2805,128 @@ def collectcells(input, outputfile,
 
     global_reduction_log = ReductionLog()
 
-    otas_checked_in = []
-    otas_not_checked_in = [x*10+y for (x,y) in list_of_otas_being_reduced]
-    timeouts_left = 3
-    while (len(otas_checked_in) < len(list_of_otas_being_reduced)):
-        need_another_process = False
-        received_results = False
-        try:
-            ota_id, data_products, shmem_id = return_queue.get(timeout=sitesetup.per_ota_timeout)
-            received_results = True
-        except Queue.Empty:
-            if (len(processes) < len(list_of_otas_being_reduced)):
-                #
-                # This means we haven't sent off all OTAs for reduction
-                #
-                pass
-                # Just wait a little longer
-                continue
-            else:
-                #
-                # All OTAs have an assigned process, so we are 
-                # only waiting for them to finish
-                #
+    # otas_checked_in = []
+    # otas_not_checked_in = [x*10+y for (x,y) in list_of_otas_being_reduced]
+    # timeouts_left = 3
+    # while (len(otas_checked_in) < len(list_of_otas_being_reduced)):
+    #     need_another_process = False
+    #     received_results = False
+    #     try:
+    #         ota_id, data_products, shmem_id = return_queue.get(timeout=sitesetup.per_ota_timeout)
+    #         received_results = True
+    #     except Queue.Empty:
+    #         if (len(processes) < len(list_of_otas_being_reduced)):
+    #             #
+    #             # This means we haven't sent off all OTAs for reduction
+    #             #
+    #             pass
+    #             # Just wait a little longer
+    #             continue
+    #         else:
+    #             #
+    #             # All OTAs have an assigned process, so we are 
+    #             # only waiting for them to finish
+    #             #
 
-                timeouts_left -= 1
-                logger.warning("Received timeout (%d s), %d left before re-submission!" % (sitesetup.per_ota_timeout, timeouts_left))
-                if (timeouts_left <= 0):
-                    logger.error("No timeouts remaining, program stalled, adding another process to compensate!")
+    #             timeouts_left -= 1
+    #             logger.warning("Received timeout (%d s), %d left before re-submission!" % (sitesetup.per_ota_timeout, timeouts_left))
+    #             if (timeouts_left <= 0):
+    #                 logger.error("No timeouts remaining, program stalled, adding another process to compensate!")
 
-                    #
-                    # Add another instance
-                    #
-                    need_another_process = True
+    #                 #
+    #                 # Add another instance
+    #                 #
+    #                 need_another_process = True
 
-                    #
-                    # pick one of the OTAs that's missing/not yet returned
-                    #
-                    _ota_id = otas_not_checked_in[0]
-                    logger.error("OTAs yet to report intermed. results back (%2d/%2d): %s" % (
-                        len(otas_not_checked_in), len(list_of_otas_being_reduced), 
-                        ",".join(["%02d" % x for x in otas_not_checked_in])))
-                    logger.info("Re-queing work for OTA-ID %d" % (_ota_id))
+    #                 #
+    #                 # pick one of the OTAs that's missing/not yet returned
+    #                 #
+    #                 _ota_id = otas_not_checked_in[0]
+    #                 logger.error("OTAs yet to report intermed. results back (%2d/%2d): %s" % (
+    #                     len(otas_not_checked_in), len(list_of_otas_being_reduced), 
+    #                     ",".join(["%02d" % x for x in otas_not_checked_in])))
+    #                 logger.info("Re-queing work for OTA-ID %d" % (_ota_id))
 
-                    q_params = mp_params[_ota_id]
-                    queue.put( q_params )
-                    timeouts_left = 3
+    #                 q_params = mp_params[_ota_id]
+    #                 queue.put( q_params )
+    #                 timeouts_left = 3
 
-                # unstage_data(options, staged_data, input)
-                # return None
-                # i -= 1
-            pass
-        except (KeyboardInterrupt, SystemExit):
-            while (not return_queue.empty()):
-                return_queue.get()
-            raise
-            unstage_data(options, staged_data, input)
-            return
+    #             # unstage_data(options, staged_data, input)
+    #             # return None
+    #             # i -= 1
+    #         pass
+    #     except (KeyboardInterrupt, SystemExit):
+    #         while (not return_queue.empty()):
+    #             return_queue.get()
+    #         raise
+    #         unstage_data(options, staged_data, input)
+    #         return
 
-        #
-        # We received one entry. Check if we need to start another process
-        # If all processes are running we should have as many processes as
-        # we have OTAs to be reduced
-        #
-        # Doing this in here ensures we only have a limited number of processes 
-        # doing active work, hence keeping the machine from overloading.
-        # 
-        if (len(processes) < len(list_of_otas_being_reduced) or need_another_process):
-            # We don't have enough processes yet, start another one
+    #     #
+    #     # We received one entry. Check if we need to start another process
+    #     # If all processes are running we should have as many processes as
+    #     # we have OTAs to be reduced
+    #     #
+    #     # Doing this in here ensures we only have a limited number of processes 
+    #     # doing active work, hence keeping the machine from overloading.
+    #     # 
+    #     if (len(processes) < len(list_of_otas_being_reduced) or need_another_process):
+    #         # We don't have enough processes yet, start another one
 
-            # Allocate shared memory for data return
-            new_shmem = multiprocessing.RawArray(ctypes.c_float, 4096*4096)
-            kw_worker_args['shmem'] = new_shmem
-            kw_worker_args['shmem_id'] = len(shmem_list)
-            shmem_list.append(new_shmem)
+    #         # Allocate shared memory for data return
+    #         new_shmem = multiprocessing.RawArray(ctypes.c_float, 4096*4096)
+    #         kw_worker_args['shmem'] = new_shmem
+    #         kw_worker_args['shmem_id'] = len(shmem_list)
+    #         shmem_list.append(new_shmem)
 
-            p = multiprocessing.Process(target=parallel_collect_reduce_ota, kwargs=kw_worker_args)
-            p.start()
-            processes.append(p)
-            logger.debug("Starting another process for another OTA")
-            if (need_another_process):
-                logger.info("Adding another process to make up for the dead one!")
-            if (not process_tracker == None):
-                if (verbose): print "Adding current slave process to process-tracker...", i
-                process_tracker.put(p.pid)
-                if (verbose): print "done adding to process-tracker"
-            # Also send another quit command for this process
-            #queue.put(None)
+    #         p = multiprocessing.Process(target=parallel_collect_reduce_ota, kwargs=kw_worker_args)
+    #         p.start()
+    #         processes.append(p)
+    #         logger.debug("Starting another process for another OTA")
+    #         if (need_another_process):
+    #             logger.info("Adding another process to make up for the dead one!")
+    #         if (not process_tracker == None):
+    #             if (verbose): print "Adding current slave process to process-tracker...", i
+    #             process_tracker.put(p.pid)
+    #             if (verbose): print "done adding to process-tracker"
+    #         # Also send another quit command for this process
+    #         #queue.put(None)
 
-        if (not received_results):
-            continue
+    #     if (not received_results):
+    #         continue
 
-        if (timeouts_left < 3):
-            logger.info("Received valid data, resetting timeout counter!")
-            timeouts_left = 3
+    #     if (timeouts_left < 3):
+    #         logger.info("Received valid data, resetting timeout counter!")
+    #         timeouts_left = 3
+
+    for i, intermed_results in enumerate(worker.get_intermediate_results()):
+
+        if (intermed_results == None):
+            logger.error("Illegal results")
+            
+        ota_id, data_products, shmem_id = intermed_results
 
         logger.debug("Received intermediate results from OTA-ID %02d" % (ota_id))
         podi_logging.ppa_update_progress(int(50.*(i+1)/len(list_of_otas_being_reduced)), "Reducing")
 
-        _ota = ota_from_otaid[ota_id]
-        otas_checked_in.append(_ota)
-        idx = otas_not_checked_in.index(_ota)
-        try:
-            del otas_not_checked_in[idx]
-        except:
-            podi_logging.log_exception()
-        logger.debug("Received intermed. results from OTAs (%2d/%2d): %s" % (
-            len(otas_checked_in), len(list_of_otas_being_reduced), 
-            ",".join(["%02d" % x for x in otas_checked_in])))
-        logger.debug("OTAs yet to report intermed. results back (%2d/%2d): %s" % (
-            len(otas_not_checked_in), len(list_of_otas_being_reduced), 
-            ",".join(["%02d" % x for x in otas_not_checked_in])))
+        # _ota = ota_from_otaid[ota_id]
+        # otas_checked_in.append(_ota)
+        # idx = otas_not_checked_in.index(_ota)
+        # try:
+        #     del otas_not_checked_in[idx]
+        # except:
+        #     podi_logging.log_exception()
+        # logger.debug("Received intermed. results from OTAs (%2d/%2d): %s" % (
+        #     len(otas_checked_in), len(list_of_otas_being_reduced), 
+        #     ",".join(["%02d" % x for x in otas_checked_in])))
+        # logger.debug("OTAs yet to report intermed. results back (%2d/%2d): %s" % (
+        #     len(otas_not_checked_in), len(list_of_otas_being_reduced), 
+        #     ",".join(["%02d" % x for x in otas_not_checked_in])))
 
 
-        # Mark this ota as not fully complete. This is important later on when
-        # we report intermediate results back for completion
-        intermediate_results_sent[ota_id] = False
+        # # Mark this ota as not fully complete. This is important later on when
+        # # we report intermediate results back for completion
+        # intermediate_results_sent[ota_id] = False
 
         header = data_products['header']
         
@@ -2645,7 +2952,7 @@ def collectcells(input, outputfile,
             
         # print "\n\n\n\n",pupilghost_scaling,"\n\n\n\n"
 
-    logger.debug("Received all intermediate data")
+    logger.info("Received all intermediate data")
 
     ############################################################################
     #
@@ -2805,7 +3112,7 @@ def collectcells(input, outputfile,
     # 
     ############################################################################
 
-    logger.debug("Computed all intermediate data parameters")
+    logger.info("Computed all intermediate data parameters")
     intermed_results = {
         "pupilghost-scaling-median": pupilghost_scaling_median,
         "pupilghost-scaling-std": pupilghost_scaling_std,
@@ -2816,6 +3123,20 @@ def collectcells(input, outputfile,
     # Send off the initial bunch of results to the worker threads
     # logger.debug("Intermediate results:\n%s" % (str(intermediate_results_sent)))
     logger.debug("Received %d intermediate results!" % (len(intermediate_results)))
+
+    worker.broadcast_intermediate_data(intermed_results)
+
+    logger.info("waiting for workers to finish")
+    worker.wait_for_workers_to_finish()
+    logger.info("all workers have finished")
+
+    logger.info("Getting final results")
+    results = worker.get_final_results()
+
+    logger.info("finishing up processing")
+    worker.abort()
+
+    return
 
     n_intermed_results_sent = 0
     otas_to_be_finalized = []
