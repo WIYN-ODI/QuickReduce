@@ -1624,13 +1624,14 @@ def parallel_collect_reduce_ota(queue,
             ret = intermediate_queue.get()
             print ret, " // ", ota_id
             _ota_id, final_parameters = ret
-            if (not _ota_id == ota_id):
-                # this is not meant for me, so put it back
-                intermediate_queue.put((_ota_id, final_parameters))
-                time.sleep(0.1)
-            else:
-                # got what I need
-                break
+            # if (not _ota_id == ota_id):
+            #     # this is not meant for me, so put it back
+            #     intermediate_queue.put((_ota_id, final_parameters))
+            #     time.sleep(0.1)
+            # else:
+            #     # got what I need
+            #     break
+            break
 
         #_final_parameters = pipe.recv()
         #logger.info("OTA-ID %02d received PIPE final parameters:\n%s" % (ota_id, _final_parameters))
@@ -1693,6 +1694,8 @@ def parallel_collect_reduce_ota(queue,
         #
         #
         wx,wy = shmem_dim
+        logger.info("MPC SHMEM: %s %d,%d" % (str(shmem), wx, wy))
+        time.sleep(0.5)
         shmem_image = shmem_as_ndarray(shmem).reshape((wy,wx))
         logger.debug("Packing image return into shared memory (%d x %d)" % (wx, wy))
         if (return_hdu.data.shape[1] > wx or
@@ -2011,15 +2014,6 @@ class reduce_collect_otas (object):
         self.intermediate_queue = multiprocessing.Queue()
         self.intermediate_results_queue = multiprocessing.Queue()
         self.shmem_dims = (4096, 4096)
-        self.kw_worker_args= {
-            'queue': self.queue,
-            'intermediate_results_queue': self.intermediate_results_queue,
-            'final_results_queue': self.final_results_queue,
-            'intermediate_queue': self.intermediate_queue,
-            'options': self.options,
-            'shmem': None,
-            'shmem_dim': self.shmem_dims,
-        }
 
         self.intermediate_results_done = multiprocessing.Lock()
         self.intermediate_results_done.acquire()
@@ -2050,6 +2044,9 @@ class reduce_collect_otas (object):
         self.intermediate_results = []
 
         self.final_results = []
+
+        self.shmem_list = {}
+
         pass
 
 
@@ -2094,16 +2091,22 @@ class reduce_collect_otas (object):
                     continue
 
                 workers_alive += 1
-            print "%d workers still alive" % (workers_alive)
+            self.logger.debug("%d workers still alive" % (workers_alive))
 
             fns = ["%s" % (f['filename']) for f in self.info]
-            self.logger.info("filenames being reduced:\n- %s" % ("\n- ".join(fns)))
-            self.logger.info("filename-list:\n- %s" % ("\n -".join(self.files_to_reduce)))
+            self.logger.debug("filenames being reduced:\n- %s" % ("\n- ".join(fns)))
+            self.logger.debug("filename-list:\n- %s" % ("\n -".join(self.files_to_reduce)))
 
+            
             if (not os.path.isfile("self_info")):
                 with open("self_info", "w") as p:
                     p.write(str(self.info))
                     p.close()
+
+            for i, job in enumerate(self.info):
+                self.logger.debug("JOB %2d: ID=%d, FN: %s / %s" % (
+                    i, job['ota_id'], job['filename'], job['args']['filename']))
+
 
             #
             # Start new workers if we have CPUs available
@@ -2119,7 +2122,7 @@ class reduce_collect_otas (object):
                         
                         #if (not job['process'].is_alive()):
                         self.logger.info("starting worker for %s" % (job['filename']))
-                        print "\n\n\nSTARTING:", id, job['filename'],"\n\n\n"
+                        #print "\n\n\nSTARTING:", id, job['filename'],"\n\n\n"
 
                         p = multiprocessing.Process(target=parallel_collect_reduce_ota, 
                                                     kwargs=job['args'])
@@ -2141,12 +2144,12 @@ class reduce_collect_otas (object):
                     continue
             x += 1
             if (x%10 == 0): 
-                print "still feeding workers"
-                print ",".join(["%d" % (p) for p in process_ids])
+                self.logger.debug("still feeding workers")
+                #print ",".join(["%d" % (p) for p in process_ids])
             time.sleep(2)
         
     def collect_intermediate_results(self):
-        print "Starting to collect intermediate results", len(self.info)
+        self.logger.info("Starting to collect intermediate results (%d)" % (len(self.info)))
         self.intermediate_results_collected = 0
 
         while (self.intermediate_results_collected < len(self.info) and
@@ -2159,11 +2162,12 @@ class reduce_collect_otas (object):
 
             self.intermediate_results.append(results)
 
-            print "received some results!"
+            self.logger.debug("received some results!")
             self.intermediate_results_collected += 1
             self.active_workers -= 1
 
-        print "***\n"*5,"All intermediate progress data received","\n***"*5
+        #print "***\n"*5,"All intermediate progress data received","\n***"*5
+        self.logger.info("All intermediate progress data received")
         self.intermediate_results_done.release()
         self.intermediate_results_complete = True
 
@@ -2181,15 +2185,15 @@ class reduce_collect_otas (object):
         self.quit = True
         if (not self.intermediate_results_complete):
             self.intermediate_results_done.release()
-        print "Terminating feeder"
+        self.logger.info("Terminating feeder")
         #self.feed_worker_thread.terminate()
         for job in self.info:
             try:
-                print "terminating process for %s" % (fn)
+                self.logger.debug("terminating process for %s" % (job['filename']))
                 p = job['process']
                 p.terminate()
                 p.join()
-                print "done!"
+                self.logger.debug("done!")
             except:
                 pass
 
@@ -2209,10 +2213,13 @@ class reduce_collect_otas (object):
 
             # mark the dataset as complete
             ota_id, data_products, shmem_id = result
+            self.logger.info("received final results for ota-ID %d (%s)" % (
+                ota_id, ",".join(["%d" % job['ota_id'] for job in self.info])))
+
 
             # find the right job
             for job in self.info:
-                if (job['ota_id'] == id):
+                if (job['ota_id'] == ota_id):
                     # fn = self.id2filename[ota_id]
                     job['complete'] = True
                     self.logger.info("File %s, ID %d marked as complete" % (job['filename'], ota_id))
@@ -2241,11 +2248,21 @@ class reduce_collect_otas (object):
         #
         # Setup a new process for this file
         #
-        job['args'] = self.kw_worker_args
-        job['args']['filename'] = filename
-        job['args']['ota_id'] = id
-        job['args']['shmem'] = multiprocessing.RawArray(ctypes.c_float, 4096*4096)
-        job['args']['shmem_id'] = len(self.info)
+        shmem = multiprocessing.RawArray(ctypes.c_float, 4096*4096)
+        self.shmem_list[id] = shmem
+        job['args'] = {
+            'queue': self.queue,
+            'intermediate_results_queue': self.intermediate_results_queue,
+            'final_results_queue': self.final_results_queue,
+            'intermediate_queue': self.intermediate_queue,
+            'options': self.options,
+            'shmem': shmem,
+            'shmem_id': id,
+            'shmem_dim': self.shmem_dims,
+            'filename': filename,
+            'ota_id': id,
+            
+        }
         job['intermediate_data'] = None
         job['filename'] = filename
         job['ota_id'] = id
@@ -3153,44 +3170,45 @@ def collectcells(input, outputfile,
 
     logger.info("Getting final results")
     results = worker.get_final_results()
+    logger.info("Received %d final results" % (len(results)))
 
     logger.info("finishing up processing")
     worker.abort()
 
-    return
+    # return
 
-    n_intermed_results_sent = 0
-    otas_to_be_finalized = []
-    finalization_message = {}
-    for i in range(number_cpus):
+    # n_intermed_results_sent = 0
+    # otas_to_be_finalized = []
+    # finalization_message = {}
+    # for i in range(number_cpus):
         
-        #if (i < len(intermediate_results)):
-        for j in range(len(intermediate_results)):
+    #     #if (i < len(intermediate_results)):
+    #     for j in range(len(intermediate_results)):
 
-            if (intermediate_results[j]['sent']):
-                continue
+    #         if (intermediate_results[j]['sent']):
+    #             continue
 
-            target_ota_id = intermediate_results[j]['ota-id']
-            if (target_ota_id in ota_missing_empty):
-                logger.debug("OTA %d is listed as missing" % (target_ota_id))
-                continue
+    #         target_ota_id = intermediate_results[j]['ota-id']
+    #         if (target_ota_id in ota_missing_empty):
+    #             logger.debug("OTA %d is listed as missing" % (target_ota_id))
+    #             continue
 
-            pipe_send = intermediate_results[j]['pipe-send']
+    #         pipe_send = intermediate_results[j]['pipe-send']
 
-            # Sent the intermediate results
-            logger.debug("Sending finalization data back to ota-id %02d" % (target_ota_id))
-            #pipe_send.send(intermed_results)
-            intermediate_queue.put((target_ota_id, intermed_results))
-            otas_to_be_finalized.append(target_ota_id)
-            finalization_message[target_ota_id] = (target_ota_id, intermed_results)
+    #         # Sent the intermediate results
+    #         logger.debug("Sending finalization data back to ota-id %02d" % (target_ota_id))
+    #         #pipe_send.send(intermed_results)
+    #         intermediate_queue.put((target_ota_id, intermed_results))
+    #         otas_to_be_finalized.append(target_ota_id)
+    #         finalization_message[target_ota_id] = (target_ota_id, intermed_results)
 
-            intermediate_results[j]['sent'] = True
-            n_intermed_results_sent += 1
-            break
+    #         intermediate_results[j]['sent'] = True
+    #         n_intermed_results_sent += 1
+    #         break
 
-        else:
-            break
-    logger.debug("Sent off %d intermediate results back to workers!" % (n_intermed_results_sent))
+    #     else:
+    #         break
+    # logger.debug("Sent off %d intermediate results back to workers!" % (n_intermed_results_sent))
 
 
     #
@@ -3212,98 +3230,106 @@ def collectcells(input, outputfile,
     # # print "missing_x: ", [list_of_otas_being_reduced[x] for x in ota_missing_empty]
     # print "---------"
 
-    recv_start = time.time()
-    timeouts_left = 3
-    n_expected_results = len(list_of_otas_being_reduced) - len(ota_missing_empty)
-    otas_checked_in_final = []
-    #    for i in range(len(list_of_otas_being_reduced) - len(ota_missing_empty)):
-    retry_count = {}
-    while (len(otas_checked_in_final) < len(otas_to_be_finalized)):
-        try:
-            ota_id, data_products, shmem_id = return_queue.get(timeout=sitesetup.per_ota_timeout)
-            received_results = True
-        except Queue.Empty:
-            timeouts_left -= 1
-            if (timeouts_left <= 0):
-                # We have a timeout - meaning that one of the worker process
-                # either didn't get the final message, or has died since
-                #
-                # find an OTA that has'nt reported back yet
-                for _ota in otas_to_be_finalized:
-                    if (not _ota in otas_checked_in_final):
-                        # this OTA hasn't report back yet
-                        intermediate_queue.put(finalization_message[_ota])
-                        if (not _ota in retry_count):
-                            retry_count[_ota] = 0
-                        else:
-                            retry_count[_ota] +=1 
-                        timeouts_left = 3
-                        if (retry_count[_ota] > 2):
-                            break
-            continue
-        except (KeyboardInterrupt, SystemExit):
-            while (not return_queue.empty()):
-                return_queue.get()
-            raise
-            unstage_data(options, staged_data, input)
-            return
+    # recv_start = time.time()
+    # timeouts_left = 3
+    # n_expected_results = len(list_of_otas_being_reduced) - len(ota_missing_empty)
+    # otas_checked_in_final = []
+    # #    for i in range(len(list_of_otas_being_reduced) - len(ota_missing_empty)):
+    # retry_count = {}
+    # while (len(otas_checked_in_final) < len(otas_to_be_finalized)):
+    #     try:
+    #         ota_id, data_products, shmem_id = return_queue.get(timeout=sitesetup.per_ota_timeout)
+    #         received_results = True
+    #     except Queue.Empty:
+    #         timeouts_left -= 1
+    #         if (timeouts_left <= 0):
+    #             # We have a timeout - meaning that one of the worker process
+    #             # either didn't get the final message, or has died since
+    #             #
+    #             # find an OTA that has'nt reported back yet
+    #             for _ota in otas_to_be_finalized:
+    #                 if (not _ota in otas_checked_in_final):
+    #                     # this OTA hasn't report back yet
+    #                     intermediate_queue.put(finalization_message[_ota])
+    #                     if (not _ota in retry_count):
+    #                         retry_count[_ota] = 0
+    #                     else:
+    #                         retry_count[_ota] +=1 
+    #                     timeouts_left = 3
+    #                     if (retry_count[_ota] > 2):
+    #                         break
+    #         continue
+    #     except (KeyboardInterrupt, SystemExit):
+    #         while (not return_queue.empty()):
+    #             return_queue.get()
+    #         raise
+    #         unstage_data(options, staged_data, input)
+    #         return
 
-        if (received_results):
-            otas_checked_in_final.append(ota_id)
+    #     if (received_results):
+    #         otas_checked_in_final.append(ota_id)
 
-        logger.info("OTAS final: %s" % (",".join(["%02d" % (i) for i in otas_checked_in_final])))
-        logger.info("OTAS req'd: %s" % (",".join(["%02d" % (i) for i in otas_to_be_finalized])))
-            #otas_to_be_finalized.append(target_ota_id)
+    #     logger.info("OTAS final: %s" % (",".join(["%02d" % (i) for i in otas_checked_in_final])))
+    #     logger.info("OTAS req'd: %s" % (",".join(["%02d" % (i) for i in otas_to_be_finalized])))
+    #         #otas_to_be_finalized.append(target_ota_id)
 
-        timeouts_left = 3
-        # We received a final answer, so if necessary send off another intermediate results
-        try:
-            logger.debug("received final answer from OTA-ID %02d [c=%d, FP=%s], expecting %d [%d] more" % (
-                ota_id, i, 
-                str(list_of_otas_to_collect[ota_id-1]), 
-                n_expected_results-(i+1), n_expected_results))
-        except:
-            podi_logging.log_exception()
-            print "Error with logger.info statement"
-            pass
+    #     timeouts_left = 3
+    #     # We received a final answer, so if necessary send off another intermediate results
+    #     try:
+    #         logger.debug("received final answer from OTA-ID %02d [c=%d, FP=%s], expecting %d [%d] more" % (
+    #             ota_id, i, 
+    #             str(list_of_otas_to_collect[ota_id-1]), 
+    #             n_expected_results-(i+1), n_expected_results))
+    #     except:
+    #         podi_logging.log_exception()
+    #         print "Error with logger.info statement"
+    #         pass
 
-        for j in range(len(intermediate_results)):
-            if (intermediate_results[j]['sent']):
-                continue
-            target_ota_id = intermediate_results[j]['ota-id']
-            if (target_ota_id in ota_missing_empty):
-                #logger.info("OTA %d is listed as missing" % (target_ota_id))
-                continue
-            pipe_send = intermediate_results[j]['pipe-send']
-            # Sent the intermediate results
-            logger.debug("Sending finalization data back to ota-id %02d" % (target_ota_id))
+    #     for j in range(len(intermediate_results)):
+    #         if (intermediate_results[j]['sent']):
+    #             continue
+    #         target_ota_id = intermediate_results[j]['ota-id']
+    #         if (target_ota_id in ota_missing_empty):
+    #             #logger.info("OTA %d is listed as missing" % (target_ota_id))
+    #             continue
+    #         pipe_send = intermediate_results[j]['pipe-send']
+    #         # Sent the intermediate results
+    #         logger.debug("Sending finalization data back to ota-id %02d" % (target_ota_id))
 
-            intermediate_queue.put((target_ota_id, intermed_results))
-            otas_to_be_finalized.append(target_ota_id)
-            #pipe_send.send(intermed_results)
+    #         intermediate_queue.put((target_ota_id, intermed_results))
+    #         otas_to_be_finalized.append(target_ota_id)
+    #         #pipe_send.send(intermed_results)
 
-            intermediate_results[j]['sent'] = True
-            n_intermed_results_sent += 1
-            break
+    #         intermediate_results[j]['sent'] = True
+    #         n_intermed_results_sent += 1
+    #         break
 
-        # for j in range(len(intermediate_results)):
-        #     if (not intermediate_results[j]['sent']):
-        #         target_ota_id = intermediate_results[j]['ota-id']
-        #         pipe_send = intermediate_results[j]['pipe-send']
-        #         pipe_send.send(intermed_results)
-        #         intermediate_results[j]['sent'] = True
-        #         logger.info("sending new instructions:\nIntermed results sent:\n%s" % (str(intermediate_results_sent)))
-        #         break
+    #     # for j in range(len(intermediate_results)):
+    #     #     if (not intermediate_results[j]['sent']):
+    #     #         target_ota_id = intermediate_results[j]['ota-id']
+    #     #         pipe_send = intermediate_results[j]['pipe-send']
+    #     #         pipe_send.send(intermed_results)
+    #     #         intermediate_results[j]['sent'] = True
+    #     #         logger.info("sending new instructions:\nIntermed results sent:\n%s" % (str(intermediate_results_sent)))
+    #     #         break
 
-        for j in range(len(intermediate_results)): 
-            if (intermediate_results[j]['ota-id'] == ota_id):
-                # Close the communication pipes
-                logger.debug("Closing intermediate results pipe for ota %d" % (ota_id))
-                intermediate_results[j]['pipe-send'].close()
-                intermediate_results[j]['pipe-recv'].close()
-        
+    #     for j in range(len(intermediate_results)): 
+    #         if (intermediate_results[j]['ota-id'] == ota_id):
+    #             # Close the communication pipes
+    #             logger.debug("Closing intermediate results pipe for ota %d" % (ota_id))
+    #             intermediate_results[j]['pipe-send'].close()
+    #             intermediate_results[j]['pipe-recv'].close()
+
+    worker.abort()
+
+    for final_result in worker.get_final_results():
+
+        ota_id, data_products, shmem_id = final_result
+        logger.info("Working on final results from %d" % (ota_id))
+
         hdu = data_products['hdu']
         if (hdu == None):
+            logger.warning("Empty HDU received!")
             continue
 
         #
@@ -3311,7 +3337,9 @@ def collectcells(input, outputfile,
         #
         wx, wy = hdu.data[0], hdu.data[1]
         logger.debug("Unpacking shared memory: (ID: %d, %d x %d)" % (shmem_id, wx,wy))
-        shmem_buffer = shmem_list[shmem_id]
+        shmem_buffer = worker.shmem_list[ota_id]
+        logger.info("shmem: %s" % (str(shmem_buffer)))
+        time.sleep(0.5)
         shmem_image = shmem_as_ndarray(shmem_buffer).reshape(shmem_dims)
         hdu.data = numpy.copy(shmem_image[:wy,:wx])
 
@@ -3344,8 +3372,8 @@ def collectcells(input, outputfile,
         ota_reduction_log = data_products['reduction_log']
         global_reduction_log.combine(ota_reduction_log)
 
-    recv_end = time.time()
-    logger.debug("RECEIVING: %f" % ((recv_end - recv_start)))
+    # recv_end = time.time()
+    # logger.debug("RECEIVING: %f" % ((recv_end - recv_start)))
     
     podi_logging.ppa_update_progress(60, "Detrending done, starting calibration")
 
