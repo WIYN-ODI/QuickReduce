@@ -2083,7 +2083,8 @@ class reduce_collect_otas (object):
                 ps = psutil.Process(pid)
                 if (ps.status() in [psutil.STATUS_ZOMBIE,
                                     psutil.STATUS_DEAD]):
-                    self.logger.warning("Found dead process: %d" % (pid))
+                    self.logger.warning("Found dead process: pid=%d ota-id:%d fn=%s" % (
+                        pid, job['ota_id'], job['filename']))
                     process.terminate()
                     process.join(timeout=0.01)
                     job['process'] = None
@@ -2091,7 +2092,7 @@ class reduce_collect_otas (object):
                     continue
 
                 workers_alive += 1
-            self.logger.debug("%d workers still alive" % (workers_alive))
+            # self.logger.debug("%d workers still alive" % (workers_alive))
 
             if (x==0):
                 # only print this information once!
@@ -2108,9 +2109,12 @@ class reduce_collect_otas (object):
             # Start new workers if we have CPUs available
             #
             if (self.active_workers < self.number_cpus):
-                self.logger.debug("we have some capacity to start new workers (%d < %d)" % (
-                    self.active_workers, self.number_cpus))
+                # self.logger.debug("we have some capacity to start new workers (%d < %d)" % (
+                #     self.active_workers, self.number_cpus))
+
+                #
                 # Check all workers, and start one if we find one that's not alive
+                #
                 started_new_process = False
                 # for fn in self.files_to_reduce: #self.info:
                 for job in self.info:
