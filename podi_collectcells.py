@@ -2083,7 +2083,7 @@ class reduce_collect_otas (object):
                 ps = psutil.Process(pid)
                 if (ps.status() in [psutil.STATUS_ZOMBIE,
                                     psutil.STATUS_DEAD]):
-                    print "Found dead process: %d" % (pid)
+                    self.logger.warning("Found dead process: %d" % (pid))
                     process.terminate()
                     process.join(timeout=0.01)
                     job['process'] = None
@@ -2093,19 +2093,15 @@ class reduce_collect_otas (object):
                 workers_alive += 1
             self.logger.debug("%d workers still alive" % (workers_alive))
 
-            fns = ["%s" % (f['filename']) for f in self.info]
-            self.logger.debug("filenames being reduced:\n- %s" % ("\n- ".join(fns)))
-            self.logger.debug("filename-list:\n- %s" % ("\n -".join(self.files_to_reduce)))
+            if (x==0):
+                # only print this information once!
+                fns = ["%s" % (f['filename']) for f in self.info]
+                self.logger.debug("filenames being reduced:\n- %s" % ("\n- ".join(fns)))
+                self.logger.debug("filename-list:\n- %s" % ("\n -".join(self.files_to_reduce)))
 
-            
-            if (not os.path.isfile("self_info")):
-                with open("self_info", "w") as p:
-                    p.write(str(self.info))
-                    p.close()
-
-            for i, job in enumerate(self.info):
-                self.logger.debug("JOB %2d: ID=%d, FN: %s / %s" % (
-                    i, job['ota_id'], job['filename'], job['args']['filename']))
+                for i, job in enumerate(self.info):
+                    self.logger.debug("JOB %2d: ID=%d, FN: %s / %s" % (
+                        i, job['ota_id'], job['filename'], job['args']['filename']))
 
 
             #
