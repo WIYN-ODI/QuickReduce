@@ -1588,9 +1588,10 @@ def parallel_collect_reduce_ota(queue,
 
 
         extname = return_hdu.header['FPPOS'] if (not return_hdu == None and 'FPPOS' in return_hdu.header) else "???"
+        ota = return_hdu.header['OTA'] if (not return_hdu == None and 'OTA' in return_hdu.header) else -1
         logger.debug("Received OTA pre-processed data for OTA %s" % (extname))
 
-        logger = logging.getLogger("OTAPostProc:%s" % (extname))
+        logger = logging.getLogger("PostProc.OTA%02d" % (ota))
         logger.debug("Trimming off pupilghost template and fringe template")
 
         # Trim the data section of the return data to keep transfer delays low
@@ -1606,7 +1607,7 @@ def parallel_collect_reduce_ota(queue,
         data_products['header'] = return_hdu.header
 
         # Send the results from this OTA to the main process handler
-        logger.info("Sending results back to main process")
+        logger.debug("Sending results back to main process")
         intermediate_results_queue.put( (ota_id, data_products, shmem_id) )
 
         # Now unpack the communication pipe
@@ -1618,15 +1619,15 @@ def parallel_collect_reduce_ota(queue,
         #
         # Wait to hear back with the rest of the instructions
         #
-        logger.info("Waiting to hear back with fringe/pupilghost scaling")
+        logger.debug("Waiting to hear back with fringe/pupilghost scaling")
         while (True):
             # wait for instruction for my OTA-ID
             ret = intermediate_queue.get()
-            print ret, " // ", ota_id
+            # print ret, " // ", ota_id
             _ota_id, final_parameters = ret
             # if (not _ota_id == ota_id):
             #     # this is not meant for me, so put it back
-            #     intermediate_queue.put((_ota_id, final_parameters))
+            #     intermediate_queue.put(ret) #(_ota_id, final_parameters))
             #     time.sleep(0.1)
             # else:
             #     # got what I need
@@ -1694,8 +1695,7 @@ def parallel_collect_reduce_ota(queue,
         #
         #
         wx,wy = shmem_dim
-        logger.info("MPC SHMEM: %s %d,%d" % (str(shmem), wx, wy))
-        time.sleep(0.5)
+        logger.debug("MPC SHMEM: %s %d,%d" % (str(shmem), wx, wy))
         shmem_image = shmem_as_ndarray(shmem).reshape((wy,wx))
         logger.debug("Packing image return into shared memory (%d x %d)" % (wx, wy))
         if (return_hdu.data.shape[1] > wx or
@@ -2112,7 +2112,7 @@ class reduce_collect_otas (object):
             # Start new workers if we have CPUs available
             #
             if (self.active_workers < self.number_cpus):
-                self.logger.info("we have some capacity to start new workers (%d < %d)" % (
+                self.logger.debug("we have some capacity to start new workers (%d < %d)" % (
                     self.active_workers, self.number_cpus))
                 # Check all workers, and start one if we find one that's not alive
                 started_new_process = False
@@ -2121,7 +2121,7 @@ class reduce_collect_otas (object):
                     if (job['process'] == None):
                         
                         #if (not job['process'].is_alive()):
-                        self.logger.info("starting worker for %s" % (job['filename']))
+                        self.logger.debug("starting worker for %s" % (job['filename']))
                         #print "\n\n\nSTARTING:", id, job['filename'],"\n\n\n"
 
                         p = multiprocessing.Process(target=parallel_collect_reduce_ota, 
@@ -2146,7 +2146,7 @@ class reduce_collect_otas (object):
             if (x%10 == 0): 
                 self.logger.debug("still feeding workers")
                 #print ",".join(["%d" % (p) for p in process_ids])
-            time.sleep(2)
+            time.sleep(0.1)
         
     def collect_intermediate_results(self):
         self.logger.info("Starting to collect intermediate results (%d)" % (len(self.info)))
@@ -2167,7 +2167,7 @@ class reduce_collect_otas (object):
             self.active_workers -= 1
 
         #print "***\n"*5,"All intermediate progress data received","\n***"*5
-        self.logger.info("All intermediate progress data received")
+        self.logger.debug("All intermediate progress data received")
         self.intermediate_results_done.release()
         self.intermediate_results_complete = True
 
@@ -2185,7 +2185,7 @@ class reduce_collect_otas (object):
         self.quit = True
         if (not self.intermediate_results_complete):
             self.intermediate_results_done.release()
-        self.logger.info("Terminating feeder")
+        self.logger.debug("Terminating feeder")
         #self.feed_worker_thread.terminate()
         for job in self.info:
             try:
@@ -2202,7 +2202,7 @@ class reduce_collect_otas (object):
             job['intermediate_data'] = intermed_data
             msg = (job['ota_id'], intermed_data)
             job['intermediate_queue_msg'] = msg
-            self.logger.info("XXX: %d, %s" % (job['ota_id'], str(intermed_data)))
+            self.logger.debug("XXX: %d, %s" % (job['ota_id'], str(intermed_data)))
             self.intermediate_queue.put(msg)
             self.logger.debug("Putting one set of intermediate data back in work queue")
             self.active_workers += 1
@@ -2213,7 +2213,7 @@ class reduce_collect_otas (object):
 
             # mark the dataset as complete
             ota_id, data_products, shmem_id = result
-            self.logger.info("received final results for ota-ID %d (%s)" % (
+            self.logger.debug("received final results for ota-ID %d (%s)" % (
                 ota_id, ",".join(["%d" % job['ota_id'] for job in self.info])))
 
 
@@ -2222,7 +2222,7 @@ class reduce_collect_otas (object):
                 if (job['ota_id'] == ota_id):
                     # fn = self.id2filename[ota_id]
                     job['complete'] = True
-                    self.logger.info("File %s, ID %d marked as complete" % (job['filename'], ota_id))
+                    self.logger.debug("File %s, ID %d marked as complete" % (job['filename'], ota_id))
                     self.active_workers -= 1
                     self.final_results.append(result)
                     break
@@ -2268,10 +2268,9 @@ class reduce_collect_otas (object):
         job['ota_id'] = id
         job['complete'] = False
 
-        self.logger.info("Setting up reduction for %s (ID: %d) -> %s" % (filename, id, job['args']['filename']))
+        self.logger.debug("Setting up reduction for %s (ID: %d) -> %s" % (filename, id, job['args']['filename']))
         job['process'] = None
 
-        print "\n\n\n ======= ", id, filename, " ========== \n", job,"\n\n\n"
         self.info.append(job)
 
         self.files_to_reduce.append(filename)
@@ -2666,7 +2665,7 @@ def collectcells(input, outputfile,
     podi_logging.ppa_update_progress(0, "Starting work")
     worker.start()
 
-    logger.info("Waiting for de-trending to proceed before continuing!")
+    logger.debug("Waiting for de-trending to proceed before continuing!")
     worker.wait_for_intermediate_results()
 
     # Create all processes to handle the actual reduction and combination
@@ -3164,15 +3163,15 @@ def collectcells(input, outputfile,
 
     worker.broadcast_intermediate_data(intermed_results)
 
-    logger.info("waiting for workers to finish")
+    logger.debug("waiting for workers to finish")
     worker.wait_for_workers_to_finish()
-    logger.info("all workers have finished")
+    logger.info("All OTAs have been de-trended")
 
-    logger.info("Getting final results")
+    logger.debug("Getting final results")
     results = worker.get_final_results()
     logger.info("Received %d final results" % (len(results)))
 
-    logger.info("finishing up processing")
+    logger.debug("finishing up processing")
     worker.abort()
 
     # return
@@ -3325,7 +3324,7 @@ def collectcells(input, outputfile,
     for final_result in worker.get_final_results():
 
         ota_id, data_products, shmem_id = final_result
-        logger.info("Working on final results from %d" % (ota_id))
+        logger.debug("Working on final results from %d" % (ota_id))
 
         hdu = data_products['hdu']
         if (hdu == None):
@@ -3338,8 +3337,7 @@ def collectcells(input, outputfile,
         wx, wy = hdu.data[0], hdu.data[1]
         logger.debug("Unpacking shared memory: (ID: %d, %d x %d)" % (shmem_id, wx,wy))
         shmem_buffer = worker.shmem_list[ota_id]
-        logger.info("shmem: %s" % (str(shmem_buffer)))
-        time.sleep(0.5)
+        # logger.debug("shmem: %s" % (str(shmem_buffer)))
         shmem_image = shmem_as_ndarray(shmem_buffer).reshape(shmem_dims)
         hdu.data = numpy.copy(shmem_image[:wy,:wx])
 
