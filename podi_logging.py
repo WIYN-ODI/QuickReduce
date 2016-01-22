@@ -318,14 +318,18 @@ def log_master(queue, options):
         debug_logger.debug("No PIKA connection available")
         pass
         
-    
     msg_received = 0
     while True:
         try:
             try:
-                record = queue.get()
-            except KeyboardInterrupt, SystemExit:
+                record = queue.get(timeout=1.)
+            except (KeyboardInterrupt, SystemExit):
                 record = None
+            except Queue.Empty:
+                pass
+                print >>debugfile, "LogHandler: still running, but no message during the last second!"
+                # print "."
+                continue
             except:
                 raise
 
