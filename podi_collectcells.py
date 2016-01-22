@@ -1610,7 +1610,7 @@ def parallel_collect_reduce_ota(queue,
 
         # Send the results from this OTA to the main process handler
         logger.debug("Sending results back to main process")
-        intermediate_results_queue.put( (ota_id, data_products, shmem_id) )
+        intermediate_results_queue.put((ota_id, data_products, shmem_id), block=True )
 
         # Now unpack the communication pipe
         logger.debug("Preparing communication pipe ...")
@@ -1636,13 +1636,15 @@ def parallel_collect_reduce_ota(queue,
                 break
 
         # acknowledge that we received the intermediate data
+        logger.info("Sending ACK message")
         intermediate_ack_queue.put(ota_id)
 
-        r = int(time.time()*1e6)
-        logger.info("RND: %d" % (r))
-        if (r%10 < 3):
-            logger.error("committing suicide by random chance")
-            return
+        # r = int(time.time()*1e6)
+        # logger.info("RND: %d" % (r))
+        # if (r%10 <= 2):
+        #     logger.error("committing suicide by random chance (pid: %d)" % (os.getpid()))
+        #     #sys.exit(1)
+        #     return
 
         #_final_parameters = pipe.recv()
         #logger.info("OTA-ID %02d received PIPE final parameters:\n%s" % (ota_id, _final_parameters))
@@ -2036,6 +2038,8 @@ class reduce_collect_otas (object):
         self.id2filename = {}
         self.filename2id = {}
 
+        self.job_status_lock = multiprocessing.Lock()
+
         self.files_to_reduce = []
         
         self.active_workers = 0
@@ -2084,6 +2088,21 @@ class reduce_collect_otas (object):
         self.collect_intermediate_data_broadcast_thread.start()
         self.acknowledge_intermediate_data_thread.start()
 
+    def report_job_status(self):
+        # report the status of all processes/jobs
+        for job in self.info:
+            self.logger.info("%2d - %s (%5d, #%2d): %5s %5s %5s %10d %5s" % (
+                job['ota_id'], job['filename'], 
+                -1 if job['process'] == None else job['process'].pid,
+                job['attempt'],
+                job['intermediate_results_received'], 
+                job['intermediate_data_sent'], 
+                job['intermediate_data_ackd'], 
+                (time.time()-job['time_of_ack']),
+                job['complete'],
+            )
+        )
+
     def feed_workers(self):
         self.workers_started = 0
         should_be_working = []
@@ -2111,17 +2130,32 @@ class reduce_collect_otas (object):
                     continue
 
                 ps = psutil.Process(pid)
-                if (ps.status() in [psutil.STATUS_ZOMBIE,
-                                    psutil.STATUS_DEAD]):
+                _dead = ps.status() in [psutil.STATUS_ZOMBIE,
+                                    psutil.STATUS_DEAD]
+                _timeout = (job['time_of_ack'] > 0 and 
+                     job['intermediate_data_sent'] >= 1 and
+                     job['intermediate_data_ackd'] == True and
+                    (time.time()-job['time_of_ack']) > 10 and
+                    not job['complete'])
+                if (_dead):
                     self.logger.warning("Found dead process: pid=%d ota-id:%d fn=%s" % (
                         pid, job['ota_id'], job['filename']))
+                if (_timeout):
+                    self.logger.warning("Found very slow process: pid=%d ota-id:%d fn=%s" % (
+                        pid, job['ota_id'], job['filename']))
+                if (_dead or _timeout):
+                    self.logger.info("Restarting dead/slow process - ota-id:%d fn=%s" % (
+                        job['ota_id'], job['filename']))
+                    self.job_status_lock.acquire()
                     process.terminate()
                     process.join(timeout=0.01)
                     job['process'] = None
-                    job['intermediate_data_sent'] = False
-                    job['intermediate_results_received'] = False
+                    job['intermediate_data_sent'] = 0
+                    #job['intermediate_results_received'] = False
                     job['intermediate_data_ackd'] = False
                     self.active_workers -= 1
+                    self.report_job_status()
+                    self.job_status_lock.release()
                     self.logger.info("# active workers is now %d" % (self.active_workers))
                     continue
 
@@ -2137,7 +2171,7 @@ class reduce_collect_otas (object):
                 for i, job in enumerate(self.info):
                     self.logger.debug("JOB %2d: ID=%d, FN: %s / %s" % (
                         i, job['ota_id'], job['filename'], job['args']['filename']))
-
+                # self.report_job_status()
 
             x += 1
 
@@ -2158,17 +2192,19 @@ class reduce_collect_otas (object):
                         
                         job['attempt'] += 1
 
-                        self.logger.info("starting worker for %s (attempt #%d, i.r.: %s)" % (
-                            job['filename'], job['attempt'], str(job['intermediate_queue_msg'])))
+                        self.logger.info("starting worker for ota %d, %s: attempt #%d\n(i.r.: %s)" % (
+                            job['ota_id'], job['filename'], job['attempt'], str(job['intermediate_queue_msg'])))
                         #print "\n\n\nSTARTING:", id, job['filename'],"\n\n\n"
 
+                        self.job_status_lock.acquire()
                         p = multiprocessing.Process(target=parallel_collect_reduce_ota, 
                                                     kwargs=job['args'])
 
                         job['process'] = p
                         job['process'].start()
-                        
-                        job['intermediate_data_sent'] = False
+                        self.job_status_lock.release()
+
+                        job['intermediate_data_sent'] = 0
                         # if (not job['intermediate_queue_msg'] == None):
                         #     # this process is being started after intermediate data
                         #     # has already been sent
@@ -2189,8 +2225,11 @@ class reduce_collect_otas (object):
             if (x%10 == 0): 
                 self.logger.info("still feeding workers (%d < %d)" % (
                      self.active_workers, self.number_cpus))
+
+                self.report_job_status()
                 #print ",".join(["%d" % (p) for p in process_ids])
             time.sleep(0.1)
+        self.logger.debug("Shutting down feed_workers")
         
     def collect_intermediate_results(self):
         self.logger.info("Starting to collect intermediate results (%d)" % (len(self.info)))
@@ -2224,6 +2263,7 @@ class reduce_collect_otas (object):
         self.logger.debug("All intermediate progress data received")
         self.intermediate_results_done.release()
         self.intermediate_results_complete = True
+        self.logger.debug("Shutting down collect_intermediate_results")
 
     def wait_for_intermediate_results(self):
         self.intermediate_results_done.acquire()
@@ -2241,6 +2281,7 @@ class reduce_collect_otas (object):
             self.intermediate_results_done.release()
         self.logger.debug("Terminating feeder")
         #self.feed_worker_thread.terminate()
+        self.report_job_status()
         for job in self.info:
             try:
                 self.logger.debug("terminating process for %s" % (job['filename']))
@@ -2250,6 +2291,7 @@ class reduce_collect_otas (object):
                 self.logger.debug("done!")
             except:
                 pass
+        
 
     def acknowledge_intermediate_data_received(self):
         while (not self.quit):
@@ -2259,12 +2301,21 @@ class reduce_collect_otas (object):
                     if (job['ota_id'] == ota_id):
                         self.logger.info("Got acknowledgement from OTA %d, fn %s" % (
                             ota_id, job['filename']))
-                        job['intermediate_data_ackd'] = False
+
+                        self.job_status_lock.acquire()
+                        if (job['intermediate_data_sent'] >= 1):
+                            job['intermediate_data_ackd'] = True
+                        else:
+                            self.logger.warning("Received ACK before command")
+                        self.report_job_status()
+                        job['time_of_ack'] = time.time()
+                        self.job_status_lock.release()
                         break
                 continue
             except Queue.Empty:
                 time.sleep(0.1)
                 pass
+        self.logger.debug("Shutting down acknowledge_intermediate_data_received")
 
     def broadcast_intermediate_data(self):
         while (not self.quit):
@@ -2280,19 +2331,23 @@ class reduce_collect_otas (object):
                 self.logger.debug("Putting one set (# %d) of intermediate data back in work queue" % (
                     self.intermed_results_sent))
                 job['intermediate_data_sent'] += 1
-            time.sleep(0.1)
+            time.sleep(0.2)
+        self.logger.debug("Shutting down broadcast_intermediate_data")
 
     def send_intermediate_data(self, ota_id, data):
         for job in self.info:
             if (job['ota_id'] == ota_id):
+                self.job_status_lock.acquire()
                 job['intermediate_data'] = data
                 msg = (ota_id, data)
                 job['intermediate_queue_msg'] = msg
                 self.logger.debug("XXX: %d, %s" % (job['ota_id'], str(job['intermediate_data'])))
                 job['intermediate_data_sent'] = 0
                 job['intermediate_data_ackd'] = False
+                self.job_status_lock.release()
                 self.active_workers += 1
                 break
+        self.report_job_status()
         pass
 
     def collect_final_results(self):
@@ -2301,7 +2356,7 @@ class reduce_collect_otas (object):
 
             # mark the dataset as complete
             ota_id, data_products, shmem_id = result
-            self.logger.debug("received final results for ota-ID %d (%s)" % (
+            self.logger.info("\n\nreceived final results for ota-ID %d (%s)\n\n" % (
                 ota_id, ",".join(["%d" % job['ota_id'] for job in self.info])))
 
 
@@ -2310,22 +2365,27 @@ class reduce_collect_otas (object):
             for job in self.info:
                 if (job['ota_id'] == ota_id):
                     # fn = self.id2filename[ota_id]
+                    self.job_status_lock.acquire()
                     job['complete'] = True
-                    self.logger.debug("File %s, ID %d marked as complete" % (job['filename'], ota_id))
+                    self.logger.info("\n***\n***\n*** File %s, ID %d marked as complete\n***\n***" % (job['filename'], ota_id))
                     self.active_workers -= 1
                     self.final_results.append(result)
                     self.logger.info("# active workers is now %d" % (self.active_workers))
                     found_job = True
+                    self.job_status_lock.release()
                     break
 
             if (not found_job):
                 self.logger.error("Could not associate final results!")
 
+        self.report_job_status()
         self.final_results_done.release()
+        self.logger.debug("Shutting down collect_final_results")
 
     def wait_for_workers_to_finish(self):
         self.final_results_done.acquire()
         self.final_results_done.release()
+        self.report_job_status()
 
         # Now we are all done
         self.quit = True
@@ -2370,9 +2430,10 @@ class reduce_collect_otas (object):
         job['ota_id'] = id
         job['complete'] = False
         job['attempt'] = 0
-        job['intermediate_data_sent'] = False
+        job['intermediate_data_sent'] = 0
         job['intermediate_results_received'] = False
         job['intermediate_data_ackd'] = False
+        job['time_of_ack'] = -1
 
         self.logger.debug("Setting up reduction for %s (ID: %d) -> %s" % (filename, id, job['args']['filename']))
         job['process'] = None
