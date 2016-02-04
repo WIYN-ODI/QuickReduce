@@ -3586,6 +3586,7 @@ def collectcells(input, outputfile,
         sky_otas = set(sky_samples_global[:,-1])
 
         # print sky_otas
+        logger.debug("SKY=OTAs: %s" % (str(sky_otas)))
         for sky_ota in sky_otas:
             sky_extname = "OTA%02d.SCI" % (sky_ota)
             # find the right HDU extension to compute the WCS solution
@@ -3639,6 +3640,7 @@ def collectcells(input, outputfile,
         ota_list.append(sky_tbhdu)
         # numpy.savetxt("skyfinal", sky_samples_final)
 
+    logger.debug("Saving reduction log for non-sidereal corrections")
     if (options['nonsidereal'] == None):
         global_reduction_log.not_selected('nonsidereal')
     else:
@@ -3657,6 +3659,7 @@ def collectcells(input, outputfile,
     #
     # Add some information about the filter bandpasses to the output file
     #
+    logger.debug("Adding filter bandpass information")
     filtername = ota_list[0].header['FILTER']
     bandpass = ("???", 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,) if (not filtername in filter_bandpass) else filter_bandpass[filtername]
     (filter_def, filter_mean_pos, filter_center_pos, 
@@ -3683,13 +3686,20 @@ def collectcells(input, outputfile,
 
     # Now all processes have returned their results, terminate them 
     # and delete all instances to free up memory
+    logger.debug("Joining all processes to make sure they terminate and free memory")
     for cur_process in processes:
-        cur_process.join()
+        logger.debug("Joining process %s, PID %d" % (cur_process, cur_process.pid))
+        cur_process.join(timeout=0.1)
+        if (cur_process.is_alive()):
+            logger.debug("Process is still alive, terminate it and re-join")
+            cur_process.terminate()
+            cur_process.join(timeout=0.1)
 
 
     #
     # Create an association table from the master reduction files used.
     #
+    logger.debug("Creating master association table and adding it to FITS")
     master_reduction_files_used = collect_reduction_files_used(master_reduction_files_used, 
                                                                additional_reduction_files)
     assoc_table = create_association_table(master_reduction_files_used)
@@ -3699,11 +3709,13 @@ def collectcells(input, outputfile,
     #
     # Add some almanac data to the current frame
     #
+    logger.debug("Adding almanac data to primary FITS header")
     podi_almanac.add_ephem_data_to_header(ota_list[0].header, None)
 
     #
     # Check if we find a shift-history, and if so, create the shift history plot
     #
+    logger.debug("Create shift-history plot")
     used_ot_shifting = False
     for _ox, _oy in fpl.available_ota_coords:
         _ota = _ox * 10 + _oy
@@ -3727,7 +3739,7 @@ def collectcells(input, outputfile,
             extension_list=options['plotformat'],
             title=plottitle,)
 
-
+    logger.debug("Writing global reduction log to primary FITS header")
     global_reduction_log.write_to_header(ota_list[0].header)
 
     #print "Waiting for a bit"
