@@ -1651,7 +1651,7 @@ def parallel_collect_reduce_ota(queue,
                 break
 
         # acknowledge that we received the intermediate data
-        logger.info("Sending ACK message")
+        logger.debug("Sending ACK message")
         intermediate_ack_queue.put(ota_id)
 
         # r = int(time.time()*1e6)
@@ -1664,7 +1664,7 @@ def parallel_collect_reduce_ota(queue,
         #_final_parameters = pipe.recv()
         #logger.info("OTA-ID %02d received PIPE final parameters:\n%s" % (ota_id, _final_parameters))
         
-        logger.info("OTA-ID %02d received final parameters:\n%s" % (ota_id, final_parameters))
+        logger.debug("OTA-ID %02d received final parameters: %s" % (ota_id, final_parameters))
 
         # XXX HACK
         #if (_ota_id == 22):
@@ -2107,9 +2107,7 @@ class reduce_collect_otas (object):
 
     def report_job_status(self):
         # report the status of all processes/jobs
-        return
-        for job in self.info:
-            self.logger.info("%2d - %s (%5d, #%2d): %5s %5s %5s %10d %5s" % (
+        status = "\n".join(["%2d - %s (%5d, #%2d): %5s %5s %5s %10d %5s" % (
                 job['ota_id'], job['filename'], 
                 -1 if job['process'] == None else job['process'].pid,
                 job['attempt'],
@@ -2117,9 +2115,20 @@ class reduce_collect_otas (object):
                 job['intermediate_data_sent'], 
                 job['intermediate_data_ackd'], 
                 (time.time()-job['time_of_ack']),
-                job['complete'],
-            )
-        )
+                job['complete']) for job in self.info])
+        self.logger.debug("Process status:\n\n%s\n" % (status))
+        # for job in self.info:
+        #     self.logger.info("%2d - %s (%5d, #%2d): %5s %5s %5s %10d %5s" % (
+        #         job['ota_id'], job['filename'], 
+        #         -1 if job['process'] == None else job['process'].pid,
+        #         job['attempt'],
+        #         job['intermediate_results_received'], 
+        #         job['intermediate_data_sent'], 
+        #         job['intermediate_data_ackd'], 
+        #         (time.time()-job['time_of_ack']),
+        #         job['complete'],
+        #     )
+        # )
 
     def feed_workers(self):
         self.workers_started = 0
@@ -2174,7 +2183,7 @@ class reduce_collect_otas (object):
                     self.active_workers -= 1
                     self.report_job_status()
                     self.job_status_lock.release()
-                    self.logger.info("# active workers is now %d" % (self.active_workers))
+                    self.logger.debug("# active workers is now %d" % (self.active_workers))
                     continue
 
                 workers_alive += 1
@@ -2210,7 +2219,7 @@ class reduce_collect_otas (object):
                         
                         job['attempt'] += 1
 
-                        self.logger.info("starting worker for ota %d, %s: attempt #%d\n(i.r.: %s)" % (
+                        self.logger.info("starting worker for ota %d, %s: attempt #%d (i.r.: %s)" % (
                             job['ota_id'], job['filename'], job['attempt'], str(job['intermediate_queue_msg'])))
                         #print "\n\n\nSTARTING:", id, job['filename'],"\n\n\n"
 
@@ -2232,7 +2241,7 @@ class reduce_collect_otas (object):
                         #     self.intermediate_queue.put(job['intermediate_queue_msg'], block=True)
                             
                         self.active_workers += 1
-                        self.logger.info("# active workers is now %d" % (self.active_workers))
+                        self.logger.debug("# active workers is now %d" % (self.active_workers))
                         #process_ids.append(job['process'].pid)
                         started_new_process = True
                         break
@@ -2241,7 +2250,7 @@ class reduce_collect_otas (object):
                     continue
 
             if (x%10 == 0): 
-                self.logger.info("still feeding workers (%d < %d)" % (
+                self.logger.debug("still feeding workers (%d < %d)" % (
                      self.active_workers, self.number_cpus))
 
                 self.report_job_status()
@@ -2268,13 +2277,13 @@ class reduce_collect_otas (object):
             for job in self.info:
                 if (job['ota_id'] == ota_id):
                     job['intermediate_results_received']
-                    self.logger.info("received some results from %d / %s!" % (
+                    self.logger.debug("received some results from %d / %s!" % (
                         ota_id, job['filename']))
                     job['intermediate_results_received'] = True
 
             self.intermediate_results_collected += 1
             self.active_workers -= 1
-            self.logger.info("# active workers is now %d" % (self.active_workers))
+            self.logger.debug("# active workers is now %d" % (self.active_workers))
 
 
         #print "***\n"*5,"All intermediate progress data received","\n***"*5
@@ -2317,7 +2326,7 @@ class reduce_collect_otas (object):
                 ota_id = self.intermediate_data_ack_queue.get_nowait()
                 for job in self.info:
                     if (job['ota_id'] == ota_id):
-                        self.logger.info("Got acknowledgement from OTA %d, fn %s" % (
+                        self.logger.debug("Got acknowledgement from OTA %d, fn %s" % (
                             ota_id, job['filename']))
 
                         self.job_status_lock.acquire()
@@ -2374,7 +2383,7 @@ class reduce_collect_otas (object):
 
             # mark the dataset as complete
             ota_id, data_products, shmem_id = result
-            self.logger.info("\n\nreceived final results for ota-ID %d (%s)\n\n" % (
+            self.logger.info("received final results for ota-ID %d (%s)" % (
                 ota_id, ",".join(["%d" % job['ota_id'] for job in self.info])))
 
 
@@ -2385,10 +2394,11 @@ class reduce_collect_otas (object):
                     # fn = self.id2filename[ota_id]
                     self.job_status_lock.acquire()
                     job['complete'] = True
-                    self.logger.info("\n***\n***\n*** File %s, ID %d marked as complete\n***\n***" % (job['filename'], ota_id))
+                    #self.logger.info("\n***\n***\n*** File %s, ID %d marked as complete\n***\n***" % (job['filename'], ota_id))
+                    self.logger.debug("File %s, ID %d marked as complete" % (job['filename'], ota_id))
                     self.active_workers -= 1
                     self.final_results.append(result)
-                    self.logger.info("# active workers is now %d" % (self.active_workers))
+                    self.logger.debug("# active workers is now %d" % (self.active_workers))
                     found_job = True
                     self.job_status_lock.release()
                     break
