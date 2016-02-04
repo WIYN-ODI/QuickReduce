@@ -1597,12 +1597,21 @@ def parallel_collect_reduce_ota(queue,
         logger.debug("Trimming off pupilghost template and fringe template")
 
         # Trim the data section of the return data to keep transfer delays low
-        pg_image = data_products['pupilghost-template']
-        del data_products['hdu']
-        del data_products['pupilghost-template']
+        pg_image = None
+        try:
+            pg_image = data_products['pupilghost-template']
+            del data_products['pupilghost-template']
+        except:
+            pass
 
-        fringe_template = data_products['fringe-template']
-        del data_products['fringe-template']
+        del data_products['hdu']
+
+        fringe_template = None
+        try:
+            fringe_template = data_products['fringe-template']
+            del data_products['fringe-template']
+        except:
+            pass
 
         # However, we do need the headers for the intermediate processing steps
         logger.debug("Adding back header")
@@ -1624,7 +1633,13 @@ def parallel_collect_reduce_ota(queue,
         logger.info("Waiting to hear back with fringe/pupilghost scaling")
         while (True):
             # wait for instruction for my OTA-ID
-            ret = intermediate_queue.get()
+            try:
+                ret = intermediate_queue.get(timeout=100)
+            except Queue.Empty:
+                continue
+            except:
+                podi_logging.log_exception()
+
             # print ret, " // ", ota_id
             _ota_id, final_parameters = ret
             if (not _ota_id == ota_id):
@@ -1665,6 +1680,7 @@ def parallel_collect_reduce_ota(queue,
         # XXX: UNPACK SHMEM AND REPACK WHEN DONE
         #
 
+        logger.debug("Next up (maybe): fringe subtraction")
         try:
             # Remove fringing by subtracting the scaled fringe template
             if (not type(fringe_template) == type(None) and final_parameters['fringe-scaling-median'] > 0):
@@ -1675,13 +1691,13 @@ def parallel_collect_reduce_ota(queue,
             podi_logging.log_exception()
             pass
 
+        logger.debug("Next up (maybe): pupilghost subtraction")
         try:
             # Also delete the pupilghost contribution
             if (not type(pg_image) == type(None) and final_parameters['pupilghost-scaling-median'] > 0):
                 logger.debug("Subtracting pupilghost (%.2f)..." % (final_parameters['pupilghost-scaling-median']))
                 return_hdu.data -= (pg_image * final_parameters['pupilghost-scaling-median'])
                 reduction_log.success('pupilghost')
-
         except:
             podi_logging.log_exception()
             pass
@@ -1691,6 +1707,7 @@ def parallel_collect_reduce_ota(queue,
         # Now that actual reduction is done, apply software binning
         #
         ##################
+        logger.debug("Next step (optional): software binning")
         if (not options['softbin'] == 0):
             # check if its a multiple of 2
             if (options['softbin'] in [2,4,8]):
