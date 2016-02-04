@@ -2107,6 +2107,7 @@ class reduce_collect_otas (object):
 
     def report_job_status(self):
         # report the status of all processes/jobs
+        return
         for job in self.info:
             self.logger.info("%2d - %s (%5d, #%2d): %5s %5s %5s %10d %5s" % (
                 job['ota_id'], job['filename'], 
