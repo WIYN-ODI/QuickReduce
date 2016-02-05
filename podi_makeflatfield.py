@@ -43,7 +43,8 @@ import logging
 def normalize_flatfield(filename, outputfile, 
                         binning_x=8, binning_y=8, 
                         repeats=3, 
-                        batchmode_hdu=None):
+                        batchmode_hdu=None,
+                        normalize_otas=None):
 
     logger = logging.getLogger("NormFlatField")
     logger.debug("Starting to normalize %s" % (str(batchmode_hdu)))
@@ -58,7 +59,10 @@ def normalize_flatfield(filename, outputfile,
     fpl = podi_focalplanelayout.FocalPlaneLayout(hdulist)
 
     list_of_otas_to_normalize = fpl.get_science_area_otas(filter, include_vignetted=False)
-    logger.debug("Using these OTAs to normalize overall flux:\n%s" % (", ".join(["%02d" % ota for ota in list_of_otas_to_normalize])))
+    if (not normalize_otas == None):
+        list_of_otas_to_normalize = normalize_otas
+
+    logger.info("Using these OTAs to normalize overall flux:\n%s" % (", ".join(["%02d" % ota for ota in list_of_otas_to_normalize])))
 
     flatfield_data = numpy.zeros(
         shape=(len(list_of_otas_to_normalize)*4096*4096/(binning_x*binning_y)), 

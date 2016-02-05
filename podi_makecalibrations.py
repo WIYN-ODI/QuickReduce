@@ -1077,6 +1077,36 @@ podi_makecalibrations.py input.list calib-directory
                             if (not os.path.isfile(flat_outfile) or cmdline_arg_isset("-redo")):
                                 #wcs_solution = os.path.split(os.path.abspath(sys.argv[0]))[0]+"/wcs_distort2.fits"
                                 #wcs_solution = cmdline_arg_set_or_default("-wcs", wcs_solution)
+
+                                normalize_otas = None
+                                if (cmdline_arg_isset("-rotatorflat")):
+                                    raw_flat_hdu = pyfits.open(cur_flat)
+                                    rotangle = int(numpy.round(raw_flat_hdu[0].header['ROTSTART']))
+                                    if (rotangle == -90):
+                                        options['selectota'] = [
+                                            (1,6), (2,6), (3,6), (4,6), (5,6), 
+                                                   (2,5), (3,5), (4,5), (5,5),
+                                                          (3,4), (4,4), (5,4),
+                                                          (3,3), (4,3), (5,3),
+                                                                        (5,2),
+
+                                            ]
+                                        normalize_otas = [33,34]
+                                        # [16,26,25,36,35,34,46,45,44,43,56,55,54,53,52]
+                                    elif (rotangle == 90):
+                                        options['selectota'] = [
+
+                                            (1,5),
+                                            (1,4), (2,4), (3,4),
+                                            (1,3), (2,3), (3,3), 
+                                            (1,2), (2,2), (3,2), (4,2),
+                                            (1,1), (2,1), (3,1), (4,1), (5,1),
+                                        ]
+                                        normalize_otas = [33,34]
+                                        # [11,12,13,14,15,21,22,23,24,31,32,33,41,42,51]
+                                    else:
+                                        options['selectota'] = None
+        
                                 hdu_list = collectcells(cur_flat, flat_outfile,
                                                         process_tracker=None,
                                                         options=options,
@@ -1090,7 +1120,9 @@ podi_makecalibrations.py input.list calib-directory
                                 #     and len(gain_readnoise_flat[binning]) < nframes_gain_readnoise):
                                 #     gain_readnoise_flat[binning].append(hdu_list)
 
-                                normalize_flatfield(None, flat_outfile, binning_x=8, binning_y=8, repeats=3, batchmode_hdu=hdu_list)
+                                normalize_flatfield(None, flat_outfile, binning_x=8, binning_y=8, repeats=3, batchmode_hdu=hdu_list,
+                                                    normalize_otas=normalize_otas
+                                                    )
 
                             flats_to_stack.append(flat_outfile)
                         #print flats_to_stack
