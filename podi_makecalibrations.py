@@ -87,6 +87,7 @@ import os
 import pyfits
 import numpy
 import scipy
+import time
 
 gain_correct_frames = False
 from podi_definitions import *
@@ -905,11 +906,14 @@ podi_makecalibrations.py input.list calib-directory
                     bias_outfile = "%s/bias.b%d.%s.fits" % (tmp_directory, binning, strip_fits_extension_from_filename(basename))
                     if (not os.path.isfile(bias_outfile) or cmdline_arg_isset("-redo")):
                         
+                        start_time = time.time()
                         bias_hdu = collectcells(cur_bias, bias_outfile,
                                      options=options,
                                      process_tracker=None,
                                      batchmode=False,
                                      showsplash=False)
+                        end_time = time.time()
+                        logger.debug("Collectcells (%s) finished after %.3f seconds" % (cur_bias, end_time-start_time))
                         if (bias_hdu == None):
                             logger.error("Collectcells did not return the expected data!")
                             continue
@@ -985,10 +989,14 @@ podi_makecalibrations.py input.list calib-directory
                     dummy, basename = os.path.split(cur_dark)
                     dark_outfile = "%s/dark.b%d.%s.fits" % (tmp_directory, binning, strip_fits_extension_from_filename(basename))
                     if (not os.path.isfile(dark_outfile) or cmdline_arg_isset("-redo")):
+                        start_time = time.time()
                         collectcells(cur_dark, dark_outfile,
                                      process_tracker=None,
                                      options=options,
                                      batchmode=False, showsplash=False)
+                        end_time = time.time()
+                        logger.debug("Collectcells (%s) finished after %.3f seconds" % (cur_dark, end_time-start_time))
+                        
                     darks_to_stack.append(dark_outfile)
                 #print darks_to_stack
 
@@ -1107,10 +1115,15 @@ podi_makecalibrations.py input.list calib-directory
                                     else:
                                         options['selectota'] = None
         
+                                start_time = time.time()
                                 hdu_list = collectcells(cur_flat, flat_outfile,
                                                         process_tracker=None,
                                                         options=options,
                                                         batchmode=True, showsplash=False)
+                                end_time = time.time()
+                                logger.debug("Collectcells (%s) finished after %.3f seconds" % (
+                                    cur_flat, end_time-start_time))
+                                                        
                                 if (hdu_list == None):
                                     logger.error("Collectcells did not return the expected data!")
                                     continue
@@ -1288,7 +1301,13 @@ podi_makecalibrations.py input.list calib-directory
                          n_frames=nframes_gain_readnoise)
                                        
 
-    logger.debug("All calibrations done successfully!")
+    logger.info("All calibrations done successfully!")
     podi_logging.shutdown_logging(options)
 
-    stdout_write("\nAll done, yippie :-)\n\n")
+    #
+    # Adding some final information before shutting down
+    # This should help find the problem inside PPA
+    #
+    podi_logging.print_stacktrace()
+
+    #stdout_write("\nAll done, yippie :-)\n\n")

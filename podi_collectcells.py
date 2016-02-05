@@ -4379,6 +4379,12 @@ if __name__ == "__main__":
         podi_logging.shutdown_logging(options)
 
     #
+    # Adding some final information before shutting down
+    # This should help find the problem inside PPA
+    #
+    podi_logging.print_stacktrace()
+
+    #
     # return the return value as determined above to let the calling program 
     # know if all execution was completed successfully or if there were some 
     # errors/problems during execution

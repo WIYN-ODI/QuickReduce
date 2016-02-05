@@ -396,12 +396,15 @@ def log_master(queue, options):
             print >> sys.stderr, 'Whoops! Problem:'
             traceback.print_exc(file=sys.stderr)
 
+    if (enable_pika):
+        try:
+            connection.close()
+        except:
+            pass
+
     if (enable_debug):
         print >>debugfile, "done with logging, closing file"
         debugfile.close()
-
-    if (enable_pika):
-        connection.close()
 
 
 
@@ -560,6 +563,32 @@ def shutdown_logging(options):
     return
 
 
+
+def print_stacktrace():
+
+    time.sleep(1)
+
+    print "========================================================"
+    print "==   STACK TRACE -- BEGIN                             =="
+    print "========================================================"
+    
+    print "\nCurrently running threads:\n -- %s" % ("\n -- ".join([str(x) for x in threading.enumerate()]))
+
+    for thread_id, frame in sys._current_frames().iteritems():
+        name = thread_id
+        #print name, frame
+
+        for thread in threading.enumerate():
+            if thread.ident == thread_id:
+                name = thread.name
+        print "\nSTACK-TRACE for %s" % (name)
+        traceback.print_stack(frame)
+
+    print "========================================================"
+    print "==   STACK TRACE -- END                               =="
+    print "========================================================"
+
+    time.sleep(1)
 
 
 # def podi_getlogger(name, setup):
