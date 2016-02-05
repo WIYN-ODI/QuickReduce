@@ -159,6 +159,7 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
                                mask_regions=None,
                                bpm_dir=None,
                                wipe_cells=None,
+                               ocdclean=False,
 ):
 
     root = logging.getLogger("CompIllumination")
@@ -190,7 +191,7 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
         # mask out guide-otas
         input2sex_file = fitsfile
         input_file_modified = False
-        print "XXX=", mask_guide_otas, type(mask_regions)
+        #print "XXX=", mask_guide_otas, type(mask_regions)
         ota_list = [hdulist[0]]
         for ext in hdulist[1:]:
 
@@ -222,7 +223,7 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
                     mask_broken_regions(ext.data, bpmfile)
                     input_file_modified = True
 
-            print wipe_cells
+            #print wipe_cells
             if (not wipe_cells == None):
                 wipecells(ext, wipe_cells)
 
@@ -352,6 +353,10 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
 
             mask_hdu.close()
 
+        if (ocdclean):
+            logger.debug("OCDmode: Deleting segmentation frame %s" % (segmask))
+            clobberfile(segmask)
+
         if (input_file_modified):
             clobberfile(input2sex_file)
 
@@ -369,6 +374,8 @@ def prepare_illumination_correction(filelist, outfile, tmpdir=".", redo=False,
                                     mask_regions=None,
                                     bpm_dir=None,
                                     wipe_cells=None,
+                                    ocdclean=False,
+
 ):
 
     logger = logging.getLogger("CreateIllumCorr")
@@ -395,6 +402,7 @@ def prepare_illumination_correction(filelist, outfile, tmpdir=".", redo=False,
                                               'mask_regions': mask_regions,
                                               'bpm_dir': bpm_dir,
                                               'wipe_cells': wipe_cells,
+                                              'ocdclean': ocdclean,
                                           },
                                     # args=(queue, return_queue),
         )
@@ -507,6 +515,7 @@ if __name__ == "__main__":
         mask_regions = cmdline_arg_set_or_default("-mask", None)
         bpm_dir = cmdline_arg_set_or_default("-bpm", None)
         wipe_cells = read_wipecells_list()
+        ocdclean = cmdline_arg_isset("-ocdclean")
 
         if (not mask_regions == None):
             print "Loading ds9 regions to mask from %s" % (mask_regions)
@@ -520,6 +529,7 @@ if __name__ == "__main__":
                                         mask_regions=mask_regions,
                                         bpm_dir=bpm_dir,
                                         wipe_cells=wipe_cells,
+                                        ocdclean=ocdclean,
         )
 
     elif (cmdline_arg_isset("-apply1")):
