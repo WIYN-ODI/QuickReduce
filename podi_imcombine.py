@@ -69,6 +69,7 @@ import Queue
 import threading
 import multiprocessing
 import ctypes
+import collections
 
 fix_cpu_count = False
 number_cpus = 2
@@ -372,32 +373,35 @@ def imcombine_sharedmem_data(shmem_buffer, operation, sizes):
 def imcombine_subprocess(extension, filelist, shape, operation, queue, verbose,
                          subtract=None, scale=None):
 
+    logger = logging.getLogger("ImCombine")
+
     #
     # Allocate enough shared momory to hold all frames
     #
-    size_x, size_y = shape[0], shape[1]
-    shmem_buffer = multiprocessing.RawArray(ctypes.c_float, size_x*size_y*len(filelist))
+    size_x, size_y, n_frames = shape[0], shape[1], shape[2]
+    shmem_buffer = multiprocessing.RawArray(ctypes.c_float, size_x*size_y*n_frames) #len(filelist))
 
     # Extract the shared memory buffer as numpy array to make things easier
-    buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len(filelist)))
+    buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, n_frames))
 
     # Set the full buffer to NaN
     buffer[:,:,:] = numpy.NaN
 
     # Now open all files, look for the right extension, and copy their image data to buffer
+    cur_frame = 0
     for file_number in range(len(filelist)):
         filename = filelist[file_number]
         hdulist = pyfits.open(filename)
-        for i in range(0, len(hdulist)):
-            if (not is_image_extension(hdulist[i])):
+        for i, ext in enumerate(hdulist):
+            if (not is_image_extension(ext)):
                 continue
-            fppos = hdulist[i].name #header['EXTNAME']
+            fppos = ext.name #header['EXTNAME']
 
             if (not fppos == extension):
                 continue
 
             # Get data for the right extension in this frame
-            framedata = hdulist[i].data[:,:]
+            framedata = ext.data[:,:]
             
             # optionally, apply the scaling and subtraction correction
             if (not subtract == None):
@@ -415,16 +419,21 @@ def imcombine_subprocess(extension, filelist, shape, operation, queue, verbose,
                         framedata *= hdulist[0].header[scale]         
 
             # store the (corrected) image data for parallel processing
-            buffer[:,:,file_number] = framedata
+            buffer[:,:,cur_frame] = framedata
+            cur_frame += 1
             break
 
-        hdulist[i].data = None
+        ext.data = None
         hdulist.close()
         del hdulist
         if (verbose): stdout_write("\n   Added file %s ..." % (filename))
 
-    # stdout_write("\n   Starting imcombine for real ...")
-    combined = imcombine_sharedmem_data(shmem_buffer, operation=operation, sizes=(size_x, size_y, len(filelist)))
+    if (n_frames > 1):
+        # stdout_write("\n   Starting imcombine for real ...")
+        combined = imcombine_sharedmem_data(shmem_buffer, operation=operation, sizes=(size_x, size_y, n_frames))
+    else:
+        logger.debug("Only a single frame contributes to this OTA, skipping combine and copying input to output")
+        combined = numpy.array(buffer[:,:,0])
 
     # put the imcombine'd data into the queue to return them to the main process
     queue.put(combined)
@@ -435,7 +444,7 @@ def imcombine_subprocess(extension, filelist, shape, operation, queue, verbose,
 
 
 def imcombine(input_filelist, outputfile, operation, return_hdu=False,
-              subtract=None, scale=None):
+              subtract=None, scale=None, gather_all_otas=True):
 
     logger = logging.getLogger("ImCombine")
 
@@ -472,18 +481,48 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
     out_hdulist = [primhdu]
 
     #
+    # Compile a list of OTAs that will be in the output frame
+    #
+    otas_found = []
+    ota_sizes = {}
+    ref_header = {}
+    if (gather_all_otas):
+        logger.info("Checking all files to compile comprehensive list of available OTAs")
+    for fn in filelist:
+        hdulist = pyfits.open(fn)
+        for ext in hdulist:
+            if (is_image_extension(ext)):
+                try:
+                    otas_found.append(ext.name)
+                    if (ext.name not in ota_sizes):
+                        ota_sizes[ext.name] = ext.data.shape
+                        ref_header[ext.name] = ext.header
+                except:
+                    podi_logging.log_exception()
+        hdulist.close()
+        if (not gather_all_otas):
+            break
+    otas_to_combine = set(otas_found)
+    ota_counter = collections.Counter(otas_found)
+    #print otas_to_combine
+    #print ota_counter
+
+
+    #
     # Now loop over all extensions and compute the mean
     #
-    for cur_ext in range(0, len(ref_hdulist)):
+    # for cur_ext in range(0, len(ref_hdulist)):
+    for cur_ext, extname in enumerate(otas_to_combine):
 
         data_blocks = []
         # Check what OTA we are dealing with
-        if (not is_image_extension(ref_hdulist[cur_ext])):
-            continue
-        ref_fppos = ref_hdulist[cur_ext].name #header['EXTNAME']
+        # if (not is_image_extension(ref_hdulist[cur_ext])):
+        #     continue
+        # ref_fppos = ref_hdulist[cur_ext].name #header['EXTNAME']
 
-        stdout_write("\rCombining frames for OTA %s (#% 2d/% 2d) ..." % (ref_fppos, cur_ext+1, len(ref_hdulist)))
-        logger.debug("Combining frames for OTA %s (#% 2d/% 2d) ..." % (ref_fppos, cur_ext+1, len(ref_hdulist)))
+        #stdout_write("\rCombining frames for OTA %s (#% 2d/% 2d) ..." % (ref_fppos, cur_ext+1, len(ref_hdulist)))
+        #logger.debug("Combining frames for OTA %s (#% 2d/% 2d) ..." % (ref_fppos, cur_ext+1, len(ref_hdulist)))
+        logger.info("Combining frames for OTA %s (#% 2d/% 2d) ..." % (extname, cur_ext+1, len(otas_to_combine)))
 
         #
         # Add some weird-looking construct to move the memory allocation and actual 
@@ -493,12 +532,12 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
         # is freed once we destroy this helper process.
         #
         return_queue = multiprocessing.JoinableQueue()
-        worker_args=(ref_fppos, filelist, ref_hdulist[cur_ext].data.shape, operation, return_queue, verbose)
+        #worker_args=(ref_fppos, filelist, ref_hdulist[cur_ext].data.shape, operation, return_queue, verbose)
 
         kw_args = {
-            'extension': ref_fppos,
+            'extension': extname,
             'filelist':  filelist, 
-            'shape':     ref_hdulist[cur_ext].data.shape,
+            'shape':     (ota_sizes[extname][0], ota_sizes[extname][1], ota_counter[extname]), #ref_hdulist[cur_ext].data.shape,
             'operation': operation, 
             'queue':     return_queue, 
             'verbose':   verbose,
@@ -516,7 +555,7 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
         logger.debug("done with computing, creating fits extension ...")
         # Create new ImageHDU, insert the imcombined's data and copy the 
         # header from the reference frame
-        hdu = pyfits.ImageHDU(data=combined, header=ref_hdulist[cur_ext].header)
+        hdu = pyfits.ImageHDU(data=combined, header=ref_header[extname])
 
         # Append the new HDU to the list of result HDUs
         out_hdulist.append(hdu)
@@ -551,7 +590,7 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
     if (not return_hdu and outputfile != None):
         logger.debug(" writing results to file %s ..." % (outputfile))
         clobberfile(outputfile)
-        out_hdu.writeto(outputfile, clobber=True)
+        out_hdu.writeto(outputfile, clobber=True, checksum=True)
         out_hdu.close()
         del out_hdu
         del out_hdulist
