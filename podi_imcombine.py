@@ -61,6 +61,7 @@ import scipy.stats
 
 import podi_logging
 import logging
+import time
 
 from podi_definitions import *
 from podi_commandline import *
@@ -70,6 +71,8 @@ import threading
 import multiprocessing
 import ctypes
 import collections
+
+from sharedmemory import SharedMemory
 
 fix_cpu_count = False
 number_cpus = 2
@@ -122,8 +125,10 @@ def weighted_mean(_line):
 def parallel_compute(queue, return_queue, shmem_buffer, shmem_results, size_x, size_y, len_filelist, operation):
     #queue, shmem_buffer, shmem_results, size_x, size_y, len_filelist = worker_args
 
-    buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len_filelist))
-    result_buffer = shmem_as_ndarray(shmem_results).reshape((size_x, size_y))
+    # buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len_filelist))
+    buffer = shmem_buffer.to_ndarray()
+    # result_buffer = shmem_as_ndarray(shmem_results).reshape((size_x, size_y))
+    result_buffer = shmem_results.to_ndarray()
 
     logger = logging.getLogger("ParallelImcombine")
     logger.debug("Operation: %s, #samples/pixel: %d" % (operation, len_filelist))
@@ -276,10 +281,12 @@ def imcombine_data(datas, operation="nanmean"):
     size_x, size_y = datas[0].shape[0], datas[0].shape[1]
     total_pixels = size_x*size_y*len(datas)
     # print "total pixel count",total_pixels
-    shmem_buffer = multiprocessing.RawArray(ctypes.c_float, total_pixels) #size_x*size_y*len(datas))
+    shmem_buffer = SharedMemory(ctypes.c_float, (size_x, size_y, len(datas)))
+    # multiprocessing.RawArray(ctypes.c_float, total_pixels) #size_x*size_y*len(datas))
 
     # Extract the shared memory buffer as numpy array to make things easier
-    buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len(datas)))
+    buffer = shmem_buffer.to_ndarray()
+    # shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len(datas)))
 
     # Set the full buffer to NaN
     buffer[:,:,:] = numpy.NaN
@@ -291,6 +298,7 @@ def imcombine_data(datas, operation="nanmean"):
 
     sizes = (size_x, size_y, len(datas))
     combined = imcombine_sharedmem_data(shmem_buffer, operation, sizes)
+    shmem_buffer.free()
 
     del shmem_buffer
     return combined
@@ -298,7 +306,8 @@ def imcombine_data(datas, operation="nanmean"):
 def imcombine_sharedmem_data(shmem_buffer, operation, sizes):
 
     size_x, size_y, n_frames = sizes
-    shmem_results = multiprocessing.RawArray(ctypes.c_float, size_x*size_y)
+    shmem_results = SharedMemory(ctypes.c_float, (size_x,size_y))
+    # multiprocessing.RawArray(ctypes.c_float, size_x*size_y)
 
     logger = logging.getLogger("CombineMgr")
 
@@ -309,7 +318,8 @@ def imcombine_sharedmem_data(shmem_buffer, operation, sizes):
     return_queue = multiprocessing.Queue()
 
     # Now compute median/average/sum/etc
-    buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, n_frames))
+    # buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, n_frames))
+    buffer = shmem_buffer.to_ndarray()
     for line in range(buffer.shape[0]):
         #print "Adding line",line,"to queue"
         queue.put(line)
@@ -360,7 +370,8 @@ def imcombine_sharedmem_data(shmem_buffer, operation, sizes):
         p.terminate()
         p.join(timeout=1)
 
-    results = numpy.copy(shmem_as_ndarray(shmem_results).reshape((size_x, size_y)))
+    results = numpy.copy(shmem_results.to_ndarray()) #).reshape((size_x, size_y)))
+    shmem_results.free()
 
     del shmem_results
     del queue
@@ -379,10 +390,12 @@ def imcombine_subprocess(extension, filelist, shape, operation, queue, verbose,
     # Allocate enough shared momory to hold all frames
     #
     size_x, size_y, n_frames = shape[0], shape[1], shape[2]
-    shmem_buffer = multiprocessing.RawArray(ctypes.c_float, size_x*size_y*n_frames) #len(filelist))
+    shmem_buffer = SharedMemory(ctypes.c_float, (size_x, size_y, n_frames))
+    # multiprocessing.RawArray(ctypes.c_float, size_x*size_y*n_frames) #len(filelist))
 
     # Extract the shared memory buffer as numpy array to make things easier
-    buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, n_frames))
+    # buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, n_frames))
+    buffer = shmem_buffer.to_ndarray()
 
     # Set the full buffer to NaN
     buffer[:,:,:] = numpy.NaN
@@ -435,6 +448,8 @@ def imcombine_subprocess(extension, filelist, shape, operation, queue, verbose,
         logger.debug("Only a single frame contributes to this OTA, skipping combine and copying input to output")
         combined = numpy.array(buffer[:,:,0])
 
+    shmem_buffer.free()
+
     # put the imcombine'd data into the queue to return them to the main process
     queue.put(combined)
 
@@ -480,6 +495,11 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
     # Add PrimaryHDU to list of OTAs that go into the output file
     out_hdulist = [primhdu]
 
+    time.sleep(2)
+    ref_hdulist.close()
+    del ref_hdulist
+    time.sleep(3)
+
     #
     # Compile a list of OTAs that will be in the output frame
     #
@@ -500,6 +520,7 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
                 except:
                     podi_logging.log_exception()
         hdulist.close()
+        del hdulist
         if (not gather_all_otas):
             break
     otas_to_combine = set(otas_found)
@@ -513,6 +534,7 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
     #
     # for cur_ext in range(0, len(ref_hdulist)):
     for cur_ext, extname in enumerate(otas_to_combine):
+
 
         data_blocks = []
         # Check what OTA we are dealing with
@@ -616,7 +638,12 @@ if __name__ == "__main__":
 
     subtract = cmdline_arg_set_or_default("-subtract", None)
     scale = cmdline_arg_set_or_default("-scale", None)
-    
+
+    print os.getpid()
+    time.sleep(4)
+
     imcombine(filelist, outputfile, operation, subtract=subtract, scale=scale)
+
+    time.sleep(4)
 
     podi_logging.shutdown_logging(options)

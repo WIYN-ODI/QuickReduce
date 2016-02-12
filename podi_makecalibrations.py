@@ -716,6 +716,9 @@ podi_makecalibrations.py input.list calib-directory
 
 """)
 
+    print os.getpid()
+    time.sleep(5)
+
     # Set the options for collectcells to some reasonable start values
     options = set_default_options()
     # Then read the actual given parameters from the command line
@@ -754,6 +757,8 @@ podi_makecalibrations.py input.list calib-directory
     if (not os.path.exists(tmp_directory)):
         logger.debug("Creating tmp directory %s" % (tmp_directory))
         os.makedirs(tmp_directory)
+
+    in_memory_techdata = False
 
     compute_gain_readnoise = True #cmdline_arg_isset("-gainreadnoise")
     nframes_gain_readnoise = -1
@@ -888,6 +893,10 @@ podi_makecalibrations.py input.list calib-directory
     # cases are handled below
     filter_set = set(filter_list)
 
+    only_selected_mastercals = []
+    if (cmdline_arg_isset("-only")):
+        only_selected_mastercals = [x.upper() for x in get_cmdline_arg("-only").split(",")]
+    
     #
     # First of all, let's combine all bias frames
     #
@@ -909,7 +918,8 @@ podi_makecalibrations.py input.list calib-directory
             if (obstype == "BIAS" and binning == bin):
                 bias_list.append(filename)
 
-        if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "bias"): 
+        # RK if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "bias"): 
+        if (not only_selected_mastercals or 'BIAS' in only_selected_mastercals):
             stdout_write("####################\n#\n# Creating bias-frame (binning %d)\n#\n####################\n" % binning)
             bias_to_stack = []
             if (not os.path.isfile(bias_frame) or cmdline_arg_isset("-redo")):
@@ -922,32 +932,50 @@ podi_makecalibrations.py input.list calib-directory
                     if (not os.path.isfile(bias_outfile) or cmdline_arg_isset("-redo")):
                         
                         start_time = time.time()
+                        need_hdu_returned = (compute_gain_readnoise 
+                            and (len(gain_readnoise_bias[binning]) < nframes_gain_readnoise)
+                            and in_memory_techdata)
+
                         bias_hdu = collectcells(cur_bias, bias_outfile,
-                                     options=options,
-                                     process_tracker=None,
-                                     batchmode=False,
-                                     showsplash=False)
+                                                options=options,
+                                                process_tracker=None,
+                                                batchmode=need_hdu_returned,
+                                                showsplash=False)
+                        print "BIAS-HDU:", bias_hdu
+
+                        # bias_hdu = None
                         end_time = time.time()
                         logger.debug("Collectcells (%s) finished after %.3f seconds" % (cur_bias, end_time-start_time))
-                        if (bias_hdu == None):
+                        if (bias_hdu == None and need_hdu_returned):
                             logger.error("Collectcells did not return the expected data!")
                             continue
 
-                    # # Save the HDU if we need it later to compute gain and read-noise
-                    # if (compute_gain_readnoise 
-                    #     and len(gain_readnoise_bias[binning]) < nframes_gain_readnoise):
-                    #     gain_readnoise_bias[binning].append(bias_hdu)
+                        # Save the HDU if we need it later to compute gain and read-noise
+                        if (compute_gain_readnoise 
+                            and len(gain_readnoise_bias[binning]) < nframes_gain_readnoise):
+                            if (in_memory_techdata):
+                                gain_readnoise_bias[binning].append(bias_hdu)
+                            else:
+                                gain_readnoise_bias[binning].append(bias_outfile)
 
                     bias_to_stack.append(bias_outfile)
+
+                    sys.stdout.write("\n\n done with bias\n\n\n")
+                    sys.stdout.flush()
+                    time.sleep(3)
+
                 #print bias_list
 
+                #break ## RK no imcombine
                 logger.info("Stacking %d frames into %s ..." % (len(bias_to_stack), bias_frame))
-                bias_hdu = imcombine(bias_to_stack, bias_frame, "sigmaclipmean", return_hdu=True)
+
+                bias_hdu = imcombine(bias_to_stack, bias_frame, 
+                                     "sigmaclipmean", return_hdu=True)
 
                 #
                 # Compute the read-noise for each cell
                 #
-                if (compute_gain_readnoise):
+                if (compute_gain_readnoise and not bias_hdu == None):
                     readnoise = compute_readnoise(gain_readnoise_bias[binning], binning)
                     gain_readnoise_to_tech_hdu(bias_hdu, None, readnoise)
                     # print readnoise
@@ -961,12 +989,14 @@ podi_makecalibrations.py input.list calib-directory
                             bias_hdu[extname].header['RON_STD'] = (std_readnoise, "readnoise std.dev. [counts]")
                             logger.debug("Found readnoise (%s): %.4f +/- %.4f" % (extname, avg_readnoise, std_readnoise))
 
-                
                 # Relabel the file as 'master-bias" and save to disk
                 if (not bias_hdu == None):
                     bias_hdu[0].header['OBJECT'] = "master-bias"
                     bias_hdu.writeto(bias_frame, clobber=True)
 
+                bias_hdu.close()
+                del bias_hdu
+                
                 logger.debug("Stacking %s done!" % (bias_frame))
             else:
                 logger.info("Bias-frame already exists, nothing to do!\n")
@@ -993,9 +1023,10 @@ podi_makecalibrations.py input.list calib-directory
             if (obstype == "DARK" and binning == bin):
                 dark_list.append(filename)
 
-        if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "dark"): 
-            #cmdline_opts = read_options_from_commandline()
-            options['bias_dir'] = output_directory if (options['bias_dir'] == None) else options['bias_dir']
+        # if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "dark"): 
+        if (not only_selected_mastercals or 'DARK' in only_selected_mastercals):
+            cmdline_opts = read_options_from_commandline()
+            options['bias_dir'] = output_directory if (cmdline_opts['bias_dir'] == None) else cmdline_opts['bias_dir']
             stdout_write("####################\n#\n# Creating dark-frame (binning %d)\n#\n####################\n" % (binning))
             darks_to_stack = []
             if (not os.path.isfile(dark_frame) or cmdline_arg_isset("-redo")):
@@ -1017,6 +1048,7 @@ podi_makecalibrations.py input.list calib-directory
                     darks_to_stack.append(dark_outfile)
                 #print darks_to_stack
 
+                #break ## RK no imcombine
                 logger.info("Stacking %d frames into %s ..." % (len(darks_to_stack), dark_frame))
                 dark_hdu = imcombine(darks_to_stack, dark_frame, "sigmaclipmean", return_hdu=True)
                 
@@ -1025,6 +1057,8 @@ podi_makecalibrations.py input.list calib-directory
                     dark_hdu[0].header['OBJECT'] = "master-dark"
                     dark_hdu.writeto(dark_frame, clobber=True)
 
+                dark_hdu.close()
+                del dark_hdu
                 logger.debug("Stacking %s done!" % (dark_frame))
             else:
                 logger.info("Dark-frame already exists, nothing to do!\n")
@@ -1046,9 +1080,8 @@ podi_makecalibrations.py input.list calib-directory
                  'tflat': calib_tflat_list,
                  }
 
-    options['dark_dir'] = old_dark
-
-    if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "flat"): 
+    # if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "flat"): 
+    if (not only_selected_mastercals or 'FLAT' in only_selected_mastercals):
 
         #cmdline_opts = read_options_from_commandline()
         options['bias_dir'] = output_directory if (options['bias_dir'] == None) else options['bias_dir']
@@ -1147,6 +1180,7 @@ podi_makecalibrations.py input.list calib-directory
                             # First run collectcells
                             dummy, basename = os.path.split(cur_flat)
                             flat_outfile = "%s/nflat.b%d.%s.%s.fits" % (tmp_directory, binning, filter, strip_fits_extension_from_filename(basename))
+                            flat_outfile_raw = "%s/nflat.b%d.%s.%s.prenorm.fits" % (tmp_directory, binning, filter, strip_fits_extension_from_filename(basename))
                             if (not os.path.isfile(flat_outfile) or cmdline_arg_isset("-redo")):
                                 #wcs_solution = os.path.split(os.path.abspath(sys.argv[0]))[0]+"/wcs_distort2.fits"
                                 #wcs_solution = cmdline_arg_set_or_default("-wcs", wcs_solution)
@@ -1189,32 +1223,60 @@ podi_makecalibrations.py input.list calib-directory
                                         ]
                                     else:
                                         options['selectota'] = None
-        
+                                    raw_flat_hdu.close()
+
+                                need_hdu_returned = (compute_gain_readnoise 
+                                                     and (len(gain_readnoise_flat[binning]) < nframes_gain_readnoise)
+                                                     and in_memory_techdata)
+                                need_hdu_returned = True
+
                                 start_time = time.time()
+                                # hdu_list = collectcells(cur_flat, flat_outfile,
                                 hdu_list = collectcells(cur_flat, flat_outfile,
-                                                        process_tracker=None,
-                                                        options=options,
-                                                        batchmode=True, showsplash=False)
+                                                  process_tracker=None,
+                                                  options=options,
+                                                  batchmode=need_hdu_returned, 
+                                                  showsplash=False)
+
+                                print "\n\nFLAT_HDU:",hdu_list,"\n\n"
+
+                                #hdu_list = None
                                 end_time = time.time()
                                 logger.debug("Collectcells (%s) finished after %.3f seconds" % (
                                     cur_flat, end_time-start_time))
-                                                        
-                                if (hdu_list == None):
-                                    logger.error("Collectcells did not return the expected data!")
-                                    continue
 
-                                # # Save the HDU if we need it later to compute gain and read-noise
-                                # if (compute_gain_readnoise 
-                                #     and len(gain_readnoise_flat[binning]) < nframes_gain_readnoise):
-                                #     gain_readnoise_flat[binning].append(hdu_list)
+                                
+                                # if (hdu_list == None):
+                                #     logger.error("Collectcells did not return the expected data!")
+                                #     continue
 
-                                normalize_flatfield(None, flat_outfile, binning_x=8, binning_y=8, repeats=3, batchmode_hdu=hdu_list,
+                                # Save the HDU if we need it later to compute gain and read-noise
+                                if (compute_gain_readnoise 
+                                    and len(gain_readnoise_flat[binning]) < nframes_gain_readnoise):
+                                    if (in_memory_techdata):
+                                        gain_readnoise_flat[binning].append(hdu_list)
+                                    else:
+                                        #clobberfile(flat_outfile_raw)
+                                        #hdu_list.writeto(flat_outfile_raw, clobber=True)
+                                        gain_readnoise_flat[binning].append(flat_outfile_raw)
+
+                                normalize_flatfield(None, flat_outfile, 
+                                                    binning_x=8, binning_y=8, repeats=3, 
+                                                    batchmode_hdu=hdu_list,
                                                     normalize_otas=normalize_otas
                                                     )
 
+                                hdu_list.close()
+                                del hdu_list
+                                
+                                sys.stdout.write("\n\n done with flat\n\n\n")
+                                sys.stdout.flush()
+                                time.sleep(3)
+                                
                             flats_to_stack.append(flat_outfile)
                         #print flats_to_stack
 
+                        #break ## RK no imcombine
                         logger.info("Stacking %d frames into %s ..." % (len(flats_to_stack), flat_frame))
                         flat_hdus = imcombine(flats_to_stack, flat_frame, "sigmaclipmean", return_hdu=True)
 
@@ -1354,6 +1416,8 @@ podi_makecalibrations.py input.list calib-directory
 
                         # And finally write the (maybe pupilghost-corrected) flat-field to disk
                         flat_hdus.writeto(flat_frame, clobber=True)
+                        flat_hdus.close()
+                        del flat_hdus
                     else:
                         logger.info("Flatfield (%s) already exists, nothing to do!\n" % (filter))
                     if (not cmdline_arg_isset("-keeptemps")):
@@ -1367,8 +1431,10 @@ podi_makecalibrations.py input.list calib-directory
     # Insert here: Compute the GAIN for each cell
     #
     logger = logging.getLogger("MakeCalibration_TechData")
-    if ((not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "techdata") 
-        and compute_gain_readnoise):
+    #if ((not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "techdata") 
+    if ((only_selected_mastercals and 'TECHDATA' in only_selected_mastercals)
+        and compute_gain_readnoise
+        and False): # RK
         logger.info("Computing gain and readnoise for each cell")
         techdatafile = "%s/techdata_bin%d.fits" % (output_directory, binning)
         compute_techdata(calib_bias_list, flatnames, #calib_flat_list, 
@@ -1384,5 +1450,8 @@ podi_makecalibrations.py input.list calib-directory
     # This should help find the problem inside PPA
     #
     podi_logging.print_stacktrace()
+
+    print "starting to wait for  abit"
+    time.sleep(10000)
 
     #stdout_write("\nAll done, yippie :-)\n\n")

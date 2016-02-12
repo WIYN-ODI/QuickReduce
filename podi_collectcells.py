@@ -282,6 +282,8 @@ from podi_reductionlog import *
 
 from astLib import astWCS
 
+from sharedmemory import SharedMemory
+
 fix_cpu_count = False
 
 if (sitesetup.number_cpus == "auto"):
@@ -1725,7 +1727,7 @@ def parallel_collect_reduce_ota(queue,
         #
         wx,wy = shmem_dim
         logger.debug("MPC SHMEM: %s %d,%d" % (str(shmem), wx, wy))
-        shmem_image = shmem_as_ndarray(shmem).reshape((wy,wx))
+        shmem_image = shmem.to_ndarray() #shmem_as_ndarray(shmem).reshape((wy,wx))
         logger.debug("Packing image return into shared memory (%d x %d)" % (wx, wy))
         if (return_hdu.data.shape[1] > wx or
             return_hdu.data.shape[0] > wy):
@@ -2436,7 +2438,8 @@ class reduce_collect_otas (object):
         #
         # Setup a new process for this file
         #
-        shmem = multiprocessing.RawArray(ctypes.c_float, 4096*4096)
+        #shmem = multiprocessing.RawArray(ctypes.c_float, 4096*4096)
+        shmem = SharedMemory(ctypes.c_float, (4096,4096))
         self.shmem_list[id] = shmem
         job['args'] = {
             'queue': self.queue,
@@ -2479,6 +2482,15 @@ class reduce_collect_otas (object):
         #     print filename
 
 
+    def free_shared_memory(self):
+
+        self.logger.debug("Freeing up shared memory")
+        print self.shmem_list
+
+        for shmem_id in self.shmem_list:
+            self.shmem_list[shmem_id].free()
+
+            
 
 
 
@@ -3535,7 +3547,8 @@ def collectcells(input, outputfile,
         logger.debug("Unpacking shared memory: (ID: %d, %d x %d)" % (shmem_id, wx,wy))
         shmem_buffer = worker.shmem_list[ota_id]
         # logger.debug("shmem: %s" % (str(shmem_buffer)))
-        shmem_image = shmem_as_ndarray(shmem_buffer).reshape(shmem_dims)
+        shmem_image = shmem_buffer.to_ndarray() #).reshape(shmem_dims)
+        # shmem_image = shmem_as_ndarray(shmem_buffer).reshape(shmem_dims)
         hdu.data = numpy.copy(shmem_image[:wy,:wx])
 
         ota_list[ota_id] = hdu
@@ -3566,6 +3579,8 @@ def collectcells(input, outputfile,
         #
         ota_reduction_log = data_products['reduction_log']
         global_reduction_log.combine(ota_reduction_log)
+
+    worker.free_shared_memory()
 
     # recv_end = time.time()
     # logger.debug("RECEIVING: %f" % ((recv_end - recv_start)))
@@ -4381,21 +4396,31 @@ def collectcells(input, outputfile,
 
     podi_logging.ppa_update_progress(80, "Reduction and calibration complete")
 
-    if (not batchmode):
+    time.sleep(0.5)
+
+    if (not outputfile == None):
         logger.debug("Complete, writing output file %s" % (outputfile))
         clobberfile(outputfile)
         hdulist.writeto(outputfile, clobber=True)
-        # afw.write(hdulist, outputfile)
         logger.debug("All work completed successfully, output written to %s" % (outputfile))
-    else:
-        logger.info("All work completed successfully, parsing output for further processing")
-        return hdulist
-
-    # afw.finish(userinfo=True)
 
     unstage_data(options, staged_data, input)
 
-    return 0
+    if (batchmode):
+        logger.info("All work completed successfully, parsing output for further processing")
+        return hdulist
+
+    #     clobberfile(outputfile)
+    #     hdulist.writeto(outputfile, clobber=True)
+    #     # afw.write(hdulist, outputfile)
+
+    # else:
+            
+
+    # # afw.finish(userinfo=True)
+
+
+    return outputfile
 
 
 def apply_nonsidereal_correction(ota_list, options, logger=None, reduction_log=None):
@@ -5008,6 +5033,8 @@ if __name__ == "__main__":
     # This should help find the problem inside PPA
     #
     podi_logging.print_stacktrace()
+
+    time.sleep(10)
 
     #
     # return the return value as determined above to let the calling program 
