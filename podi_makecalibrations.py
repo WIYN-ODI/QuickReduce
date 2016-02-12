@@ -1417,7 +1417,7 @@ podi_makecalibrations.py input.list calib-directory
     logger = logging.getLogger("MakeCalibration_TechData")
     #if ((not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "techdata") 
     if ((only_selected_mastercals and 'TECHDATA' in only_selected_mastercals)
-        and compute_gain_readnoise)
+        and compute_gain_readnoise):
         logger.info("Computing gain and readnoise for each cell")
         techdatafile = "%s/techdata_bin%d.fits" % (output_directory, binning)
         compute_techdata(calib_bias_list, flatnames, #calib_flat_list, 
