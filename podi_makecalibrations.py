@@ -716,9 +716,6 @@ podi_makecalibrations.py input.list calib-directory
 
 """)
 
-    print os.getpid()
-    time.sleep(5)
-
     # Set the options for collectcells to some reasonable start values
     options = set_default_options()
     # Then read the actual given parameters from the command line
@@ -918,7 +915,6 @@ podi_makecalibrations.py input.list calib-directory
             if (obstype == "BIAS" and binning == bin):
                 bias_list.append(filename)
 
-        # RK if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "bias"): 
         if (not only_selected_mastercals or 'BIAS' in only_selected_mastercals):
             stdout_write("####################\n#\n# Creating bias-frame (binning %d)\n#\n####################\n" % binning)
             bias_to_stack = []
@@ -960,13 +956,8 @@ podi_makecalibrations.py input.list calib-directory
 
                     bias_to_stack.append(bias_outfile)
 
-                    sys.stdout.write("\n\n done with bias\n\n\n")
-                    sys.stdout.flush()
-                    time.sleep(3)
-
                 #print bias_list
 
-                #break ## RK no imcombine
                 logger.info("Stacking %d frames into %s ..." % (len(bias_to_stack), bias_frame))
 
                 bias_hdu = imcombine(bias_to_stack, bias_frame, 
@@ -1023,7 +1014,6 @@ podi_makecalibrations.py input.list calib-directory
             if (obstype == "DARK" and binning == bin):
                 dark_list.append(filename)
 
-        # if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "dark"): 
         if (not only_selected_mastercals or 'DARK' in only_selected_mastercals):
             cmdline_opts = read_options_from_commandline()
             options['bias_dir'] = output_directory if (cmdline_opts['bias_dir'] == None) else cmdline_opts['bias_dir']
@@ -1080,7 +1070,6 @@ podi_makecalibrations.py input.list calib-directory
                  'tflat': calib_tflat_list,
                  }
 
-    # if (not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "flat"): 
     if (not only_selected_mastercals or 'FLAT' in only_selected_mastercals):
 
         #cmdline_opts = read_options_from_commandline()
@@ -1269,14 +1258,9 @@ podi_makecalibrations.py input.list calib-directory
                                 hdu_list.close()
                                 del hdu_list
                                 
-                                sys.stdout.write("\n\n done with flat\n\n\n")
-                                sys.stdout.flush()
-                                time.sleep(3)
-                                
                             flats_to_stack.append(flat_outfile)
                         #print flats_to_stack
 
-                        #break ## RK no imcombine
                         logger.info("Stacking %d frames into %s ..." % (len(flats_to_stack), flat_frame))
                         flat_hdus = imcombine(flats_to_stack, flat_frame, "sigmaclipmean", return_hdu=True)
 
@@ -1433,8 +1417,7 @@ podi_makecalibrations.py input.list calib-directory
     logger = logging.getLogger("MakeCalibration_TechData")
     #if ((not cmdline_arg_isset("-only") or get_cmdline_arg("-only") == "techdata") 
     if ((only_selected_mastercals and 'TECHDATA' in only_selected_mastercals)
-        and compute_gain_readnoise
-        and False): # RK
+        and compute_gain_readnoise)
         logger.info("Computing gain and readnoise for each cell")
         techdatafile = "%s/techdata_bin%d.fits" % (output_directory, binning)
         compute_techdata(calib_bias_list, flatnames, #calib_flat_list, 
@@ -1450,8 +1433,5 @@ podi_makecalibrations.py input.list calib-directory
     # This should help find the problem inside PPA
     #
     podi_logging.print_stacktrace()
-
-    print "starting to wait for  abit"
-    time.sleep(10000)
 
     #stdout_write("\nAll done, yippie :-)\n\n")

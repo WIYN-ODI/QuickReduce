@@ -495,10 +495,8 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
     # Add PrimaryHDU to list of OTAs that go into the output file
     out_hdulist = [primhdu]
 
-    time.sleep(2)
     ref_hdulist.close()
     del ref_hdulist
-    time.sleep(3)
 
     #
     # Compile a list of OTAs that will be in the output frame
@@ -639,11 +637,6 @@ if __name__ == "__main__":
     subtract = cmdline_arg_set_or_default("-subtract", None)
     scale = cmdline_arg_set_or_default("-scale", None)
 
-    print os.getpid()
-    time.sleep(4)
-
     imcombine(filelist, outputfile, operation, subtract=subtract, scale=scale)
-
-    time.sleep(4)
 
     podi_logging.shutdown_logging(options)

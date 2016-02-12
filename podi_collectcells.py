@@ -4396,8 +4396,6 @@ def collectcells(input, outputfile,
 
     podi_logging.ppa_update_progress(80, "Reduction and calibration complete")
 
-    time.sleep(0.5)
-
     if (not outputfile == None):
         logger.debug("Complete, writing output file %s" % (outputfile))
         clobberfile(outputfile)
@@ -5033,8 +5031,6 @@ if __name__ == "__main__":
     # This should help find the problem inside PPA
     #
     podi_logging.print_stacktrace()
-
-    time.sleep(10)
 
     #
     # return the return value as determined above to let the calling program 
