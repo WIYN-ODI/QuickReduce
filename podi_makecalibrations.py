@@ -914,6 +914,9 @@ podi_makecalibrations.py input.list calib-directory
         for (filename, obstype, filter, bin) in calib_file_list:
             if (obstype == "BIAS" and binning == bin):
                 bias_list.append(filename)
+        if (len(bias_list) <= 0):
+            logger.debug("No BIAS files with binning=%d found, skipping..." % (bin))
+            continue
 
         if (not only_selected_mastercals or 'BIAS' in only_selected_mastercals):
             stdout_write("####################\n#\n# Creating bias-frame (binning %d)\n#\n####################\n" % binning)
@@ -1013,6 +1016,9 @@ podi_makecalibrations.py input.list calib-directory
         for (filename, obstype, filter, bin) in calib_file_list:
             if (obstype == "DARK" and binning == bin):
                 dark_list.append(filename)
+        if (len(dark_list) <= 0):
+            logger.debug("No DARK files with binning=%d found, skipping..." % (bin))
+            continue
 
         if (not only_selected_mastercals or 'DARK' in only_selected_mastercals):
             cmdline_opts = read_options_from_commandline()
@@ -1095,6 +1101,11 @@ podi_makecalibrations.py input.list calib-directory
                     except:
                         continue
                         pass
+                    if (len(flat_list) <= 0):
+                        logger.debug("No %s files with filter=%s, binning=%d found, skipping..." % (
+                            flat_type.upper(), filter, bin))
+                        continue
+
 
                     gain_readnoise_flat[binning] = []
 
