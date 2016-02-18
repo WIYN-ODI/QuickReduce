@@ -71,7 +71,6 @@ def read_associations(hdulist):
     
 
 
-
 def show_associations(inputfile, show_full_file):
 
     try:
