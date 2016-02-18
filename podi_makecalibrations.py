@@ -926,7 +926,7 @@ podi_makecalibrations.py input.list calib-directory
                                                 process_tracker=None,
                                                 batchmode=need_hdu_returned,
                                                 showsplash=False)
-                        print "BIAS-HDU:", bias_hdu
+                        #print "BIAS-HDU:", bias_hdu
 
                         # bias_hdu = None
                         end_time = time.time()
