@@ -172,6 +172,8 @@ class QueueHandler(logging.Handler):
             #print "adding log entry to queue",self.msgcount, self.format(record)
             self.queue.put_nowait(record)
             #print "after adding one queue",self.queue.qsize()
+        except AssertionError:
+            pass
         except (KeyboardInterrupt, SystemExit):
             raise
         except:
@@ -455,6 +457,7 @@ def podi_log_master_quit(log_master_info):
     except (KeyboardInterrupt, SystemExit):
         pass
 
+    log_master_info['queue'].close()
     return
 
 

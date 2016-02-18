@@ -1623,7 +1623,10 @@ def parallel_collect_reduce_ota(queue,
 
         # Send the results from this OTA to the main process handler
         logger.debug("Sending results back to main process")
-        intermediate_results_queue.put((ota_id, data_products, shmem_id), block=True )
+        try:
+            intermediate_results_queue.put((ota_id, data_products, shmem_id), block=True )
+        except AssertionError:
+            pass
 
         # Now unpack the communication pipe
         logger.debug("Preparing communication pipe ...")
@@ -1648,7 +1651,11 @@ def parallel_collect_reduce_ota(queue,
             _ota_id, final_parameters = ret
             if (not _ota_id == ota_id):
                 # this is not meant for me, so put it back
-                intermediate_queue.put(ret) #(_ota_id, final_parameters))
+                try:
+                    intermediate_queue.put(ret) #(_ota_id, final_parameters))
+                except AssertionError:
+                    pass
+
                 time.sleep(0.1)
             else:
                 # got what I need
@@ -1656,7 +1663,11 @@ def parallel_collect_reduce_ota(queue,
 
         # acknowledge that we received the intermediate data
         logger.debug("Sending ACK message")
-        intermediate_ack_queue.put(ota_id)
+        try:
+            intermediate_ack_queue.put(ota_id)
+        except AssertionError:
+            pass
+
 
         # r = int(time.time()*1e6)
         # logger.info("RND: %d" % (r))
@@ -1743,7 +1754,10 @@ def parallel_collect_reduce_ota(queue,
 
         # Add the results to the return_queue so the master process can assemble the result file
         logger.debug("Adding results for OTA %02d to return queue" % (ota_id))
-        final_results_queue.put( (ota_id, data_products, shmem_id) )
+        try:
+            final_results_queue.put( (ota_id, data_products, shmem_id) )
+        except AssertionError:
+            pass
         time.sleep(0.1)
         # pipe.close()
 
@@ -2064,6 +2078,7 @@ class reduce_collect_otas (object):
         self.files_to_reduce = []
         
         self.active_workers = 0
+        self.all_closed = False
 
         #
         # Start feeding the workers
@@ -2315,6 +2330,9 @@ class reduce_collect_otas (object):
         return self.intermediate_results
 
     def abort(self):
+        if (self.all_closed):
+            return
+
         self.quit = True
         if (not self.intermediate_results_complete):
             self.intermediate_results_done.release()
@@ -2330,8 +2348,16 @@ class reduce_collect_otas (object):
                 self.logger.debug("done!")
             except:
                 pass
-        
+        self.close_queues()
+        self.all_closed = True
 
+    def close_queues(self):
+        self.queue.close()
+        self.final_results_queue.close()
+        self.intermediate_queue.close()
+        self.intermediate_results_queue.close()
+        self.intermediate_data_ack_queue.close()
+        
     def acknowledge_intermediate_data_received(self):
         while (not self.quit):
             try:
@@ -2366,7 +2392,11 @@ class reduce_collect_otas (object):
                     # nothing to do for this one
                     continue
 
-                self.intermediate_queue.put(job['intermediate_queue_msg'])
+                try:
+                    self.intermediate_queue.put(job['intermediate_queue_msg'])
+                except AssertionError:
+                    pass
+
                 self.logger.debug("Putting one set (# %d) of intermediate data back in work queue" % (
                     self.intermed_results_sent))
                 job['intermediate_data_sent'] += 1
