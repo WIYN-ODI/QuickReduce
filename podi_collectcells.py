@@ -2068,6 +2068,7 @@ class reduce_collect_otas (object):
         #
         self.feed_worker_thread = threading.Thread(
             target=self.feed_workers,
+            daemon=True,
             )
 
         #
@@ -2076,12 +2077,15 @@ class reduce_collect_otas (object):
         #
         self.collect_intermediate_results_thread = threading.Thread(
             target=self.collect_intermediate_results
+            daemon=True,
             )
         self.collect_intermediate_data_broadcast_thread = threading.Thread(
             target=self.broadcast_intermediate_data
+            daemon=True,
             )
         self.acknowledge_intermediate_data_thread = threading.Thread(
             target=self.acknowledge_intermediate_data_received,
+            daemon=True,
             )
         self.intermediate_results_complete = False
         self.intermediate_data_back_to_workers = None
@@ -2090,6 +2094,7 @@ class reduce_collect_otas (object):
         self.final_results = []
         self.collect_final_results_thread = threading.Thread(
             target=self.collect_final_results
+            daemon=True,
             )
         
         self.intermediate_results_complete = False

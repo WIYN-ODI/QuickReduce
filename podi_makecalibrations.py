@@ -89,8 +89,6 @@ import numpy
 import scipy
 import time
 
-import collections
-
 gain_correct_frames = False
 from podi_definitions import *
 from podi_commandline import *
@@ -803,7 +801,6 @@ podi_makecalibrations.py input.list calib-directory
     calib_flat_list = {}
     calib_tflat_list = {}
     calib_dflat_list = {}
-    flat_rotator_angle = {}
 
     for full_filename in input_file_list:
         if (len(full_filename)<=1):
@@ -831,12 +828,9 @@ podi_makecalibrations.py input.list calib-directory
             calib_tflat_list[binning] = {}
             calib_flat_list[binning] = {}
 
+        logger.info("   %s --> %s BIN=%d" % (directory, obstype, binning))
+
         filter = hdulist[0].header['FILTER']
-        rotangle = hdulist[0].header['ROTSTART']
-
-        logger.info("   %s --> %s   %-10s   binning: %d    rotator:%+4d" % (
-            directory, obstype, filter, binning, int(numpy.round(rotangle,0))))
-
         if (obstype in ["DFLAT", "TFLAT"]):
             filter_list.append(filter)
             if (combine_flats):
@@ -851,9 +845,6 @@ podi_makecalibrations.py input.list calib-directory
                 if (not filter in calib_tflat_list[binning]):
                     calib_tflat_list[binning][filter] = []
                 calib_tflat_list[binning][filter].append(ota00)
-
-            flat_rotator_angle[ota00] = rotangle
-
         elif (obstype == "DARK"):
             filter = None
             calib_dark_list[binning].append(ota00)
@@ -870,7 +861,6 @@ podi_makecalibrations.py input.list calib-directory
 
         calib_entry = (ota00, obstype, filter, binning)
         calib_file_list.append(calib_entry)
-
         binning_list.append(binning)
 
     # Determine all binning values encountered
@@ -898,11 +888,6 @@ podi_makecalibrations.py input.list calib-directory
     # First of all, let's combine all bias frames
     #
     logger = logging.getLogger("MakeCalibration_Bias")
-
-    old_bias = options['bias_dir']
-    old_dark = options['dark_dir']
-    old_flat = options['flat_dir']
-    options['bias_dir'] = options['dark_dir'] = options['flat_dir'] = None
 
     for binning in binning_set:
         gain_readnoise_bias[binning] = []
@@ -1004,8 +989,6 @@ podi_makecalibrations.py input.list calib-directory
     #
     logger = logging.getLogger("MakeCalibration_Dark")
     options['normalize'] = "EXPMEAS"
-    options['bias_dir'] = old_bias
-
     # For now set all darks to detector-glow "yes"
     for binning in binning_set:
         
@@ -1078,9 +1061,9 @@ podi_makecalibrations.py input.list calib-directory
 
     if (not only_selected_mastercals or 'FLAT' in only_selected_mastercals):
 
-        #cmdline_opts = read_options_from_commandline()
-        options['bias_dir'] = output_directory if (options['bias_dir'] == None) else options['bias_dir']
-        options['dark_dir'] = output_directory if (options['dark_dir'] == None) else options['dark_dir']
+        cmdline_opts = read_options_from_commandline()
+        options['bias_dir'] = output_directory if (cmdline_opts['bias_dir'] == None) else cmdline_opts['bias_dir']
+        options['dark_dir'] = output_directory if (cmdline_opts['dark_dir'] == None) else cmdline_opts['dark_dir']
 
         pupilghost_dir = options['pupilghost_dir']
 
@@ -1123,52 +1106,6 @@ podi_makecalibrations.py input.list calib-directory
                     options['pupilghost_dir'] = None
                     logger.debug("overwriting (for now) pupilghost dir=%s" % (pupilghost_dir))
 
-                    auto_rotate_enabled = False
-                    if (cmdline_arg_isset("-autorotateflat")):
-                        min_flat_count = int(cmdline_arg_set_or_default("-autorotateflat", 1))
-                        if (min_flat_count < 1): min_flat_count = 1
-
-                        # get list of rotator angles
-                        flat_angles = []
-                        print flat_rotator_angle
-                        for fn in flat_list:
-                            rotangle = flat_rotator_angle[fn]
-                            rounded_rotangle = int(numpy.round(rotangle/5., 0)*5)
-                            flat_angles.append(rounded_rotangle)
-                        angle_count = collections.Counter(flat_angles)
-                        print angle_count
-
-                        
-                        try:
-                            count_m90 = angle_count[-90]
-                        except (TypeError, KeyError):
-                            count_m90 = 0
-
-                        try:
-                            count_p90 = angle_count[90]
-                        except(TypeError, KeyError):
-                            count_p90 = 0
-                        
-                        if (count_p90 >= min_flat_count and
-                            count_m90 >= min_flat_count):
-                            #
-                            # We have enough frames at +90 and -90 degree rotator 
-                            # angle to activate the rotatorflat option
-                            #
-                            logger.info("Activating auto-rotate for flat-fields (type: %s, filter: %s, binning: %d)" % (
-                                flat_type, filter, bin))
-
-                            auto_rotate_enabled = True
-                        else:
-                            logger.info("Insufficient number of frames with rotator angles +90deg (%d) and -90deg (%d), required: %d (type: %s, filter: %s, binning: %d)" % (
-                                count_p90, count_m90,
-                                min_flat_count,
-                                # (angle_count[90] if 90 in angle_count else 0),
-                                # (angle_count[-90] if -90 in angle_count else 0),
-                                flat_type, filter, bin,
-                                ))
-                        pass
-
                     flats_to_stack = []
                     if (not os.path.isfile(flat_frame) or cmdline_arg_isset("-redo")):
                         #stdout_write("####################\n#\n# Reducing flat-field %s (binning=%d)\n#\n####################\n" % (filter, binning))
@@ -1186,41 +1123,31 @@ podi_makecalibrations.py input.list calib-directory
                                 #wcs_solution = cmdline_arg_set_or_default("-wcs", wcs_solution)
 
                                 normalize_otas = None
-                                if (cmdline_arg_isset("-rotatorflat") or auto_rotate_enabled):
+                                if (cmdline_arg_isset("-rotatorflat")):
                                     raw_flat_hdu = pyfits.open(cur_flat)
                                     rotangle = int(numpy.round(raw_flat_hdu[0].header['ROTSTART']))
                                     if (rotangle == -90):
                                         options['selectota'] = [
-                                             (1,6), (2,6), (3,6), (4,6), (5,6),
-                                             (1,5), (2,5), (3,5), (4,5), (5,5),
-                                                    (2,4), (3,4), (4,4), (5,4),
-                                                           (3,3), (4,3), (5,3),
-                                                                  (4,2), (5,2),
-                                                                         (5,1),
+                                            (1,6), (2,6), (3,6), (4,6), (5,6), 
+                                                   (2,5), (3,5), (4,5), (5,5),
+                                                          (3,4), (4,4), (5,4),
+                                                          (3,3), (4,3), (5,3),
+                                                                        (5,2),
+
                                             ]
-                                        normalize_otas = [16, 
-                                                          15, 25, 
-                                                              24, 34, 
-                                                                  33, 43, 
-                                                                      42, 52, 
-                                                                          51,
-                                        ]
+                                        normalize_otas = [33,34]
+                                        # [16,26,25,36,35,34,46,45,44,43,56,55,54,53,52]
                                     elif (rotangle == 90):
                                         options['selectota'] = [
-                                            (1,6),
-                                            (1,5), (2,5),
+
+                                            (1,5),
                                             (1,4), (2,4), (3,4),
-                                            (1,3), (2,3), (3,3), (4,3),
-                                            (1,2), (2,2), (3,2), (4,2), (5,2),
+                                            (1,3), (2,3), (3,3), 
+                                            (1,2), (2,2), (3,2), (4,2),
                                             (1,1), (2,1), (3,1), (4,1), (5,1),
                                         ]
-                                        normalize_otas = [16, 
-                                                          15, 25, 
-                                                              24, 34, 
-                                                                  33, 43, 
-                                                                      42, 52, 
-                                                                          51,
-                                        ]
+                                        normalize_otas = [33,34]
+                                        # [11,12,13,14,15,21,22,23,24,31,32,33,41,42,51]
                                     else:
                                         options['selectota'] = None
                                     raw_flat_hdu.close()
