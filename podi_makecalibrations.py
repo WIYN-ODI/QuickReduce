@@ -99,7 +99,7 @@ import podi_matchpupilghost
 import logging
 import podi_sitesetup as sitesetup
 import podi_focalplanelayout
-import podi_assocations
+import podi_associations
 
 def strip_fits_extension_from_filename(filename):
     """
@@ -1166,7 +1166,7 @@ podi_makecalibrations.py input.list calib-directory
                                                   batchmode=need_hdu_returned, 
                                                   showsplash=False)
 
-                                print "\n\nFLAT_HDU:",hdu_list,"\n\n"
+                                #print "\n\nFLAT_HDU:",hdu_list,"\n\n"
 
                                 #hdu_list = None
                                 end_time = time.time()
