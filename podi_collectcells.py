@@ -1634,7 +1634,7 @@ def parallel_collect_reduce_ota(queue,
         #
         # Wait to hear back with the rest of the instructions
         #
-        logger.info("Waiting to hear back with fringe/pupilghost scaling")
+        logger.debug("Waiting to hear back with fringe/pupilghost scaling")
         while (True):
             # wait for instruction for my OTA-ID
             try:
@@ -2070,7 +2070,6 @@ class reduce_collect_otas (object):
         #
         self.feed_worker_thread = threading.Thread(
             target=self.feed_workers,
-            daemon=True,
             )
 
         #
@@ -2078,16 +2077,13 @@ class reduce_collect_otas (object):
         # intermediate data and handle data receipt acknowledgements
         #
         self.collect_intermediate_results_thread = threading.Thread(
-            target=self.collect_intermediate_results
-            daemon=True,
+            target=self.collect_intermediate_results,
             )
         self.collect_intermediate_data_broadcast_thread = threading.Thread(
-            target=self.broadcast_intermediate_data
-            daemon=True,
+            target=self.broadcast_intermediate_data,
             )
         self.acknowledge_intermediate_data_thread = threading.Thread(
             target=self.acknowledge_intermediate_data_received,
-            daemon=True,
             )
         self.intermediate_results_complete = False
         self.intermediate_data_back_to_workers = None
@@ -2095,9 +2091,16 @@ class reduce_collect_otas (object):
 
         self.final_results = []
         self.collect_final_results_thread = threading.Thread(
-            target=self.collect_final_results
-            daemon=True,
+            target=self.collect_final_results,
             )
+
+        # Make all threads daemons - that way they don't keep the program from
+        # not shutting down
+        self.feed_worker_thread.setDaemon(True)
+        self.collect_intermediate_results_thread.setDaemon(True)
+        self.collect_intermediate_data_broadcast_thread.setDaemon(True)
+        self.acknowledge_intermediate_data_thread.setDaemon(True)
+        self.collect_final_results_thread.setDaemon(True)
         
         self.intermediate_results_complete = False
 
@@ -2228,7 +2231,7 @@ class reduce_collect_otas (object):
                         
                         job['attempt'] += 1
 
-                        self.logger.info("starting worker for ota %d, %s: attempt #%d (i.r.: %s)" % (
+                        self.logger.debug("starting worker for ota %d, %s: attempt #%d (i.r.: %s)" % (
                             job['ota_id'], job['filename'], job['attempt'], str(job['intermediate_queue_msg'])))
                         #print "\n\n\nSTARTING:", id, job['filename'],"\n\n\n"
 
@@ -2392,7 +2395,7 @@ class reduce_collect_otas (object):
 
             # mark the dataset as complete
             ota_id, data_products, shmem_id = result
-            self.logger.info("received final results for ota-ID %d (%s)" % (
+            self.logger.debug("received final results for ota-ID %d (%s)" % (
                 ota_id, ",".join(["%d" % job['ota_id'] for job in self.info])))
 
 
@@ -2492,7 +2495,7 @@ class reduce_collect_otas (object):
     def free_shared_memory(self):
 
         self.logger.debug("Freeing up shared memory")
-        print self.shmem_list
+        # print self.shmem_list
 
         for shmem_id in self.shmem_list:
             self.shmem_list[shmem_id].free()
