@@ -35,7 +35,7 @@ import bottleneck
 import dev_pgcenter
 import multiprocessing
 from astLib import astWCS
-import podi_showassociations as podi_associations
+import podi_associations
 
 from podi_definitions import *
 from podi_commandline import *
@@ -843,13 +843,13 @@ def combine_pupilghost_slices(out_filename, filelist, op='sigclipmean'):
         # comb_hdu.header['OTAORDER'] = ota_str[:-1]
 
         this_assoc = {'pupilghost-slice': fn }
-        assoc_table = collect_reduction_files_used(assoc_table, this_assoc)
+        assoc_table = podi_associations.collect_reduction_files_used(assoc_table, this_assoc)
 
         # Read the assocation table of this frame
         in_assoc  = podi_associations.read_associations(hdulist)
         if (not in_assoc == None):
             logger.debug("Found assocations:\n%s" % (str(in_assoc)))
-            assoc_table = collect_reduction_files_used(assoc_table, in_assoc)
+            assoc_table = podi_associations.collect_reduction_files_used(assoc_table, in_assoc)
 
 #    return
 
@@ -916,7 +916,7 @@ def combine_pupilghost_slices(out_filename, filelist, op='sigclipmean'):
         pass
 
     print assoc_table
-    assoc_hdu = create_association_table(assoc_table)
+    assoc_hdu = podi_associations.create_association_table(assoc_table)
 
     out_hdulist = [primhdu, combined, assoc_hdu]
     for name in ['PROFILE', 'RAWPROFILE']:

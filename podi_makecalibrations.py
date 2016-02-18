@@ -99,6 +99,7 @@ import podi_matchpupilghost
 import logging
 import podi_sitesetup as sitesetup
 import podi_focalplanelayout
+import podi_assocations
 
 def strip_fits_extension_from_filename(filename):
     """
@@ -513,12 +514,12 @@ def compute_techdata(calib_biaslist, flat_names, output_dir, options, n_frames=2
                         biasfile = "%s%d%d%s" % (base, otax, otay, ext)
                         if (os.path.isfile(biasfile)):
                             ota_biases.append(biasfile)
-                            collect_reduction_files_used(association_table, {"raw": biasfile})
+                            podi_associations.collect_reduction_files_used(association_table, {"raw": biasfile})
                     for (base, ext) in flat_construct:
                         flatfile = "%s%d%d%s" % (base, otax, otay, ext)
                         if (os.path.isfile(flatfile)):
                             ota_flats.append(flatfile)
-                            collect_reduction_files_used(association_table, {"raw": flatfile})
+                            podi_associations.collect_reduction_files_used(association_table, {"raw": flatfile})
 
                     n_use = numpy.min([n_frames, 
                                        len(ota_biases), 
@@ -568,7 +569,7 @@ def compute_techdata(calib_biaslist, flat_names, output_dir, options, n_frames=2
                     logger.debug("Creating TECHDATA extension %s" % (extnames))
 
                 # open any of the files to get some info about filter, etc.
-                assoc_hdu = create_association_table(association_table, verbose=False)
+                assoc_hdu = podi_associations.create_association_table(association_table, verbose=False)
                 techdata_hdu_.append(assoc_hdu)
 
                 #

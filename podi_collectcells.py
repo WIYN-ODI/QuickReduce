@@ -278,6 +278,8 @@ import podi_focalplanelayout
 import podi_guidestars
 import podi_shifthistory
 
+import podi_associations
+
 from podi_reductionlog import *
 
 from astLib import astWCS
@@ -3565,7 +3567,7 @@ def collectcells(input, outputfile,
         if ('reduction_files_used' in data_products):
             files_this_frame = data_products['reduction_files_used']
             # print "\n\n\n\n\nfiles_this_frame=\n\n",files_this_frame,"\n\n\n"
-            collect_reduction_files_used(master_reduction_files_used, files_this_frame)
+            podi_associations.collect_reduction_files_used(master_reduction_files_used, files_this_frame)
 
         global_gain_sum += (hdu.header['GAIN'] * hdu.header['NGAIN'])
         global_gain_count += hdu.header['NGAIN']
@@ -4295,7 +4297,7 @@ def collectcells(input, outputfile,
 
         if ('ref' in options['nonsidereal'] and
             os.path.isfile(options['nonsidereal']['ref'])):
-            master_reduction_files_used = collect_reduction_files_used(
+            master_reduction_files_used = podi_associations.collect_reduction_files_used(
                 master_reduction_files_used, 
                 {"nonsidereal-reference": options['nonsidereal']['ref']})
 
@@ -4345,9 +4347,9 @@ def collectcells(input, outputfile,
     # Create an association table from the master reduction files used.
     #
     logger.debug("Creating master association table and adding it to FITS")
-    master_reduction_files_used = collect_reduction_files_used(master_reduction_files_used, 
+    master_reduction_files_used = podi_associations.collect_reduction_files_used(master_reduction_files_used, 
                                                                additional_reduction_files)
-    assoc_table = create_association_table(master_reduction_files_used)
+    assoc_table = podi_associations.create_association_table(master_reduction_files_used)
     ota_list.append(assoc_table)
 
 
