@@ -2147,7 +2147,7 @@ class reduce_collect_otas (object):
         should_be_working = []
         process_ids = []
 
-        print "Starting to feed workers"
+        #print "Starting to feed workers"
 
         x = 0
         while (not self.quit):
@@ -2271,7 +2271,7 @@ class reduce_collect_otas (object):
         self.logger.debug("Shutting down feed_workers")
         
     def collect_intermediate_results(self):
-        self.logger.info("Starting to collect intermediate results (%d)" % (len(self.info)))
+        self.logger.debug("Starting to collect intermediate results (%d)" % (len(self.info)))
         self.intermediate_results_collected = 0
 
         while (self.intermediate_results_collected < len(self.info) and
