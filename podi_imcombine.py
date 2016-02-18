@@ -65,6 +65,7 @@ import time
 
 from podi_definitions import *
 from podi_commandline import *
+import podi_associations
 
 import Queue
 import threading
@@ -506,6 +507,7 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
     ref_header = {}
     if (gather_all_otas):
         logger.info("Checking all files to compile comprehensive list of available OTAs")
+    master_associations = None
     for fn in filelist:
         hdulist = pyfits.open(fn)
         for ext in hdulist:
@@ -517,6 +519,18 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
                         ref_header[ext.name] = ext.header
                 except:
                     podi_logging.log_exception()
+
+        #
+        # Collect all individual association tables to create 
+        # a master association table combining all input data
+        #
+        assoc_table = podi_associations.read_associations(hdulist)
+        if (master_associations == None):
+            master_associations = assoc_table
+        else:
+            master_associations = podi_associations.collect_reduction_files_used(
+                master_associations, assoc_table)
+
         hdulist.close()
         del hdulist
         if (not gather_all_otas):
@@ -602,6 +616,10 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
     tablehdu = pyfits.new_table(coldefs, tbtype="BinTableHDU")
     tablehdu.header["EXTNAME"] = "FILELIST"
     out_hdulist.append(tablehdu)
+
+    assoc_tbhdu = podi_associations.create_association_table(
+        master_associations)
+    out_hdulist.append(assoc_tbhdu)
 
     #
     # All work done now, prepare to return the data or write it to disk
