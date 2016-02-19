@@ -427,6 +427,13 @@ def podi_log_master_start(options):
     """
 
     queue = multiprocessing.JoinableQueue()
+
+    #
+    # Rename the thread name to make a more useful stacktrace
+    #
+    queue._start_thread()
+    queue._thread.name = "QueueFeederThread___ParallelLogging"
+
     listener = multiprocessing.Process(target=log_master,
                                 kwargs={"queue": queue,
                                         "options": options}
@@ -443,6 +450,8 @@ def podi_log_master_start(options):
     # Also start a logger for the main process
     podi_logger_setup(worker_setup)
 
+    print_stacktrace()
+
     return log_master_info, worker_setup
 
 
@@ -451,13 +460,16 @@ def podi_log_master_quit(log_master_info):
     Shutdown the logging process
     """
 
-    log_master_info['queue'].put_nowait(None)
+    log_master_info['queue'].put(None)
     try:
+        print "joining log listener"
         log_master_info['listener'].join()
+        print "done joining log listener"
     except (KeyboardInterrupt, SystemExit):
         pass
 
     log_master_info['queue'].close()
+    log_master_info['queue'].join_thread()
     return
 
 
@@ -570,16 +582,24 @@ def shutdown_logging(options):
     return
 
 
+class fakefile (object):
+    def __init__(self):
+        self.text = ""
+    def write(self, t):
+        self.text += t
+    def get(self):
+        return self.text
 
-def print_stacktrace():
+def print_stacktrace(sleep=0, logger=None, info=True, stdout=False):
 
-    time.sleep(1)
+    time.sleep(sleep)
 
-    print "========================================================"
-    print "==   STACK TRACE -- BEGIN                             =="
-    print "========================================================"
-    
-    print "\nCurrently running threads:\n -- %s" % ("\n -- ".join([str(x) for x in threading.enumerate()]))
+    ff = fakefile()
+    print >>ff, "========================================================"
+    print >>ff, "==   STACK TRACE -- BEGIN                             =="
+    print >>ff, "========================================================"
+
+    print >>ff, "\nCurrently running threads:\n -- %s" % ("\n -- ".join([str(x) for x in threading.enumerate()]))
 
     for thread_id, frame in sys._current_frames().iteritems():
         name = thread_id
@@ -588,14 +608,27 @@ def print_stacktrace():
         for thread in threading.enumerate():
             if thread.ident == thread_id:
                 name = thread.name
-        print "\nSTACK-TRACE for %s" % (name)
-        traceback.print_stack(frame)
+        print >>ff,"\nSTACK-TRACE for %s" % (name)
+        traceback.print_stack(frame, file=ff)
 
-    print "========================================================"
-    print "==   STACK TRACE -- END                               =="
-    print "========================================================"
+    print >>ff, ""
+    print >>ff, "========================================================"
+    print >>ff, "==   STACK TRACE -- END                               =="
+    print >>ff, "========================================================"
 
-    time.sleep(1)
+    if (stdout):
+        print ff.get()
+    else:
+        if (logger == None):
+            logger = logging.getLogger("StackTrace")
+        if (info):
+            logger.info("\n%s" % (ff.get()))
+        else:
+            logger.debug("\n%s" % (ff.get()))
+
+    time.sleep(sleep)
+    
+    return ff.get()
 
 
 # def podi_getlogger(name, setup):
