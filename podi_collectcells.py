@@ -2380,6 +2380,26 @@ class reduce_collect_otas (object):
             except:
                 pass
         self.close_queues()
+
+        #
+        # Join all threads to make sure everything is shut down
+        #
+        self.logger.debug("Joining collect_intermediate_results thread")
+        self.collect_intermediate_results_thread.join()
+        self.logger.debug("done joining!")
+
+        self.logger.debug("Joining broadcast_intermediate_data thread")
+        self.collect_intermediate_data_broadcast_thread.join()
+        self.logger.debug("done joining!")
+
+        self.logger.debug("Joining acknowledge_intermedidate_data thread")
+        self.acknowledge_intermediate_data_thread.join()
+        self.logger.debug("done joining!")
+
+        self.logger.debug("Joining collect_final_results thread")
+        self.collect_final_results_thread.join()
+        self.logger.debug("done joining!")
+
         self.all_closed = True
 
     def close_queues(self):
