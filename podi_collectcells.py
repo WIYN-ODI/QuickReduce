@@ -1822,7 +1822,9 @@ def collectcells_with_timeout(input, outputfile,
                               options=None,
                               showsplash=True,
                               timeout=None,
-                              process_tracker=None):
+                              #process_tracker=None
+):
+
 
     """ 
     Minimal wrapper to enable a timeout feature for collectcells. The actual 
@@ -1849,7 +1851,7 @@ def collectcells_with_timeout(input, outputfile,
     # Start a collectcells as subprocess
     
     cc_args = (input, outputfile,
-               process_tracker,
+               #process_tracker,
                batchmode,
                verbose,
                options,
@@ -1864,9 +1866,10 @@ def collectcells_with_timeout(input, outputfile,
     p.join(timeout)
     if (p.is_alive()):
         stdout_write("\n\nTimeout event triggered, shutting things down ...")
-        kill_all_child_processes(process_tracker)
+        #kill_all_child_processes(process_tracker)
 
         stdout_write("\n   Killing collectcells after timeout...")
+        podi_logging.print_stacktrace()
         p.terminate()
         stdout_write(" all done!\n\n")
         return 1
@@ -2054,14 +2057,37 @@ class reduce_collect_otas (object):
 
         self.logger = logging.getLogger("QRWorker")
 
+        self.logger.info("stacktrace before starting qr worker:")
+        podi_logging.print_stacktrace(logger=self.logger)
+
         self.info = []
 
+        #
+        # Setup all queues;
+        # for each queue, start and rename the internal thread
+        #
         self.queue = multiprocessing.JoinableQueue()
+        self.queue._start_thread()
+        self.queue._thread.name = "QueueFeederThread__JobQueue"
+
         self.final_results_queue = multiprocessing.Queue()
+        self.final_results_queue._start_thread()
+        self.final_results_queue._thread.name = "QueueFeederThread__FinalResultQueue"
+
         self.intermediate_queue = multiprocessing.Queue()
+        self.intermediate_queue._start_thread()
+        self.intermediate_queue._thread.name = "QueueFeederThread__IntermediateDataQueue"
+
         self.intermediate_results_queue = multiprocessing.Queue()
+        self.intermediate_results_queue._start_thread()
+        self.intermediate_results_queue._thread.name = "QueueFeederThread__IntermediateResultsQueue"
+
         self.intermediate_data_ack_queue = multiprocessing.Queue()
+        self.intermediate_data_ack_queue._start_thread()
+        self.intermediate_data_ack_queue._thread.name = "QueueFeederThread__AcknIntermedDataReceivedQueue"
+
         self.shmem_dims = (4096, 4096)
+
 
         self.intermediate_results_done = multiprocessing.Lock()
         self.intermediate_results_done.acquire()
@@ -2085,6 +2111,7 @@ class reduce_collect_otas (object):
         #
         self.feed_worker_thread = threading.Thread(
             target=self.feed_workers,
+            name="QRThread__FeedWorkers",
             )
 
         #
@@ -2093,12 +2120,15 @@ class reduce_collect_otas (object):
         #
         self.collect_intermediate_results_thread = threading.Thread(
             target=self.collect_intermediate_results,
+            name="QRThread__CollectIntermediateResults",
             )
         self.collect_intermediate_data_broadcast_thread = threading.Thread(
             target=self.broadcast_intermediate_data,
+            name="QRThread__BroadcastIntermediateData",
             )
         self.acknowledge_intermediate_data_thread = threading.Thread(
             target=self.acknowledge_intermediate_data_received,
+            name="QRThread__AcknowledgeIntermediateDataReceived",
             )
         self.intermediate_results_complete = False
         self.intermediate_data_back_to_workers = None
@@ -2107,6 +2137,7 @@ class reduce_collect_otas (object):
         self.final_results = []
         self.collect_final_results_thread = threading.Thread(
             target=self.collect_final_results,
+            name="QRThread__CollectFinalResults"
             )
 
         # Make all threads daemons - that way they don't keep the program from
@@ -2353,10 +2384,19 @@ class reduce_collect_otas (object):
 
     def close_queues(self):
         self.queue.close()
+        self.queue.join_thread()
+
         self.final_results_queue.close()
+        self.final_results_queue.join_thread()
+
         self.intermediate_queue.close()
+        self.intermediate_queue.join_thread()
+
         self.intermediate_results_queue.close()
+        self.intermediate_results_queue.join_thread()
+
         self.intermediate_data_ack_queue.close()
+        self.intermediate_data_ack_queue.join_thread()
         
     def acknowledge_intermediate_data_received(self):
         while (not self.quit):
@@ -2540,7 +2580,7 @@ class reduce_collect_otas (object):
 
 
 def collectcells(input, outputfile,
-                 process_tracker,
+                 #process_tracker=None,
                  batchmode=False,
                  verbose=False,
                  options=None,
@@ -2618,6 +2658,9 @@ def collectcells(input, outputfile,
         stdout_write(splash)
 
     # print "Received options:", options
+    podi_logging.print_stacktrace()
+    # time.sleep(1)
+    # return 1
 
     if (options['verbose']):
         stdout_write("\nThese are the options we are using:\n")
@@ -2822,9 +2865,9 @@ def collectcells(input, outputfile,
     # Set up the parallel processing environment
     #
     #result_buffer = numpy.zeros(shape=(buffer.shape[0], buffer.shape[1]), dtype=numpy.float32)
-    queue = multiprocessing.JoinableQueue()
-    return_queue = multiprocessing.Queue()
-    intermediate_queue = multiprocessing.Queue()
+    # queue = multiprocessing.JoinableQueue()
+    # return_queue = multiprocessing.Queue()
+    # intermediate_queue = multiprocessing.Queue()
 
     processes = []
 
@@ -2832,16 +2875,16 @@ def collectcells(input, outputfile,
     # For easier user-understanding, add special keywords for each reduction step
     #
 
-    worker_args = (queue, return_queue, options)
+    # worker_args = (queue, return_queue, options)
     shmem_dims = (4096, 4096)
-    kw_worker_args= {
-        'queue': queue,
-        'return_queue': return_queue,
-        'intermediate_queue': intermediate_queue,
-        'options': options,
-        'shmem': None,
-        'shmem_dim': shmem_dims,
-    }
+    # kw_worker_args= {
+    #     'queue': queue,
+    #     'return_queue': return_queue,
+    #     'intermediate_queue': intermediate_queue,
+    #     'options': options,
+    #     'shmem': None,
+    #     'shmem_dim': shmem_dims,
+    # }
     shmem_list = []
     number_extensions = 0
 
@@ -3415,6 +3458,8 @@ def collectcells(input, outputfile,
     logger.debug("waiting for workers to finish")
     worker.wait_for_workers_to_finish()
     logger.info("All OTAs have been de-trended")
+
+    podi_logging.print_stacktrace()
 
     logger.debug("Getting final results")
     results = worker.get_final_results()
@@ -4444,6 +4489,8 @@ def collectcells(input, outputfile,
 
     unstage_data(options, staged_data, input)
 
+    podi_logging.print_stacktrace()
+
     if (batchmode):
         logger.info("All work completed successfully, parsing output for further processing")
         return hdulist
@@ -4995,8 +5042,8 @@ if __name__ == "__main__":
         print me.__doc__
         sys.exit(0)
 
-    m = multiprocessing.Manager()
-    process_tracker = m.Queue()
+    # m = multiprocessing.Manager()
+    # process_tracker = m.Queue()
 
     # Read the input directory that contains the individual OTA files
     input = get_clean_cmdline()[1]
@@ -5028,6 +5075,7 @@ if __name__ == "__main__":
     logger.debug("Executable: %s" % (os.path.abspath(__file__)))
     logger.debug("COLLECTCELLS INPUT: %s (%s)" % (input, os.path.abspath(input)))
 
+
     #
     # Collect all cells, perform reduction and write result file
     #
@@ -5043,19 +5091,26 @@ if __name__ == "__main__":
             p.sort_stats('time').print_stats()
             retvalue = 4
         else:
+            print "collectcells with timeout:", cmdline_arg_isset("-timeout")
+            #time.sleep(5)
+
             if (cmdline_arg_isset("-timeout")):
+                
                 timeout = float(cmdline_arg_set_or_default("-timeout", 900))
                 print "Setting timeout to",timeout,"seconds"
                 retvalue = collectcells_with_timeout(input, outputfile, options=options,
                                                      timeout=timeout,
-                                                     process_tracker=process_tracker)
+                                                     )
+                                                     #process_tracker=process_tracker)
             else:
-                collectcells(input, outputfile, process_tracker=process_tracker, options=options)
+                collectcells(input, outputfile, 
+                             #process_tracker=process_tracker, 
+                             options=options)
                 retvalue = 0
     except:
         print "Cleaning up left over child processes"
         podi_logging.log_exception()
-        kill_all_child_processes(process_tracker)
+        #kill_all_child_processes(process_tracker)
         retvalue = 2
 
     finally:
@@ -5070,7 +5125,9 @@ if __name__ == "__main__":
     # Adding some final information before shutting down
     # This should help find the problem inside PPA
     #
-    podi_logging.print_stacktrace()
+    # time.sleep(1)
+    print "All threads should be closed now!"
+    podi_logging.print_stacktrace(stdout=True)
 
     #
     # return the return value as determined above to let the calling program 
