@@ -2383,20 +2383,29 @@ class reduce_collect_otas (object):
         self.all_closed = True
 
     def close_queues(self):
+        self.logger.debug("Starting to close all queues")
+
         self.queue.close()
         self.queue.join_thread()
+        self.logger.debug("Job queue closed")
 
         self.final_results_queue.close()
         self.final_results_queue.join_thread()
+        self.logger.debug("Final results queue closed")
 
         self.intermediate_queue.close()
         self.intermediate_queue.join_thread()
+        self.logger.debug("intermediate data queue closed")
 
         self.intermediate_results_queue.close()
         self.intermediate_results_queue.join_thread()
+        self.logger.debug("Intermediate results queue closed")
 
         self.intermediate_data_ack_queue.close()
         self.intermediate_data_ack_queue.join_thread()
+        self.logger.debug("intermediate data received Ack queue closed")
+
+        self.logger.debug("all queues closed and threads terminated")
         
     def acknowledge_intermediate_data_received(self):
         while (not self.quit):
