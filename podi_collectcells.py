@@ -1850,6 +1850,8 @@ def collectcells_with_timeout(input, outputfile,
 
     # Start a collectcells as subprocess
     
+    logger = logging.getLogger("CC_w_timeout")
+
     cc_args = (input, outputfile,
                #process_tracker,
                batchmode,
@@ -1858,20 +1860,24 @@ def collectcells_with_timeout(input, outputfile,
                showsplash)
 
     p = multiprocessing.Process(target=collectcells, args=cc_args)
-    if (verbose): print "Starting collectcells with timeout"
+    logger.debug("Starting collectcells with timeout")
     p.start()
-    if (verbose): print "collectcells started!"
+    logger.debug("collectcells started!")
 
+    start_time = time.time()
     timeout = timeout if timeout > 0 else None
     p.join(timeout)
+    end_time = time.time()
+    logger.debug("returned from joining CC after %.3f seconds" % ((end_time-start_time)))
+
     if (p.is_alive()):
-        stdout_write("\n\nTimeout event triggered, shutting things down ...")
+        logger.warning("Timeout event triggered, shutting things down ...")
         #kill_all_child_processes(process_tracker)
 
-        stdout_write("\n   Killing collectcells after timeout...")
+        logger.info("Killing collectcells after timeout...")
         podi_logging.print_stacktrace()
         p.terminate()
-        stdout_write(" all done!\n\n")
+        logger.info("all done after timeout problem/error!")
         return 1
 
     return 0
@@ -4512,11 +4518,16 @@ def collectcells(input, outputfile,
 
     if (not outputfile == None):
         logger.debug("Complete, writing output file %s" % (outputfile))
+        start_time = time.time()
         clobberfile(outputfile)
         hdulist.writeto(outputfile, clobber=True)
-        logger.debug("All work completed successfully, output written to %s" % (outputfile))
+        end_time = time.time()
+        logger.debug("All work completed successfully, output written to %s (took %.3f seconds)" % (
+            outputfile, (end_time-start_time)))
 
+    logger.debug("Unstaging data!")
     unstage_data(options, staged_data, input)
+    logger.debug("Done unstaging data!")
 
     podi_logging.print_stacktrace()
 
@@ -4533,7 +4544,7 @@ def collectcells(input, outputfile,
 
     # # afw.finish(userinfo=True)
 
-
+    logger.debug("Work done, returning output filename: %s" % (outputfile))
     return outputfile
 
 
@@ -5132,9 +5143,12 @@ if __name__ == "__main__":
                                                      )
                                                      #process_tracker=process_tracker)
             else:
+                start_time = time.time()
                 collectcells(input, outputfile, 
                              #process_tracker=process_tracker, 
                              options=options)
+                end_time = time.time()
+                logger.debug("collectcells returned to __main__ after %.3f seconds" % ((end_time-start_time)))
                 retvalue = 0
     except:
         print "Cleaning up left over child processes"
