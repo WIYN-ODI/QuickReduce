@@ -2330,8 +2330,10 @@ class reduce_collect_otas (object):
                not self.quit):
 
             try:
-                results = self.intermediate_results_queue.get(timeout=0.1)
+                #results = self.intermediate_results_queue.get_nowait()
+                results = self.intermediate_results_queue.get(timeout=0.05)
             except Queue.Empty:
+                #time.sleep(0.05)
                 continue
 
             self.intermediate_results.append(results)
@@ -2351,9 +2353,12 @@ class reduce_collect_otas (object):
 
 
         #print "***\n"*5,"All intermediate progress data received","\n***"*5
-        self.logger.debug("All intermediate progress data received")
-        self.intermediate_results_done.release()
-        self.intermediate_results_complete = True
+        if (self.quit):
+            self.logger.debug("quitting out of collect_intermediate_results")
+        else:
+            self.logger.debug("All intermediate progress data received")
+            self.intermediate_results_done.release()
+            self.intermediate_results_complete = True
         self.logger.debug("Shutting down collect_intermediate_results")
 
     def wait_for_intermediate_results(self):
@@ -2495,8 +2500,17 @@ class reduce_collect_otas (object):
         pass
 
     def collect_final_results(self):
-        for i in range(len(self.info)):
-            result = self.final_results_queue.get()
+
+        n_collected = 0
+        while (not self.quit and
+               n_collected < len(self.info)):
+
+        #for i in range(len(self.info)):
+            try:
+                result = self.final_results_queue.get(timeout=0.05)
+            except Queue.Empty:
+                continue
+
 
             # mark the dataset as complete
             ota_id, data_products, shmem_id = result
@@ -2517,6 +2531,7 @@ class reduce_collect_otas (object):
                     self.final_results.append(result)
                     self.logger.debug("# active workers is now %d" % (self.active_workers))
                     found_job = True
+                    n_collected += 1
                     self.job_status_lock.release()
                     break
 
