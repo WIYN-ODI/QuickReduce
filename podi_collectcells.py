@@ -1875,7 +1875,7 @@ def collectcells_with_timeout(input, outputfile,
         #kill_all_child_processes(process_tracker)
 
         logger.info("Killing collectcells after timeout...")
-        podi_logging.print_stacktrace()
+        # podi_logging.print_stacktrace()
         p.terminate()
         logger.info("all done after timeout problem/error!")
         return 1
@@ -2063,8 +2063,8 @@ class reduce_collect_otas (object):
 
         self.logger = logging.getLogger("QRWorker")
 
-        self.logger.info("stacktrace before starting qr worker:")
-        podi_logging.print_stacktrace(logger=self.logger)
+        # self.logger.info("stacktrace before starting qr worker:")
+        # podi_logging.print_stacktrace(logger=self.logger)
 
         self.info = []
 
@@ -2390,7 +2390,6 @@ class reduce_collect_otas (object):
                 self.logger.debug("done!")
             except:
                 pass
-        self.close_queues()
 
         #
         # Join all threads to make sure everything is shut down
@@ -2411,6 +2410,11 @@ class reduce_collect_otas (object):
         self.collect_final_results_thread.join()
         self.logger.debug("done joining!")
 
+        #
+        # Close all queues
+        #
+        self.close_queues()
+
         self.all_closed = True
 
     def close_queues(self):
@@ -2420,21 +2424,57 @@ class reduce_collect_otas (object):
         self.queue.join_thread()
         self.logger.debug("Job queue closed")
 
+        try:
+            nq=0
+            while (True):
+                self.final_results_queue.get_nowait()
+                nq += 1
+        except:
+            pass
         self.final_results_queue.close()
-        self.final_results_queue.join_thread()
-        self.logger.debug("Final results queue closed")
+        self.final_results_queue._thread.join(timeout=0.1) #join_thread()
+        self.logger.debug("Final results queue closed (alive: %s / %d)" % (
+            str(self.final_results_queue._thread.is_alive()), nq))
 
+        try:
+            nq=0
+            while (True):
+                self.intermediate_queue.get_nowait()
+                nq += 1
+        except:
+            pass
         self.intermediate_queue.close()
-        self.intermediate_queue.join_thread()
-        self.logger.debug("intermediate data queue closed")
+        # self.intermediate_queue.join_thread()
+        self.intermediate_queue._thread.join(timeout=0.1) #join_thread()
+        self.logger.debug("intermediate data queue closed (alive: %s / %d)" % (
+            str(self.intermediate_queue._thread.is_alive()), nq))
+        #self.intermediate_queue._thread = None
 
+        try:
+            nq=0
+            while (True):
+                self.intermediate_results_queue.get_nowait()
+                nq += 1
+        except:
+            pass
         self.intermediate_results_queue.close()
-        self.intermediate_results_queue.join_thread()
-        self.logger.debug("Intermediate results queue closed")
+        self.intermediate_results_queue._thread.join(timeout=0.1) #join_thread()
+        self.logger.debug("Intermediate results queue closed (alive: %s / %d)" % (
+            str(self.intermediate_results_queue._thread.is_alive()), nq))
+        #self.intermediate_results_queue._thread = None
 
+        try:
+            nq=0
+            while (True):
+                self.intermediate_data_ack_queue.get_nowait()
+                nq += 1
+        except:
+            pass
         self.intermediate_data_ack_queue.close()
-        self.intermediate_data_ack_queue.join_thread()
-        self.logger.debug("intermediate data received Ack queue closed")
+        self.intermediate_data_ack_queue._thread.join(timeout=0.1) #join_thread()
+        self.logger.debug("intermediate data received Ack queue closed (alive: %s / %d)" % (
+            str(self.intermediate_data_ack_queue._thread.is_alive()), nq))
+        #self.intermediate_data_ack_queue._thread = None
 
         self.logger.debug("all queues closed and threads terminated")
         
@@ -2708,7 +2748,7 @@ def collectcells(input, outputfile,
         stdout_write(splash)
 
     # print "Received options:", options
-    podi_logging.print_stacktrace()
+    # podi_logging.print_stacktrace()
     # time.sleep(1)
     # return 1
 
@@ -3509,7 +3549,7 @@ def collectcells(input, outputfile,
     worker.wait_for_workers_to_finish()
     logger.info("All OTAs have been de-trended")
 
-    podi_logging.print_stacktrace()
+    # podi_logging.print_stacktrace()
 
     logger.debug("Getting final results")
     results = worker.get_final_results()
@@ -4544,7 +4584,7 @@ def collectcells(input, outputfile,
     unstage_data(options, staged_data, input)
     logger.debug("Done unstaging data!")
 
-    podi_logging.print_stacktrace()
+    # podi_logging.print_stacktrace()
 
     if (batchmode):
         logger.info("All work completed successfully, parsing output for further processing")
@@ -5146,7 +5186,7 @@ if __name__ == "__main__":
             p.sort_stats('time').print_stats()
             retvalue = 4
         else:
-            print "collectcells with timeout:", cmdline_arg_isset("-timeout")
+            # print "collectcells with timeout:", cmdline_arg_isset("-timeout")
             #time.sleep(5)
 
             if (cmdline_arg_isset("-timeout")):
@@ -5184,8 +5224,8 @@ if __name__ == "__main__":
     # This should help find the problem inside PPA
     #
     # time.sleep(1)
-    print "All threads should be closed now!"
-    podi_logging.print_stacktrace(stdout=True)
+    # print "All threads should be closed now!"
+    # podi_logging.print_stacktrace(stdout=True)
 
     #
     # return the return value as determined above to let the calling program 
