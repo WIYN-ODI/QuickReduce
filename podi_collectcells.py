@@ -1514,6 +1514,7 @@ def parallel_collect_reduce_ota(queue,
                                 shmem=None,
                                 shmem_dim=None,
                                 shmem_id=-1,
+                                quit_signal=None
                                 ):
     """
     A minimal wrapper handling the parallel execution of collectcells.
@@ -1638,12 +1639,15 @@ def parallel_collect_reduce_ota(queue,
         # Wait to hear back with the rest of the instructions
         #
         logger.debug("Waiting to hear back with fringe/pupilghost scaling")
-        while (True):
+        while (not quit_signal.value):
             # wait for instruction for my OTA-ID
             try:
-                ret = intermediate_queue.get(timeout=100)
+                ret = intermediate_queue.get(timeout=0.1)
             except Queue.Empty:
                 continue
+            except IOError:
+                # most likely due to closed pipe after the queue has been closed
+                break
             except:
                 podi_logging.log_exception()
 
@@ -1654,7 +1658,9 @@ def parallel_collect_reduce_ota(queue,
                 try:
                     intermediate_queue.put(ret) #(_ota_id, final_parameters))
                 except AssertionError:
-                    pass
+                    # AssertionError most likely happens when the queue is 
+                    # already closed --> shut-down if we encounter this problem
+                    return
 
                 time.sleep(0.1)
             else:
@@ -2061,6 +2067,8 @@ class reduce_collect_otas (object):
         self.number_cpus = number_cpus
         self.quit = False
 
+        self.qr_quit = multiprocessing.Value('i', False)
+
         self.logger = logging.getLogger("QRWorker")
 
         # self.logger.info("stacktrace before starting qr worker:")
@@ -2376,6 +2384,8 @@ class reduce_collect_otas (object):
             return
 
         self.quit = True
+        self.qr_quit.value = True
+
         if (not self.intermediate_results_complete):
             self.intermediate_results_done.release()
         self.logger.debug("Terminating feeder")
@@ -2623,6 +2633,7 @@ class reduce_collect_otas (object):
             'filename': filename,
             'ota_id': id,
             'intermediate_ack_queue': self.intermediate_data_ack_queue,
+            'quit_signal': self.qr_quit,
             # 'intermediate_results_queue_lock': self.intermediate_results_queue_lock,
         }
         job['intermediate_data'] = None
