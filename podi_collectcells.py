@@ -1765,7 +1765,7 @@ def parallel_collect_reduce_ota(queue,
         except AssertionError:
             logger.error("Unable to put final results into final_results_queue!")
             pass
-        time.sleep(0.1)
+        #time.sleep(0.1)
         # pipe.close()
 
         #cmd_queue.task_done()
@@ -2394,8 +2394,9 @@ class reduce_collect_otas (object):
         self.report_job_status()
         for job in self.info:
             try:
-                self.logger.debug("terminating process for %s" % (job['filename']))
                 p = job['process']
+                self.logger.debug("terminating process for %s (alive? %s)" % (
+                    job['filename'], p.is_alive()))
                 p.terminate()
                 p.join()
                 self.logger.debug("done!")
