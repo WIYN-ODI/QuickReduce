@@ -1763,6 +1763,7 @@ def parallel_collect_reduce_ota(queue,
         try:
             final_results_queue.put( (ota_id, data_products, shmem_id) )
         except AssertionError:
+            logger.error("Unable to put final results into final_results_queue!")
             pass
         time.sleep(0.1)
         # pipe.close()
@@ -2362,7 +2363,7 @@ class reduce_collect_otas (object):
 
         #print "***\n"*5,"All intermediate progress data received","\n***"*5
         if (self.quit):
-            self.logger.debug("quitting out of collect_intermediate_results")
+            self.logger.debug("Quitting out of collect_intermediate_results")
         else:
             self.logger.debug("All intermediate progress data received")
             self.intermediate_results_done.release()
