@@ -1774,6 +1774,8 @@ def parallel_collect_reduce_ota(queue,
         #time.sleep(0.1)
         # pipe.close()
 
+        podi_logging.print_stacktrace(logger=logger)
+
         #cmd_queue.task_done()
         #queue.task_done()
         logger.debug("Done with work, shutting down!")
@@ -2450,7 +2452,7 @@ class reduce_collect_otas (object):
                 nq += 1
         except:
             pass
-        #self.final_results_queue.put(multiprocessing.queues._sentinel)
+        self.final_results_queue.put(multiprocessing.queues._sentinel)
         self.final_results_queue.close()
         self.final_results_queue._thread.join(timeout=0.1) #join_thread()
         self.logger.debug("Final results queue closed (alive: %s / %d)" % (
@@ -2463,7 +2465,7 @@ class reduce_collect_otas (object):
                 nq += 1
         except:
             pass
-        #self.intermediate_queue.put(multiprocessing.queues._sentinel)
+        self.intermediate_queue.put(multiprocessing.queues._sentinel)
         self.intermediate_queue.close()
         # self.intermediate_queue.join_thread()
         self.intermediate_queue._thread.join(timeout=0.1) #join_thread()
@@ -2478,7 +2480,7 @@ class reduce_collect_otas (object):
                 nq += 1
         except:
             pass
-        #self.intermediate_results_queue.put(multiprocessing.queues._sentinel)
+        self.intermediate_results_queue.put(multiprocessing.queues._sentinel)
         self.intermediate_results_queue.close()
         self.intermediate_results_queue._thread.join(timeout=0.1) #join_thread()
         self.logger.debug("Intermediate results queue closed (alive: %s / %d)" % (
@@ -2492,7 +2494,7 @@ class reduce_collect_otas (object):
                 nq += 1
         except:
             pass
-        #self.intermediate_data_ack_queue.put(multiprocessing.queues._sentinel)
+        self.intermediate_data_ack_queue.put(multiprocessing.queues._sentinel)
         self.intermediate_data_ack_queue.close()
         self.intermediate_data_ack_queue._thread.join(timeout=0.1) #join_thread()
         self.logger.debug("intermediate data received Ack queue closed (alive: %s / %d)" % (
