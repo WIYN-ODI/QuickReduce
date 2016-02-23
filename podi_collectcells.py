@@ -1627,6 +1627,7 @@ def parallel_collect_reduce_ota(queue,
         try:
             intermediate_results_queue.put((ota_id, data_products, shmem_id), block=True )
         except AssertionError:
+            logger.warning("assertion error / queue closed: intermediate_results_queue")
             pass
 
         # Now unpack the communication pipe
@@ -1642,11 +1643,12 @@ def parallel_collect_reduce_ota(queue,
         while (not quit_signal.value):
             # wait for instruction for my OTA-ID
             try:
-                ret = intermediate_queue.get(timeout=0.1)
+                ret = intermediate_queue.get(timeout=0.01)
             except Queue.Empty:
                 continue
             except IOError:
                 # most likely due to closed pipe after the queue has been closed
+                logger.warning("IO error / queue closed: intermediate_queue")
                 break
             except:
                 podi_logging.log_exception()
@@ -1662,7 +1664,7 @@ def parallel_collect_reduce_ota(queue,
                     # already closed --> shut-down if we encounter this problem
                     return
 
-                time.sleep(0.1)
+                # time.sleep(0.1)
             else:
                 # got what I need
                 break
@@ -1672,6 +1674,10 @@ def parallel_collect_reduce_ota(queue,
         try:
             intermediate_ack_queue.put(ota_id)
         except AssertionError:
+            # this means the queue is closed - but since it's closed in a 
+            # different process and that isn't reflected here, that likely
+            # won't happen
+            logger.warning("assertion error / queue closed: intermediate_ack_queue")
             pass
 
 
@@ -2444,6 +2450,7 @@ class reduce_collect_otas (object):
                 nq += 1
         except:
             pass
+        #self.final_results_queue.put(multiprocessing.queues._sentinel)
         self.final_results_queue.close()
         self.final_results_queue._thread.join(timeout=0.1) #join_thread()
         self.logger.debug("Final results queue closed (alive: %s / %d)" % (
@@ -2456,6 +2463,7 @@ class reduce_collect_otas (object):
                 nq += 1
         except:
             pass
+        #self.intermediate_queue.put(multiprocessing.queues._sentinel)
         self.intermediate_queue.close()
         # self.intermediate_queue.join_thread()
         self.intermediate_queue._thread.join(timeout=0.1) #join_thread()
@@ -2470,6 +2478,7 @@ class reduce_collect_otas (object):
                 nq += 1
         except:
             pass
+        #self.intermediate_results_queue.put(multiprocessing.queues._sentinel)
         self.intermediate_results_queue.close()
         self.intermediate_results_queue._thread.join(timeout=0.1) #join_thread()
         self.logger.debug("Intermediate results queue closed (alive: %s / %d)" % (
@@ -2483,6 +2492,7 @@ class reduce_collect_otas (object):
                 nq += 1
         except:
             pass
+        #self.intermediate_data_ack_queue.put(multiprocessing.queues._sentinel)
         self.intermediate_data_ack_queue.close()
         self.intermediate_data_ack_queue._thread.join(timeout=0.1) #join_thread()
         self.logger.debug("intermediate data received Ack queue closed (alive: %s / %d)" % (
