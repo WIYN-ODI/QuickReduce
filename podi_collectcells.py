@@ -2299,7 +2299,7 @@ class reduce_collect_otas (object):
                         self.job_status_lock.acquire()
                         p = multiprocessing.Process(target=parallel_collect_reduce_ota, 
                                                     kwargs=job['args'])
-
+                        p.daemon = True
                         job['process'] = p
                         job['process'].start()
                         self.job_status_lock.release()
@@ -2395,6 +2395,7 @@ class reduce_collect_otas (object):
         for job in self.info:
             try:
                 p = job['process']
+                p.join(timeout=0.1)
                 self.logger.debug("terminating process for %s (alive? %s)" % (
                     job['filename'], p.is_alive()))
                 p.terminate()
@@ -4597,7 +4598,7 @@ def collectcells(input, outputfile,
     unstage_data(options, staged_data, input)
     logger.debug("Done unstaging data!")
 
-    # podi_logging.print_stacktrace()
+    podi_logging.print_stacktrace()
 
     if (batchmode):
         logger.info("All work completed successfully, parsing output for further processing")

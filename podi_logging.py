@@ -31,7 +31,6 @@ from podi_definitions import *
 from podi_commandline import *
 import podi_sitesetup as sitesetup
 
-
 from random import choice, random
 import time
 
@@ -610,6 +609,22 @@ def print_stacktrace(sleep=0, logger=None, info=True, stdout=False):
                 name = thread.name
         print >>ff,"\nSTACK-TRACE for %s" % (name)
         traceback.print_stack(frame, file=ff)
+
+    try:
+        import psutil
+        print >>ff, "\nList of subprocess of current process:"
+        this_process = psutil.Process()
+        kids = this_process.children(recursive=True)
+        if (len(kids) <= 0):
+            print >>ff, "  This process does not have any child-processes"
+        else:
+            now_time = time.time()
+            print >>ff, " -- %s" % ("\n -- ".join(["ProcID: %5d - %8.3f seconds" % (
+                p.pid, now_time-p.create_time()) for p in kids]))
+    except:
+
+        print >>ff, "\nList of subprocesses not available, needs psutil package!"
+        pass
 
     print >>ff, ""
     print >>ff, "========================================================"
