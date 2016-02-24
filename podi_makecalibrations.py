@@ -923,7 +923,6 @@ podi_makecalibrations.py input.list calib-directory
 
                         bias_hdu = collectcells(cur_bias, bias_outfile,
                                                 options=options,
-                                                process_tracker=None,
                                                 batchmode=need_hdu_returned,
                                                 showsplash=False)
                         #print "BIAS-HDU:", bias_hdu
@@ -1019,7 +1018,6 @@ podi_makecalibrations.py input.list calib-directory
                     if (not os.path.isfile(dark_outfile) or cmdline_arg_isset("-redo")):
                         start_time = time.time()
                         collectcells(cur_dark, dark_outfile,
-                                     process_tracker=None,
                                      options=options,
                                      batchmode=False, showsplash=False)
                         end_time = time.time()
@@ -1161,7 +1159,6 @@ podi_makecalibrations.py input.list calib-directory
                                 start_time = time.time()
                                 # hdu_list = collectcells(cur_flat, flat_outfile,
                                 hdu_list = collectcells(cur_flat, flat_outfile,
-                                                  process_tracker=None,
                                                   options=options,
                                                   batchmode=need_hdu_returned, 
                                                   showsplash=False)
