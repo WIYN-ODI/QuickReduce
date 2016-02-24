@@ -1774,7 +1774,7 @@ def parallel_collect_reduce_ota(queue,
         #time.sleep(0.1)
         # pipe.close()
 
-        podi_logging.print_stacktrace(logger=logger)
+        # podi_logging.print_stacktrace(logger=logger)
 
         #cmd_queue.task_done()
         #queue.task_done()
