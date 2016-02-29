@@ -2286,7 +2286,7 @@ class reduce_collect_otas (object):
             #
             # Start new workers if we have CPUs available
             #
-            if (self.active_workers < self.number_cpus):
+            if (self.active_workers < self.number_cpus and not self.quit):
                 # self.logger.debug("we have some capacity to start new workers (%d < %d)" % (
                 #     self.active_workers, self.number_cpus))
 
@@ -2305,6 +2305,9 @@ class reduce_collect_otas (object):
                         #print "\n\n\nSTARTING:", id, job['filename'],"\n\n\n"
 
                         self.job_status_lock.acquire()
+                        if (self.quit):
+                            break
+
                         p = multiprocessing.Process(target=parallel_collect_reduce_ota, 
                                                     kwargs=job['args'])
                         p.daemon = True
@@ -2389,11 +2392,11 @@ class reduce_collect_otas (object):
         return self.intermediate_results
 
     def abort(self):
-        if (self.all_closed):
-            return
-
         self.quit = True
         self.qr_quit.value = True
+
+        if (self.all_closed):
+            return
 
         if (not self.intermediate_results_complete):
             self.intermediate_results_done.release()
@@ -2605,6 +2608,8 @@ class reduce_collect_otas (object):
 
         self.report_job_status()
         self.final_results_done.release()
+        self.quit = True
+        self.qr_quit.value = True
         self.logger.debug("Shutting down collect_final_results")
 
     def wait_for_workers_to_finish(self):
