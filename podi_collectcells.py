@@ -1514,7 +1514,8 @@ def parallel_collect_reduce_ota(queue,
                                 shmem=None,
                                 shmem_dim=None,
                                 shmem_id=-1,
-                                quit_signal=None
+                                quit_signal=None,
+                                complete=None,
                                 ):
     """
     A minimal wrapper handling the parallel execution of collectcells.
@@ -1778,6 +1779,9 @@ def parallel_collect_reduce_ota(queue,
 
         #cmd_queue.task_done()
         #queue.task_done()
+        if (not complete == None):
+            complete.value = True
+            pass
         logger.debug("Done with work, shutting down!")
         break
 
@@ -2196,7 +2200,7 @@ class reduce_collect_otas (object):
                 job['intermediate_data_sent'], 
                 job['intermediate_data_ackd'], 
                 (time.time()-job['time_of_ack']),
-                job['complete']) for job in self.info])
+                bool(job['complete'].value)) for job in self.info])
         self.logger.debug("Process status:\n\n%s\n" % (status))
         # for job in self.info:
         #     self.logger.info("%2d - %s (%5d, #%2d): %5s %5s %5s %10d %5s" % (
@@ -2225,7 +2229,7 @@ class reduce_collect_otas (object):
             #
             workers_alive = 0
             for job in self.info:
-                if (job['complete']):
+                if (job['complete'].value):
                     continue
 
                 process = job['process']
@@ -2239,12 +2243,12 @@ class reduce_collect_otas (object):
 
                 ps = psutil.Process(pid)
                 _dead = ps.status() in [psutil.STATUS_ZOMBIE,
-                                    psutil.STATUS_DEAD]
+                                        psutil.STATUS_DEAD]
                 _timeout = (job['time_of_ack'] > 0 and 
                      job['intermediate_data_sent'] >= 1 and
                      job['intermediate_data_ackd'] == True and
                     (time.time()-job['time_of_ack']) > 10 and
-                    not job['complete'])
+                            not job['complete'].value)
                 if (_dead):
                     self.logger.warning("Found dead process: pid=%d ota-id:%d fn=%s" % (
                         pid, job['ota_id'], job['filename']))
@@ -2582,7 +2586,7 @@ class reduce_collect_otas (object):
 
             # mark the dataset as complete
             ota_id, data_products, shmem_id = result
-            self.logger.debug("received final results for ota-ID %d (%s)" % (
+            self.logger.info("received final results for ota-ID %d (%s)" % (
                 ota_id, ",".join(["%d" % job['ota_id'] for job in self.info])))
 
 
@@ -2592,15 +2596,15 @@ class reduce_collect_otas (object):
                 if (job['ota_id'] == ota_id):
                     # fn = self.id2filename[ota_id]
                     self.job_status_lock.acquire()
-                    job['complete'] = True
-                    #self.logger.info("\n***\n***\n*** File %s, ID %d marked as complete\n***\n***" % (job['filename'], ota_id))
-                    self.logger.debug("File %s, ID %d marked as complete" % (job['filename'], ota_id))
+                    job['complete'].value = True #<<- this is now done from within the worker process
+                    self.logger.info("File %s, ID %d marked as complete" % (job['filename'], ota_id))
                     self.active_workers -= 1
                     self.final_results.append(result)
                     self.logger.debug("# active workers is now %d" % (self.active_workers))
                     found_job = True
                     n_collected += 1
                     self.job_status_lock.release()
+                    # time.sleep(1)
                     break
 
             if (not found_job):
@@ -2641,6 +2645,7 @@ class reduce_collect_otas (object):
         #shmem = multiprocessing.RawArray(ctypes.c_float, 4096*4096)
         shmem = SharedMemory(ctypes.c_float, (4096,4096))
         self.shmem_list[id] = shmem
+        job['complete'] = multiprocessing.Value('i', False)
         job['args'] = {
             'queue': self.queue,
             'intermediate_results_queue': self.intermediate_results_queue,
@@ -2654,13 +2659,13 @@ class reduce_collect_otas (object):
             'ota_id': id,
             'intermediate_ack_queue': self.intermediate_data_ack_queue,
             'quit_signal': self.qr_quit,
+            'complete': job['complete']
             # 'intermediate_results_queue_lock': self.intermediate_results_queue_lock,
         }
         job['intermediate_data'] = None
         job['intermediate_queue_msg'] = None
         job['filename'] = filename
         job['ota_id'] = id
-        job['complete'] = False
         job['attempt'] = 0
         job['intermediate_data_sent'] = 0
         job['intermediate_results_received'] = False
