@@ -35,6 +35,7 @@ THETA_IMAGE            Position angle (CCW/x)                                   
 ELONGATION             A_IMAGE/B_IMAGE                                           
 ELLIPTICITY            1 - B_IMAGE/A_IMAGE                                       
 
+NUMBER
 
 #NUMBER                 Running object number                                     
 #EXT_NUMBER             FITS extension number                                     

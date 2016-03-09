@@ -176,6 +176,7 @@ SXcolumn_names = [
     'position_angle',
     'elongation',
     'ellipticity',
+    'number',
 ]
 # Convert columns into dictionary to make look-up easier
 SXcolumn = {}
@@ -216,6 +217,7 @@ SXcolumn_descriptions = [
     "THETA_IMAGE         Position angle (CCW/x)                                     [deg]",
     "ELONGATION          A_IMAGE/B_IMAGE",
     "ELLIPTICITY         1 - B_IMAGE/A_IMAGE",
+    "NUMBER              running number / source ID",
 ]
 
    
