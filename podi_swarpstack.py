@@ -1190,7 +1190,25 @@ def swarpstack(outputfile,
     #
     ############################################################################
     logger.info("reference_file = %s" % (str(swarp_params['reference_file'])))
-    if (add_only or not swarp_params['reference_file'] == None):
+    if (not swarp_params['cutout_list'] == None):
+
+        if (swarp_params['pixelscale'] <= 0):
+            swarp_params['pixelscale'] = 0.11
+
+        out_crval1 = swarp_params['cutout_list']['ra']
+        out_crval2 = swarp_params['cutout_list']['dec']
+
+        #
+        # compute cutout dimensions in pixels
+        #
+        imgsize_arcsec = swarp_params['cutout_list']['size']
+        imgsize_pixels = int(math.ceil(imgsize_arcsec / swarp_params['pixelscale']))
+        out_naxis1 = imgsize_pixels
+        out_naxis2 = imgsize_pixels
+        logger.info("Setting custom image cutout region: ra=%f dec=%f imgsize=%dpx (%f'')" % (
+            out_crval1, out_crval2, imgsize_pixels, imgsize_arcsec))
+
+    elif (add_only or not swarp_params['reference_file'] == None):
         #
         # This is the simpler add-only mode
         #
@@ -2138,6 +2156,17 @@ def read_swarp_params(filelist):
     params['keep_resamp_files'] = cmdline_arg_isset('-keepresamp')
 
     params['preswarp_only'] = cmdline_arg_isset('-preswarponly')
+
+    params['cutout_list'] = None
+    if (cmdline_arg_isset("-cutout")):
+        txt = get_cmdline_arg("-cutout")
+        items = txt.split(",")
+        cutout = {
+            'ra':  float(items[0]),
+            'dec': float(items[1]),
+            'size': float(items[2]),
+            }
+        params['cutout_list'] = cutout
 
     return params
 
