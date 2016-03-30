@@ -382,7 +382,7 @@ def collect_reduce_ota(filename,
         stdout_write("Couldn't find file %s ..." % (filename))
     else:
         # Create an fits extension to hold the output
-        hdu = pyfits.ImageHDU()
+        hdu = pyfits.ImageHDU() #CompImageHDU() if options['compressed_hdu'] else pyfits.ImageHDU()
         log_svn_version(hdu.header)
 
         # Set the inherit keyword so that the headers removed from each 
@@ -2928,13 +2928,16 @@ def collectcells(input, outputfile,
         stdout_write("Output filename is a directory, adding default filename (collectcells.fits)\n")
         outputfile += "collectcells.fits"
         changed_outputfilename = True
-    if (outputfile[-5:] != ".fits"):
+    if (not (
+            (outputfile.endswith(".fits") and not options['compressed_hdu']) or
+            (outputfile.endswith(".fits.fz") and options['compressed_hdu'])) ):
         # Output filenames have to end with .fits
-        stdout_write("no fits extension given to filename, adding .fits\n")
-        outputfile += ".fits"
+        ext = ".fits.fz" if options['compressed_hdu'] else ".fits"
+        logger.warning("no fits extension given to filename, adding %s" % (ext))
+        outputfile += ext
         changed_outputfilename = True
     if (changed_outputfilename):
-        stdout_write("After revision, output filename now is %s\n" % (outputfile))
+        logger.info("After revision, output filename now is %s" % (outputfile))
 
     if (os.path.isfile(outputfile) and not options['clobber']):
         logger.info("File %s already exists, skipping!" % (outputfile))
@@ -4597,6 +4600,16 @@ def collectcells(input, outputfile,
     #afw.wait()
     #print "done waiting, writing output file"
     #print ota_list
+    if (options['compressed_hdu']):
+        for iext, ext in enumerate(ota_list):
+            if (type(ext) == pyfits.hdu.image.ImageHDU):
+                ch = pyfits.CompImageHDU(data=ext.data,
+                                         header=ext.header,
+                                         name=ext.name,
+                                         compression_type='RICE_ONE',
+                                         quantize_level=4,)
+                ota_list[iext] = ch
+
     hdulist = pyfits.HDUList(ota_list)
     for i in range(1, len(hdulist)):
         if 'SIMPLE' in hdulist[i].header:
@@ -5184,7 +5197,7 @@ if __name__ == "__main__":
         outputfile = get_clean_cmdline()[2]
     else:
         print "No output filename has been given, setting to default mergedcells.fits"
-        outputfile = "mergedcells.fits"
+        outputfile = "mergedcells"
     print "Writing results into",outputfile
 
     # Set the options for collectcells to some reasonable start values

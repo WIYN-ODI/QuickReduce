@@ -367,6 +367,8 @@ Calibration data:
         except:
             options['trimcell'] = None
 
+    options['compressed_hdu'] = cmdline_arg_isset("-fpack")
+
     return options
 
 
