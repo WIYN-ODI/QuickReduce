@@ -382,7 +382,7 @@ def collect_reduce_ota(filename,
         stdout_write("Couldn't find file %s ..." % (filename))
     else:
         # Create an fits extension to hold the output
-        hdu = pyfits.ImageHDU() #CompImageHDU() if options['compressed_hdu'] else pyfits.ImageHDU()
+        hdu = pyfits.ImageHDU()
         log_svn_version(hdu.header)
 
         # Set the inherit keyword so that the headers removed from each 
@@ -4603,10 +4603,11 @@ def collectcells(input, outputfile,
     if (options['compressed_hdu']):
         for iext, ext in enumerate(ota_list):
             if (type(ext) == pyfits.hdu.image.ImageHDU):
+                logger.info("Compressing %s" % (ext.name))
                 ch = pyfits.CompImageHDU(data=ext.data,
                                          header=ext.header,
                                          name=ext.name,
-                                         compression_type='RICE_ONE',
+                                         compression_type='RICE_1',
                                          quantize_level=4,)
                 ota_list[iext] = ch
 
