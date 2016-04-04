@@ -145,24 +145,44 @@ def normalize_flatfield(filename, outputfile,
     #stdout_write(" normalizing ...")
 
     # Create a new HDU list for the normalized output
+    # hdu_out = [] #pyfits.PrimaryHDU(header=hdulist[0].header)]
+
+    # for extension in range(0, len(hdulist)):
+    #     if (not is_image_extension(hdulist[extension])):
+    #         hdu_out.append(hdulist[extension])
+    #         continue
+
+    #     data = hdulist[extension].data.copy()
+    #     data /= ff_median_level
+    #     data[data < 0.1] = numpy.NaN
+    #     new_hdu = pyfits.ImageHDU(data=data, header=hdulist[extension].header)
+
+    #     #hdulist[extension].data /= ff_median_level
+    #     #hdulist[extension].data[hdulist[extension].data < 0.1] = numpy.NaN
+    #     new_hdu.header.add_history("FF-level: %.1f" % (ff_median_level))
+    #     hdu_out.append(new_hdu)
+        
+    # hdulist = pyfits.HDUList(hdu_out)
+
     hdu_out = [] #pyfits.PrimaryHDU(header=hdulist[0].header)]
 
-    for extension in range(0, len(hdulist)):
-        if (not is_image_extension(hdulist[extension])):
-            hdu_out.append(hdulist[extension])
+    for extension in hdulist:
+        if (not is_image_extension(extension)):
             continue
 
-        data = hdulist[extension].data.copy()
-        data /= ff_median_level
-        data[data < 0.1] = numpy.NaN
-        new_hdu = pyfits.ImageHDU(data=data, header=hdulist[extension].header)
+        # data = hdulist[extension].data.copy()
+        # data /= ff_median_level
+        # data[data < 0.1] = numpy.NaN
+        # new_hdu = pyfits.ImageHDU(data=data, header=hdulist[extension].header)
+        extension.data /= ff_median_level
+        extension.data[extension.data < 0.1] = numpy.NaN
 
         #hdulist[extension].data /= ff_median_level
         #hdulist[extension].data[hdulist[extension].data < 0.1] = numpy.NaN
-        new_hdu.header.add_history("FF-level: %.1f" % (ff_median_level))
-        hdu_out.append(new_hdu)
+        # new_hdu.header.add_history("FF-level: %.1f" % (ff_median_level))
+        # hdu_out.append(new_hdu)
         
-    hdulist = pyfits.HDUList(hdu_out)
+    # hdulist = pyfits.HDUList(hdu_out)
 
     #
     # compute the global gain value and store it in primary header
@@ -173,8 +193,7 @@ def normalize_flatfield(filename, outputfile,
     hdulist[0].header['NGAIN'] = gain_count
 
     logger.debug("writing results to file (%s) ..." % (outputfile))
-    if (os.path.isfile(outputfile)):
-	os.remove(outputfile)
+    clobberfile(outputfile)
     hdulist.writeto(outputfile, clobber=True)
     logger.info("done!")
        
