@@ -1840,9 +1840,7 @@ def collectcells_with_timeout(input, outputfile,
                               verbose=False,
                               options=None,
                               showsplash=True,
-                              timeout=None,
-                              #process_tracker=None
-):
+                              timeout=None):
 
 
     """ 
@@ -1872,7 +1870,7 @@ def collectcells_with_timeout(input, outputfile,
     logger = logging.getLogger("CC_w_timeout")
 
     cc_args = (input, outputfile,
-               #process_tracker,
+               batchmode,
                batchmode,
                verbose,
                options,
@@ -2706,7 +2704,7 @@ class reduce_collect_otas (object):
 
 
 def collectcells(input, outputfile,
-                 #process_tracker=None,
+                 batchmode=False,
                  batchmode=False,
                  verbose=False,
                  options=None,
@@ -5244,9 +5242,7 @@ if __name__ == "__main__":
                 timeout = float(cmdline_arg_set_or_default("-timeout", 900))
                 print "Setting timeout to",timeout,"seconds"
                 retvalue = collectcells_with_timeout(input, outputfile, options=options,
-                                                     timeout=timeout,
-                                                     )
-                                                     #process_tracker=process_tracker)
+                                                     timeout=timeout,)
             else:
                 start_time = time.time()
                 collectcells(input, outputfile, 

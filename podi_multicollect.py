@@ -154,7 +154,7 @@ if __name__ == "__main__":
         start_time = time.time()
         # Collect all cells, perform reduction and write result file
         try:
-            collectcells(folder, outputfile, process_tracker=None, options=options, batchmode=False)
+            collectcells(folder, outputfile, options=options, batchmode=False)
         except:
             stdout_write("\n\n##############################\n#\n# Something terrible happened!\n")
             etype, error, stackpos = sys.exc_info()
