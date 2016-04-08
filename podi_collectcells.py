@@ -2705,7 +2705,6 @@ class reduce_collect_otas (object):
 
 def collectcells(input, outputfile,
                  batchmode=False,
-                 batchmode=False,
                  verbose=False,
                  options=None,
                  showsplash=True,
