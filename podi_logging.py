@@ -370,6 +370,11 @@ def log_master(queue, options):
                 #print "handling at root level"
                 info.handle(record) # No level or filter logic applied - just do it!
 
+                if ('SCA_PROGRESS_URL' in os.environ):
+                    import requests
+                    requests.post(os.environ['SCA_PROGRESS_URL']+".info",
+                                  json={"msg": record.msg})
+
             #print "done with record.\n"
 
             #
