@@ -255,6 +255,8 @@ def worker_slave(queue):
                 try:
                     cli1 = sampy.SAMPIntegratedClient(metadata = metadata)
                     cli1.connect()
+                    cli1.enotifyAll(mtype='ds9.set', cmd='frame 2')
+                    cli1.enotifyAll(mtype='ds9.set', cmd='scale scope global')
                     cli1.enotifyAll(mtype='ds9.set', cmd=cmd)
                     cli1.disconnect()
                 except:
