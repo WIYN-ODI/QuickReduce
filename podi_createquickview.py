@@ -185,7 +185,7 @@ def create_quickview(filename, output_directory, verbose=False, clobber=True):
 
         if (scaling == 'sqrt'):
             greyscale = numpy.sqrt(greyscale)
-        elif (scaling == 'arcsinh'):
+        elif (scaling in ['arcsinh','asinh']):
             greyscale = numpy.arcsinh(greyscale)
         elif (scaling == 'log'):
             greyscale = numpy.log10(greyscale+1)/numpy.log10(2.0)
