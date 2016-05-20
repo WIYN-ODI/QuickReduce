@@ -50,8 +50,11 @@ import podi_logging
 import podi_commandline
 import logging
 
+from PIL import Image, ImageFont, ImageDraw
 import Image
-import ImageDraw
+# import Image
+# import ImageDraw
+import itertools
 
 numpy.seterr(divide='ignore', invalid='ignore')
 
@@ -61,6 +64,7 @@ overexposed = [1.0, 0.0, 0.0]
 crossout_missing_otas = True
 from podi_definitions import *
 from podi_commandline import *
+import podi_focalplanelayout
 
 def create_quickview(filename, output_directory, verbose=False, clobber=True):
 
@@ -85,15 +89,31 @@ def create_quickview(filename, output_directory, verbose=False, clobber=True):
     if (verbose):
         stdout_write("\nWorking on file %s (%s, %s) ...\n" % (filename, object, filter))
 
+    fpl = podi_focalplanelayout.FocalPlaneLayout(hdulist)
     try:
-        list_of_otas_to_normalize = otas_for_photometry[filter]
+        list_of_otas_to_normalize = fpl.otas_to_normalize_ff[filter]
     except:
-        list_of_otas_to_normalize = central_2x2
+        list_of_otas_to_normalize = fpl.central_2x2
 
     # Allocate some memory to hold the data we need to determine the
     # most suitable intensity levels
     binned_data = numpy.zeros(shape=(13*512*512), dtype=numpy.float32)
     binned_data[:] = numpy.NaN
+
+    #
+    #
+    #
+    available_ota_coords = []
+    for ext in hdulist:
+        if (not is_image_extension(ext)):
+            continue
+        try:
+            ota = ext.header['OTA']
+        except:
+            continue
+        x = int(math.floor(ota /10.))
+        y = int(ota % 10)
+        available_ota_coords.append((x,y))
 
     datapos = 0
 #    if (verbose):
@@ -113,7 +133,7 @@ def create_quickview(filename, output_directory, verbose=False, clobber=True):
             index = list_of_otas_to_normalize.index(fppos)
         except:
             # We didn't find this OTA in the list, so skip it
-            hdulist[extension].header.update("FF_NORM", 0, "Used in normalization")
+            hdulist[extension].header['FF_NORM'] = (False, "Used in normalization")
             extension += 1
             continue
 
@@ -169,6 +189,7 @@ def create_quickview(filename, output_directory, verbose=False, clobber=True):
             continue
 
         fppos = int(hdulist[extension].header['FPPOS'][2:4])
+        logger.info("Creating JPG for extension %s" % (hdulist[extension].name))    
         #stdout_write("\r   Creating jpegs (%02d) ..." % fppos)
         # if (verbose):
         #     stdout_write(" %02d" % (fppos))
@@ -194,7 +215,7 @@ def create_quickview(filename, output_directory, verbose=False, clobber=True):
 
         ffp_x = fp_x * 512
         ffp_y = fp_y * 512
-        full_focalplane[ffp_x:ffp_x+512, ffp_y:ffp_y+512] = greyscale[:,:]
+        full_focalplane[ffp_x:ffp_x+512, ffp_y:ffp_y+512] = greyscale[:,:] #.astype(numpy.int)
 
         #image = Image.fromarray(numpy.uint8(greyscale*255))
         #image_filename = "%s/%s_%s.%02d.jpg" % (output_directory, obsid, object, fppos)
@@ -258,8 +279,25 @@ def create_quickview(filename, output_directory, verbose=False, clobber=True):
                         draw.line((x*512+lw,y*512,(x+1)*512+lw,(y+1)*512), fill=128)
                         draw.line((x*512+lw,(y+1)*512,(x+1)*512+lw,y*512), fill=128)
 
-    image.transpose(Image.FLIP_TOP_BOTTOM).save(fullframe_image_filename, "JPEG")
+    image = image.transpose(Image.FLIP_TOP_BOTTOM)
+
+    watermark_OTA = True
+    dx,dy = 150,150
+    if (watermark_OTA):
+        image = image.convert('RGBA')
+        draw = ImageDraw.Draw(image)
+        font = ImageFont.truetype('/usr/share/./fonts/truetype/DroidSans.ttf', size=200)
+        for x,y in itertools.product(range(8), repeat=2):
+            try:
+                index = available_ota_coords.index((x,y))
+            except:
+                continue
+            draw.text((x*512+dx,(7-y)*512+dy), "%02d" % (x*10+y), font=font, fill=(0,64,128,255))
+
+
+    image.save(fullframe_image_filename, "JPEG")
     del image
+    logger.info("Writing file to %s" % (fullframe_image_filename))
 
     # stdout_write(" - done!\n")
     logger.info("all done!\n")
