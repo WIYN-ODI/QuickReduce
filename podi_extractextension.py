@@ -57,8 +57,12 @@ def extract_headers(inputfile, outputfile, extensions):
         try:
             ext = hdulist[extension]
         except KeyError:
-            print "couldn't find extension",extension
-            continue
+            try:
+                iext = int(extension)
+                ext = hdulist[iext]
+            except:
+                print "couldn't find extension",extension
+                continue
         except:
             raise
 
