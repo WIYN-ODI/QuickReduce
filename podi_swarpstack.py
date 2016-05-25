@@ -360,7 +360,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                             master_reduction_files_used = podi_associations.collect_reduction_files_used(
                                 master_reduction_files_used, {"bpm": region_file})
 
-
+        
             # Loop over all extensions and only select those that are not marked as guide chips
             if (True): #options['skip_otas'] != []):
                 logger.debug("Sorting out guide-OTAs")
@@ -379,6 +379,13 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
 
                 # Save the modified OTA list for later
                 hdulist = pyfits.HDUList(ota_list)
+
+            # Mask out saturated pixels
+            if (not swarp_params['mask_saturated'] == None):
+                for ext in hdulist:
+                    if (not is_image_extension(ext)):
+                        continue
+                    ext.data[ext.data > swarp_params['mask_saturated']] = numpy.NaN
 
             if (not options['illumcorr_dir'] == None):
                 illum_file = podi_illumcorr.get_illumination_filename(
@@ -2156,6 +2163,10 @@ def read_swarp_params(filelist):
     params['keep_resamp_files'] = cmdline_arg_isset('-keepresamp')
 
     params['preswarp_only'] = cmdline_arg_isset('-preswarponly')
+
+    params['mask_saturated'] = None
+    if (cmdline_arg_isset("-masksaturated")):
+        params['mask_saturated'] = int(cmdline_arg_set_or_default("-masksaturated", 58000))
 
     params['cutout_list'] = None
     if (cmdline_arg_isset("-cutout")):
