@@ -299,6 +299,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
     #print skytable[needed_catalogs]
     
     files_to_read = skytable['NAME'][needed_catalogs]
+    files_to_read = [f.strip() for f in files_to_read]
     logger.debug(files_to_read)
 
     # Now quickly go over the list and take care of all filenames that still have a 0x00 in them
