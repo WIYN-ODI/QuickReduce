@@ -198,19 +198,21 @@ def create_association_table(master, verbose=False):
     full_filename = []
     short_filename = []
 
-    for key, value in master.iteritems():
-        # print key,":",value
-        for filename in set(value):
-            reduction_step.append(key)
-            if (filename == None):
-                continue
-            full_filename.append(os.path.abspath(filename))
-            
-            dirname, filebase = os.path.split(filename)
-            short_filename.append(filebase)
+    if (not master == None):
 
-            if (verbose):
-                print "% 15s : %s" % (key, filename)
+        for key, value in master.iteritems():
+            # print key,":",value
+            for filename in set(value):
+                reduction_step.append(key)
+                if (filename == None):
+                    continue
+                full_filename.append(os.path.abspath(filename))
+
+                dirname, filebase = os.path.split(filename)
+                short_filename.append(filebase)
+
+                if (verbose):
+                    print "% 15s : %s" % (key, filename)
 
     # print reduction_step
     # print short_filename
