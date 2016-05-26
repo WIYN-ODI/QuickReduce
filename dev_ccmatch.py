@@ -102,12 +102,12 @@ def count_matches(src_cat, ref_cat,
     # Allocate some memory to hold a 2-d binned count array
     # bin-size is 1 arcsec^2, with side-length +/- pointing_errors [in degrees]
     #
-    grid_size = pointing_error * 3600 * 2 + 1
-    count_grid_2d = numpy.zeros((grid_size, grid_size))
+    grid_size = int(pointing_error * 3600 * 2 + 1)
+    count_grid_2d = numpy.zeros((grid_size, grid_size))#, dtype=numpy.int)
 
     idx_x, idx_y = numpy.indices(count_grid_2d.shape)
-    idx_x -= (grid_size-1)/2.
-    idx_y -= (grid_size-1)/2.
+    idx_x -= (grid_size-1)/2
+    idx_y -= (grid_size-1)/2
     valid_pixelpos = numpy.hypot(idx_x, idx_y) < (pointing_error * 3600)
 
     #
@@ -209,7 +209,7 @@ def count_matches(src_cat, ref_cat,
                                                            [-pointing_error*3600, pointing_error*3600]], 
                                                     normed=False, 
                                                     weights=None)
-        count_grid_2d += this_2d
+        count_grid_2d += this_2d.astype(numpy.float32)
         if (create_debug_files2): numpy.savetxt("cc_countgrid_%+0.3f_chunk%03d" % (debugangle, chunk), count_grid_2d)
 
         # print "all-offsets:", all_offsets.shape, count_grid_2d.shape
