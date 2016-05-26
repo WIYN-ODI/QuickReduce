@@ -1262,16 +1262,39 @@ def collect_reduce_ota(filename,
 
                 logger.debug("Running SourceExtractor")
                 start_time = time.time()
+                #os.system(sexcmd)
                 try:
                     ret = subprocess.Popen(sexcmd.split(), 
                                            stdout=subprocess.PIPE, 
                                            stderr=subprocess.PIPE)
-                    (sex_stdout, sex_stderr) = ret.communicate()
-                    #os.system(sexcmd)
-                    if (ret.returncode != 0):
-                        logger.warning("Sextractor might have a problem, check the log")
-                        logger.debug("Stdout=\n"+sex_stdout)
-                        logger.debug("Stderr=\n"+sex_stderr)
+                    sextractor_pid = ret.pid
+                    #
+                    # Wait for sextractor to finish (or die)
+                    #
+                    ps = psutil.Process(sextractor_pid)
+                    sextractor_error = False
+                    while(True):
+                        try:
+                            if (ps.status() in [psutil.STATUS_ZOMBIE,
+                                                psutil.STATUS_DEAD] and not 
+                                ret.poll() == None):
+                                logger.critical("Sextractor died unexpectedly")
+                                sextractor_error = True
+                        except psutil.NoSuchProcess:
+                            pass
+                            
+                        if (ret.poll() == None):
+                            # sextractor completed
+                            logger.info("Sex complete!")
+                            break
+                        time.sleep(0.1)
+
+                    if (not sextractor_error):
+                        (sex_stdout, sex_stderr) = ret.communicate()
+                        if (ret.returncode != 0):
+                            logger.warning("Sextractor might have a problem, check the log")
+                            logger.debug("Stdout=\n"+sex_stdout)
+                            logger.debug("Stderr=\n"+sex_stderr)
                 except OSError as e:
                     podi_logging.log_exception()
                     print >>sys.stderr, "Execution failed:", e
@@ -1285,7 +1308,7 @@ def collect_reduce_ota(filename,
                             warnings.simplefilter("ignore")
                             source_cat = numpy.loadtxt(catfile)
                     except IOError:
-                        print "The Sextractor catalog is empty, ignoring this OTA"
+                        logger.warning("The Sextractor catalog is empty, ignoring this OTA")
                         source_cat = None
                     else:
                         if (source_cat.shape[0] == 0 or source_cat.ndim < 2):
@@ -1297,9 +1320,11 @@ def collect_reduce_ota(filename,
                             logger.debug("Found %d sources, %d with no flags" % (source_cat.shape[0], numpy.sum(no_flags)))
                 except:
                     source_cat = None
+                #numpy.savetxt("ota%d" % (ota), source_cat)
                 if (sitesetup.sex_delete_tmps):
                     clobberfile(fitsfile)
                     clobberfile(catfile)
+
 
             fixwcs_data = None
 
@@ -1655,7 +1680,12 @@ def parallel_collect_reduce_ota(queue,
                 podi_logging.log_exception()
 
             # print ret, " // ", ota_id
-            _ota_id, final_parameters = ret
+            try:
+                _ota_id, final_parameters = ret
+            except:
+                podi_logging.log_exception()
+                print "\n\n",ret,"\n\n"
+                
             if (not _ota_id == ota_id):
                 # this is not meant for me, so put it back
                 try:
@@ -3944,6 +3974,10 @@ def collectcells(input, outputfile,
 
         import dev_ccmatch
         if (dev_ccmatch.create_debug_files): numpy.savetxt("debug.wcs_raw", global_source_cat)
+        #
+        # Create a OTA coordinate grid to speed up matching sources from ODI to sources 
+        # in reference catalog
+        #
         ccmatched = dev_ccmatch.ccmatch(source_catalog=global_source_cat,
                                         reference_catalog=None, # meaning ccmtch will obtain it
                                         input_hdu=ota_list, 
