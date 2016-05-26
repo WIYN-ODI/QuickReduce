@@ -1214,6 +1214,7 @@ podi_makecalibrations.py input.list calib-directory
                         # Only do this if requested via keyword -pupilghost=(dirname)
                         #
                         logger.info("PG-dir: %s" % (pupilghost_dir))
+                        flat_hdus[0].header['PG_CORR'] = (False, "PG correction applied")
                         if (not pupilghost_dir == None): #options['pupilghost_dir'] != None):
                             # Reset the pupil ghost option to enable it here
                             options['pupilghost_dir'] = pupilghost_dir
@@ -1225,6 +1226,11 @@ podi_makecalibrations.py input.list calib-directory
                             pg_filename = "pupilghost_template___level_%d__bin%d.fits" % (filter_level, binning)
                             pg_template = check_filename_directory(options['pupilghost_dir'], pg_filename)
                             logger.info("Using template file %s" % (pg_template))
+                            flat_hdus[0].header['PG_CORR'] = True
+                            flat_hdus[0].header['PG_TMPLT'] = pg_template
+                            flat_hdus[0].header['PG_FOUND'] = os.path.isfile(pg_template)
+                            flat_hdus[0].header['PG_SCALE'] = (-1., "pupilghost scaling")
+                            flat_hdus[0].header['PG_BGRND'] = (-99.99, "pupilghost scaling background")
 
                             # If we have a template for this level
                             if (os.path.isfile(pg_template) and filter in valid_PG_filters):
@@ -1304,6 +1310,8 @@ podi_makecalibrations.py input.list calib-directory
                                 pg_scaling, bg = podi_matchpupilghost.iterate_reject_scaling_factors(
                                     all_pg_samples, iterations=3, significant_only=False)
                                 logger.info("PG scaling results: bg=%.1f scale=%.3f" % (bg, pg_scaling))
+                                flat_hdus[0].header['PG_SCALE'] = (pg_scaling, "pupilghost scaling")
+                                flat_hdus[0].header['PG_BGRND'] = (bg, "pupilghost scaling background")
 
                                 if (cmdline_arg_isset("-pgscale")):
                                     pg_scaling = float(get_cmdline_arg("-pgscale"))
