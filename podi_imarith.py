@@ -52,7 +52,7 @@ import scipy.stats
 from podi_definitions import *
 from podi_commandline import *
 
-def imarith(input_1, op, input_2, output):
+def imarith(input_1, op, input_2, output, simple):
 
     stdout_write("\nOpening input files ...")
     # Open both input fits files
@@ -75,7 +75,7 @@ def imarith(input_1, op, input_2, output):
 
         img1 = hdu_1[idx_img1]
         
-        fppos1 = img1.header['EXTNAME'] if 'EXTNAME' in img1.header else idx_img1
+        fppos1 = img1.header['EXTNAME'] if ('EXTNAME' in img1.header and not simple) else idx_img1
         stdout_write("\rComputing extension %s (%2d of %2d) ..." % (str(fppos1), idx_img1, len(hdu_1)-1))
         if (numeric_2 != None):
             if (op == "+"):
@@ -93,7 +93,7 @@ def imarith(input_1, op, input_2, output):
 
         else:
             for img2_idx in range(len(hdu_2)): #[0:]:
-                fppos2 = hdu_2[img2_idx].header['EXTNAME'] if 'EXTNAME' in hdu_2[img2_idx].header else img2_idx
+                fppos2 = hdu_2[img2_idx].header['EXTNAME'] if ('EXTNAME' in hdu_2[img2_idx].header and not simple) else img2_idx
                 img2 = hdu_2[fppos2]
                 if (fppos2 == fppos1):
                     # This is the one
@@ -135,4 +135,9 @@ if __name__ == "__main__":
     input_2 = sys.argv[3]
     output = sys.argv[4]
 
-    imarith(input_1, op, input_2, output)
+    try:
+        simple = sys.argv[5] == "simple"
+    except:
+        simple=False
+
+    imarith(input_1, op, input_2, output, simple)
