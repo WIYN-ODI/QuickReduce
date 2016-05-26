@@ -25,6 +25,7 @@ import sys
 import os
 import pyfits
 import numpy
+from podi_definitions import is_image_extension
 
 if __name__ == "__main__":
 
@@ -37,14 +38,23 @@ if __name__ == "__main__":
         hdulist = pyfits.open(filename)
 
         for extension in range(1, len(hdulist)):
-            
-            extname = hdulist[extension].header['EXTNAME']
-            if (extname[0:3] != "OTA" or extname[-3:] != "SCI"):
+
+            if (not is_image_extension(hdulist[extension])):
                 continue
+
+            extname = hdulist[extension].header['EXTNAME']
+            # if (extname[0:3] != "OTA" or extname[-3:] != "SCI"):
+            #     continue
 
             outfits = filename[:-4]+extname+".fits"
 
             primhdu = pyfits.PrimaryHDU(header=hdulist[extension].header,
                                         data=hdulist[extension].data)
+
+            # copy all primary header entries into the new primary HDU
+            for (key, value) in hdulist[0].header.iteritems():
+                # print key, value
+                primhdu.header[key] = value
+
             out_hdulist = pyfits.HDUList([primhdu])
             out_hdulist.writeto(outfits, clobber=True)
