@@ -315,6 +315,7 @@ if __name__ == "__main__":
     check_package('Queue')
     check_package('threading')
     check_package('subprocess')
+    check_package('psutil')
 
 
     print "\nchecking numerical processing packages ..."
