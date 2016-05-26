@@ -1672,7 +1672,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             min_contrast=3.0,
             angle_steps=20, # arcmin
             fov=0.8,
-            estimate_fmatch=True):
+            estimate_fmatch=True,
+            use_ota_coord_grid=True):
 
     """
 
@@ -1731,7 +1732,35 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         logger.critical("I don't understand the format of the max_pointing_error variable, defaulting to fixed 8.0 arcmin")
         max_pointing_error_list = [8.0]
         pass
-    
+
+    #
+    # Create a OTA coordinate grid to speed up matching sources from ODI to sources 
+    # in reference catalog
+    #
+    n_points = 5.
+    idx_y, idx_x = numpy.indices((n_points,n_points))
+    ota_coord_grid = None
+    if (use_ota_coord_grid):
+        for ext in input_hdu:
+            if (not is_image_extension(ext)):
+                continue
+            wcs = astWCS.WCS(ext.header, mode='pyfits')
+
+            # get pixel positions for coordinates across the frame
+            scaling = ext.data.shape[0] / (n_points-1)
+            _y = idx_y * scaling
+            _x = idx_x * scaling
+
+            # convert pixel to sky positions
+            radec = numpy.array(wcs.pix2wcs(_x.ravel(), _y.ravel()))
+
+            # merge into long list across all OTAs
+            ota_coord_grid = radec if ota_coord_grid == None else \
+                numpy.append(ota_coord_grid, radec, axis=0)
+
+            #numpy.savetxt("ota_grid_coords", ota_grid_coords)
+
+
     max_pointing_error_list = numpy.sort(numpy.array(max_pointing_error_list))
     max_pointing_error = numpy.max(max_pointing_error_list)
     return_value['max_pointing_error'] = max_pointing_error
@@ -1906,7 +1935,10 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         #
         # Reduce the reference catalog to approx. the coverage of the source catalog
         #
-        ref_close = match_catalog_areas(src_raw, ref_raw, pointing_error/60.)
+        
+        ref_close = match_catalog_areas(
+            ota_coord_grid if (use_ota_coord_grid and not ota_coord_grid == None) else src_raw, 
+            ref_raw, pointing_error/60.)
         logger.debug("area matched ref. catalog: "+str(ref_close.shape))
         if (ref_close.shape[0] <= 0):
             logger.debug("couldn't find any matched stars overlapping the odi field")
@@ -1914,8 +1946,6 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             logger.critical("This should not happen. Please report this problem to the")
             logger.critical("author (kotulla@uwm.edu) and attach the debug.log file. Thanks!")
             logger.debug("Falling back to using the full sample.")
-            numpy.savetxt("wcs_rescue.src", src_raw)
-            numpy.savetxt("wcs_rescue.ref", ref_raw)
 
         if (create_debug_files): numpy.savetxt("ccmatch.matched_ref_cat.%d" % (pointing_error), ref_close)
 
