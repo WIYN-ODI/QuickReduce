@@ -435,14 +435,17 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                     if (not is_image_extension(ext)):
                         continue
                     sky_samples = sample_background_using_ds9_regions(ext, swarp_params['sky_regions'])
-                    if (sky_samples == None):
+                    if (type(sky_samples) == type(None)):
                         continue
                     #print sky_samples.shape
                     #print all_sky_samples.shape if all_sky_samples != None else "XXX"
-                    all_sky_samples = sky_samples if all_sky_samples == None else \
+                    all_sky_samples = sky_samples if type(all_sky_samples) == type(None) else \
                                       numpy.append(all_sky_samples, sky_samples, axis=0)
-                numpy.savetxt(os.path.basename(input_file)+".sky", all_sky_samples)
-                logger.info("Found %d sky-samples in user-defined regions" % (all_sky_samples.shape[0]))
+                try:
+                    numpy.savetxt(os.path.basename(input_file)+".sky", all_sky_samples)
+                    logger.info("Found %d sky-samples in user-defined regions" % (all_sky_samples.shape[0]))
+                except:
+                    pass
                 #
                 # Now we have all sky-samples across the entire focal plane
                 #
@@ -1699,6 +1702,9 @@ def swarpstack(outputfile,
 
     # sys.exit(0)
 
+    if (swarp_params['median_reject']):
+        swarp_params['combine-type'].insert(0, "MEDIAN")
+
     #############################################################################
     #
     # Now all single files are prepared, go ahead and produce the actual stack
@@ -1706,7 +1712,7 @@ def swarpstack(outputfile,
     # i.e. do not resample these files as they are already on the right pixel grid.
     #
     #############################################################################
-    for combine_type in swarp_params['combine-type']:
+    for idx, combine_type in enumerate(swarp_params['combine-type']):
         dic['combine_type'] = combine_type #swarp_params['combine-type'] #"AVERAGE"
         dic['imageout'] = "%s.%s.fits" % (outputfile, combine_type)
         dic['weightout'] = "%s.%s.weight.fits" % (outputfile, combine_type) #outputfile+".weight.fits"
@@ -1946,6 +1952,21 @@ def swarpstack(outputfile,
         hdustack.flush()
         hdustack.close()
     
+        if (swarp_params['median_reject'] and idx==0):
+            from swarp_filter import mask_outliers_in_stack
+            print "**\n"*3,"median reject starting!"
+            mask_outliers_in_stack(median_frame=dic['imageout'],
+                          singles=final_prepared_files)
+            # rename the MEDIAN file to reference file
+            fn_base = dic['imageout'][:-12]
+            try:
+                shutil.move(fn_base+".MEDIAN.fits", fn_base+".REFERENCE.fits")
+                shutil.move(fn_base+".MEDIAN.weight.fits", fn_base+".REFERENCE.weight.fits")
+            except:
+                pass
+            print "rejectng done!", "\n**"*3
+            # print "**\n"*3,"median reject comes now","\n**"*3
+
     # 
     # Delete all temporary files and the temp-directory
     # 
@@ -2163,6 +2184,8 @@ def read_swarp_params(filelist):
     params['keep_resamp_files'] = cmdline_arg_isset('-keepresamp')
 
     params['preswarp_only'] = cmdline_arg_isset('-preswarponly')
+
+    params['median_reject'] = cmdline_arg_isset("-medianreject")
 
     params['mask_saturated'] = None
     if (cmdline_arg_isset("-masksaturated")):
