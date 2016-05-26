@@ -525,11 +525,14 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
         # a master association table combining all input data
         #
         assoc_table = podi_associations.read_associations(hdulist)
-        if (master_associations == None):
-            master_associations = assoc_table
+        if (assoc_table == None):
+            logger.info("No association data available")
         else:
-            master_associations = podi_associations.collect_reduction_files_used(
-                master_associations, assoc_table)
+            if (master_associations == None):
+                master_associations = assoc_table
+            else:
+                master_associations = podi_associations.collect_reduction_files_used(
+                    master_associations, assoc_table)
 
         hdulist.close()
         del hdulist
