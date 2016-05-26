@@ -956,6 +956,12 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     valid_odi_mag = (odi_sdss_matched[:,SXcolumn[col_mag]+2] < 75)
     odi_sdss_matched = odi_sdss_matched[valid_odi_mag]
 
+    #
+    # make a copy of the matched ODI+SDSS catalog, so that subsequent changes
+    # do not alter any of the magnitude/error data we are going to write to file.
+    #
+    original_odi_sdss_matched = odi_sdss_matched.copy()
+
     odi_mag = odi_sdss_matched[:,SXcolumn[col_mag]+2]
     odi_magerr = odi_sdss_matched[:,SXcolumn[col_magerr]+2]
 
@@ -1154,7 +1160,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     detailed_return['photref_col_mag'] = photref_col_mag
     detailed_return['photref_col_err'] = photref_col_err
 
-    detailed_return['odi_sdss_matched'] = odi_sdss_matched
+    detailed_return['odi_sdss_matched'] = original_odi_sdss_matched
     detailed_return['odi_sdss_matched_smallerrors'] = odi_sdss_matched
     detailed_return['odi_sdss_matched_clipped'] = odi_sdss_matched
 
