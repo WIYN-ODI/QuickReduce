@@ -98,7 +98,7 @@ def read_data_from_files(filelist):
         exptime.append(file_dir['EXPTIME'])
         filtername.append(file_dir['FILTER'])
         photzp.append(file_dir['PHOTZP'])
-        photzpe.append(file_dir['PHOTZPE'])
+        photzpe.append(file_dir['PHOTZPER'])
         mjd.append(file_dir['MJD-OBS'])
         dateobs.append(file_dir['DATE-OBS'])
         airmass.append(file_dir['AIRMASS'])

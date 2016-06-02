@@ -1215,6 +1215,7 @@ podi_makecalibrations.py input.list calib-directory
                         #
                         logger.info("PG-dir: %s" % (pupilghost_dir))
                         flat_hdus[0].header['PG_CORR'] = (False, "PG correction applied")
+                        add_fits_header_title(flat_hdus[0].header, "Pupilghost correction", 'PG_CORR')
                         if (not pupilghost_dir == None): #options['pupilghost_dir'] != None):
                             # Reset the pupil ghost option to enable it here
                             options['pupilghost_dir'] = pupilghost_dir
@@ -1262,6 +1263,7 @@ podi_makecalibrations.py input.list calib-directory
                                         continue
 
                                     pg_templates[ota_ext.name] = pg_template
+                                    pyfits.PrimaryHDU(data=pg_template).writeto("pg_%s.fits" % (ota_ext.name), clobber=True)
 
                                     #
                                     # Load the relative gain values for this OTA. This 
@@ -1290,7 +1292,7 @@ podi_makecalibrations.py input.list calib-directory
                                     #
                                     # XXX CHECK WHY REL_GAIN VALUES ARE SO CLOSE TO 1.0000
                                     #
-
+                                    logger.info("Finding sampling data for %s" % (ota_ext.name))
                                     _, full_samples = podi_matchpupilghost.get_pupilghost_scaling_ota(
                                         science_hdu=ff_hdu_tmp, 
                                         pupilghost_frame=pg_hdu,
@@ -1298,8 +1300,9 @@ podi_makecalibrations.py input.list calib-directory
                                         verbose=False,
                                         pg_matched=False,
                                         return_all=True)
-
-                                    numpy.savetxt("flat_pg_samples.%d" % (ota), full_samples)
+                                    print ota_ext.name, "\n", full_samples
+                                                
+                                    # numpy.savetxt("flat_pg_samples.%d" % (ota), full_samples)
 
                                     all_pg_samples = full_samples if all_pg_samples == None else \
                                                      numpy.append(all_pg_samples, full_samples, axis=0)

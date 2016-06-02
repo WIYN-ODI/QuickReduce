@@ -41,14 +41,8 @@ import subprocess
 import scipy
 import scipy.ndimage
 import scipy.special
-import scipy.stats
-import scipy.spatial
-import bottleneck
 import itertools
-import ephem
-
 from bottleneck import nanmean, nanmedian
-from astLib import astWCS
 
 from podi_commandline import *
 import podi_sitesetup as sitesetup
@@ -59,7 +53,7 @@ from wiyn_filters import *
 #
 pipeline_plver = "QuickReduce 2.0"
 pipeline_name = "QuickReduce"
-pipeline_version = "2.0.3"
+pipeline_version = "2.0.1"
 try:
     cmd = "svnversion -n %s" % (sitesetup.exec_dir)
     ret = subprocess.Popen(cmd.split(), 
@@ -176,7 +170,6 @@ SXcolumn_names = [
     'position_angle',
     'elongation',
     'ellipticity',
-    'number',
 ]
 # Convert columns into dictionary to make look-up easier
 SXcolumn = {}
@@ -217,7 +210,6 @@ SXcolumn_descriptions = [
     "THETA_IMAGE         Position angle (CCW/x)                                     [deg]",
     "ELONGATION          A_IMAGE/B_IMAGE",
     "ELLIPTICITY         1 - B_IMAGE/A_IMAGE",
-    "NUMBER              running number / source ID",
 ]
 
    
@@ -653,7 +645,46 @@ def mask_broken_regions(datablock, regionfile, verbose=False, reduction_log=None
                 # print x,x+dx,y,y+dy
             counter += 1
 
+        if (line[0:8] == "# vector"):
+           coords = line[9:]
+           end = coords.find(")")
+           coords = coords[:end]
+           coord_list = coords.split(",")
+
+           if (not type(datablock) == type(None)):
+               x, y = int(float(coord_list[0])), int(float(coord_list[1]))
+               angle = int(float(coord_list[3]))
+
+               for cx,cy in itertools.product(range(8), repeat=2):
+                   x1, x2, y1, y2 = cell2ota__get_target_region(cx, cy) 
+                   if (x1 <= x <= x2) and (y1 <= y <=y2):
+
+                       horiz = 0
+                       vert = 0
+                   
+                       if (357 <= angle or angle <= 3) or (177 <= angle <= 183):
+                           horiz = 1
+                           vert = 0
+
+                       if (87 <= angle <= 93) or (267 <= angle <= 273):
+                           horiz = 0
+                           vert = 1
+
+                       if horiz: 
+                           datablock[y, x1:x2] = numpy.NaN
+                           #print line,"horizonal",x,y
+
+                       if vert: 
+                           datablock[y1:y2, x] = numpy.NaN
+                           #print line,"vertical",x,y
+                           
+                       if horiz == 0 and vert == 0:
+                           #print "vector line/column region ambiguous"
+     
+        counter += 1
+
     file.close()
+
     if (verbose):
         print "Marked",counter,"bad pixel regions"
 
@@ -1082,6 +1113,124 @@ def match_catalog_areas(src, to_match, radius):
 
 
 
+def collect_reduction_files_used(masterlist, files_this_frame):
+    """
+    Keeps track of all files used during the reduction. This function maintains 
+    a list of files and their corresponding reduction step, and properly handles
+    individual files as well as list of filenames.
+    
+    This routine is called during reduction to keep track of all file 
+    associations.
+
+    Parameters
+    ----------
+    masterlist : dictionary
+
+        Dictionary of all reduction steps that have external files associated. 
+        For each step it maintains a list of files.
+
+    files_this_frame : dictionary
+
+        Like the master_list, just for only one step. 
+
+
+    Returns
+    -------
+    the updated master_list
+
+    """
+
+    for key, value in files_this_frame.iteritems():
+        if (key in masterlist):
+            existing_keys = masterlist[key]
+            if (type(value) == list):
+                for val1 in value:
+                    masterlist[key].append(val1)
+            else:
+                masterlist[key].append(value)
+        else:
+            # This is a new key, so just copy it
+            if (type(value) == list):
+                masterlist[key] = value
+            else:
+                masterlist[key] = [value]
+
+    # print masterlist
+    return masterlist
+
+
+
+
+
+
+
+
+
+
+def create_association_table(master, verbose=False):
+    """
+
+    Convert the association dictionary maintained and updated by 
+    :proc:collect_reduction_files_used and creates a FITS-compatible 
+    associations table that will be stored in the resulting output FITS file.
+
+    Parameters
+    ----------
+    master : dictionary
+
+        the master associations dictionary 
+
+    verbose : Bool
+
+        Activate some debugging output
+
+    Returns
+    -------
+    tbhdu : TableHDU
+
+        A FITS TableHDU containing the assocations table. Each entry in this 
+        table contains the reduction step, the name of the associated file, and 
+        the full path of this file.
+
+    """
+
+    reduction_step = []
+    full_filename = []
+    short_filename = []
+
+    for key, value in master.iteritems():
+        # print key,":",value
+        for filename in set(value):
+            reduction_step.append(key)
+            if (filename == None):
+                continue
+            full_filename.append(os.path.abspath(filename))
+            
+            dirname, filebase = os.path.split(filename)
+            short_filename.append(filebase)
+
+            if (verbose):
+                print "% 15s : %s" % (key, filename)
+
+    # print reduction_step
+    # print short_filename
+
+    columns = [\
+        pyfits.Column(name='correction',    format='A25',  array=reduction_step),
+        pyfits.Column(name='filename_full', format='A375', array=full_filename),
+        pyfits.Column(name='filename',      format='A100', array=short_filename),
+        ]
+
+    coldefs = pyfits.ColDefs(columns)
+    try:
+        tbhdu = pyfits.BinTableHDU.from_columns(coldefs)
+    except:
+        tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
+
+    tbhdu.name = "ASSOCIATIONS"
+
+    return tbhdu
+
 
 
 def add_fits_header_title(header, title, before_keyword):
@@ -1159,188 +1308,4 @@ def format_filename(input_filename_or_header, outputfile):
     return outputfile
 
 
-
-def is_guide_ota(primhdu, ext, w=20):
-
-    logger = logging.getLogger("IsGuideOTA")
-
-    binning = primhdu.header['BINNING']
-    skylevel = primhdu.header['SKYLEVEL']
-    gain = primhdu.header['GAIN']
-    skynoise = primhdu.header['SKYNOISE']
-
-    logger.debug("Checking OTA %s (bin=%d, sky=%.1f, skynoise=%.2f)" % (
-        ext.name, binning, skylevel, skynoise))
-
-    if (not is_image_extension(ext)):
-        logger.debug("extension is not a valid image extension")
-        return False
-
-    excesses = numpy.empty((8,8))
-    excesses[:,:] = numpy.NaN
-
-    for cx, cy in itertools.product(range(8), repeat=2):
-
-        #
-        # Get pixel coord for this cell
-        #
-        
-        x1,x2,y1,y2 = cell2ota__get_target_region(cx, cy, binning=binning, trimcell=0)
-        x21 = (x2-x1)/2
-
-        # extract the mean value in the bottom corner
-        corner = bottleneck.nanmean(ext.data[y1:y1+w, x1:x1+w].astype(numpy.float32))
-
-        # also get the value in the bottom center
-        center = bottleneck.nanmean(ext.data[y1:y1+w, x1+x21-w/2:x1+x21+w//2].astype(numpy.float32))
-
-        excess = corner - center
-        #print ext.name, cx, cy, corner, center, excess
-            
-        excesses[cx,cy] = excess
-
-    _mean = bottleneck.nanmean(excesses)
-    _median = bottleneck.nanmedian(excesses)
-
-    is_guideota = (_median > 10*skynoise)
-    logger.debug("Found corner excess mean=%.1f, median=%.1f --> guide-OTA: %s" % (
-        _mean, _median, "YES" if is_guideota else "NO"))
-
-    return is_guideota
-
-
-def interpret_ds9_size(s):
-    if (s.endswith('"')):
-        return float(s[:-1])
-    elif (s.endswith("'")):
-        return float(s[:-1])*60.
-    else:
-        return -1
-
-def read_sky_regions_file(filename):
-
-    logger = logging.getLogger("SkyRegions")
-    logger.debug("Reading from file %s" % (filename))
-
-    region_list = []
-    with open(filename, "r") as fn:
-        lines = fn.readlines()
-
-        for line in lines:
-            if (not line.startswith("box(")):
-                continue
-            #print line.strip()
-
-            coords = line.strip()[4:-1].split(',')
-
-            radec = ephem.Equatorial(coords[0], coords[1])
-            ra = numpy.degrees(radec.ra)
-            dec = numpy.degrees(radec.dec)
-
-            width = interpret_ds9_size(coords[2])
-            height  = interpret_ds9_size(coords[3])
-
-            # print line.strip(),"-->", coords, "-->", ra, dec, width, height
-
-            region_list.append([ra, dec, width, height])
-
-    logger.debug("Read %d regions" % (len(region_list)))
-
-    return numpy.array(region_list)
-
-def mask_regions_using_ds9_regions(hdu, regions, fill_value=numpy.NaN):
-
-    logger = logging.getLogger("MaskDS9Regions")
-    logger.debug("Masking %d regions in ext. %s with %f" % (
-        regions.shape[0], hdu.name, fill_value))
-
-    wcs = astWCS.WCS(hdu.header, mode='pyfits')
-    pixelscale = wcs.getPixelSizeDeg() * 3600.
-
-    data = hdu.data
-
-    center_xy = wcs.wcs2pix(regions[:,0], regions[:,1])
-    # print center_xy
-    center_xy = numpy.array(center_xy)
-    
-    cx = center_xy[:,0]
-    cy = center_xy[:,1]
-    width = regions[:,2]/2. / pixelscale
-    height = regions[:,3]/2. / pixelscale
-
-    in_ota = ((cx + width) > 0) & ((cx - width) < data.shape[1]) & \
-             ((cy + height) > 0) & ((cy - height) < data.shape[0])
-    
-    cx = cx[in_ota]
-    cy = cy[in_ota]
-    w = width[in_ota]
-    h = height[in_ota]
-
-    if (cx.size <= 0):
-        # no boxes in this OTA
-        logger.debug("No regions to mask in this OTA!")
-        return None
-        
-    left = numpy.floor(cx - w).astype(numpy.int)
-    right = numpy.ceil(cx + w).astype(numpy.int)
-    top = numpy.ceil(cy + h).astype(numpy.int)
-    bottom = numpy.floor(cy - h).astype(numpy.int)
-
-    left[left < 0] = 0
-    bottom[bottom < 0] = 0
-        
-    mask_area = numpy.sum((top - bottom) * (right - left))
-    for box in range(cx.shape[0]):
-        data[bottom[box]:top[box], left[box]:right[box]] = fill_value
-        logger.debug("Masking (%s): X=%4d-%4d, Y=%4d-%4d (cx/cy/w/h=%4d,%4d,%4d,%4d)" % (
-            hdu.name, left[box], right[box], bottom[box], top[box],
-            cx[box], cy[box], w[box], h[box]))
-        
-    logger.debug("Masked out %d pixels" % (mask_area))
-
-    return mask_area
-
-
-def read_wipecells_list():
-
-    logger = logging.getLogger("ReadWipeCells")
-
-    if (not cmdline_arg_isset("-wipecells")):
-        return None
-
-    wipecells = {}
-    wc = get_cmdline_arg("-wipecells")
-    logger.debug("wipecells: %s" % (wc))
-    for _wc in wc.split(","):
-        # print _wc
-        _ota,_cell = _wc.split(".")
-        ota = int(_ota)
-        ota_name = "OTA%02d.SCI" % (ota)
-        cellx,celly = int(_cell[0]), int(_cell[1])
-        if (not ota_name in wipecells):
-            wipecells[ota_name] = []
-        wipecells[ota_name].append((cellx, celly))
-    logger.debug("wipe-cells final: %s" % (str(wipecells)))
-
-    return wipecells
-
-def wipecells(ext, wipecells_list, binning=1, fillvalue=numpy.NaN):
-
-    logger = logging.getLogger("WipeCells")
-    
-    if (not is_image_extension(ext) or
-        not ext.name in wipecells_list):
-        return
-
-    # We have some cells to wipe
-    for (cell_x, cell_y) in wipecells_list[ext.name]:
-        # Get coordinates for this cell, for the given binning
-        logger.debug("Wiping out cell %d,%d in OTA %s" % (cell_x, cell_y, ext.name))
-        x1, x2, y1, y2 = cell2ota__get_target_region(cell_x, cell_y, binning=binning)
-        #_was = bottleneck.nanmedian(ext.data[y1:y2, x1:x2].astype(numpy.float32))
-        ext.data[y1:y2, x1:x2] = fillvalue
-        #logger.info("%d:%d, %d:%d --> %f --> %f"  %(
-        #    x1,x2,y1,y2, _was, bottleneck.nanmedian(ext.data[y1:y2, x1:x2].astype(numpy.float32))))
-
-    return
 

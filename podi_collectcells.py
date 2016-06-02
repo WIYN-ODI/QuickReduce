@@ -2614,7 +2614,7 @@ class reduce_collect_otas (object):
 
             # mark the dataset as complete
             ota_id, data_products, shmem_id = result
-            self.logger.info("received final results for ota-ID %d (%s)" % (
+            self.logger.debug("received final results for ota-ID %d (%s)" % (
                 ota_id, ",".join(["%d" % job['ota_id'] for job in self.info])))
 
 
@@ -2625,7 +2625,7 @@ class reduce_collect_otas (object):
                     # fn = self.id2filename[ota_id]
                     self.job_status_lock.acquire()
                     job['complete'].value = True #<<- this is now done from within the worker process
-                    self.logger.info("File %s, ID %d marked as complete" % (job['filename'], ota_id))
+                    self.logger.debug("File %s, ID %d marked as complete" % (job['filename'], ota_id))
                     self.active_workers -= 1
                     self.final_results.append(result)
                     self.logger.debug("# active workers is now %d" % (self.active_workers))
@@ -3619,7 +3619,7 @@ def collectcells(input, outputfile,
 
     logger.debug("Getting final results")
     results = worker.get_final_results()
-    logger.info("Received %d final results" % (len(results)))
+    logger.debug("Received %d final results" % (len(results)))
 
     logger.debug("finishing up processing")
     worker.abort()

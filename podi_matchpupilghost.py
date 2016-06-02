@@ -490,7 +490,7 @@ def get_pupilghost_scaling_ota(science_hdu, pupilghost_frame,
         profile = scipy.interpolate.interp1d(
             radius, mean_profile, kind='linear', 
             fill_value = numpy.NaN,
-            copy=True, bounds_error=False, assume_sorted=True)
+            copy=True, bounds_error=False) #, assume_sorted=True
         #print "yyy"
 
         # data = numpy.loadtxt("radial__norm+bgsub") #radial__bgsub")
@@ -506,6 +506,7 @@ def get_pupilghost_scaling_ota(science_hdu, pupilghost_frame,
         pg_radius = numpy.hypot(dxy[:,0], dxy[:,1])
         pg_samples = profile(pg_radius)
     except:
+        podi_logging.log_exception()
         logger.error("Unable to find pupilghost profile")
         return None, None if return_all else None
 
@@ -1085,13 +1086,14 @@ def iterate_reject_scaling_factors(samples, iterations=3, significant_only=True)
     logger = logging.getLogger("PGScaleReject")
 
     _samples = numpy.array(samples)
-    logger.info("Input data format: %d,%d" % (_samples.shape[0], samples.shape[1]))
+    logger.info("Input data format: %d,%d" % (_samples.shape[0], _samples.shape[1]))
 
     from scipy.optimize import curve_fit
     def f(x, scale, bg): # this is your 'straight line' y=f(x)
         return scale*x + bg
 
     include = numpy.zeros((_samples.shape[0])) == 0
+    print "include shape:", include.shape
     pg_x = _samples[:,5]
     sci_y = _samples[:,4]
 
@@ -1172,6 +1174,12 @@ def iterate_reject_scaling_factors(samples, iterations=3, significant_only=True)
 
             # get local scatter
             in_bin = (pg_x >= _x1) & (pg_x <= _x2)
+            print "BIN #",bin, in_bin.shape, include.shape
+
+            this_bin_errors = errors[in_bin & include]
+            if (this_bin_errors.shape[0] <= 0):
+                continue
+
             sigmas = scipy.stats.scoreatpercentile(errors[in_bin & include], [16, 84, 50])
 
             numpy.savetxt("error_%d_%d" % (iter+1, bin+1),
@@ -1195,9 +1203,9 @@ def iterate_reject_scaling_factors(samples, iterations=3, significant_only=True)
         pg_x = _x
         sci_y = _y
 
-        numpy.savetxt("step_%d" % (iter+1),
-                      numpy.append(pg_x.reshape((-1,1)),
-                                   sci_y.reshape((-1,1)), axis=1))
+        #numpy.savetxt("step_%d" % (iter+1),
+        #              numpy.append(pg_x.reshape((-1,1)),
+        #                           sci_y.reshape((-1,1)), axis=1))
 
         #include = (errors < 3*one_sigma) & (errors > -2*one_sigma)
 #        include = (errors < 2*one_sigma) & (errors > -1.5*one_sigma)
