@@ -658,16 +658,16 @@ class FocalPlaneLayout(object):
         if (user_bpm_param == None):
             return None
 
-        elif (user_bpm_param == "auto"):
-            ffn = "%s/.bpm/%s/%s" % (
-                sitesetup.exec_dir, self.fp_config, fn)
-            return ffn if os.path.isfile(ffn) else None
-            
         elif (os.path.isfile(user_bpm_param)):
             return user_bpm_param if os.path.isfile(user_bpm_param) else None
 
         elif (os.path.isdir(user_bpm_param)):
             ffn = "%s/%s" % (user_bpm_param, fn)
+            return ffn if os.path.isfile(ffn) else None
+
+        else:
+            ffn = "%s/.bpm/%s/%s" % (
+                sitesetup.exec_dir, self.fp_config, fn)
             return ffn if os.path.isfile(ffn) else None
 
         return None

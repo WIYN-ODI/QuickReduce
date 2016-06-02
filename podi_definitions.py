@@ -42,6 +42,7 @@ import scipy
 import scipy.ndimage
 import scipy.special
 import itertools
+import logging
 from bottleneck import nanmean, nanmedian
 
 from podi_commandline import *
@@ -619,6 +620,8 @@ def mask_broken_regions(datablock, regionfile, verbose=False, reduction_log=None
 
     """
 
+    logger = logging.getLogger("MaskBrokenRegion")
+
     if (not os.path.isfile(regionfile)):
         if (not reduction_log == None):
             reduction_log.failed('badpixels')
@@ -641,52 +644,55 @@ def mask_broken_regions(datablock, regionfile, verbose=False, reduction_log=None
                 y1 = numpy.max([0, y-dy])
                 y2 = numpy.min([datablock.shape[0], y+dy])
                 datablock[y1:y2, x1:x2] = numpy.NaN
+                logger.debug("Masking block X=%d-%d, y=%d-%d" % (x1,x2,y1,y2))
 
                 # print x,x+dx,y,y+dy
             counter += 1
 
         if (line[0:8] == "# vector"):
-           coords = line[9:]
-           end = coords.find(")")
-           coords = coords[:end]
-           coord_list = coords.split(",")
+            coords = line[9:]
+            end = coords.find(")")
+            coords = coords[:end]
+            coord_list = coords.split(",")
 
-           if (not type(datablock) == type(None)):
-               x, y = int(float(coord_list[0])), int(float(coord_list[1]))
-               angle = int(float(coord_list[3]))
+            if (not type(datablock) == type(None)):
+                x, y = int(float(coord_list[0])), int(float(coord_list[1]))
+                angle = int(float(coord_list[3]))
 
-               for cx,cy in itertools.product(range(8), repeat=2):
-                   x1, x2, y1, y2 = cell2ota__get_target_region(cx, cy) 
-                   if (x1 <= x <= x2) and (y1 <= y <=y2):
+                for cx,cy in itertools.product(range(8), repeat=2):
+                    x1, x2, y1, y2 = cell2ota__get_target_region(cx, cy) 
+                    if (x1 <= x <= x2) and (y1 <= y <=y2):
 
-                       horiz = 0
-                       vert = 0
+                        horiz = False
+                        vert = False
                    
-                       if (357 <= angle or angle <= 3) or (177 <= angle <= 183):
-                           horiz = 1
-                           vert = 0
+                        if (357 <= angle or angle <= 3) or (177 <= angle <= 183):
+                            horiz = True
 
-                       if (87 <= angle <= 93) or (267 <= angle <= 273):
-                           horiz = 0
-                           vert = 1
+                        if (87 <= angle <= 93) or (267 <= angle <= 273):
+                            vert = True
 
-                       if horiz: 
-                           datablock[y, x1:x2] = numpy.NaN
-                           #print line,"horizonal",x,y
+                        if (horiz): 
+                            datablock[y, x1:x2] = numpy.NaN
+                            logger.debug("Masking line x=%d-%d, y=%d" % (x1,x2,y))
 
-                       if vert: 
-                           datablock[y1:y2, x] = numpy.NaN
-                           #print line,"vertical",x,y
+                        if (vert): 
+                            datablock[y1:y2, x] = numpy.NaN
+                            logger.debug("Masking column x=%d, y=%d-%d" % (x,y1,y2))
+                            #print line,"vertical",x,y
                            
-                       if horiz == 0 and vert == 0:
-                           #print "vector line/column region ambiguous"
+                        if (not horiz and not vert):
+                            logger.warning("vector line/column region ambiguous in %s\n>>> %s" % (
+                                regionfile, line))
+                            #print "vector line/column region ambiguous"
+
+                        break
      
-        counter += 1
+                counter += 1
 
     file.close()
 
-    if (verbose):
-        print "Marked",counter,"bad pixel regions"
+    logger.debug("Marked %d bad pixel regions" % (counter))
 
     if (not reduction_log == None):
         reduction_log.success('badpixels')

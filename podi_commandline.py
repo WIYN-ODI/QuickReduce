@@ -155,7 +155,7 @@ def read_options_from_commandline(options=None, ignore_errors=False):
     options['flat_dir'] = read_comma_separated_list(
         cmdline_arg_set_or_default("-flat", options['flat_dir']))
 
-    options['bpm_dir']  = cmdline_arg_set_or_default("-bpm", options['bpm_dir'])
+    options['bpm_dir']  = cmdline_arg_set_or_default("-bpm", "auto")
         
     if (options['verbose']):
         print """
