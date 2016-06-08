@@ -21,6 +21,8 @@ sdss_equivalents = {
     "odi_z": 'z',
     "odi_u": 'u',
     #
+    "odi_NB695": 'r',
+    #
     # All other filters
     #
     "823_v2": "z",
@@ -67,6 +69,9 @@ filter_bandpass = {
                     "odi_r": (  		 "odi_r.txt", 6231.93, 6214.50,  1383.1,  5526.7,  6909.8, 0.3910, 0.3109,  516.96, 5469.03, 6965.25),
                     "odi_i": (  		 "odi_i.txt", 7524.93, 7560.00,  1268.8,  6919.1,  8188.0, 0.3806, 0.2512,  409.39, 6845.65, 8277.06),
                     "odi_z": (  		 "odi_z.txt", 8605.45, 8643.00,   888.2,  8168.2,  9056.4, 0.2494, 0.1442,  197.98, 8069.76, 9261.17),
+    #
+    # for now, most numbers for the new narrow-band filter are made up to get things going
+                "odi_NB695": (               "odi_NB695.txt", 6950.00, 6950.00,   100.0,  6900.0,  7000.0, 1.0000, 1.0000,  100.00, 6900.00, 7000.00),
     #
     # mosaic filters - some may need to be renamed to match the name in the ODI filter system
     #
