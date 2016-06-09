@@ -300,6 +300,7 @@ def get_cellmode(primhdr, cellhdr, focalplanelayout):
     wm_cellx, wm_celly = cellhdr['WN_CELLX'], cellhdr['WN_CELLY']
     broken = focalplanelayout.is_cell_broken(primhdr['OTA_ID'], wm_cellx, wm_celly)
     if (broken):
+        #stdout_write ("Rejecting borken cell %s %s %s %s\n" %  (primhdr['OTA_ID'], ota, wm_cellx, wm_celly))
         return -1
 
     # It's not one of the broken cells, but it might still be a guide/video cell
