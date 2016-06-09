@@ -2067,7 +2067,8 @@ def read_swarp_params(filelist):
     for combine_method in combine_methods.split(","):
         if (not combine_method.lower() in ['average', 'median', 'sum', 'min', 'max', 'weighted', 'chi2',
                                            'chi-old', 'chi-mode', 'chi-mean', 'clipped',
-                                           'weighted_weight', 'median_weight', 'and', 'nand', 'or', 'nor']):
+                                           'weighted_weight', 'median_weight', 'and', 'nand', 'or', 'nor',
+                                           'sigmaclipmean', 'sigmaclipwmean', 'sigmaclipmedian']):
             logger = logging.getLogger("Setup")
             logger.error("The specified combine method (%s) is not supported, using average instead" % (combine_method))
             continue
