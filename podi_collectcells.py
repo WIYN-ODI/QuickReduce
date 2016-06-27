@@ -1901,7 +1901,6 @@ def collectcells_with_timeout(input, outputfile,
 
     cc_args = (input, outputfile,
                batchmode,
-               batchmode,
                verbose,
                options,
                showsplash)
