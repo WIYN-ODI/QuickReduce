@@ -1774,8 +1774,14 @@ def swarpstack(outputfile,
 
         logger.info("Stack (%s) complete, adding headers" % (dic['imageout']))
 
+
         # Finally, open the output file and copy a bunch of headers into it
-        hdustack = pyfits.open(dic['imageout'], mode='update')
+        try:
+            hdustack = pyfits.open(dic['imageout'], mode='update')
+        except:
+            logger.error("Unable to open %s" % (dic['imageout']))
+            continue
+
         # Also open the first frame in the stack to be used as data source
 
         #
