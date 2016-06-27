@@ -288,7 +288,13 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
 
                 # compute the linear slope between zero flux and half the max intensity
                 half_max = 0.5 * int_max
-                idx_half_max = numpy.argmax(exptime[medlevel <= half_max])
+                half_max_exptime = exptime[medlevel <= half_max]
+                if (half_max_exptime.shape[0] <= 0):
+                    logger.error("OTA %02d, cell %d,%d: No low flux levels found!")
+                    broken_cells += 1
+                    continue
+
+                idx_half_max = numpy.argmax(half_max_exptime)
                 t_half_max = exptime[idx_half_max] #numpy.max(exptime[medlevel <= half_max])
                 linear_slope = medlevel[idx_half_max] / t_half_max
                 logger.debug("linear slope: %f" % (linear_slope))
@@ -399,7 +405,7 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
 
     # Compute a relative gain factor
     logger.info("Computing relative gain")
-    mean_lampgain = numpy.mean(result_lampgain[:result_count])
+    mean_lampgain = numpy.median(result_lampgain[:result_count])
     logger.debug("mean lampgain = %f" % (mean_lampgain))
     result_relativegain = result_lampgain / mean_lampgain
 
@@ -441,6 +447,7 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
     coldefs = pyfits.ColDefs(columns)
 #    tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
     tbhdu = pyfits.BinTableHDU.from_columns(columns)
+    tbhdu.name = "NONLINCORR"
 
     primhdu = pyfits.PrimaryHDU()
     primhdu.header["POLYORDR"] = polyorder
