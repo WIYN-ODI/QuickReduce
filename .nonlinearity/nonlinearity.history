@@ -15,4 +15,8 @@
 56750.3 nonlinearity_april2014.fits
 #
 # setting upgraded ODI phase to begin 2015-June-01
-57174.0 nonlinearity_odi56__20150602.fits
+# 57174.0 nonlinearity_odi56__20150602.fits
+# original ODI 5x6 file, workswell, but faulty realtive gains
+#
+# new file, same data as above, but re-run to get proper relative gains
+57174.0 nonlinearity_odi56__20150602v2.fits
