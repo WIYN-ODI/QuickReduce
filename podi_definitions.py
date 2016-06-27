@@ -43,6 +43,7 @@ import scipy.ndimage
 import scipy.special
 import itertools
 import logging
+import bottleneck
 from bottleneck import nanmean, nanmedian
 
 from podi_commandline import *
@@ -1316,3 +1317,93 @@ def format_filename(input_filename_or_header, outputfile):
 
 
 
+def read_wipecells_list():
+
+    logger = logging.getLogger("ReadWipeCells")
+
+    if (not cmdline_arg_isset("-wipecells")):
+        return None
+
+    wipecells = {}
+    wc = get_cmdline_arg("-wipecells")
+    logger.debug("wipecells: %s" % (wc))
+    for _wc in wc.split(","):
+        # print _wc
+        _ota,_cell = _wc.split(".")
+        ota = int(_ota)
+        ota_name = "OTA%02d.SCI" % (ota)
+        cellx,celly = int(_cell[0]), int(_cell[1])
+        if (not ota_name in wipecells):
+            wipecells[ota_name] = []
+        wipecells[ota_name].append((cellx, celly))
+    logger.debug("wipe-cells final: %s" % (str(wipecells)))
+
+    return wipecells
+
+def wipecells(ext, wipecells_list, binning=1, fillvalue=numpy.NaN):
+
+    logger = logging.getLogger("WipeCells")
+    
+    if (not is_image_extension(ext) or
+        not ext.name in wipecells_list):
+        return
+
+    # We have some cells to wipe
+    for (cell_x, cell_y) in wipecells_list[ext.name]:
+        # Get coordinates for this cell, for the given binning
+        logger.debug("Wiping out cell %d,%d in OTA %s" % (cell_x, cell_y, ext.name))
+        x1, x2, y1, y2 = cell2ota__get_target_region(cell_x, cell_y, binning=binning)
+        #_was = bottleneck.nanmedian(ext.data[y1:y2, x1:x2].astype(numpy.float32))
+        ext.data[y1:y2, x1:x2] = fillvalue
+        #logger.info("%d:%d, %d:%d --> %f --> %f"  %(
+        #    x1,x2,y1,y2, _was, bottleneck.nanmedian(ext.data[y1:y2, x1:x2].astype(numpy.float32))))
+
+    return
+
+def is_guide_ota(primhdu, ext, w=20):
+
+    logger = logging.getLogger("IsGuideOTA")
+
+    binning = primhdu.header['BINNING']
+    skylevel = primhdu.header['SKYLEVEL']
+    gain = primhdu.header['GAIN']
+    skynoise = primhdu.header['SKYNOISE']
+
+    logger.debug("Checking OTA %s (bin=%d, sky=%.1f, skynoise=%.2f)" % (
+        ext.name, binning, skylevel, skynoise))
+
+    if (not is_image_extension(ext)):
+        logger.debug("extension is not a valid image extension")
+        return False
+
+    excesses = numpy.empty((8,8))
+    excesses[:,:] = numpy.NaN
+
+    for cx, cy in itertools.product(range(8), repeat=2):
+
+        #
+        # Get pixel coord for this cell
+        #
+        
+        x1,x2,y1,y2 = cell2ota__get_target_region(cx, cy, binning=binning, trimcell=0)
+        x21 = (x2-x1)/2
+
+        # extract the mean value in the bottom corner
+        corner = bottleneck.nanmean(ext.data[y1:y1+w, x1:x1+w].astype(numpy.float32))
+
+        # also get the value in the bottom center
+        center = bottleneck.nanmean(ext.data[y1:y1+w, x1+x21-w/2:x1+x21+w//2].astype(numpy.float32))
+
+        excess = corner - center
+        #print ext.name, cx, cy, corner, center, excess
+            
+        excesses[cx,cy] = excess
+
+    _mean = bottleneck.nanmean(excesses)
+    _median = bottleneck.nanmedian(excesses)
+
+    is_guideota = (_median > 10*skynoise)
+    logger.debug("Found corner excess mean=%.1f, median=%.1f --> guide-OTA: %s" % (
+        _mean, _median, "YES" if is_guideota else "NO"))
+
+    return is_guideota
