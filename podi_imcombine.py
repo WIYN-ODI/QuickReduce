@@ -527,17 +527,18 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
         assoc_table = podi_associations.read_associations(hdulist)
         if (assoc_table == None):
             logger.info("No association data available")
+            assoc_table = {'input_simple': [fn]}
+        if (master_associations == None):
+            master_associations = assoc_table
         else:
-            if (master_associations == None):
-                master_associations = assoc_table
-            else:
-                master_associations = podi_associations.collect_reduction_files_used(
-                    master_associations, assoc_table)
+            master_associations = podi_associations.collect_reduction_files_used(
+                master_associations, assoc_table)
 
         hdulist.close()
         del hdulist
         if (not gather_all_otas):
             break
+
     otas_to_combine = set(otas_found)
     ota_counter = collections.Counter(otas_found)
     #print otas_to_combine
@@ -631,7 +632,16 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
     if (not return_hdu and outputfile != None):
         logger.debug(" writing results to file %s ..." % (outputfile))
         clobberfile(outputfile)
-        out_hdu.writeto(outputfile, clobber=True, checksum=True)
+        try:
+            out_hdu.writeto(outputfile, clobber=True, checksum=True)
+        except TypeError:
+            # this most likely is this error:
+            # TypeError: object of type 'NoneType' has no len()
+            # related to the checksum calculation
+            clobberfile(outputfile)
+            out_hdu.writeto(outputfile, clobber=True)
+        except:
+            raise
         out_hdu.close()
         del out_hdu
         del out_hdulist
