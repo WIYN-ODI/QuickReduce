@@ -617,7 +617,7 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
         pyfits.Column(name='filename', format="A100", array=filenames_only),
         ]
     coldefs = pyfits.ColDefs(columns)
-    tablehdu = pyfits.new_table(coldefs, tbtype="BinTableHDU")
+    tablehdu = pyfits.BinTableHDU.from_columns(coldefs)
     tablehdu.header["EXTNAME"] = "FILELIST"
     out_hdulist.append(tablehdu)
 
