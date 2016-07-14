@@ -4,6 +4,7 @@ import sys
 import os
 import numpy
 
+sys.path.append("/work/podi_devel/")
 from podi_definitions import get_collected_image_dimensions
 
 size_x, size_y = get_collected_image_dimensions(1)
