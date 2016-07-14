@@ -1061,6 +1061,7 @@ def collect_reduce_ota(filename,
         if (options['fringe_dir'] == None):
             reduction_log.not_selected('fringe')
         else:
+            reduction_log.attempt('fringe')
             fringe_filename = fpl.get_fringe_filename(options['fringe_dir'])
             fringe_vector_file = fpl.get_fringevector_regionfile(options['fringe_vectors'], ota)
             logger.debug("fringe file %s found: %s" % (fringe_filename, os.path.isfile(fringe_filename)))
@@ -1092,12 +1093,13 @@ def collect_reduce_ota(filename,
                 hdu.header.add_history("fringe map: %s" % fringe_filename)
                 hdu.header.add_history("fringe vector: %s" % fringe_vector_file)
                 fringe_hdu.close()
+            else:
+                reduction_log.no_data('fringe')
             #print "FRNG_SCL", fringe_scaling_median
             #print "FRNG_STD", fringe_scaling_std
             hdu.header["FRNG_SCL"] = fringe_scaling_median
             hdu.header["FRNG_STD"] = fringe_scaling_std
             hdu.header["FRNG_OK"] = (type(fringe_scaling) != type(None))
-            reduction_log.attempt('fringe')
 
         # Insert the DETSEC header so IRAF understands where to put the extensions
         start_x = ota_c_x * size_x #4096
@@ -1746,6 +1748,7 @@ def parallel_collect_reduce_ota(queue,
                 return_hdu.data -= (fringe_template * final_parameters['fringe-scaling-median'])
                 reduction_log.success('fringe')
         except:
+            reduction_log.fail('fringe')
             podi_logging.log_exception()
             pass
 
