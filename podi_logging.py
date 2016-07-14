@@ -267,8 +267,8 @@ def log_master(queue, options):
     except:
         raise
     # Add some specials to make sure we are always writing to a clean line
-    f = logging.Formatter('\r\x1b[2K%(name)s: %(message)s')
-    # f = logging.Formatter('%(name)s: %(message)s')
+    # f = logging.Formatter('\r\x1b[2K%(name)s: %(message)s')
+    f = logging.Formatter('%(name)s: %(message)s')
     h.setFormatter(f)
     info.addHandler(h)
     
@@ -454,7 +454,7 @@ def podi_log_master_start(options):
     # Also start a logger for the main process
     podi_logger_setup(worker_setup)
 
-    print_stacktrace()
+    # print_stacktrace()
 
     return log_master_info, worker_setup
 
