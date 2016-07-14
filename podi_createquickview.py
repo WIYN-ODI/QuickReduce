@@ -72,7 +72,7 @@ def create_quickview(filename, output_directory, verbose=False, clobber=True):
 
     create_otalevel = cmdline_arg_isset("-otalevel")
     scaling = cmdline_arg_set_or_default("-scaling", None)
-    if (not scaling in ['linear', 'log', 'sqrt', 'arcsinh']):
+    if (not scaling in ['linear', 'log', 'sqrt', 'arcsinh', 'asinh']):
         scaling = 'sqrt'
 
     hdulist = pyfits.open(filename)
@@ -204,6 +204,7 @@ def create_quickview(filename, output_directory, verbose=False, clobber=True):
         greyscale[greyscale<0] = 0
         greyscale[greyscale>=1] = 1
 
+        print "ASINH?", (scaling  in ['arcsinh','asinh'])
         if (scaling == 'sqrt'):
             greyscale = numpy.sqrt(greyscale)
         elif (scaling in ['arcsinh','asinh']):
