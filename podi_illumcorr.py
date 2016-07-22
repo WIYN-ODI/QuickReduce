@@ -160,6 +160,10 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
                                bpm_dir=None,
                                wipe_cells=None,
                                ocdclean=False,
+                               apply_correction=True,
+                               additional_sextractor_options=None,
+                               conf_file=None,
+                               param_file=None,
 ):
 
     root = logging.getLogger("CompIllumination")
@@ -211,12 +215,12 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
                     input_file_modified = True
                     continue
 
-            if (not type(mask_regions) == type(None)):
+            if (mask_regions is not None):
                 print "Masking regions"
                 mask_regions_using_ds9_regions(ext, mask_regions)
                 input_file_modified = True
 
-            if (not bpm_dir == None):
+            if (bpm_dir is not None):
                 bpmfile = "%s/bpm_xy%s.reg" % (bpm_dir, ext.name[3:5])
                 print "apply bpm from %s" % (bpmfile)
                 if (os.path.isfile(bpmfile)):
@@ -245,23 +249,29 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
             logger.info("Starting work (source detection, masking, normalization) ...")
         else:
             logger.info("No work necessary, re-using existing data ...")
-            
+
+        if (conf_file is None):
+            conf_file = "%s/.config/illumcorr.conf" % (sitesetup.exec_dir)
+        if (param_file is None):
+            param_file = "%s/.config/illumcorr.param" % (sitesetup.exec_dir)
         if (not os.path.isfile(segmask) or redo):
             logger.debug("Creating segmentation mask: %s" % (segmask))
-            sex_cmd = """%(sex)s -c %(conf)s \
-                         -PARAMETERS_NAME %(params)s \
-                         -CHECKIMAGE_TYPE SEGMENTATION \
-                         -CHECKIMAGE_NAME %(segfile)s \
-                         -FILTER_NAME %(filtername)s \
+            sex_cmd = """%(sex)s -c %(conf)s
+                         -PARAMETERS_NAME %(params)s
+                         -CHECKIMAGE_TYPE SEGMENTATION
+                         -CHECKIMAGE_NAME %(segfile)s
+                         -FILTER_NAME %(filtername)s
+                         %(additional_opts)s
                          %(image)s
                 """ % {
                 'sex': sitesetup.sextractor,
-                'conf': "%s/.config/illumcorr.conf" % (sitesetup.exec_dir),
-                'params': "%s/.config/illumcorr.param" % (sitesetup.exec_dir),
+                'conf': conf_file,
+                'params': param_file,
                 'filtername': "%s/.config/gauss_5.0_9x9.conv" % (sitesetup.exec_dir),
                 'segfile': segmask,
 #                'image': fitsfile,
                 'image': input2sex_file,
+                'additional_opts': "" if (additional_sextractor_options is None) else additional_sextractor_options,
                 }
             
             logger.debug("Starting Sextractor:\n%s" % (" ".join(sex_cmd.split())))
@@ -323,7 +333,7 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
                         found_mask = True
                         logger.debug("found the mask for extension %s" % (ext.name))
                         
-                        print "smoothing"
+                        logger.debug("smoothing extension %s of %s" % (ext.name, fitsfile))
                         mask_grown = scipy.ndimage.filters.convolve(
                             input=mask_ext.data, 
                             weights=numpy.ones((10,10)), 
@@ -335,9 +345,10 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
 #                        ext.data[mask_ext.data > 0] = numpy.NaN
                         ext.data[mask_grown > 0] = numpy.NaN
 
-                        # Rescale with the global sky-level
-                        # maybe better to re-compute based on the segmentation mask
-                        ext.data /= hdulist[0].header['SKYLEVEL']
+                        if (apply_correction):
+                            # Rescale with the global sky-level
+                            # maybe better to re-compute based on the segmentation mask
+                            ext.data /= hdulist[0].header['SKYLEVEL']
 
                         hdu_out.append(ext)
 
@@ -375,7 +386,6 @@ def prepare_illumination_correction(filelist, outfile, tmpdir=".", redo=False,
                                     bpm_dir=None,
                                     wipe_cells=None,
                                     ocdclean=False,
-
 ):
 
     logger = logging.getLogger("CreateIllumCorr")

@@ -82,8 +82,12 @@ import podi_focalplanelayout
 import podi_logging
 import logging
 
+import podi_illumcorr
+
 def make_fringing_template(input_filelist, outputfile, return_hdu=False, 
-                           skymode='local', operation="nanmedian.bn"):
+                           skymode='local', operation="nanmedian.bn",
+                           bpm_dir=None, wipe_cells=None, ocdclean=False,
+):
     """
 
     Create a fringe template from the given list of suitable input frames. 
@@ -101,10 +105,24 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False,
 
     """
 
+    logger = logging.getLogger("MakeFringeTemplate")
+
     # First loop over all filenames and make sure all files exist
     hdu_filelist = []
     for filename in input_filelist:
         if (os.path.isfile(filename)):
+
+            with pyfits.open(filename) as hdulist:
+                exptime = hdulist[0].header['EXPTIME']
+                filter = hdulist[0].header['FILTER']
+                skylevel = hdulist[0].header['SKYLEVEL']
+                if (filter in avg_sky_countrates):
+                    max_skylevel = 2 * avg_sky_countrates[filter] * exptime
+                    if (skylevel > max_skylevel):
+                        logger.info("Frame %s exceeds sky-level limitation (%.1f vs %.1f cts/s)" % (
+                            skylevel/exptime, max_skylevel))
+                        continue
+
             hdu_filelist.append(filename) #pyfits.open(file))
 
     if (len(hdu_filelist) <= 0):
@@ -128,6 +146,61 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False,
 
     print "Output file=",outputfile
 
+    #
+    # Prepare all input frames, just like for the illumination correction, i.e.
+    # - mask out sources
+    # - eliminate OTAs used for guiding
+    # - wipe out certain cells
+    #
+    queue = multiprocessing.JoinableQueue()
+    return_queue = multiprocessing.Queue()
+
+    logger.info("Preparing all individual fringe template frames")
+    number_files_sent_off = 0
+    for fitsfile in hdu_filelist:
+        logger.debug("Queuing %s" % (fitsfile))
+        queue.put((fitsfile))
+        number_files_sent_off += 1
+
+    additional_sextractor_options = """
+        -FILTER N
+        -DETECT_THRESH 3
+        -BACK_SIZE"""
+
+    conf_file = "%s/.config/fringing.conf" % (sitesetup.exec_dir)
+    processes = []
+    for i in range(sitesetup.number_cpus):
+        logger.debug("Starting process #%d" % (i+1))
+        p = multiprocessing.Process(target=podi_illumcorr.compute_illumination_frame,
+                                    kwargs = {'queue': queue,
+                                              'return_queue': return_queue,
+                                              'tmp_dir': sitesetup.swarp_singledir,
+                                              'redo': True,
+                                              'mask_guide_otas': True, #mask_guide_otas,
+                                              'mask_regions': None, #mask_regions,
+                                              'bpm_dir': bpm_dir,
+                                              'wipe_cells': wipe_cells,
+                                              'ocdclean': ocdclean,
+                                              'apply_correction': False,
+                                              'conf_file': conf_file,
+                                          },
+                                    # args=(queue, return_queue),
+        )
+        queue.put(None)
+        p.start()
+        processes.append(p)
+
+    masked_list = []
+    for i in range(number_files_sent_off):
+        masked_frame = return_queue.get()
+        if (not masked_frame == None):
+            masked_list.append(masked_frame)
+
+    for p in processes:
+        p.join()
+
+    logger.info("All files prepared, combining ...")
+
 
     #
     # Now loop over all extensions and compute the mean
@@ -146,12 +219,12 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False,
             ota_id = int(extname[3:5])
             if (not ota_id in useful_otas):
                 continue
-        
+
         stdout_write("\rCombining frames for OTA %s (#%2d/%2d) ..." % (extname, extid, len(ref_hdulist)))
 
         # Now open all the other files, look for the right extension, and copy their image data to buffer
         #for file_number in range(0, len(filelist)):
-        for filename in hdu_filelist:
+        for filename in masked_list: # hdu_filelist:
 
             try:
                 hdulist = pyfits.open(filename)
@@ -526,6 +599,11 @@ if __name__ == "__main__":
         operation = cmdline_arg_set_or_default("-op", "mean")
         operation = cmdline_arg_set_or_default("-op", "nanmedian.bn")
         print "Using imcombine with __%s__ operation" % (operation)
+
+        bpm_dir = cmdline_arg_set_or_default("-bpm", None)
+        wipe_cells = read_wipecells_list()
+        ocdclean = cmdline_arg_isset("-ocdclean")
+
         make_fringing_template(filelist, outputfile, operation=operation)
 
     elif (cmdline_arg_isset("-samplesky")):
