@@ -120,7 +120,7 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False,
                     max_skylevel = 2 * avg_sky_countrates[filter] * exptime
                     if (skylevel > max_skylevel):
                         logger.info("Frame %s exceeds sky-level limitation (%.1f vs %.1f cts/s)" % (
-                            skylevel/exptime, max_skylevel))
+                            filename, skylevel/exptime, max_skylevel))
                         continue
 
             hdu_filelist.append(filename) #pyfits.open(file))
