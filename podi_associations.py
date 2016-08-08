@@ -71,7 +71,6 @@ def read_associations(hdulist):
     
 
 
-
 def show_associations(inputfile, show_full_file):
 
     try:
@@ -111,6 +110,127 @@ def show_associations(inputfile, show_full_file):
     stdout_write("-------------------------------\n\n")
 
     return
+
+
+
+def collect_reduction_files_used(masterlist, files_this_frame):
+    """
+    Keeps track of all files used during the reduction. This function maintains 
+    a list of files and their corresponding reduction step, and properly handles
+    individual files as well as list of filenames.
+    
+    This routine is called during reduction to keep track of all file 
+    associations.
+
+    Parameters
+    ----------
+    masterlist : dictionary
+
+        Dictionary of all reduction steps that have external files associated. 
+        For each step it maintains a list of files.
+
+    files_this_frame : dictionary
+
+        Like the master_list, just for only one step. 
+
+
+    Returns
+    -------
+    the updated master_list
+
+    """
+
+    for key, value in files_this_frame.iteritems():
+        if (key in masterlist):
+            existing_keys = masterlist[key]
+            if (type(value) == list):
+                for val1 in value:
+                    masterlist[key].append(val1)
+            else:
+                masterlist[key].append(value)
+        else:
+            # This is a new key, so just copy it
+            if (type(value) == list):
+                masterlist[key] = value
+            else:
+                masterlist[key] = [value]
+
+    # print masterlist
+    return masterlist
+
+
+
+
+
+
+
+
+
+
+def create_association_table(master, verbose=False):
+    """
+
+    Convert the association dictionary maintained and updated by 
+    :proc:collect_reduction_files_used and creates a FITS-compatible 
+    associations table that will be stored in the resulting output FITS file.
+
+    Parameters
+    ----------
+    master : dictionary
+
+        the master associations dictionary 
+
+    verbose : Bool
+
+        Activate some debugging output
+
+    Returns
+    -------
+    tbhdu : TableHDU
+
+        A FITS TableHDU containing the assocations table. Each entry in this 
+        table contains the reduction step, the name of the associated file, and 
+        the full path of this file.
+
+    """
+
+    reduction_step = []
+    full_filename = []
+    short_filename = []
+
+    for key, value in master.iteritems():
+        # print key,":",value
+        for filename in set(value):
+            reduction_step.append(key)
+            if (filename == None):
+                continue
+            full_filename.append(os.path.abspath(filename))
+            
+            dirname, filebase = os.path.split(filename)
+            short_filename.append(filebase)
+
+            if (verbose):
+                print "% 15s : %s" % (key, filename)
+
+    # print reduction_step
+    # print short_filename
+
+    columns = [\
+        pyfits.Column(name='correction',    format='A25',  array=reduction_step),
+        pyfits.Column(name='filename_full', format='A375', array=full_filename),
+        pyfits.Column(name='filename',      format='A100', array=short_filename),
+        ]
+
+    coldefs = pyfits.ColDefs(columns)
+    try:
+        tbhdu = pyfits.BinTableHDU.from_columns(coldefs)
+    except:
+        tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
+
+    tbhdu.name = "ASSOCIATIONS"
+
+    return tbhdu
+
 
 if __name__ == "__main__":
 

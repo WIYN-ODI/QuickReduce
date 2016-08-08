@@ -31,7 +31,6 @@ from podi_definitions import *
 from podi_commandline import *
 import podi_sitesetup as sitesetup
 
-
 from random import choice, random
 import time
 
@@ -172,6 +171,8 @@ class QueueHandler(logging.Handler):
             #print "adding log entry to queue",self.msgcount, self.format(record)
             self.queue.put_nowait(record)
             #print "after adding one queue",self.queue.qsize()
+        except AssertionError:
+            pass
         except (KeyboardInterrupt, SystemExit):
             raise
         except:
@@ -318,14 +319,18 @@ def log_master(queue, options):
         debug_logger.debug("No PIKA connection available")
         pass
         
-    
     msg_received = 0
     while True:
         try:
             try:
-                record = queue.get()
-            except KeyboardInterrupt, SystemExit:
+                record = queue.get(timeout=1.)
+            except (KeyboardInterrupt, SystemExit):
                 record = None
+            except Queue.Empty:
+                pass
+                print >>debugfile, "LogHandler: still running, but no message during the last second!"
+                # print "."
+                continue
             except:
                 raise
 
@@ -421,6 +426,13 @@ def podi_log_master_start(options):
     """
 
     queue = multiprocessing.JoinableQueue()
+
+    #
+    # Rename the thread name to make a more useful stacktrace
+    #
+    queue._start_thread()
+    queue._thread.name = "QueueFeederThread___ParallelLogging"
+
     listener = multiprocessing.Process(target=log_master,
                                 kwargs={"queue": queue,
                                         "options": options}
@@ -437,6 +449,8 @@ def podi_log_master_start(options):
     # Also start a logger for the main process
     podi_logger_setup(worker_setup)
 
+    print_stacktrace()
+
     return log_master_info, worker_setup
 
 
@@ -445,12 +459,16 @@ def podi_log_master_quit(log_master_info):
     Shutdown the logging process
     """
 
-    log_master_info['queue'].put_nowait(None)
+    log_master_info['queue'].put(None)
     try:
+        print "joining log listener"
         log_master_info['listener'].join()
+        print "done joining log listener"
     except (KeyboardInterrupt, SystemExit):
         pass
 
+    log_master_info['queue'].close()
+    log_master_info['queue'].join_thread()
     return
 
 
@@ -563,16 +581,24 @@ def shutdown_logging(options):
     return
 
 
+class fakefile (object):
+    def __init__(self):
+        self.text = ""
+    def write(self, t):
+        self.text += t
+    def get(self):
+        return self.text
 
-def print_stacktrace():
+def print_stacktrace(sleep=0, logger=None, info=True, stdout=False):
 
-    time.sleep(1)
+    time.sleep(sleep)
 
-    print "========================================================"
-    print "==   STACK TRACE -- BEGIN                             =="
-    print "========================================================"
-    
-    print "\nCurrently running threads:\n -- %s" % ("\n -- ".join([str(x) for x in threading.enumerate()]))
+    ff = fakefile()
+    print >>ff, "========================================================"
+    print >>ff, "==   STACK TRACE -- BEGIN                             =="
+    print >>ff, "========================================================"
+
+    print >>ff, "\nCurrently running threads:\n -- %s" % ("\n -- ".join([str(x) for x in threading.enumerate()]))
 
     for thread_id, frame in sys._current_frames().iteritems():
         name = thread_id
@@ -581,14 +607,43 @@ def print_stacktrace():
         for thread in threading.enumerate():
             if thread.ident == thread_id:
                 name = thread.name
-        print "\nSTACK-TRACE for %s" % (name)
-        traceback.print_stack(frame)
+        print >>ff,"\nSTACK-TRACE for %s" % (name)
+        traceback.print_stack(frame, file=ff)
 
-    print "========================================================"
-    print "==   STACK TRACE -- END                               =="
-    print "========================================================"
+    try:
+        import psutil
+        print >>ff, "\nList of subprocess of current process:"
+        this_process = psutil.Process()
+        kids = this_process.children(recursive=True)
+        if (len(kids) <= 0):
+            print >>ff, "  This process does not have any child-processes"
+        else:
+            now_time = time.time()
+            print >>ff, " -- %s" % ("\n -- ".join(["ProcID: %5d - %8.3f seconds" % (
+                p.pid, now_time-p.create_time()) for p in kids]))
+    except:
 
-    time.sleep(1)
+        print >>ff, "\nList of subprocesses not available, needs psutil package!"
+        pass
+
+    print >>ff, ""
+    print >>ff, "========================================================"
+    print >>ff, "==   STACK TRACE -- END                               =="
+    print >>ff, "========================================================"
+
+    if (stdout):
+        print ff.get()
+    else:
+        if (logger == None):
+            logger = logging.getLogger("StackTrace")
+        if (info):
+            logger.info("\n%s" % (ff.get()))
+        else:
+            logger.debug("\n%s" % (ff.get()))
+
+    time.sleep(sleep)
+    
+    return ff.get()
 
 
 # def podi_getlogger(name, setup):

@@ -643,8 +643,13 @@ def find_best_guess(src_cat, ref_cat,
 
         processes = []
         queue = multiprocessing.JoinableQueue()
+        queue._start_thread()
+        queue._thread.name = "QueueFeederThread_FindBestGuess_Jobs"
+
         return_queue = multiprocessing.Queue()
-        
+        return_queue._start_thread()
+        return_queue._thread.name = "QueueFeederThread_FindBestGuess_Results"
+
         # Feed all angles to check into the queue
         for cur_angle in range(n_angles):
             angle = all_results[cur_angle,0]
@@ -698,6 +703,13 @@ def find_best_guess(src_cat, ref_cat,
         for p in processes:
             p.join()
 
+        #
+        #
+        #
+        queue.close()
+        queue.join_thread()
+        return_queue.close()
+        return_queue.join_thread()
 
     else:
 
@@ -1467,7 +1479,13 @@ def improve_wcs_solution(src_catalog,
     # Prepare what we need for the parallel execution
     processes = []
     queue_cmd = multiprocessing.JoinableQueue()
+    queue_cmd._start_thread()
+    queue_cmd._thread.name = "QFP_ImproveWCS_Jobs"
+
     queue_return = multiprocessing.Queue()
+    queue_return._start_thread()
+    queue_return._thread.name = "WFP_ImproveWCS_Results"
+
     number_tasks = 0
 
     logger.debug("Running improve_wcs_solution in %s mode!" % ("parallel" if allow_parallel else "serial"))
@@ -1533,6 +1551,11 @@ def improve_wcs_solution(src_catalog,
             p.join()
 
   
+    queue_cmd.close()
+    queue_cmd.join_thread()
+    queue_return.close()
+    queue_return.join_thread()
+
     #
     # Now re-compute the OTA source catalog including the updated WCS solution
     #

@@ -119,6 +119,7 @@ import podi_sitesetup as sitesetup
 import podi_illumcorr
 import multiprocessing
 from podi_fitskybackground import sample_background_using_ds9_regions
+import podi_associations
 
 import podi_logging
 import logging
@@ -184,7 +185,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
         corrected_filename = None
 
         # Keep track of what files are being used for this stack
-        master_reduction_files_used = collect_reduction_files_used(
+        master_reduction_files_used = podi_associations.collect_reduction_files_used(
             {}, {"calibrated": input_file} ) #ret['corrected_file']})
 
         if (swarp_params['preswarp_only']):
@@ -266,7 +267,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
 
                 try:
                     if (os.path.isfile(options['nonsidereal']['ref'])):
-                        master_reduction_files_used = collect_reduction_files_used(
+                        master_reduction_files_used = podi_associations.collect_reduction_files_used(
                             master_reduction_files_used, 
                             {"nonsidereal-reference": options['nonsidereal']['ref']})
                 except:
@@ -356,7 +357,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                         region_file = "%s/bpm_%s.reg" % (options['bpm_dir'], fppos)
                         if (os.path.isfile(region_file)):
                             mask_broken_regions(hdulist[ext].data, region_file)
-                            master_reduction_files_used = collect_reduction_files_used(
+                            master_reduction_files_used = podi_associations.collect_reduction_files_used(
                                 master_reduction_files_used, {"bpm": region_file})
 
 
@@ -383,7 +384,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                 illum_file = podi_illumcorr.get_illumination_filename(
                     options['illumcorr_dir'], hdulist[0].header['FILTER'], hdulist[0].header['BINNING'])
                 logger.debug("Applying illumination correction (%s)" % (illum_file))
-                master_reduction_files_used = collect_reduction_files_used(
+                master_reduction_files_used = podi_associations.collect_reduction_files_used(
                     master_reduction_files_used, {"illumination": illum_file})
                 podi_illumcorr.apply_illumination_correction(hdulist, illum_file)
 
@@ -662,7 +663,7 @@ def prepare_input(inputlist, swarp_params, options):
         stack_start_time = numpy.min([stack_start_time, ret['mjd_obs_start']])
         stack_end_time = numpy.max([stack_end_time, ret['mjd_obs_end']])
 
-        master_reduction_files_used = collect_reduction_files_used(master_reduction_files_used, 
+        master_reduction_files_used = podi_associations.collect_reduction_files_used(master_reduction_files_used, 
                                                                    ret['master_reduction_files'])
 
         corrected_file_list.append(ret['corrected_file'])
@@ -1189,7 +1190,25 @@ def swarpstack(outputfile,
     #
     ############################################################################
     logger.info("reference_file = %s" % (str(swarp_params['reference_file'])))
-    if (add_only or not swarp_params['reference_file'] == None):
+    if (not swarp_params['cutout_list'] == None):
+
+        if (swarp_params['pixelscale'] <= 0):
+            swarp_params['pixelscale'] = 0.11
+
+        out_crval1 = swarp_params['cutout_list']['ra']
+        out_crval2 = swarp_params['cutout_list']['dec']
+
+        #
+        # compute cutout dimensions in pixels
+        #
+        imgsize_arcsec = swarp_params['cutout_list']['size']
+        imgsize_pixels = int(math.ceil(imgsize_arcsec / swarp_params['pixelscale']))
+        out_naxis1 = imgsize_pixels
+        out_naxis2 = imgsize_pixels
+        logger.info("Setting custom image cutout region: ra=%f dec=%f imgsize=%dpx (%f'')" % (
+            out_crval1, out_crval2, imgsize_pixels, imgsize_arcsec))
+
+    elif (add_only or not swarp_params['reference_file'] == None):
         #
         # This is the simpler add-only mode
         #
@@ -1865,7 +1884,7 @@ def swarpstack(outputfile,
 
         if (not valid_nonsidereal_reference == None):
             master_reduction_files_used = \
-                collect_reduction_files_used(master_reduction_files_used, 
+                podi_associations.collect_reduction_files_used(master_reduction_files_used, 
                                              {"mjd-reference": valid_nonsidereal_reference})
             firsthdu = pyfits.open(valid_nonsidereal_reference)
             try:
@@ -1914,7 +1933,7 @@ def swarpstack(outputfile,
         # Create an association table from the master reduction files used.
         # 
         # print master_reduction_files_used
-        assoc_table = create_association_table(master_reduction_files_used)
+        assoc_table = podi_associations.create_association_table(master_reduction_files_used)
         hdustack.append(assoc_table)
 
         hdustack.flush()
@@ -2137,6 +2156,17 @@ def read_swarp_params(filelist):
     params['keep_resamp_files'] = cmdline_arg_isset('-keepresamp')
 
     params['preswarp_only'] = cmdline_arg_isset('-preswarponly')
+
+    params['cutout_list'] = None
+    if (cmdline_arg_isset("-cutout")):
+        txt = get_cmdline_arg("-cutout")
+        items = txt.split(",")
+        cutout = {
+            'ra':  float(items[0]),
+            'dec': float(items[1]),
+            'size': float(items[2]),
+            }
+        params['cutout_list'] = cutout
 
     return params
 
