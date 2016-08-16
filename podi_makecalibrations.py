@@ -100,6 +100,7 @@ import logging
 import podi_sitesetup as sitesetup
 import podi_focalplanelayout
 import podi_associations
+import podi_imarith
 
 def strip_fits_extension_from_filename(filename):
     """
@@ -687,6 +688,64 @@ def gain_readnoise_to_tech_hdu(hdulist, gain, readnoise):
     return 
 
 
+
+
+def compare_to_reference(hdulist, references):
+
+    logger = logging.getLogger("Compare2Reference")
+
+    obstype = hdulist[0].header['OBSTYPE']
+    binning = hdulist[0].header['BINNING']
+
+    if (type(references) == list):
+        # search for the right file
+        return
+    elif (os.path.isdir(references)):
+        # this is a directory, construct the filename based on the usual rules
+        if (obstype == "BIAS"):
+            fn = "%s/bias_bin%d.fits" % (references, binning)
+        elif (obstype == "DARK"):
+            fn = "%s/dark_yes_bin%d.fits" % (references, binning)
+        elif (obstype in ['DFLAT', 'TFLAT']):
+            filtername = hdulist[0].header['FILTER']
+            fn = "%s/%s_%s_bin%d.fits" % (references, obstype.lower(), filtername, binning)
+        else:
+            return
+        logger.info("Checking for reference file: %s" % (fn))
+        if (os.path.isfile(fn)):
+            refhdu = pyfits.open(fn)
+        else:
+            logger.warning("No reference file found!")
+            return
+    elif (os.path.isfile(references)):
+        # if it's a file, just open it
+        refhdu = pyfits.open(references)
+    elif (type(references) == pyfits.hdu.HDUList):
+        # if its a fits-file, use it directly
+        refhdu = references
+
+    if (hdulist is None or refhdu is None):
+        return
+
+    #
+    # Now we have both the image and the correct reference, now apply the comparison
+    #
+    if (obstype in ['DARK', 'BIAS']):
+        op = "-"
+    elif (obstype in ['DFLAT', 'TFLAT']):
+        op = "/"
+    else:
+        return None
+
+    logger.info("Using comparison operator: %s" % (op))
+    diff = podi_imarith.hdu_imarith(hdulist, op, refhdu)
+
+    diff.writeto("diff_%s.fits" % (obstype), clobber=True)
+
+    return diff
+
+
+
 valid_PG_filters = [
     'odi_g', 'odi_r', 'odi_i', 'odi_z'
     ]
@@ -766,6 +825,10 @@ podi_makecalibrations.py input.list calib-directory
 
     if (options['nonlinearity-set']):
         logger.info("Applying non-linearity correction")
+
+    reference = None
+    if (cmdline_arg_isset("-reference")):
+        reference = cmdline_arg_set_or_default("-reference", None)
 
     # Check if we are to throw all flats (DFLATs _and_ TFLATs) into the same 
     # output file, or keep them separate (default)
@@ -973,6 +1036,10 @@ podi_makecalibrations.py input.list calib-directory
                     bias_hdu[0].header['OBJECT'] = "master-bias"
                     bias_hdu.writeto(bias_frame, clobber=True)
 
+                # compare to reference frame
+                if (reference is not None):
+                    compare_to_reference(bias_hdu, reference)
+
                 bias_hdu.close()
                 del bias_hdu
                 
@@ -1034,6 +1101,10 @@ podi_makecalibrations.py input.list calib-directory
                 if (not dark_hdu == None):
                     dark_hdu[0].header['OBJECT'] = "master-dark"
                     dark_hdu.writeto(dark_frame, clobber=True)
+
+                # compare to reference frame
+                if (reference is not None):
+                    compare_to_reference(dark_hdu, reference)
 
                 dark_hdu.close()
                 del dark_hdu
@@ -1347,6 +1418,11 @@ podi_makecalibrations.py input.list calib-directory
 
                         # And finally write the (maybe pupilghost-corrected) flat-field to disk
                         flat_hdus.writeto(flat_frame, clobber=True)
+
+                        # compare to reference frame
+                        if (reference is not None):
+                            compare_to_reference(flat_hdus, reference)
+
                         flat_hdus.close()
                         del flat_hdus
                     else:
