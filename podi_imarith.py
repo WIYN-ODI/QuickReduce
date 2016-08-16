@@ -52,31 +52,25 @@ import scipy.stats
 from podi_definitions import *
 from podi_commandline import *
 
-def imarith(input_1, op, input_2, output, simple):
 
-    stdout_write("\nOpening input files ...")
-    # Open both input fits files
-    hdu_1 = pyfits.open(input_1)
+def hdu_imarith(hdu1, op, hdu2, simple=False, numeric_2=None, rebin_fac=1.):
 
-    numeric_2 = None
-    if (not os.path.isfile(input_2)):
-        numeric_2 = float(input_2)
-    else:
-        hdu_2 = pyfits.open(input_2)
+    logger = logging.getLogger("ImArith")
 
-    stdout_write(" done!\n")
+    out_hdulist = [pyfits.PrimaryHDU(header=hdu1[0].header)]
 
-    rebin_fac = int(cmdline_arg_set_or_default("-bin", 1))
-    
     # Now go though each extension and perform the operation
-    for idx_img1 in range(0, len(hdu_1)):
-        if (not is_image_extension(hdu_1[idx_img1])):
+    for idx_img1 in range(0, len(hdu1)):
+        if (not is_image_extension(hdu1[idx_img1])):
             continue
 
-        img1 = hdu_1[idx_img1]
-        
+        img1 = pyfits.ImageHDU(data=hdu1[idx_img1].data,
+                               header=hdu1[idx_img1].header,
+                               name=hdu1[idx_img1].name)
+
+
         fppos1 = img1.header['EXTNAME'] if ('EXTNAME' in img1.header and not simple) else idx_img1
-        stdout_write("\rComputing extension %s (%2d of %2d) ..." % (str(fppos1), idx_img1, len(hdu_1)-1))
+        # stdout_write("\rComputing extension %s (%2d of %2d) ..." % (str(fppos1), idx_img1, len(hdu1) - 1))
         if (numeric_2 != None):
             if (op == "+"):
                 img1.data += numeric_2
@@ -89,12 +83,13 @@ def imarith(input_1, op, input_2, output, simple):
             elif (op == "^"):
                 img1.data = numpy.pow(img1.data, numeric_2)
             else:
-                stdout_write("Unknown operation %s\n" % (op))
+                logger.warning("Unknown operation %s" % (op))
 
         else:
-            for img2_idx in range(len(hdu_2)): #[0:]:
-                fppos2 = hdu_2[img2_idx].header['EXTNAME'] if ('EXTNAME' in hdu_2[img2_idx].header and not simple) else img2_idx
-                img2 = hdu_2[fppos2]
+            for img2_idx in range(len(hdu2)):  # [0:]:
+                fppos2 = hdu2[img2_idx].header['EXTNAME'] if (
+                'EXTNAME' in hdu2[img2_idx].header and not simple) else img2_idx
+                img2 = hdu2[fppos2]
                 if (fppos2 == fppos1):
                     # This is the one
 
@@ -111,18 +106,45 @@ def imarith(input_1, op, input_2, output, simple):
                         img1.data *= img2.data
 
                     else:
-                        stdout_write("Unknown operation %s\n" % (op))
+                        logger.warning("Unknown operation %s" % (op))
 
         if (rebin_fac > 1):
             img1.data = rebin_image(img1.data, rebin_fac)
 
-    # Now all the work is done, all final data is stored in img2, write results to new file                    
-    if (output == None):
-        return hdu_1
+        out_hdulist.append(img1)
+
+    return pyfits.HDUList(out_hdulist)
+
+    # Now all the work is done, all final data is stored in img2, write results to new file
+    #if (output == None):
+    #    return hdu1
+
+
+
+def imarith(input_1, op, input_2, output, simple):
+
+    stdout_write("\nOpening input files ...")
+    # Open both input fits files
+    hdu_1 = pyfits.open(input_1)
+
+    numeric_2 = None
+    if (not os.path.isfile(input_2)):
+        numeric_2 = float(input_2)
+    else:
+        hdu_2 = pyfits.open(input_2)
+
+    stdout_write(" done!\n")
+
+    rebin_fac = int(cmdline_arg_set_or_default("-bin", 1))
+    
+    output_hdu = hdu_imarith(hdu_1, op, hdu_2,
+                         simple=simple,
+                         numeric_2=numeric_2,
+                         rebin_fac=rebin_fac)
 
     stdout_write(" writing output ...")
     clobberfile(output)
-    hdu_1.writeto(output)
+    output_hdu.writeto(output)
     stdout_write(" done!\n\n")
 
     return
