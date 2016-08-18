@@ -1497,6 +1497,32 @@ def  diagplot_psfshape_map(ra, dec, elongation, angle, fwhm, ota,
     return
 
 
+def crossout(x, y, size):
+    # [
+    #     [ota_x, ota_y],
+    #     [ota_x + ota_cellsize, ota_y],
+    #     [ota_x + ota_cellsize, ota_y + ota_cellsize],
+    #     [ota_x, ota_y + ota_cellsize],
+    #     [ota_x, ota_y],
+    #     [ota_x + ota_cellsize, ota_y + ota_cellsize],
+    #     [ota_x + ota_cellsize, ota_y],
+    #     [ota_x, ota_y + ota_cellsize],
+    # ])
+
+    coords = [
+        [x, y],
+        [x + size, y],
+        [x + size, y + size],
+        [x, y + size],
+        [x, y],
+        [x + size, y + size],
+        [None, None],
+        [x + size, y],
+        [x, y + size],
+        [None, None],
+    ]
+    return coords
+
 def plot_cellbycell_stats(
         hdulist,
         title=None,
@@ -1506,6 +1532,7 @@ def plot_cellbycell_stats(
         numberformat="%.3f",
         showlabels=True,
         units=None,
+        crossout_missing=True,
 ):
     """
 
@@ -1531,11 +1558,15 @@ def plot_cellbycell_stats(
 
     # prepare boxes and text
     cellsize = 0.12
+    ota_cellsize = 8*cellsize
     all_corners = []
     all_colors = []
     all_labels = []
     all_label_coords = []
     # get stats by ota
+
+    lines_to_plot = []
+
     for ota_x, ota_y in itertools.product(range(8), repeat=2):
         extname = "OTA%d%d.SCI" % (ota_x, ota_y)
 
@@ -1543,6 +1574,7 @@ def plot_cellbycell_stats(
             data = hdulist[extname].data
         except:
             logger.debug("There's no OTA %s" % (extname))
+            lines_to_plot.append(crossout(ota_x, ota_y, ota_cellsize))
             continue
         logger.debug("Working on cell-by-cell stats from OTA %s" % (extname))
 
@@ -1551,6 +1583,7 @@ def plot_cellbycell_stats(
             # figure out if the cell is one of the broken ones
             cell = (cell_x, cell_y)
             if (cell in fpl.broken_cells[hdulist[extname].header['OTA_ID']]):
+                lines_to_plot.append(crossout(ota_x+cell_x*cellsize, ota_y+(7-cell_y)*cellsize, cellsize))
                 continue
 
             labels = []
@@ -1588,6 +1621,31 @@ def plot_cellbycell_stats(
             # save what text to put where
             all_labels.append("\n".join(labels))
             all_label_coords.append([x1, y1])
+
+    if (crossout_missing):
+        # codes = [matplotlib.path.Path.MOVETO,
+        #          matplotlib.path.Path.LINETO,
+        #          matplotlib.path.Path.LINETO,
+        #          matplotlib.path.Path.LINETO,
+        #          matplotlib.path.Path.LINETO,
+        #          matplotlib.path.Path.LINETO,
+        #          matplotlib.path.Path.MOVETO,
+        #          matplotlib.path.Path.LINETO,
+        #  ]
+        # for line in lines_to_plot:
+        #     print line
+        #     path = matplotlib.path.Path(line, codes)
+        #     patch = matplotlib.patches.PathPatch(path, facecolor=None)
+        #     ax.add_patch(patch)
+        all_lines = numpy.array(lines_to_plot)
+        print all_lines
+        print all_lines.shape
+        print all_lines[0, :, :]
+
+        ax.plot(all_lines[:, :, 0].flatten(),
+                all_lines[:, :, 1].flatten(),
+                c='#bbbbbb',
+                linewidth=0.2)
 
     #
     #
@@ -1630,7 +1688,7 @@ def plot_cellbycell_stats(
             color = "white" if norm_colors[cell] < 0.15 else 'black'
             ax.text(x+0.5*cellsize, y+0.5*cellsize, label,
                     ha='center', va='center', color=color,
-                    fontsize=0.7)
+                    fontsize=1.1)
             # print x,y,label
 
     ax.set_xlim(-0.1, 8.1)
@@ -1639,7 +1697,7 @@ def plot_cellbycell_stats(
 
     logger.debug("Saving plot as %s" % (plotfile))
     fig.set_size_inches(8, 6)
-    fig.savefig(plotfile, dpi=100, bbox_inches='tight')
+    fig.savefig(plotfile, dpi=300, bbox_inches='tight')
 
     matplotlib.pyplot.close(fig)
     matplotlib.pyplot.close()
