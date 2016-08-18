@@ -2485,9 +2485,9 @@ class reduce_collect_otas (object):
         try:
             nq=0
             while (True):
-                self.final_results_queue.get_nowait()
+                self.final_results_queue.get(block=True,timeout=0.001)
                 nq += 1
-        except:
+        except Queue.Empty:
             pass
         self.final_results_queue.put(multiprocessing.queues._sentinel)
         self.final_results_queue.close()
@@ -2498,9 +2498,9 @@ class reduce_collect_otas (object):
         try:
             nq=0
             while (True):
-                self.intermediate_queue.get_nowait()
+                self.intermediate_queue.get(block=True,timeout=0.001)
                 nq += 1
-        except:
+        except Queue.Empty:
             pass
         self.intermediate_queue.put(multiprocessing.queues._sentinel)
         self.intermediate_queue.close()
@@ -2513,9 +2513,9 @@ class reduce_collect_otas (object):
         try:
             nq=0
             while (True):
-                self.intermediate_results_queue.get_nowait()
+                self.intermediate_results_queue.get(block=True,timeout=0.001)
                 nq += 1
-        except:
+        except Queue.Empty:
             pass
         self.intermediate_results_queue.put(multiprocessing.queues._sentinel)
         self.intermediate_results_queue.close()
@@ -2527,9 +2527,9 @@ class reduce_collect_otas (object):
         try:
             nq=0
             while (True):
-                self.intermediate_data_ack_queue.get_nowait()
+                self.intermediate_data_ack_queue.get(block=True,timeout=0.001)
                 nq += 1
-        except:
+        except Queue.Empty:
             pass
         self.intermediate_data_ack_queue.put(multiprocessing.queues._sentinel)
         self.intermediate_data_ack_queue.close()
