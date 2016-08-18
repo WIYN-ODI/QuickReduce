@@ -101,6 +101,7 @@ import podi_sitesetup as sitesetup
 import podi_focalplanelayout
 import podi_associations
 import podi_imarith
+import podi_diagnosticplots
 
 def strip_fits_extension_from_filename(filename):
     """
@@ -690,16 +691,19 @@ def gain_readnoise_to_tech_hdu(hdulist, gain, readnoise):
 
 
 
-def compare_to_reference(hdulist, references):
+def compare_to_reference(hdulist, references, return_reference=False):
 
     logger = logging.getLogger("Compare2Reference")
 
     obstype = hdulist[0].header['OBSTYPE']
     binning = hdulist[0].header['BINNING']
 
+    ref_return = None
+    error_return = None if not return_reference else None, None
+
     if (type(references) == list):
         # search for the right file
-        return
+        return error_return
     elif (os.path.isdir(references)):
         # this is a directory, construct the filename based on the usual rules
         if (obstype == "BIAS"):
@@ -710,22 +714,25 @@ def compare_to_reference(hdulist, references):
             filtername = hdulist[0].header['FILTER']
             fn = "%s/%s_%s_bin%d.fits" % (references, obstype.lower(), filtername, binning)
         else:
-            return
+            return error_return
         logger.info("Checking for reference file: %s" % (fn))
         if (os.path.isfile(fn)):
             refhdu = pyfits.open(fn)
+            ref_return = fn
         else:
             logger.warning("No reference file found!")
-            return
+            return error_return
     elif (os.path.isfile(references)):
         # if it's a file, just open it
         refhdu = pyfits.open(references)
+        ref_return = references
     elif (type(references) == pyfits.hdu.HDUList):
         # if its a fits-file, use it directly
         refhdu = references
+        ref_return = "in_memory"
 
     if (hdulist is None or refhdu is None):
-        return
+        return error_return
 
     #
     # Now we have both the image and the correct reference, now apply the comparison
@@ -735,14 +742,14 @@ def compare_to_reference(hdulist, references):
     elif (obstype in ['DFLAT', 'TFLAT']):
         op = "/"
     else:
-        return None
+        return error_return
 
     logger.info("Using comparison operator: %s" % (op))
     diff = podi_imarith.hdu_imarith(hdulist, op, refhdu)
 
     diff.writeto("diff_%s.fits" % (obstype), clobber=True)
 
-    return diff
+    return diff if not return_reference else diff, ref_return
 
 
 
@@ -1038,8 +1045,17 @@ podi_makecalibrations.py input.list calib-directory
 
                 # compare to reference frame
                 if (reference is not None):
-                    compare_to_reference(bias_hdu, reference)
-
+                    diff, ref_fn = compare_to_reference(bias_hdu, reference, return_reference = True)
+                    podi_diagnosticplots.plot_cellbycell_stats(
+                        hdulist = diff,
+                        title = "difference %s vs %s" % (bias_frame, ref_fn),
+                        vmin = -15., vmax = 15.,
+                        plotfile = bias_frame[:-5] + ".refcomp.pdf",
+                        showlabels = True,
+                        stats = [("", numpy.nanmean), ("", numpy.std)],
+                        numberformat = "%.3f",
+                        units="bias counts [ADU]"
+                    )
                 bias_hdu.close()
                 del bias_hdu
                 
@@ -1104,7 +1120,18 @@ podi_makecalibrations.py input.list calib-directory
 
                 # compare to reference frame
                 if (reference is not None):
-                    compare_to_reference(dark_hdu, reference)
+                    diff, ref_fn = compare_to_reference(dark_hdu, reference, return_reference=True)
+                    podi_diagnosticplots.plot_cellbycell_stats(
+                        hdulist=diff,
+                        title="difference %s vs %s" % (dark_frame, ref_fn),
+                        vmin=-0.025, #15./dark_hdu[0].header['EXPTIME'],
+                        vmax=+0.025, #15./dark_hdu[0].header['EXPTIME'],
+                        plotfile=dark_frame[:-5] + ".refcomp.pdf",
+                        showlabels=True,
+                        stats=[("", numpy.nanmean), ("", numpy.std)],
+                        numberformat="%.3f",
+                        units="dark current [ADU/s]",
+                    )
 
                 dark_hdu.close()
                 del dark_hdu
@@ -1421,7 +1448,17 @@ podi_makecalibrations.py input.list calib-directory
 
                         # compare to reference frame
                         if (reference is not None):
-                            compare_to_reference(flat_hdus, reference)
+                            diff, ref_fn = compare_to_reference(flat_hdus, reference, return_reference=True)
+                            podi_diagnosticplots.plot_cellbycell_stats(
+                                hdulist=diff,
+                                title="difference %s vs %s" % (flat_frame, ref_fn),
+                                vmin=0.95, vmax=1.05,
+                                plotfile=flat_frame[:-5]+".refcomp.pdf",
+                                showlabels=True,
+                                stats = [("", numpy.nanmean),("", numpy.std)],
+                                numberformat="%.3f",
+                                units="relative throughput"
+                            )
 
                         flat_hdus.close()
                         del flat_hdus
