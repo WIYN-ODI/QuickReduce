@@ -2489,8 +2489,11 @@ class reduce_collect_otas (object):
                 nq += 1
         except Queue.Empty:
             pass
+        self.logger.debug("inserting sentinel")
         self.final_results_queue.put(multiprocessing.queues._sentinel)
+        self.logger.debug("closing queue")
         self.final_results_queue.close()
+        self.logger.debug("Joining thread")
         self.final_results_queue._thread.join(timeout=0.1) #join_thread()
         self.logger.debug("Final results queue closed (alive: %s / %d)" % (
             str(self.final_results_queue._thread.is_alive()), nq))
@@ -2502,9 +2505,12 @@ class reduce_collect_otas (object):
                 nq += 1
         except Queue.Empty:
             pass
+        self.logger.debug("inserting sentinel")
         self.intermediate_queue.put(multiprocessing.queues._sentinel)
+        self.logger.debug("closing queue")
         self.intermediate_queue.close()
         # self.intermediate_queue.join_thread()
+        self.logger.debug("Joining thread")
         self.intermediate_queue._thread.join(timeout=0.1) #join_thread()
         self.logger.debug("intermediate data queue closed (alive: %s / %d)" % (
             str(self.intermediate_queue._thread.is_alive()), nq))
@@ -2517,8 +2523,11 @@ class reduce_collect_otas (object):
                 nq += 1
         except Queue.Empty:
             pass
+        self.logger.debug("inserting sentinel")
         self.intermediate_results_queue.put(multiprocessing.queues._sentinel)
+        self.logger.debug("closing queue")
         self.intermediate_results_queue.close()
+        self.logger.debug("Joining thread")
         self.intermediate_results_queue._thread.join(timeout=0.1) #join_thread()
         self.logger.debug("Intermediate results queue closed (alive: %s / %d)" % (
             str(self.intermediate_results_queue._thread.is_alive()), nq))
@@ -2531,8 +2540,11 @@ class reduce_collect_otas (object):
                 nq += 1
         except Queue.Empty:
             pass
+        self.logger.debug("inserting sentinel")
         self.intermediate_data_ack_queue.put(multiprocessing.queues._sentinel)
+        self.logger.debug("closing queue")
         self.intermediate_data_ack_queue.close()
+        self.logger.debug("Joining thread")
         self.intermediate_data_ack_queue._thread.join(timeout=0.1) #join_thread()
         self.logger.debug("intermediate data received Ack queue closed (alive: %s / %d)" % (
             str(self.intermediate_data_ack_queue._thread.is_alive()), nq))
