@@ -1746,6 +1746,7 @@ def parallel_collect_reduce_ota(queue,
             if (not type(fringe_template) == type(None) and final_parameters['fringe-scaling-median'] > 0):
                 logger.debug("Subtracting fringes (%.2f)..." % (final_parameters['fringe-scaling-median']))
                 return_hdu.data -= (fringe_template * final_parameters['fringe-scaling-median'])
+                logger.debug("completed fringe subtraction")
                 reduction_log.success('fringe')
         except:
             reduction_log.fail('fringe')
