@@ -2541,6 +2541,7 @@ class reduce_collect_otas (object):
                 nq += 1
                 self.logger.debug("Received message from intermediate_data_ack_queue: %d" % (nq))
         except Queue.Empty:
+            self.logger.debug("Received Queue.Empty exception while clearing intermediate_data_ack_queue")
             pass
         self.logger.debug("inserting sentinel")
         self.intermediate_data_ack_queue.put(multiprocessing.queues._sentinel)
@@ -2593,9 +2594,10 @@ class reduce_collect_otas (object):
                 except AssertionError:
                     pass
 
-                self.logger.debug("Putting one set (# %d) of intermediate data back in work queue" % (
-                    self.intermed_results_sent))
+                self.logger.debug("Putting one set (# %d / %d) of intermediate data back in work queue" % (
+                    self.intermed_results_sent, job['intermediate_data_sent']))
                 job['intermediate_data_sent'] += 1
+                self.intermed_results_sent += 1
             time.sleep(0.2)
         self.logger.debug("Shutting down broadcast_intermediate_data")
 
