@@ -2534,10 +2534,12 @@ class reduce_collect_otas (object):
         #self.intermediate_results_queue._thread = None
 
         try:
+            self.logger.debug("Starting to empty intermediate_data_ack_queue")
             nq=0
             while (True):
                 self.intermediate_data_ack_queue.get(block=True,timeout=0.001)
                 nq += 1
+                self.logger.debug("Received message from intermediate_data_ack_queue: %d" % (nq))
         except Queue.Empty:
             pass
         self.logger.debug("inserting sentinel")
