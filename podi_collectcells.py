@@ -1262,46 +1262,49 @@ def collect_reduce_ota(filename,
                     fitsfile)
                 if (options['verbose']): print sexcmd
 
-                logger.debug("Running SourceExtractor")
                 start_time = time.time()
                 #os.system(sexcmd)
-                try:
-                    ret = subprocess.Popen(sexcmd.split(), 
-                                           stdout=subprocess.PIPE, 
-                                           stderr=subprocess.PIPE)
-                    sextractor_pid = ret.pid
-                    #
-                    # Wait for sextractor to finish (or die)
-                    #
-                    ps = psutil.Process(sextractor_pid)
-                    sextractor_error = False
-                    while(True):
-                        try:
-                            if (ps.status() in [psutil.STATUS_ZOMBIE,
-                                                psutil.STATUS_DEAD] and not 
-                                ret.poll() == None):
-                                logger.critical("Sextractor died unexpectedly")
-                                sextractor_error = True
-                        except psutil.NoSuchProcess:
-                            pass
-                            
-                        if (ret.poll() == None):
-                            # sextractor completed
-                            logger.info("Sex complete!")
-                            break
-                        time.sleep(0.1)
+                for sex_restarts in range(3):
+                    try:
+                        logger.debug("Running SourceExtractor (attempt %d)" % (sex_restarts+1))
+                        ret = subprocess.Popen(sexcmd.split(),
+                                               stdout=subprocess.PIPE,
+                                               stderr=subprocess.PIPE)
+                        sextractor_pid = ret.pid
+                        #
+                        # Wait for sextractor to finish (or die)
+                        #
+                        ps = psutil.Process(sextractor_pid)
+                        sextractor_error = False
+                        while(True):
+                            try:
+                                if (ps.status() in [psutil.STATUS_ZOMBIE,
+                                                    psutil.STATUS_DEAD] and not
+                                    ret.poll() == None):
+                                    logger.critical("Sextractor died unexpectedly (this is try #%d" % (sex_restarts+1))
+                                    sextractor_error = True
+                            except psutil.NoSuchProcess:
+                                pass
 
-                    if (not sextractor_error):
-                        (sex_stdout, sex_stderr) = ret.communicate()
-                        if (ret.returncode != 0):
-                            logger.warning("Sextractor might have a problem, check the log")
-                            logger.debug("Stdout=\n"+sex_stdout)
-                            logger.debug("Stderr=\n"+sex_stderr)
-                except OSError as e:
-                    podi_logging.log_exception()
-                    print >>sys.stderr, "Execution failed:", e
-                end_time = time.time()
-                logger.debug("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
+                            if (ret.poll() == None):
+                                # sextractor completed
+                                logger.info("Sex complete!")
+                                break
+                            time.sleep(0.1)
+
+                        if (not sextractor_error):
+                            (sex_stdout, sex_stderr) = ret.communicate()
+                            if (ret.returncode != 0):
+                                logger.warning("Sextractor might have a problem, check the log")
+                                logger.debug("Stdout=\n"+sex_stdout)
+                                logger.debug("Stderr=\n"+sex_stderr)
+                            break
+
+                    except OSError as e:
+                        podi_logging.log_exception()
+                        print >>sys.stderr, "Execution failed:", e
+                    end_time = time.time()
+                    logger.debug("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
 
                 try:
                     source_cat = None
