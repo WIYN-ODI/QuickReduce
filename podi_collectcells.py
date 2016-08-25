@@ -1282,8 +1282,8 @@ def collect_reduce_ota(filename,
                                 if (ps_status in [psutil.STATUS_ZOMBIE,
                                                   psutil.STATUS_DEAD] and not
                                     ret.poll() == None):
-                                    logger.critical("Sextractor died unexpectedly (%s - this is try #%d)" % (
-                                        str(ps_status), sex_restarts+1))
+                                    logger.critical("Sextractor died unexpectedly (%s - this is try #%d / pid=%d)" % (
+                                        str(ps_status), sex_restarts+1, sextractor_pid))
                                     sextractor_error = True
                             except psutil.NoSuchProcess:
                                 pass
