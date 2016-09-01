@@ -279,6 +279,8 @@ import podi_guidestars
 import podi_shifthistory
 
 import podi_associations
+import podi_calibrations
+from podi_calibrations import check_filename_directory
 
 from podi_reductionlog import *
 
@@ -469,6 +471,10 @@ def collect_reduce_ota(filename,
         #
 
         logger.info("Starting work on OTA %02d of %s ..." % (ota, obsid))
+
+        mastercals = podi_calibrations.ODICalibrations(
+            cmdline_options=options,
+            hdulist=hdulist)
 
         # Now go through each of the 8 lines
         logger.debug("Starting crosstalk correction (%s)" % (extname))
@@ -664,11 +670,11 @@ def collect_reduce_ota(filename,
         #
 
         # If we are to do some bias subtraction:
-        if (options['bias_dir'] == None):
+        if (not mastercals.apply_bias()):
             reduction_log.not_selected('bias')
         else:
-            bias_filename = check_filename_directory(options['bias_dir'], "bias_bin%s.fits" % (binning))
-            if (not os.path.isfile(bias_filename)):
+            bias_filename = mastercals.bias()
+            if (bias_filename is None):
                 reduction_log.fail('bias')
             else:
 
@@ -702,14 +708,12 @@ def collect_reduce_ota(filename,
         # Add at some point: use different darks for all detectors switched on 
         # to minimize the integration glow in guide-OTAs
         #
-        if (options['dark_dir'] == None):
+        if (not mastercals.apply_dark()):
             reduction_log.not_selected('dark')
         else:
             # For now assume all detectors are switched on
-            detectorglow = "yes"
-
-            dark_filename = check_filename_directory(options['dark_dir'], "dark_%s_bin%d.fits" % (detectorglow, binning))
-            if (not os.path.isfile(dark_filename)):
+            dark_filename = mastercals.dark()
+            if (dark_filename is None):
                 reduction_log.fail('dark')
             else:
                 dark = pyfits.open(dark_filename)
@@ -751,7 +755,7 @@ def collect_reduce_ota(filename,
         # If the third parameter points to a directory with flat-fields
         hdu.header['GAIN'] = 1.3
         gain_from_flatfield = None
-        if (options['flat_dir'] == None):
+        if (not mastercals.apply_flat()):
             reduction_log.not_selected('flat')
         else:
             found_flatdata = False
@@ -5120,73 +5124,6 @@ def odi_sources_to_tablehdu(source_cat):
     tbhdu.name = "CAT.ODI"
     return tbhdu
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def check_filename_directory(given, default_filename):
-    """
-    Some of the options support either a directory or a filename. This function
-    checks if the input is a directory or a filename. In the first case, add 
-    the specified default filename and return the filename. In the latter case, 
-    simply return the filename.
-
-    Parameters
-    ----------
-    given : string
-
-        The value specified by the user, either a directory or filename
-
-    default_filename : string
-
-        In the case the user specified only a directory, append the name of this
-        filename
-
-    Returns
-    -------
-    filename
-
-    Example
-    -------
-    This function is called e.g. during bias-subtraction. Using the -bias 
-    option, the user can specify the bias file to be used during the reduction.
-    However, the default way of specifying the bias file is to simply give the 
-    directory with the calibration files, and collectcells adds the 'bias.fits'
-    during execution.
-
-    """
-
-    if (given == None):
-        return None
-
-    if (not type(given) == list):
-        _g = [given]
-    else:
-        _g = given
-
-    for g in _g:
-        if (os.path.isfile(g)):
-            return g
-        else:
-            fn = "%s/%s" % (g, default_filename)
-            if (os.path.isfile(fn)):
-                return fn
-
-    return ""
 
 
 
