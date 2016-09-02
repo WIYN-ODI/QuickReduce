@@ -672,36 +672,34 @@ def collect_reduce_ota(filename,
         # If we are to do some bias subtraction:
         if (not mastercals.apply_bias()):
             reduction_log.not_selected('bias')
+        elif (mastercals.bias() is None):
+            reduction_log.fail('bias')
         else:
             bias_filename = mastercals.bias()
-            if (bias_filename is None):
-                reduction_log.fail('bias')
-            else:
+            bias = pyfits.open(bias_filename)
+            reduction_files_used['bias'] = bias_filename
 
-                bias = pyfits.open(bias_filename)
-                reduction_files_used['bias'] = bias_filename
+            # Search for the bias data for the current OTA
+            for bias_ext in bias[1:]:
+                if (not is_image_extension(bias_ext)):
+                    continue
+                fppos_bias = bias_ext.header['FPPOS']
+                if (fppos_bias == fppos):
+                    # This is the one
+                    try:
+                        merged -= bias_ext.data
+                        logger.debug("Subtracting bias: %s" % (bias_filename))
+                    except:
+                        logger.warning("Unable to subtract bias, dimensions don't match (data: %s, bias: %s)" % (
+                            str(merged.shape), str(bias_ext.data.shape)))
+                        reduction_log.fail('bias')
+                        pass
+                    break
 
-                # Search for the bias data for the current OTA
-                for bias_ext in bias[1:]:
-                    if (not is_image_extension(bias_ext)):
-                        continue
-                    fppos_bias = bias_ext.header['FPPOS']
-                    if (fppos_bias == fppos):
-                        # This is the one
-                        try:
-                            merged -= bias_ext.data
-                            logger.debug("Subtracting bias: %s" % (bias_filename))
-                        except:
-                            logger.warning("Unable to subtract bias, dimensions don't match (data: %s, bias: %s)" % (
-                                str(merged.shape), str(bias_ext.data.shape)))
-                            reduction_log.fail('bias')
-                            pass
-                        break
-
-                bias.close()
-                hdu.header.add_history("CC-BIAS: %s" % (os.path.abspath(bias_filename)))
-                del bias
-                reduction_log.success('bias')
+            bias.close()
+            hdu.header.add_history("CC-BIAS: %s" % (os.path.abspath(bias_filename)))
+            del bias
+            reduction_log.success('bias')
  
         #
         # Do some dark subtraction:
@@ -710,43 +708,42 @@ def collect_reduce_ota(filename,
         #
         if (not mastercals.apply_dark()):
             reduction_log.not_selected('dark')
+        elif (mastercals.dark() is None):
+            reduction_log.fail('dark')
         else:
             # For now assume all detectors are switched on
             dark_filename = mastercals.dark()
-            if (dark_filename is None):
-                reduction_log.fail('dark')
+            dark = pyfits.open(dark_filename)
+            reduction_files_used['dark'] = dark_filename
+            if ('EXPMEAS' in dark[0].header):
+                darktime = dark[0].header['EXPMEAS']
+            elif ('EXPTIME' in dark[0].header):
+                darktime = dark[0].header['EXPTIME']
             else:
-                dark = pyfits.open(dark_filename)
-                reduction_files_used['dark'] = dark_filename
-                if ('EXPMEAS' in dark[0].header):
-                    darktime = dark[0].header['EXPMEAS']
-                elif ('EXPTIME' in dark[0].header):
-                    darktime = dark[0].header['EXPTIME']
-                else:
-                    darktime = 1.
+                darktime = 1.
 
-                # Search for the flatfield data for the current OTA
-                for dark_ext in dark[1:]:
-                    if (not is_image_extension(dark_ext)):
-                        continue
-                    fppos_dark = dark_ext.header['FPPOS']
-                    if (fppos_dark == fppos):
-                        # This is the one
-                        dark_scaling = exposure_time / darktime
-                        try:
-                            merged -= (dark_ext.data * dark_scaling)
-                            logger.debug("Subtracting dark: %s (scaling=%.2f)" % (dark_filename, dark_scaling))
-                        except:
-                            logger.warning("Unable to subtract dark, dimensions don't match (data: %s, dark: %s)" % (
-                                str(merged.shape), str(dark_ext.data.shape)))
-                            reduction_log.fail('dark')
-                            pass
-                        break
+            # Search for the flatfield data for the current OTA
+            for dark_ext in dark[1:]:
+                if (not is_image_extension(dark_ext)):
+                    continue
+                fppos_dark = dark_ext.header['FPPOS']
+                if (fppos_dark == fppos):
+                    # This is the one
+                    dark_scaling = exposure_time / darktime
+                    try:
+                        merged -= (dark_ext.data * dark_scaling)
+                        logger.debug("Subtracting dark: %s (scaling=%.2f)" % (dark_filename, dark_scaling))
+                    except:
+                        logger.warning("Unable to subtract dark, dimensions don't match (data: %s, dark: %s)" % (
+                            str(merged.shape), str(dark_ext.data.shape)))
+                        reduction_log.fail('dark')
+                        pass
+                    break
 
-                dark.close()
-                hdu.header.add_history("CC-DARK: %s" % (os.path.abspath(dark_filename)))
-                del dark
-                reduction_log.success('dark')
+            dark.close()
+            hdu.header.add_history("CC-DARK: %s" % (os.path.abspath(dark_filename)))
+            del dark
+            reduction_log.success('dark')
 
         # By default, mark the frame as not affected by the pupilghost. This
         # might be overwritten if the flat-field has PG specifications.
@@ -757,80 +754,73 @@ def collect_reduce_ota(filename,
         gain_from_flatfield = None
         if (not mastercals.apply_flat()):
             reduction_log.not_selected('flat')
+        elif (mastercals.flat(sitesetup.flat_order) is None):
+            reduction_log.fail('flat')
         else:
-            found_flatdata = False
-            for ft in sitesetup.flat_order:
-                flatfield_filename = check_filename_directory(options['flat_dir'], 
-                    "%s_%s_bin%d.fits" % (ft, filter_name, binning))
-                if (os.path.isfile(flatfield_filename)):
-                    found_flatdata = True
+            flatfield_filename = mastercals.flat(sitesetup.flat_order)
+            flatfield = pyfits.open(flatfield_filename)
+            reduction_files_used['flat'] = flatfield_filename
+
+            # Search for the flatfield data for the current OTA
+            for ff_ext in flatfield[1:]:
+                if (not is_image_extension(ff_ext)):
+                    continue
+                fppos_flatfield = ff_ext.header['FPPOS']
+                if (fppos_flatfield == fppos):
+                    # This is the one
+                    try:
+                        merged /= ff_ext.data
+                        logger.debug("Dividing by flatfield: %s" % (flatfield_filename))
+                    except:
+                        logger.warning("Unable to apply flat-field, dimensions don't match (data: %s, flat: %s)" % (
+                            str(merged.shape), str(ff_ext.data.shape)))
+                        reduction_log.partial_fail('flat')
+                        pass
+
+                    # If normalizing with the flat-field, overwrite the gain
+                    # keyword with the average gain value of the flatfield.
+                    ff_gain = flatfield[0].header['GAIN'] \
+            if ('GAIN' in flatfield[0].header and flatfield[0].header['GAIN'] > 0) else -1.
+                    gain_from_flatfield = ff_gain
+
+                    logger.debug("Checking if extension has PGAFCTD keyword: %s" % (str('PGAFCTD' in ff_ext.header)))
+                    if ('PGAFCTD' in ff_ext.header):
+                        logger.debug("Value of PGAFCTD header keyword: %s" % (str(ff_ext.header['PGAFCTD'])))
+                    if ('PGAFCTD' in ff_ext.header and ff_ext.header['PGAFCTD']):
+                        # Mark this extension as having a pupilghost problem.
+                        hdu.header['PGAFCTD'] = True
+
+                        # Also copy the center position of the pupilghost
+                        # If this is not stored in the flat-field, assume some
+                        # standard coordinates
+                        logger.debug("Found an extension affected by pupilghost: %s" % (extname))
+
+                        for pgheader in (
+                                'PGCENTER', 'PGCNTR_X', 'PGCNTR_Y',
+                                'PGTMPL_X', 'PGTMPL_Y',
+                                'PGREG_X1', 'PGREG_X2', 'PGREG_Y1', 'PGREG_Y2',
+                                'PGEFCTVX', 'PGEFCTVY',
+                                'PGSCALNG',
+                                'PGROTANG',
+                        ):
+                            if (pgheader in ff_ext.header):
+                                hdu.header[pgheader] = (ff_ext.header[pgheader], ff_ext.header.comments[pgheader])
+
+                        pupilghost_center_x = ff_ext.header['PGCNTR_X'] if 'PGCNTR_X' in ff_ext.header else numpy.NaN
+                        pupilghost_center_y = ff_ext.header['PGCNTR_Y'] if 'PGCNTR_Y' in ff_ext.header else numpy.NaN
+
+                        # if ('PGCNTR_X' in ff_ext.header):
+                        #     pupilghost_center_x = ff_ext.header['PGCNTR_X']
+                        #     hdu.header['PGCNTR_X'] = (pupilghost_center_x, "pupil ghost center position X")
+                        # if ('PGCNTR_Y' in ff_ext.header):
+                        #     pupilghost_center_y = ff_ext.header['PGCNTR_Y']
+                        #     hdu.header['PGCNTR_Y'] = (pupilghost_center_y, "pupil ghost center position Y")
                     break
-            if (not found_flatdata):
-                reduction_log.fail('flat')
-            else:
-                flatfield = pyfits.open(flatfield_filename)
-                reduction_files_used['flat'] = flatfield_filename
 
-                # Search for the flatfield data for the current OTA
-                for ff_ext in flatfield[1:]:
-                    if (not is_image_extension(ff_ext)):
-                        continue
-                    fppos_flatfield = ff_ext.header['FPPOS']
-                    if (fppos_flatfield == fppos):
-                        # This is the one
-                        try:
-                            merged /= ff_ext.data
-                            logger.debug("Dividing by flatfield: %s" % (flatfield_filename))
-                        except:
-                            logger.warning("Unable to apply flat-field, dimensions don't match (data: %s, flat: %s)" % (
-                                str(merged.shape), str(ff_ext.data.shape)))
-                            reduction_log.partial_fail('flat')
-                            pass
-
-                        # If normalizing with the flat-field, overwrite the gain
-                        # keyword with the average gain value of the flatfield.
-                        ff_gain = flatfield[0].header['GAIN'] \
-			    if ('GAIN' in flatfield[0].header and flatfield[0].header['GAIN'] > 0) else -1.
-                        gain_from_flatfield = ff_gain
-                        
-                        logger.debug("Checking if extension has PGAFCTD keyword: %s" % (str('PGAFCTD' in ff_ext.header)))
-                        if ('PGAFCTD' in ff_ext.header):
-                            logger.debug("Value of PGAFCTD header keyword: %s" % (str(ff_ext.header['PGAFCTD'])))
-                        if ('PGAFCTD' in ff_ext.header and ff_ext.header['PGAFCTD']):
-                            # Mark this extension as having a pupilghost problem.
-                            hdu.header['PGAFCTD'] = True
-
-                            # Also copy the center position of the pupilghost
-                            # If this is not stored in the flat-field, assume some
-                            # standard coordinates
-                            logger.debug("Found an extension affected by pupilghost: %s" % (extname))
-
-                            for pgheader in (
-                                    'PGCENTER', 'PGCNTR_X', 'PGCNTR_Y',
-                                    'PGTMPL_X', 'PGTMPL_Y', 
-                                    'PGREG_X1', 'PGREG_X2', 'PGREG_Y1', 'PGREG_Y2',
-                                    'PGEFCTVX', 'PGEFCTVY', 
-                                    'PGSCALNG',
-                                    'PGROTANG',
-                            ):
-                                if (pgheader in ff_ext.header):
-                                    hdu.header[pgheader] = (ff_ext.header[pgheader], ff_ext.header.comments[pgheader])
-
-                            pupilghost_center_x = ff_ext.header['PGCNTR_X'] if 'PGCNTR_X' in ff_ext.header else numpy.NaN
-                            pupilghost_center_y = ff_ext.header['PGCNTR_Y'] if 'PGCNTR_Y' in ff_ext.header else numpy.NaN
-
-                            # if ('PGCNTR_X' in ff_ext.header):
-                            #     pupilghost_center_x = ff_ext.header['PGCNTR_X']
-                            #     hdu.header['PGCNTR_X'] = (pupilghost_center_x, "pupil ghost center position X")
-                            # if ('PGCNTR_Y' in ff_ext.header):
-                            #     pupilghost_center_y = ff_ext.header['PGCNTR_Y']
-                            #     hdu.header['PGCNTR_Y'] = (pupilghost_center_y, "pupil ghost center position Y")
-                        break
-                        
-                flatfield.close()
-                hdu.header.add_history("CC-FLAT: %s" % (os.path.abspath(flatfield_filename)))
-                del flatfield
-                reduction_log.success('flat')
+            flatfield.close()
+            hdu.header.add_history("CC-FLAT: %s" % (os.path.abspath(flatfield_filename)))
+            del flatfield
+            reduction_log.success('flat')
 
         #
         # Apply illumination correction, if requested

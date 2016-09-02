@@ -6,7 +6,6 @@ import logging
 
 from podi_commandline import *
 import podi_focalplanelayout
-import podi_sitesetup as sitesetup
 
 def check_filename_directory(given, default_filename):
     """
@@ -119,7 +118,16 @@ class ODICalibrations(object):
     #
     def apply_flat(self):
         return (self.options['flat_dir'] is not None)
-    def flatfield(self):
+    def flat(self, flat_order=None):
+        if (flat_order is None):
+            flat_order = ['dflat']
+        for ft in flat_order:
+            flatfield_filename = check_filename_directory(
+                self.options['flat_dir'],
+                "%s_%s_bin%d.fits" % (ft, self.filtername, self.binning)
+            )
+            if (os.path.isfile(flatfield_filename)):
+                return self.verify_fn(flatfield_filename)
         return None
 
 
