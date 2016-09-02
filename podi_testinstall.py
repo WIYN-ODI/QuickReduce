@@ -248,6 +248,10 @@ def update_sitesetup():
                    "Emergency timeout to prevent a stalled program when a child-process dies", 
                    300, False, config_array)
     
+    changes = changes | ask_for_option('mastercal_cache',
+                   "Directory to hold local, WIYN-delivered mastercal products",
+                   "/tmp", True, config_array)
+
     config_array.append("")
 
     # print config_array

@@ -6,6 +6,8 @@ import logging
 
 from podi_commandline import *
 import podi_focalplanelayout
+import podi_sitesetup as sitesetup
+
 
 def check_filename_directory(given, default_filename):
     """
@@ -131,16 +133,119 @@ class ODICalibrations(object):
         return None
 
 
-    def fringe_template(self):
+    #
+    # FRINGE #######################
+    #
+    def apply_fringe(self):
+        return False
+
+    def fringe(self, mjd=0, filtername=None, binning=None, detector=None):
+
+        if (filtername is None):
+            filtername = self.filtername
+        if (binning is None):
+            binning = self.binning
+        if (detector is None):
+            detector = fpl.layout.lower()
+        history_fn = "%s/mastercals/fringe/%s/%s/fringe_bin%d.history" % (
+            sitesetup.exec_dir, detector, filtername, binning
+        )
         return None
 
-    def pupilghost_template(self):
+    #
+    # PUPILGHOST #######################
+    #
+    def apply_pupilghost(self):
+        return False
+    def pupilghost(self):
         return None
 
 
+class CalibrationHistory(object):
 
+    def __init__(self, filename):
+        self.filename = filename
+
+        self.mjd = []
+        self.filenames = []
+        self.url = []
+
+        self.read()
+
+        pass
+
+    def read(self):
+        with open(self.filename) as f:
+            lines = f.readlines()
+
+            for line in lines:
+                if (line.startswith("#") or len(line) <= 0):
+                    continue
+                items = line.split()
+                if (len(items) < 3):
+                    continue
+
+                self.mjd.append(float(items[0]))
+                self.filenames.append(items[1])
+                self.url.append(items[2])
+
+    def find(self, mjd):
+        pass
+
+    def files_urls(self):
+        return zip(self.filenames, self.url)
+
+def download(url, local_fn):
+    wget_cmd = "wget -O %s -nv %s" % (local_fn, url)
+    print wget_cmd
+    os.system(wget_cmd)
+
+def update_local_mastercals(local_cache_dir=None):
+
+    if (local_cache_dir is None):
+        local_cache_dir = sitesetup.mastercal_cache
+    print("Saving all WIYN-delivered master-cals to %s" % (local_cache_dir))
+    if (not os.path.isdir(local_cache_dir)):
+        os.mkdir(local_cache_dir)
+
+    product_order = [
+        ('fringe', ['odi_z', 'odi_i']),
+        ('pupilghost', None),
+    ]
+    detector_layouts = ['podi', 'odi_5x6']
+    binning = [1,2]
+
+    mastercal_base = "%s/mastercals" % (sitesetup.exec_dir)
+    for product, filterlist in product_order:
+        for layout in detector_layouts:
+            if (filterlist is None):
+                dirlist = ["%s/%s/%s" % (mastercal_base, product, layout)]
+            else:
+                dirlist = ["%s/%s/%s/%s" % (mastercal_base, product, layout, filtername) for filtername in filterlist]
+
+            for dirname in dirlist:
+
+                for bin in binning:
+                    print("Checking %s/%s in %s" % (product, layout, dirname))
+
+                    history_fn = "%s/%s_bin%d.history" % (dirname, product, bin)
+                    if (not os.path.isfile(history_fn)):
+                        print("    Unable to find calibration history file (%s)" % (history_fn))
+                        continue
+                    else:
+                        print("  Reading calibration history from %s" % (history_fn))
+
+                    history = CalibrationHistory(history_fn)
+                    for fn, url in history.files_urls():
+                        local_fn = "%s/%s" % (local_cache_dir, fn)
+                        if (not os.path.isfile(local_fn)):
+                            download(url, local_fn)
+                        else:
+                            print("    --> file (%s) already available locally" % (fn))
 
 if __name__ == "__main__":
 
     # use this as a test-case and stand-alone tool to download calibrations from the web
+    if (sys.argv[1] == "update"):
+        update_local_mastercals()
     pass
