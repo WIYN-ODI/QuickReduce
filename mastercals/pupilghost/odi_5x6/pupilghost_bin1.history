@@ -1,0 +1,7 @@
+#
+# Format is as follows:
+# modified_julian_date local_filename source_url
+#
+# each frame is valid from the specified MJD to the next
+#
+00000.0 pupilghost_template___level_2__bin1.fits http://pub.galev.org/master_cals/pupilghost_template___level_2__bin1.fits
