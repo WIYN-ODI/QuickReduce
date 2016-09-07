@@ -78,7 +78,7 @@ class ODICalibrations(object):
             self.filtername = hdulist[0].header['FILTER']
             self.fpl = podi_focalplanelayout.FocalPlaneLayout(inp=hdulist)
 
-        self.mastercal_dir = "%s/cals" % (sitesetup.exec_dir)
+        self.mastercal_dir = "%s/mastercals" % (sitesetup.exec_dir)
 
     #
     # general class utility functions
@@ -289,10 +289,17 @@ class CalibrationHistory(object):
     def files_urls(self):
         return zip(self.filenames, self.url)
 
+
+
+
+
+
 def download(url, local_fn):
     wget_cmd = "wget -O %s -nv %s" % (local_fn, url)
     print wget_cmd
     os.system(wget_cmd)
+
+
 
 def update_local_mastercals(local_cache_dir=None):
 
