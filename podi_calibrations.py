@@ -161,7 +161,6 @@ class ODICalibrations(object):
         return None
 
 
-class CalibrationHistory(object):
     #
     # BAD PIXEL MASK #######################
     #
@@ -246,6 +245,17 @@ class CalibrationHistory(object):
         return (self.options['gain_method'] == "relative")
     def relative_gain(self, mjd):
         return self.nonlinearity(mjd)
+
+
+
+
+
+
+
+
+
+
+class CalibrationHistory(object):
 
     def __init__(self, filename):
         self.filename = filename
