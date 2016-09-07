@@ -862,14 +862,21 @@ def collect_reduce_ota(filename,
         # Finally, apply bad pixel masks 
         # Determine which region file we need
         # This function only returns valid filenames, or None otherwise
-        bpm_region_file = fpl.get_badpixel_regionfile(options['bpm_dir'], fppos)
-        if (bpm_region_file == None):
+        # bpm_region_file = fpl.get_badpixel_regionfile(options['bpm_dir'], fppos)
+        if (not mastercals.apply_bpm()):
             reduction_log.not_selected('badpixels')
+        elif (mastercals.bpm(ota=fppos) is None):
+            reduction_log.fail('badpixels')
         else:
+            bpm_region_file = mastercals.bpm(ota=fppos)
+        # if (bpm_region_file == None):
+        #     reduction_log.not_selected('badpixels')
+        # else:
             # Apply the bad pixel regions to file, marking all bad pixels as NaNs
             logger.debug("Applying BPM file: %s" % (bpm_region_file))
             mask_broken_regions(merged, bpm_region_file, reduction_log=reduction_log)
             reduction_files_used['bpm'] = bpm_region_file
+            reduction_log.success('bad_pixels')
 
         #
         # Now apply the gain correction

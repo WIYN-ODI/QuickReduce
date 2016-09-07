@@ -78,6 +78,8 @@ class ODICalibrations(object):
             self.filtername = hdulist[0].header['FILTER']
             self.fpl = podi_focalplanelayout.FocalPlaneLayout(inp=hdulist)
 
+        self.mastercal_dir = "%s/cals" % (sitesetup.exec_dir)
+
     #
     # general class utility functions
     #
@@ -131,10 +133,51 @@ class ODICalibrations(object):
         return None
 
 
+    #
+    # FRINGE #######################
+    #
     def fringe_template(self):
         return None
 
+    #
+    # PUPILHOST #######################
+    #
     def pupilghost_template(self):
+        return None
+
+
+    #
+    # BAD PIXEL MASK #######################
+    #
+    def apply_bpm(self):
+        print self.options['bpm_dir']
+        return (self.options['bpm_dir'] is not None)
+    def bpm(self, ota, fpl=None, layout=None):
+
+        if (fpl is None):
+            fpl = self.fpl
+        if (layout is None):
+            layout = fpl.layout
+
+        fn = "bpm_%s.reg" % (ota)
+
+        bpm_dir = self.options['bpm_dir']
+        if (bpm_dir is None):
+            return None
+
+        elif (os.path.isfile(bpm_dir)):
+            return bpm_dir
+
+        elif (os.path.isdir(bpm_dir)):
+            ffn = "%s/%s" % (bpm_dir, fn)
+            return ffn if os.path.isfile(ffn) else None
+
+        else:
+            ffn = "%s/bpm/%s/%s" % (
+                self.mastercal_dir, layout.lower(), fn)
+            print(ffn)
+            return ffn if os.path.isfile(ffn) else None
+
         return None
 
 
