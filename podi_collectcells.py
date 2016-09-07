@@ -504,19 +504,48 @@ def collect_reduce_ota(filename,
         except KeyError:
             exposure_time = 0
 
+        # nonlin_data = None
+        # if (options['nonlinearity-set'] or options['gain_method'] == "relative"):
+        #     nonlinearity_file = options['nonlinearity']
+        #     if (options['nonlinearity'] == None or
+        #         options['nonlinearity'] == "" or
+        #         not os.path.isfile(nonlinearity_file)):
+        #         nonlinearity_file = podi_calibrations.find_nonlinearity_coefficient_file(mjd, options)
+        #     if (options['verbose']):
+        #         print "Using non-linearity coefficients from",nonlinearity_file
+        #     logger.debug("Using non-linearity coefficients from file %s"  % (nonlinearity_file))
+        #     nonlin_data = podi_nonlinearity.load_nonlinearity_correction_table(nonlinearity_file, ota)
+        #     if (options['nonlinearity-set']):
+        #         reduction_files_used['nonlinearity'] = nonlinearity_file
+
         nonlin_data = None
-        if (options['nonlinearity-set'] or options['gain_method'] == "relative"):
-            nonlinearity_file = options['nonlinearity']
-            if (options['nonlinearity'] == None or 
-                options['nonlinearity'] == "" or
-                not os.path.isfile(nonlinearity_file)):
-                nonlinearity_file = podi_nonlinearity.find_nonlinearity_coefficient_file(mjd, options)
-            if (options['verbose']):
-                print "Using non-linearity coefficients from",nonlinearity_file
-            logger.debug("Using non-linearity coefficients from file %s"  % (nonlinearity_file))
+        if (not mastercals.apply_nonlinearity()):
+            reduction_log.not_selected('nonlinearity')
+        elif (mastercals.nonlinearity(mjd) is None):
+            reduction_log.fail('nonlinearity')
+        else:
+            reduction_log.attempt('nonlinearity')
+            nonlinearity_file = mastercals.nonlinearity(mjd=mjd)
+            logger.debug("Using non-linearity coefficients from file %s" % (nonlinearity_file))
             nonlin_data = podi_nonlinearity.load_nonlinearity_correction_table(nonlinearity_file, ota)
-            if (options['nonlinearity-set']):
+            if (nonlin_data is not None):
                 reduction_files_used['nonlinearity'] = nonlinearity_file
+                reduction_log.success('nonlinearity')
+            else:
+                logger.warning("Unable to load non-linearity corrections (%s)" % (nonlinearity_file))
+                reduction_log.fail('nonlinearity')
+
+        relative_gains = None
+        if (mastercals.apply_relative_gain()):
+            # In this mode, we also require a non-linearity correction file to be loaded
+            if (nonlin_data is not None):
+                # all done, we already loaded the file as part of the non-linearity correction startup
+                relative_gains = nonlin_data
+                pass
+            else:
+                relative_gains_file = mastercals.nonlinearity(mjd=mjd)
+                if (relative_gains_file is not None):
+                    relative_gains = podi_nonlinearity.load_nonlinearity_correction_table(relative_gains_file, ota)
 
         #
         # Search, first in the flat-field, then in the bias-frame for a 
@@ -876,7 +905,7 @@ def collect_reduce_ota(filename,
             logger.debug("Applying BPM file: %s" % (bpm_region_file))
             mask_broken_regions(merged, bpm_region_file, reduction_log=reduction_log)
             reduction_files_used['bpm'] = bpm_region_file
-            reduction_log.success('bad_pixels')
+            reduction_log.success('badpixels')
 
         #
         # Now apply the gain correction

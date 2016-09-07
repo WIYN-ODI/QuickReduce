@@ -247,7 +247,7 @@ Calibration data:
     options['photcalib'] = cmdline_arg_isset("-photcalib")
 
     options['nonlinearity-set'] = cmdline_arg_isset("-nonlinearity")
-    options['nonlinearity'] = cmdline_arg_set_or_default("-nonlinearity", None)
+    options['nonlinearity'] = cmdline_arg_set_or_default("-nonlinearity", "auto")
 
     if (cmdline_arg_isset('-plotformat')):
         inputstr = cmdline_arg_set_or_default("-plotformat", "png")

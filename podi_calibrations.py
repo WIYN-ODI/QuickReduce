@@ -181,9 +181,60 @@ class ODICalibrations(object):
         return None
 
 
+    #
+    # NON-LINEARITY CORRECTION #######################
+    #
+    def apply_nonlinearity(self):
+        return (self.options['nonlinearity'] is not None)
+
+    def nonlinearity(self, mjd):
+
+        """
+
+        Select the appropriate non-linearity coefficient file based on a history
+        file and a given MJD timestamp.
+
+        """
+
+        if (os.path.isfile(self.options['nonlinearity'])):
+            full_filename = self.options['nonlinearity']
+        else:
+            if (os.path.isdir(self.options['nonlinearity'])):
+                nl_basedir = self.options['nonlinearity']
+            else:
+                # Construct the name of the history file
+                nl_basedir = "%s/nonlinearity/" % (self.mastercal_dir)
+            history_filename = "%s/nonlinearity.history" % (nl_basedir)
+
+            # Read the file and determine which coefficient file is the best one.
+            history_file = open(history_filename, "r")
+            lines = history_file.readlines()
+            for line in lines:
+                if (line[0] == '#'):
+                    continue
+                items = line.split()
+                valid_mjd = float(items[0])
+
+                if (mjd > valid_mjd):
+                    filename = items[1]
+                else:
+                    break
+
+            # Now assemble the entire filename
+            full_filename = "%s/%s" % (nl_basedir, filename)
+
+        return self.verify_fn(full_filename)
+
+
+    def apply_relative_gain(self):
+        return (self.options['gain_method'] == "relative")
+    def relative_gain(self, mjd):
+        return self.nonlinearity(mjd)
 
 
 if __name__ == "__main__":
 
     # use this as a test-case and stand-alone tool to download calibrations from the web
     pass
+
+
