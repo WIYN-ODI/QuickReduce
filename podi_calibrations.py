@@ -186,6 +186,7 @@ class ODICalibrations(object):
             return bpm_dir
 
         elif (os.path.isdir(bpm_dir)):
+            # print("BPM %s is directory" % (bpm_dir))
             ffn = "%s/%s" % (bpm_dir, fn)
             return ffn if os.path.isfile(ffn) else None
 
@@ -252,15 +253,25 @@ class ODICalibrations(object):
     def apply_wcs(self):
         return (not self.options['wcs_distortion'] == False)
     def wcs(self, mjd=0):
-        # read history file and pick a suitable file
-        history_fn = "%s/wcs/%s/wcs.history" % (self.mastercal_dir, self.fpl.layout.lower())
-        # print "Reading WCS history file", history_fn
-        hist = CalibrationHistory(history_fn)
-        # print hist.mjd, hist.filenames
-        fn = hist.find(mjd)
-        # print "FOUND WCS", fn
+        wcs_param = self.options['wcs_distortion']
+        if (wcs_param is not None and os.path.isfile(wcs_param)):
+            full_fn = wcs_param
+        else:
+            if (wcs_param is not None and os.path.isdir(wcs_param)):
+                history_dir = wcs_param
+            else:
+                history_dir = "%s/wcs/%s" % (self.mastercal_dir, self.fpl.layout.lower())
 
-        full_fn = "%s/wcs/%s/%s" % (self.mastercal_dir, self.fpl.layout.lower(), fn)
+            # read history file and pick a suitable file
+            history_fn = "%s/wcs.history" % (history_dir)
+            # print "Reading WCS history file", history_fn
+            hist = CalibrationHistory(history_fn)
+            # print hist.mjd, hist.filenames
+            fn = hist.find(mjd)
+            # print "FOUND WCS", fn
+
+            full_fn = "%s/%s" % (history_dir, fn)
+
         # print full_fn
         return self.verify_fn(full_fn)
 
