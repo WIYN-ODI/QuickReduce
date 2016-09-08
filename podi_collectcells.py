@@ -326,6 +326,61 @@ def read_techdata(techdata_hdulist, ota_x, ota_y, wm_cellx, wm_celly):
     return gain, readnoise, readnoise_e
 
 
+def apply_wcs_distortion(filename, hdu, binning, reduction_log=None):
+
+    logger = logging.getLogger("ApplyWCSmodel")
+
+    reduction_log.attempt('wcs_dist')
+
+    try:
+        wcs = pyfits.open(filename)
+    except:
+        reduction_log.fail('wcs_dist')
+        logger.error("Could not open WCS distortion model (%s)" % (filename))
+        return False
+
+    extname = hdu.header['EXTNAME']
+
+    try:
+        wcs_header = wcs[extname].header
+    except:
+        reduction_log.fail('wcs_dist')
+        logger.warning("Could not find distortion model for %s" % (extname))
+        return False
+
+    try:
+        for hdr_name in ('CRPIX1', 'CRPIX2'):
+            wcs_header[hdr_name] /= binning
+        for hdr_name in ('CD1_1', 'CD1_2', 'CD2_1', 'CD2_2'):
+            wcs_header[hdr_name] *= binning
+
+        cards = wcs_header.cards
+        for (keyword, value, comment) in cards:
+            if (keyword not in ['CRVAL1', 'CRVAL2']):
+                hdu.header[keyword] = (value, comment)
+
+        d_crval1 = wcs_header['CRVAL1']
+        if (d_crval1 > 180):
+            d_crval1 -= 360
+        hdu.header['CRVAL2'] += wcs_header['CRVAL2']
+        hdu.header["CRVAL1"] += d_crval1 / math.cos(math.radians(hdu.header['CRVAL2']))
+        # print "change crval1 by",wcs_header['CRVAL1'], d_crval1, wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
+
+        # Make sure to write RAs that are positive
+        if (hdu.header["CRVAL1"] < 0):
+            hdu.header['CRVAL1'] -= math.floor(hdu.header['CRVAL1'] / 360.) * 360.
+        elif (hdu.header['CRVAL1'] > 360.):
+            hdu.header['CRVAL1'] = math.fmod(hdu.header['CRVAL1'], 360.0)
+
+    except:
+        logger.critical("something went wrong while applying the WCS model")
+        reduction_log.partial_fail('wcs_dist')
+        podi_logging.log_exception()
+
+    reduction_log.success('wcs_dist')
+    return True
+
+
 def collect_reduce_ota(filename,
                        verbose=False,
                        options=None):
@@ -912,6 +967,7 @@ def collect_reduce_ota(filename,
         #
 
         logger.debug("GAIN setting:"+str(options['gain_correct']))
+        hdu.header['GAINMTHD'] = ('none', "gain method")
         if (not options['gain_correct']):
             reduction_log.not_selected('gain')
         else:
@@ -919,18 +975,23 @@ def collect_reduce_ota(filename,
             logger.debug("Applying gain correction (OTA %02d) - method: %s" % (ota, 
                 options['gain_method'] if not options['gain_method'] == None else "default:techdata"))
 
-            if (options['gain_method'] == 'relative'):
-                reduction_files_used['gain'] = nonlinearity_file
+            if (mastercals.apply_relative_gain()):
+                relative_gains_file = mastercals.nonlinearity(mjd=mjd)
+                if (relative_gains_file is None):
+                    reduction_log.fail('gain')
+                else:
+                    reduction_files_used['gain'] = relative_gains_file
                 
-                # Find the relative gain correction factor based on the non-linearity correction data
-                logger.debug("Apply gain correction from nonlinearity data")
+                    # Find the relative gain correction factor based on the non-linearity correction data
+                    logger.debug("Apply gain correction from nonlinearity data")
 
-                for cx, cy in itertools.product(range(8), repeat=2):
-                    x1, x2, y1, y2 = cell2ota__get_target_region(cx, cy, binning)
-                    merged[y1:y2, x1:x2], gain = podi_nonlinearity.apply_gain_correction(
-                        merged[y1:y2, x1:x2], cx, cy, nonlin_data, return_gain=True)
-                    all_gains[cx,cy] /= gain
-                reduction_log.success('gain')
+                    for cx, cy in itertools.product(range(8), repeat=2):
+                        x1, x2, y1, y2 = cell2ota__get_target_region(cx, cy, binning)
+                        merged[y1:y2, x1:x2], gain = podi_nonlinearity.apply_gain_correction(
+                            merged[y1:y2, x1:x2], cx, cy, nonlin_data, return_gain=True)
+                        all_gains[cx,cy] /= gain
+                    reduction_log.success('gain')
+                    hdu.header['GAINMTHD'] = "relative"
             elif (options['gain_method'] == 'header'):
                 logger.debug("Applying gain correction  with GAINS from header")
                 reduction_files_used['gain'] = filename
@@ -943,6 +1004,7 @@ def collect_reduce_ota(filename,
                     merged[y1:y2, x1:x2] *= gain
                     all_gains[cx,cy] /= gain
                 reduction_log.success('gain')
+                hdu.header['GAINMTHD'] = "raw_header"
 
             else:
                 if (not techdata == None):
@@ -959,6 +1021,7 @@ def collect_reduce_ota(filename,
                         merged[y1:y2, x1:x2] *= gain
                         all_gains[cx,cy] /= gain
                     reduction_log.success('gain')
+                    hdu.header['GAINMTHD'] = 'techdata'
                 else:
                     reduction_log.failed('gain')
                     logger.warning("GAIN correction using TECHDATA requested, but can't find a tech-data file")
@@ -1207,11 +1270,16 @@ def collect_reduce_ota(filename,
 
 
         # Now add the canned WCS solution
-        if (options['wcs_distortion'] == None):
+        print(options['wcs_distortion'])
+        if (not mastercals.apply_wcs()): #['wcs_distortion'] == None):
             reduction_log.not_selected('wcs_dist')
+        elif (mastercals.wcs(mjd) is None):
+            reduction_log.fail("wcs_dist")
         else:
-            wcsdistort = fpl.apply_wcs_distortion(options['wcs_distortion'], hdu, binning, reduction_log)
-            reduction_files_used['wcs'] = fpl.get_wcs_distortion_file(options['wcs_distortion'])
+            wcs_model_fn = mastercals.wcs(mjd)
+            logger.debug("Applying wcs from %s" % (str(wcs_model_fn)))
+            wcsdistort = apply_wcs_distortion(wcs_model_fn, hdu, binning, reduction_log)
+            reduction_files_used['wcs'] = wcs_model_fn
             if (options['simple-tan-wcs']):
                 hdu.header['CTYPE1'] = "RA---TAN"
                 hdu.header['CTYPE2'] = "DEC--TAN"
@@ -3865,6 +3933,9 @@ def collectcells(input, outputfile,
     #
     ota_list[0].header['GAIN'] = (-1, "global average gain [e-/ADU]")
     ota_list[0].header['NGAIN'] = (0, "number of cells contribution to gain")
+
+    # XXX ADD HERE
+    # COPY GAIN METHOD FROM ANY CHILD HEADER TO PRIMARY HEADER
 
     if (global_gain_count > 0):
         ota_list[0].header['GAIN'] = global_gain_sum / global_gain_count

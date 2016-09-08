@@ -511,58 +511,58 @@ class FocalPlaneLayout(object):
             return None
 
 
-    def apply_wcs_distortion(self, filename, hdu, binning, reduction_log=None):
-
-        reduction_log.attempt('wcs_dist')
-
-        filename = self.get_wcs_distortion_file(filename)
-        try:
-            self.wcs = pyfits.open(filename)
-        except:
-            reduction_log.failed('wcs_dist')
-            self.logger.error("Could not open WCS distortion model (%s)" % (filename))
-            return
-
-        extname = hdu.header['EXTNAME']
-
-        try:
-            wcs_header = self.wcs[extname].header
-        except:
-            reduction_log.failed('wcs_dist')
-            self.logger.warning("Could not find distortion model for %s" % (extname))
-            return
-
-        try:
-            for hdr_name in ('CRPIX1', 'CRPIX2'):
-                wcs_header[hdr_name] /= binning
-            for hdr_name in ('CD1_1', 'CD1_2', 'CD2_1', 'CD2_2'):
-                wcs_header[hdr_name] *= binning
-
-            cards = wcs_header.cards
-            for (keyword, value, comment) in cards:
-                if (keyword not in ['CRVAL1', 'CRVAL2']):
-                    hdu.header[keyword] = (value, comment)
-
-            d_crval1 = wcs_header['CRVAL1']
-            if (d_crval1 > 180):
-                d_crval1 -= 360
-            hdu.header['CRVAL2'] += wcs_header['CRVAL2']
-            hdu.header["CRVAL1"] += d_crval1 / math.cos(math.radians(hdu.header['CRVAL2']))
-            #print "change crval1 by",wcs_header['CRVAL1'], d_crval1, wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
-
-            # Make sure to write RAs that are positive
-            if (hdu.header["CRVAL1"] < 0):
-                hdu.header['CRVAL1'] -= math.floor(hdu.header['CRVAL1']/360.)*360.
-            elif (hdu.header['CRVAL1'] > 360.):
-                hdu.header['CRVAL1'] = math.fmod(hdu.header['CRVAL1'], 360.0)
-
-        except:
-            self.logger.critical("something went wrong while applying the WCS model")
-            reduction_log.partial_fail('wcs_dist')
-            podi_logging.log_exception()
-
-        reduction_log.success('wcs_dist')
-        return
+    # def apply_wcs_distortion(self, filename, hdu, binning, reduction_log=None):
+    #
+    #     reduction_log.attempt('wcs_dist')
+    #
+    #     # filename = self.get_wcs_distortion_file(filename)
+    #     try:
+    #         self.wcs = pyfits.open(filename)
+    #     except:
+    #         reduction_log.fail('wcs_dist')
+    #         self.logger.error("Could not open WCS distortion model (%s)" % (filename))
+    #         return
+    #
+    #     extname = hdu.header['EXTNAME']
+    #
+    #     try:
+    #         wcs_header = self.wcs[extname].header
+    #     except:
+    #         reduction_log.fail('wcs_dist')
+    #         self.logger.warning("Could not find distortion model for %s" % (extname))
+    #         return
+    #
+    #     try:
+    #         for hdr_name in ('CRPIX1', 'CRPIX2'):
+    #             wcs_header[hdr_name] /= binning
+    #         for hdr_name in ('CD1_1', 'CD1_2', 'CD2_1', 'CD2_2'):
+    #             wcs_header[hdr_name] *= binning
+    #
+    #         cards = wcs_header.cards
+    #         for (keyword, value, comment) in cards:
+    #             if (keyword not in ['CRVAL1', 'CRVAL2']):
+    #                 hdu.header[keyword] = (value, comment)
+    #
+    #         d_crval1 = wcs_header['CRVAL1']
+    #         if (d_crval1 > 180):
+    #             d_crval1 -= 360
+    #         hdu.header['CRVAL2'] += wcs_header['CRVAL2']
+    #         hdu.header["CRVAL1"] += d_crval1 / math.cos(math.radians(hdu.header['CRVAL2']))
+    #         #print "change crval1 by",wcs_header['CRVAL1'], d_crval1, wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
+    #
+    #         # Make sure to write RAs that are positive
+    #         if (hdu.header["CRVAL1"] < 0):
+    #             hdu.header['CRVAL1'] -= math.floor(hdu.header['CRVAL1']/360.)*360.
+    #         elif (hdu.header['CRVAL1'] > 360.):
+    #             hdu.header['CRVAL1'] = math.fmod(hdu.header['CRVAL1'], 360.0)
+    #
+    #     except:
+    #         self.logger.critical("something went wrong while applying the WCS model")
+    #         reduction_log.partial_fail('wcs_dist')
+    #         podi_logging.log_exception()
+    #
+    #     reduction_log.success('wcs_dist')
+    #     return
 
 
     def get_science_area_otas(self, filtername, include_vignetted=True):

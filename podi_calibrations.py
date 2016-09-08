@@ -84,6 +84,8 @@ class ODICalibrations(object):
     # general class utility functions
     #
     def verify_fn(self, fn):
+        if (fn is None):
+            return None
         if (os.path.isfile(fn)):
             return fn
         return None
@@ -248,8 +250,23 @@ class ODICalibrations(object):
 
 
 
+    #
+    # WCS & DISTORTION MODEL #######################
+    #
+    def apply_wcs(self):
+        return True
+    def wcs(self, mjd=0):
+        # read history file and pick a suitable file
+        history_fn = "%s/wcs/%s/wcs.history" % (self.mastercal_dir, self.fpl.layout.lower())
+        # print "Reading WCS history file", history_fn
+        hist = CalibrationHistory(history_fn)
+        # print hist.mjd, hist.filenames
+        fn = hist.find(mjd)
+        # print "FOUND WCS", fn
 
-
+        full_fn = "%s/wcs/%s/%s" % (self.mastercal_dir, self.fpl.layout.lower(), fn)
+        # print full_fn
+        return self.verify_fn(full_fn)
 
 
 
@@ -271,20 +288,31 @@ class CalibrationHistory(object):
     def read(self):
         with open(self.filename) as f:
             lines = f.readlines()
-
+            # print lines
             for line in lines:
                 if (line.startswith("#") or len(line) <= 0):
                     continue
                 items = line.split()
-                if (len(items) < 3):
+                if (len(items) < 2):
                     continue
 
                 self.mjd.append(float(items[0]))
                 self.filenames.append(items[1])
-                self.url.append(items[2])
+
+                _url = items[2] if len(items) > 2 else None
+                self.url.append(_url)
 
     def find(self, mjd):
-        pass
+
+        fn = None
+        for i, i_mjd in enumerate(self.mjd):
+            # print "FIND: ", mjd, i_mjd, self.filenames[i]
+            if (mjd >= i_mjd):
+                fn = self.filenames[i]
+                break
+        if (fn is not None):
+            return fn
+        return None
 
     def files_urls(self):
         return zip(self.filenames, self.url)
