@@ -202,7 +202,7 @@ class ODICalibrations(object):
     # NON-LINEARITY CORRECTION #######################
     #
     def apply_nonlinearity(self):
-        return (self.options['nonlinearity'] is not None)
+        return (not self.options['nonlinearity'] == False) #is not None)
 
     def nonlinearity(self, mjd):
 
@@ -212,11 +212,12 @@ class ODICalibrations(object):
         file and a given MJD timestamp.
 
         """
-
-        if (os.path.isfile(self.options['nonlinearity'])):
+        if (self.options['nonlinearity'] is not None and
+                os.path.isfile(self.options['nonlinearity'])):
             full_filename = self.options['nonlinearity']
         else:
-            if (os.path.isdir(self.options['nonlinearity'])):
+            if (self.options['nonlinearity'] is not None and
+                    os.path.isdir(self.options['nonlinearity'])):
                 nl_basedir = self.options['nonlinearity']
             else:
                 # Construct the name of the history file
@@ -225,17 +226,11 @@ class ODICalibrations(object):
 
             # Read the file and determine which coefficient file is the best one.
             history_file = open(history_filename, "r")
-            lines = history_file.readlines()
-            for line in lines:
-                if (line[0] == '#'):
-                    continue
-                items = line.split()
-                valid_mjd = float(items[0])
+            hist = CalibrationHistory(history_filename)
+            fn = hist.find(mjd)
 
-                if (mjd > valid_mjd):
-                    filename = items[1]
-                else:
-                    break
+            if (fn is None):
+                return None
 
             # Now assemble the entire filename
             full_filename = "%s/%s" % (nl_basedir, filename)
@@ -254,7 +249,7 @@ class ODICalibrations(object):
     # WCS & DISTORTION MODEL #######################
     #
     def apply_wcs(self):
-        return True
+        return (not self.options['wcs_distortion'] == False)
     def wcs(self, mjd=0):
         # read history file and pick a suitable file
         history_fn = "%s/wcs/%s/wcs.history" % (self.mastercal_dir, self.fpl.layout.lower())

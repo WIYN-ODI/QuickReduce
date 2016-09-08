@@ -97,6 +97,21 @@ def cmdline_arg_set_or_default(name, defvalue):
     return defvalue
 
 
+def cmdline_arg_set_or_default2(name, defvalue):
+    """
+
+    Return the value of a command line argument. If no argument was passed (for
+    example -flag= ), assign the specified default value instead.
+
+    """
+
+    if (cmdline_arg_isset(name)):
+        val = get_cmdline_arg(name)
+        if (val is None):
+            return defvalue
+        return val
+    return False
+
 import podi_sitesetup as sitesetup
 from podi_definitions import *
 
@@ -184,7 +199,7 @@ Calibration data:
 
     # For now assume that the WCS template file is located in the same directory as the executable
     #options['wcs_distortion'] = sitesetup.exec_dir + "/"
-    options['wcs_distortion'] = cmdline_arg_set_or_default("-wcs", "auto") #options['wcs_distortion'])
+    options['wcs_distortion'] = cmdline_arg_set_or_default2("-wcs", "auto") #options['wcs_distortion'])
     # if (not os.path.isfile(options['wcs_distortion']) and
     #     not os.path.isdir(options['wcs_distortion'])):
     #     options['wcs_distortion'] = None
@@ -247,7 +262,7 @@ Calibration data:
     options['photcalib'] = cmdline_arg_isset("-photcalib")
 
     options['nonlinearity-set'] = cmdline_arg_isset("-nonlinearity")
-    options['nonlinearity'] = cmdline_arg_set_or_default("-nonlinearity", "auto")
+    options['nonlinearity'] = cmdline_arg_set_or_default2("-nonlinearity", "auto")
 
     if (cmdline_arg_isset('-plotformat')):
         inputstr = cmdline_arg_set_or_default("-plotformat", "png")
