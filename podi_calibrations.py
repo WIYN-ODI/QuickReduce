@@ -167,8 +167,8 @@ class ODICalibrations(object):
     # BAD PIXEL MASK #######################
     #
     def apply_bpm(self):
-        print self.options['bpm_dir']
-        return (self.options['bpm_dir'] is not None)
+        #print self.options['bpm_dir']
+        return (not self.options['bpm_dir'] == False)
     def bpm(self, ota, fpl=None, layout=None):
 
         if (fpl is None):
@@ -192,7 +192,7 @@ class ODICalibrations(object):
         else:
             ffn = "%s/bpm/%s/%s" % (
                 self.mastercal_dir, layout.lower(), fn)
-            print(ffn)
+            # print(ffn)
             return ffn if os.path.isfile(ffn) else None
 
         return None
@@ -228,12 +228,13 @@ class ODICalibrations(object):
             history_file = open(history_filename, "r")
             hist = CalibrationHistory(history_filename)
             fn = hist.find(mjd)
+            # hist.info()
 
             if (fn is None):
                 return None
 
             # Now assemble the entire filename
-            full_filename = "%s/%s" % (nl_basedir, filename)
+            full_filename = "%s/%s" % (nl_basedir, fn)
 
         return self.verify_fn(full_filename)
 
@@ -313,7 +314,11 @@ class CalibrationHistory(object):
         return zip(self.filenames, self.url)
 
 
-
+    def info(self):
+        print("\nHISTORY - %s" % (self.filename))
+        for i in range(len(self.mjd)):
+            print("%9.3f: %s (%s)" % (self.mjd[i], self.filenames[i], self.url[i]) )
+        print("-"*10+"\n")
 
 
 

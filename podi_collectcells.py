@@ -1270,7 +1270,6 @@ def collect_reduce_ota(filename,
 
 
         # Now add the canned WCS solution
-        print(options['wcs_distortion'])
         if (not mastercals.apply_wcs()): #['wcs_distortion'] == None):
             reduction_log.not_selected('wcs_dist')
         elif (mastercals.wcs(mjd) is None):
