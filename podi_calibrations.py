@@ -6,6 +6,7 @@ import logging
 
 from podi_commandline import *
 import podi_focalplanelayout
+from podi_definitions import get_binning, get_filter_level
 
 def check_filename_directory(given, default_filename):
     """
@@ -77,6 +78,8 @@ class ODICalibrations(object):
         if (hdulist is not None):
             self.filtername = hdulist[0].header['FILTER']
             self.fpl = podi_focalplanelayout.FocalPlaneLayout(inp=hdulist)
+            self.binning = get_binning(hdulist[0].header)
+            self.filter_level = get_filter_level(hdulist[0].header)
 
         self.mastercal_dir = "%s/mastercals" % (sitesetup.exec_dir)
 
@@ -201,9 +204,35 @@ class ODICalibrations(object):
     # PUPILGHOST #######################
     #
     def apply_pupilghost(self):
-        return False
-    def pupilghost(self):
-        return None
+        print "considering PG correction",(not self.options['pupilghost_dir'] == False)
+        return (not self.options['pupilghost_dir'] == False)
+
+    def pupilghost(self, mjd=0, filter_level=None, binning=None):
+
+        if (filter_level is None):
+            filter_level = self.filter_level
+        if (binning is None):
+            binning = self.binning
+
+        print "Looking for pupilghost filename"
+
+        pg_dir = self.options['pupilghost_dir']
+        if (pg_dir is not None and os.path.isfile(pg_dir)):
+            full_filename = pg_dir
+        else:
+            if (pg_dir is None or not os.path.isdir(pg_dir)):
+                pg_dir = "%s/pupilghost/%s/level%d/" % (self.mastercal_dir, self.fpl.layout.lower(), filter_level)
+
+            history_fn = "%s/pupilghost_bin%d.history" % (pg_dir, binning)
+            hist = CalibrationHistory(history_fn)
+            fn = hist.find(mjd)
+
+            if (fn is None):
+                return None
+
+            full_filename = "%s/%s" % (sitesetup.mastercal_cache, fn)
+
+        return self.verify_fn(full_filename)
 
 
     #
@@ -336,6 +365,9 @@ class CalibrationHistory(object):
         pass
 
     def read(self):
+        if (not os.path.isfile(self.filename)):
+            return
+
         with open(self.filename) as f:
             lines = f.readlines()
             # print lines
@@ -395,7 +427,7 @@ def update_local_mastercals(local_cache_dir=None):
 
     product_order = [
         ('fringe', ['odi_z', 'odi_i']),
-        ('pupilghost', None),
+        ('pupilghost', ['level1', 'level2', 'level3']),
     ]
     detector_layouts = ['podi', 'odi_5x6']
     binning = [1,2]
@@ -415,7 +447,7 @@ def update_local_mastercals(local_cache_dir=None):
 
                     history_fn = "%s/%s_bin%d.history" % (dirname, product, bin)
                     if (not os.path.isfile(history_fn)):
-                        print("    Unable to find calibration history file (%s)" % (history_fn))
+                        # print("    Unable to find calibration history file (%s)" % (history_fn))
                         continue
                     else:
                         print("  Reading calibration history from %s" % (history_fn))

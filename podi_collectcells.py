@@ -836,6 +836,7 @@ def collect_reduce_ota(filename,
         # If the third parameter points to a directory with flat-fields
         hdu.header['GAIN'] = 1.3
         gain_from_flatfield = None
+        pupilghost_center_x = pupilghost_center_y = None
         if (not mastercals.apply_flat()):
             reduction_log.not_selected('flat')
         elif (mastercals.flat(sitesetup.flat_order) is None):
@@ -1156,9 +1157,9 @@ def collect_reduce_ota(filename,
         elif (mastercals.fringe(mjd=mjd) is None or
               mastercals.fringevector(ota=ota) is None):
             reduction_log.fail('fringe')
-            logger.info("De-fringing selected, but could not find either fringe template or fringe vectors")
+            logger.warning("De-fringing selected, but could not find either fringe template or fringe vectors")
         else:
-            logger.info("Attempting fringe correction")
+            logger.debug("Attempting fringe correction")
             reduction_log.attempt('fringe')
             fringe_filename = mastercals.fringe(mjd=mjd)
             fringe_vector_file = mastercals.fringevector(ota=ota)
@@ -1454,88 +1455,88 @@ def collect_reduce_ota(filename,
 
     pupilghost_scaling = None
     pupilghost_template = None
-    if (options['pupilghost_dir'] == None):
+    filter_level = get_filter_level(hdulist[0].header)
+    filter_name = get_valid_filter_name(hdulist[0].header)
+    if (not mastercals.apply_pupilghost()):
+        logger.info("PG not selected")
         reduction_log.not_selected('pupilghost')
+    elif (False): #not 'PGAFCTD' in hdu.header or not hdu.header['PGAFCTD']):
+        # This frame does not contain the keyword labeling it as affected by
+        # the pupilghost. In that case we don't need to do anything
+        logger.info("This extension (%s) does not have any pupilghost problem" % (extname))
+        reduction_log.not_required('pupilghost')
+    elif (mastercals.pupilghost() is None):
+        reduction_log.missing_data('pupilghost')
+        logger.critical("Pupilghost correction requested, but no template found")
     else:
-        logger.debug("Getting ready to subtract pupil ghost from science frame")
-        filter_level = get_filter_level(hdulist[0].header)
-        filter_name = get_valid_filter_name(hdulist[0].header)
+        logger.info("Getting ready to subtract pupil ghost from science frame")
         # binning = ota_list[0].header['BINNING']
-        pg_template = check_filename_directory(
-            options['pupilghost_dir'], 
-            "%s/pupilghost_template___level_%d__bin%d.fits" % (options['pupilghost_dir'], filter_level, binning))
+        pg_template = mastercals.pupilghost()
         logger.info("looking for pupil ghost template %s..." % (pg_template))
 
         # If we have a template for this level
-        if (os.path.isfile(pg_template)):
-            logger.debug("\n   Using pupilghost template %s, filter %s ... " % (pg_template, filter_name))
-            pg_hdu = pyfits.open(pg_template)
+        logger.debug("\n   Using pupilghost template %s, filter %s ... " % (pg_template, filter_name))
+        pg_hdu = pyfits.open(pg_template)
 
-            # Getting the pupilghost scaling factors for this OTA
-            if (not 'PGAFCTD' in hdu.header or not hdu.header['PGAFCTD']):
-                # This frame does not contain the keyword labeling it as affected by
-                # the pupilghost. In that case we don't need to do anything
-                logger.info("This extension (%s) does not have any pupilghost problem" % (extname))
-                reduction_log.not_required('pupilghost')
-            else:
-                
-                reduction_files_used['pupilghost'] = pg_template
-                # print "redfiles used:", reduction_files_used
+        # Getting the pupilghost scaling factors for this OTA
+        reduction_files_used['pupilghost'] = pg_template
+        # print "redfiles used:", reduction_files_used
 
-                #
-                # Find center position of the pupilghost. Assume that the science 
-                # frames have the same pupilghost centering as the flatfield used for
-                # calibration, as this provides a more reliable center position.
-                #
-                logger.info("Using PG center position: %f %f" % (
-                    pupilghost_center_x, pupilghost_center_y))
-
-                pgcenter = numpy.array([pupilghost_center_x, pupilghost_center_y])
-                if (numpy.isnan(pupilghost_center_x) or numpy.isnan(pupilghost_center_y)):
-                    logger.info("At least one of the center positions in NaN, setting to 'data' instead")
-                    pgcenter = 'data'
-                    
-                # Compute the pupilghost image for this OTA at the right orientation
-                logger.info("Starting pg scaling")
-                pupilghost_template = podi_matchpupilghost.compute_pupilghost_template_ota(
-                    hdu, pg_hdu,
-                    rotate=True,
-                    non_negative=True,
-                    source_center_coords=pgcenter
-                )
-                
-                data_products['pupilghost-template'] = pupilghost_template
-                if (not type(pupilghost_template) == type(None)):
-                    print "PG-template:", extname, "\n", pupilghost_template
-                    _, pupilghost_scaling = podi_matchpupilghost.get_pupilghost_scaling_ota(
-                        science_hdu=hdu, 
-                        pupilghost_frame=pg_hdu, #pupilghost_template, 
-                        n_samples=750, boxwidth=20, 
-                        verbose=False,
-                        pg_matched=True,
-                        return_all=True,
-                    )
-                    print pupilghost_scaling
-                    data_products['pupilghost-scaling'] = pupilghost_scaling
-                    logger.debug("PG scaling:\n%s" % (str(pupilghost_scaling)))
-                    reduction_log.attempt('pupilghost')
-                    if (pupilghost_scaling == None):
-                        logger.info("No PG samples found for OTA %s" % (extname))
-                    else:
-                        logger.info("Found %d PG scaling samples" % (pupilghost_scaling.shape[0]))
-                else:
-                    logger.debug("Could not compute PG template for OTA %s" % (extname))
-                    reduction_log.missing_data('pupilghost')
-                logger.debug("Done with pg scaling")
+        #
+        # Find center position of the pupilghost. Assume that the science
+        # frames have the same pupilghost centering as the flatfield used for
+        # calibration, as this provides a more reliable center position.
+        #
+        if (pupilghost_center_x is None or pupilghost_center_y is None):
+            pgcenter = 'data'
         else:
-            logger.debug("No appropriate pupilghost template found!")
-            reduction_log.missing_data('pupilghost')
 
-            # # Find the optimal scaling factor
-            # logger.debug("Searching for optimal pupilghost scaling factor")
-            # any_affected, scaling, scaling_std = podi_matchpupilghost.get_pupilghost_scaling(ota_list, pg_hdu)
-            # logger.debug("Check if any OTA is affected: %s" % ("yes" if any_affected else "no"))
-            # logger.debug("Optimal scaling factor found: %.2f +/- %.2f" % (scaling, scaling_std))
+            logger.info("Using PG center position: %f %f" % (
+                pupilghost_center_x, pupilghost_center_y))
+
+            pgcenter = numpy.array([pupilghost_center_x, pupilghost_center_y])
+            if (numpy.isnan(pupilghost_center_x) or numpy.isnan(pupilghost_center_y)):
+                logger.info("At least one of the center positions in NaN, setting to 'data' instead")
+                pgcenter = 'data'
+
+        # Compute the pupilghost image for this OTA at the right orientation
+        logger.info("Starting pg scaling")
+        pupilghost_template = podi_matchpupilghost.compute_pupilghost_template_ota(
+            hdu, pg_hdu,
+            rotate=True,
+            non_negative=True,
+            source_center_coords=pgcenter
+        )
+
+        data_products['pupilghost-template'] = pupilghost_template
+        if (pupilghost_template is not None):
+            print "PG-template:", extname, "\n", pupilghost_template
+            _, pupilghost_scaling = podi_matchpupilghost.get_pupilghost_scaling_ota(
+                science_hdu=hdu,
+                pupilghost_frame=pg_hdu, #pupilghost_template,
+                n_samples=750, boxwidth=20,
+                verbose=False,
+                pg_matched=True,
+                return_all=True,
+            )
+            print pupilghost_scaling
+            data_products['pupilghost-scaling'] = pupilghost_scaling
+            logger.debug("PG scaling:\n%s" % (str(pupilghost_scaling)))
+            reduction_log.attempt('pupilghost')
+            if (pupilghost_scaling == None):
+                logger.info("No PG samples found for OTA %s" % (extname))
+            else:
+                logger.info("Found %d PG scaling samples" % (pupilghost_scaling.shape[0]))
+        else:
+            logger.debug("Could not compute PG template for OTA %s" % (extname))
+            reduction_log.no_data('pupilghost')
+        logger.debug("Done with pg scaling")
+
+        # # Find the optimal scaling factor
+        # logger.debug("Searching for optimal pupilghost scaling factor")
+        # any_affected, scaling, scaling_std = podi_matchpupilghost.get_pupilghost_scaling(ota_list, pg_hdu)
+        # logger.debug("Check if any OTA is affected: %s" % ("yes" if any_affected else "no"))
+        # logger.debug("Optimal scaling factor found: %.2f +/- %.2f" % (scaling, scaling_std))
 
     
     # Write the reduction log
@@ -1847,10 +1848,12 @@ def parallel_collect_reduce_ota(queue,
         logger.debug("Next up (maybe): pupilghost subtraction")
         try:
             # Also delete the pupilghost contribution
-            if (not type(pg_image) == type(None) and final_parameters['pupilghost-scaling-median'] > 0):
+            if (pg_image is not None and final_parameters['pupilghost-scaling-median'] > 0):
                 logger.debug("Subtracting pupilghost (%.2f)..." % (final_parameters['pupilghost-scaling-median']))
                 return_hdu.data -= (pg_image * final_parameters['pupilghost-scaling-median'])
                 reduction_log.success('pupilghost')
+            else:
+                reduction_log.fail('pupilghost')
         except:
             podi_logging.log_exception()
             pass
