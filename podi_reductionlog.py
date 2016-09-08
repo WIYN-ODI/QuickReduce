@@ -146,7 +146,15 @@ class ReductionLog:
                             self._not_required]):
 
                 self.set(step, self._success)
-                
+
+            elif (this in [self._attempt,
+                           self._no_data,
+                           self._missing_data] and
+                  other in [self._attempt,
+                            self._no_data,
+                            self._missing_data]):
+                self.set(step, self._missing_data)
+
             else:
                 pass
                 logging.getLogger("ReductionLog").warning("Unable to handle outcome combination: %s & %s" % (
