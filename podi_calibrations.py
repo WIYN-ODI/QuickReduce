@@ -141,6 +141,7 @@ class ODICalibrations(object):
     def apply_fringe(self):
         return False
 
+
     def fringe(self, mjd=0, filtername=None, binning=None, detector=None):
 
         if (filtername is None):
@@ -149,10 +150,45 @@ class ODICalibrations(object):
             binning = self.binning
         if (detector is None):
             detector = fpl.layout.lower()
-        history_fn = "%s/mastercals/fringe/%s/%s/fringe_bin%d.history" % (
-            sitesetup.exec_dir, detector, filtername, binning
-        )
-        return None
+
+        fringe_param = self.options['fringe_dir']
+        if (fringe_param is not None and os.path.isfile(fringe_param)):
+            full_filename = fringe_param
+        else:
+            if (fringe_param is not None and os.path.isdir(fringe_param)):
+                fringe_dir = fringe_param
+            else:
+                fringe_dir = "%s/fringe/%s/%s" % (self.mastercal_dir, detector, filtername)
+
+            history_fn = "%s/fringe_bin%d.history" % (fringe_dir, binning)
+            if (not os.path.isfile(history_fn)):
+                return None
+            hist = CalibrationHistory(history_fn)
+            fn = hist.find(mjd)
+            if (fn is None):
+                return None
+            full_filename = "%s/%s" % (fringe_dir, fn)
+
+        return self.verify_fn(full_filename)
+
+
+    def fringevector(self, ota, filtername=None, binning=None):
+
+        if (filtername is None):
+            filtername = self.filtername
+        if (binning is None):
+            binning = self.binning
+
+        fringe_vector_dir = self.options['fringe_vectors']
+        if (fringe_vector_dir is None or not os.path.isdir(fringe_vector_dir)):
+            fringe_vector_dir = "%s/fringevector/%s/%s" % (self.mastercal_dir, self.fpl.layout.lower(), filtername)
+
+        if (not os.path.isdir(fringe_vector_dir)):
+            return None
+
+        full_filename = "%s/fringevectors__%s__OTA%02d.reg" % (fringe_vector_dir, self.filtername, ota)
+        return self.verify_fn(full_filename)
+
 
     #
     # PUPILGHOST #######################

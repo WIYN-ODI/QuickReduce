@@ -1151,27 +1151,21 @@ def collect_reduce_ota(filename,
         #
         fringe_scaling = None
         fringe_scaling_median, fringe_scaling_std = -1, -1
-        if (options['fringe_dir'] == None):
+        if (not mastercals.apply_fringe()):
             reduction_log.not_selected('fringe')
+        elif (mastercals.fringe(mjd=mjd) is None or
+              mastercals.fringevector(ota=ota) is None):
+            reduction_log.fail('fringe')
+            logger.warning("De-fringing selected, but could not find either fringe template or fringe vectors")
         else:
             reduction_log.attempt('fringe')
-            fringe_filename = fpl.get_fringe_filename(options['fringe_dir'])
-            fringe_vector_file = fpl.get_fringevector_regionfile(options['fringe_vectors'], ota)
-            logger.debug("fringe file %s found: %s" % (fringe_filename, os.path.isfile(fringe_filename)))
-            logger.debug("fringe vector %s found: %s" % (fringe_vector_file, os.path.isfile(fringe_vector_file)))
-            if (os.path.isfile(fringe_filename) and os.path.isfile(fringe_vector_file)):
-                reduction_files_used['fringemap'] = fringe_filename
-                reduction_files_used['fringevector'] = fringe_vector_file
-            if (options['verbose']):
-                print "fringe file:",fringe_filename, "    found:",os.path.isfile(fringe_filename)
-                print "fringe vector:",fringe_vector_file, "    found:",os.path.isfile(fringe_vector_file)
+            fringe_filename = mastercals.fringe(mjd=mjd)
+            fringe_vector_file = mastercals.fringevector(ota=ota)
+            reduction_files_used['fringemap'] = fringe_filename
+            reduction_files_used['fringevector'] = fringe_vector_file
 
-            # Do not determine fringe scaling if either or the input files does 
-            # not exist or any of the cells in this OTA is marked as video cell
-            if (os.path.isfile(fringe_filename)
-                and os.path.isfile(fringe_vector_file)
-                and hdu.header['CELLMODE'].find("V") < 0
-                ):
+            # Do not determine fringe scaling if this OTA is marked as video cell
+            if (hdu.header['CELLMODE'].find("V") < 0):
                 fringe_hdu = pyfits.open(fringe_filename)
                 for ext in fringe_hdu[1:]:
                     if (extname == ext.header['EXTNAME']):
@@ -1192,7 +1186,7 @@ def collect_reduce_ota(filename,
             #print "FRNG_STD", fringe_scaling_std
             hdu.header["FRNG_SCL"] = fringe_scaling_median
             hdu.header["FRNG_STD"] = fringe_scaling_std
-            hdu.header["FRNG_OK"] = (type(fringe_scaling) != type(None))
+            hdu.header["FRNG_OK"] = (fringe_scaling is not None)
 
         # Insert the DETSEC header so IRAF understands where to put the extensions
         start_x = ota_c_x * size_x #4096
