@@ -189,8 +189,10 @@ Calibration data:
 
     options["update_persistency_only"] = cmdline_arg_isset("-update_persistency_only")
 
-    options['fringe_dir'] = None if not cmdline_arg_isset("-fringe") \
-                            else cmdline_arg_set_or_default('-fringe', "auto")
+    options['fringe_dir'] = cmdline_arg_set_or_default2("-fringe", "auto")
+
+        #None if not cmdline_arg_isset("-fringe") \
+        #                    else cmdline_arg_set_or_default('-fringe', "auto")
     options['fringe_vectors'] = cmdline_arg_set_or_default("-fringevectors", options['fringe_vectors'])
 
     options['pupilghost_dir'] = cmdline_arg_set_or_default('-pupilghost', None)

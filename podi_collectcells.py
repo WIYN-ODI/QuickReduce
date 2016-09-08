@@ -1156,8 +1156,9 @@ def collect_reduce_ota(filename,
         elif (mastercals.fringe(mjd=mjd) is None or
               mastercals.fringevector(ota=ota) is None):
             reduction_log.fail('fringe')
-            logger.warning("De-fringing selected, but could not find either fringe template or fringe vectors")
+            logger.info("De-fringing selected, but could not find either fringe template or fringe vectors")
         else:
+            logger.info("Attempting fringe correction")
             reduction_log.attempt('fringe')
             fringe_filename = mastercals.fringe(mjd=mjd)
             fringe_vector_file = mastercals.fringevector(ota=ota)

@@ -139,7 +139,9 @@ class ODICalibrations(object):
     # FRINGE #######################
     #
     def apply_fringe(self):
-        return False
+        x = not self.options['fringe_dir'] == False
+        # print "Apply fringe?", x
+        return (not self.options['fringe_dir'] == False)
 
 
     def fringe(self, mjd=0, filtername=None, binning=None, detector=None):
@@ -149,7 +151,7 @@ class ODICalibrations(object):
         if (binning is None):
             binning = self.binning
         if (detector is None):
-            detector = fpl.layout.lower()
+            detector = self.fpl.layout.lower()
 
         fringe_param = self.options['fringe_dir']
         if (fringe_param is not None and os.path.isfile(fringe_param)):
@@ -167,8 +169,10 @@ class ODICalibrations(object):
             fn = hist.find(mjd)
             if (fn is None):
                 return None
-            full_filename = "%s/%s" % (fringe_dir, fn)
 
+            full_filename = "%s/%s" % (sitesetup.mastercal_cache, fn)
+
+        # print "Fringe template", full_filename
         return self.verify_fn(full_filename)
 
 
@@ -179,14 +183,17 @@ class ODICalibrations(object):
         if (binning is None):
             binning = self.binning
 
+        # print "fringe vector dir:", self.options['fringe_vectors']
         fringe_vector_dir = self.options['fringe_vectors']
         if (fringe_vector_dir is None or not os.path.isdir(fringe_vector_dir)):
-            fringe_vector_dir = "%s/fringevector/%s/%s" % (self.mastercal_dir, self.fpl.layout.lower(), filtername)
+            fringe_vector_dir = "%s/fringevectors/%s/%s" % (self.mastercal_dir, self.fpl.layout.lower(), filtername)
 
+        # print fringe_vector_dir
         if (not os.path.isdir(fringe_vector_dir)):
             return None
 
         full_filename = "%s/fringevectors__%s__OTA%02d.reg" % (fringe_vector_dir, self.filtername, ota)
+        # print "fringe vector:", full_filename
         return self.verify_fn(full_filename)
 
 
