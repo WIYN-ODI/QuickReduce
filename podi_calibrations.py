@@ -370,8 +370,10 @@ class CalibrationHistory(object):
 
 
 def download(url, local_fn):
-    wget_cmd = "wget -O %s -nv %s" % (local_fn, url)
-    print wget_cmd
+
+    logger = logging.getLogger("Download")
+    wget_cmd = "wget --quiet --progress=bar --show-progress -O %s %s" % (local_fn, url)
+    logger.debug(wget_cmd)
     os.system(wget_cmd)
 
 
