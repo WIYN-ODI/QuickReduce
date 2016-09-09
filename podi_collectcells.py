@@ -281,6 +281,7 @@ import podi_shifthistory
 import podi_associations
 
 from podi_reductionlog import *
+from version import record_pipeline_versioning
 
 from astLib import astWCS
 
@@ -383,7 +384,7 @@ def collect_reduce_ota(filename,
     else:
         # Create an fits extension to hold the output
         hdu = pyfits.ImageHDU()
-        log_svn_version(hdu.header)
+        # log_svn_version(hdu.header)
 
         # Set the inherit keyword so that the headers removed from each 
         # extension are instead inherited from the primary
@@ -3004,14 +3005,17 @@ def collectcells(input, outputfile,
     ota_list = [None] * (len(list_of_otas_to_collect)+1)
     # And add the primary HDU to make the fits file a valid one
     ota_list[0] = pyfits.PrimaryHDU()
-    ota_list[0].header["PLVER"] = (pipeline_plver, "name and version")
-    ota_list[0].header["PIPELINE"] = (pipeline_name, "pipeline name")
-    ota_list[0].header["PLVERSIO"] = (pipeline_version, "pipeline version")
-    ota_list[0].header["PLAUTHOR"] = ("Ralf Kotulla", "pipeline author")
-    ota_list[0].header["PLEMAIL"] = ("kotulla@wisc.edu", "contact email")
-    add_fits_header_title(ota_list[0].header, "Pipeline information", 'PLVER')
-    for key, value in options['additional_fits_headers'].iteritems():
-        ota_list[0].header[key] = (value, "user-added keyword")
+
+    # Add version data
+    record_pipeline_versioning(ota_list[0].header)
+
+    # add user-defined additional keywords
+    if (len(options['additional_fits_headers']) > 0):
+        _firstkey = None
+        for key, value in options['additional_fits_headers'].iteritems():
+            ota_list[0].header[key] = (value, "user-added keyword")
+            _firstkey = key if _firstkey is None else _firstkey
+        add_fits_header_title(header, "User-added keywords", _firstkey)
 
     ota_list[0].header['BINNING'] = (binning, "binning factor")
 

@@ -51,23 +51,6 @@ import podi_sitesetup as sitesetup
 from wiyn_filters import *
 
 #
-# Update this variable below when changing versions
-#
-pipeline_plver = "QuickReduce 2.0"
-pipeline_name = "QuickReduce"
-pipeline_version = "2.0.5"
-try:
-    cmd = "svnversion -n %s" % (sitesetup.exec_dir)
-    ret = subprocess.Popen(cmd.split(), 
-                           stdout=subprocess.PIPE, 
-                           stderr=subprocess.PIPE)
-    out, err = ret.communicate()
-    if (ret.returncode == 0 and not out.startswith("Un")):
-        pipeline_version = "%s.%s" % (pipeline_version, out)
-except:
-    pass
-
-#
 #
 #
 
