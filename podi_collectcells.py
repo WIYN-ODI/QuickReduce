@@ -1263,46 +1263,52 @@ def collect_reduce_ota(filename,
                     fitsfile)
                 if (options['verbose']): print sexcmd
 
-                logger.debug("Running SourceExtractor")
                 start_time = time.time()
                 #os.system(sexcmd)
-                try:
-                    ret = subprocess.Popen(sexcmd.split(), 
-                                           stdout=subprocess.PIPE, 
-                                           stderr=subprocess.PIPE)
-                    sextractor_pid = ret.pid
-                    #
-                    # Wait for sextractor to finish (or die)
-                    #
-                    ps = psutil.Process(sextractor_pid)
-                    sextractor_error = False
-                    while(True):
-                        try:
-                            if (ps.status() in [psutil.STATUS_ZOMBIE,
-                                                psutil.STATUS_DEAD] and not 
-                                ret.poll() == None):
-                                logger.critical("Sextractor died unexpectedly")
-                                sextractor_error = True
-                        except psutil.NoSuchProcess:
-                            pass
-                            
-                        if (ret.poll() == None):
-                            # sextractor completed
-                            logger.info("Sex complete!")
-                            break
-                        time.sleep(0.1)
+                for sex_restarts in range(3):
+                    try:
+                        logger.debug("Running SourceExtractor (attempt %d)" % (sex_restarts+1))
+                        ret = subprocess.Popen(sexcmd.split(),
+                                               stdout=subprocess.PIPE,
+                                               stderr=subprocess.PIPE)
+                        sextractor_pid = ret.pid
+                        #
+                        # Wait for sextractor to finish (or die)
+                        #
+                        ps = psutil.Process(sextractor_pid)
+                        sextractor_error = False
+                        while(True):
+                            try:
+                                ps_status = ps.status()
+                                if (ps_status in [psutil.STATUS_ZOMBIE,
+                                                  psutil.STATUS_DEAD] and not
+                                    ret.poll() == None):
+                                    logger.critical("Sextractor died unexpectedly (%s - this is try #%d / pid=%d)" % (
+                                        str(ps_status), sex_restarts+1, sextractor_pid))
+                                    sextractor_error = True
+                                    break
+                            except psutil.NoSuchProcess:
+                                pass
 
-                    if (not sextractor_error):
-                        (sex_stdout, sex_stderr) = ret.communicate()
-                        if (ret.returncode != 0):
-                            logger.warning("Sextractor might have a problem, check the log")
-                            logger.debug("Stdout=\n"+sex_stdout)
-                            logger.debug("Stderr=\n"+sex_stderr)
-                except OSError as e:
-                    podi_logging.log_exception()
-                    print >>sys.stderr, "Execution failed:", e
-                end_time = time.time()
-                logger.debug("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
+                            if (ret.poll() == None):
+                                # sextractor completed
+                                logger.info("Sex complete!")
+                                break
+                            time.sleep(0.1)
+
+                        if (not sextractor_error):
+                            (sex_stdout, sex_stderr) = ret.communicate()
+                            if (ret.returncode != 0):
+                                logger.warning("Sextractor might have a problem, check the log")
+                                logger.debug("Stdout=\n"+sex_stdout)
+                                logger.debug("Stderr=\n"+sex_stderr)
+                            break
+
+                    except OSError as e:
+                        podi_logging.log_exception()
+                        print >>sys.stderr, "Execution failed:", e
+                    end_time = time.time()
+                    logger.debug("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
 
                 try:
                     source_cat = None
@@ -1746,7 +1752,12 @@ def parallel_collect_reduce_ota(queue,
             # Remove fringing by subtracting the scaled fringe template
             if (not type(fringe_template) == type(None) and final_parameters['fringe-scaling-median'] > 0):
                 logger.debug("Subtracting fringes (%.2f)..." % (final_parameters['fringe-scaling-median']))
-                return_hdu.data -= (fringe_template * final_parameters['fringe-scaling-median'])
+                logger.debug("data: %s // fringe: %s" % (str(type(return_hdu.data)), str(type(fringe_template))))
+                logger.debug("data: %s //  fringe: %s" % (str(return_hdu.data.shape), str(fringe_template.shape)))
+                fringe_template *= final_parameters['fringe-scaling-median']
+                logger.debug("done computing scaled fringe correction")
+                return_hdu.data -= fringe_template
+                logger.debug("completed fringe subtraction")
                 reduction_log.success('fringe')
         except:
             reduction_log.fail('fringe')
@@ -2486,12 +2497,15 @@ class reduce_collect_otas (object):
         try:
             nq=0
             while (True):
-                self.final_results_queue.get_nowait()
+                self.final_results_queue.get(block=True,timeout=0.001)
                 nq += 1
-        except:
+        except Queue.Empty:
             pass
+        self.logger.debug("inserting sentinel")
         self.final_results_queue.put(multiprocessing.queues._sentinel)
+        self.logger.debug("closing queue")
         self.final_results_queue.close()
+        self.logger.debug("Joining thread")
         self.final_results_queue._thread.join(timeout=0.1) #join_thread()
         self.logger.debug("Final results queue closed (alive: %s / %d)" % (
             str(self.final_results_queue._thread.is_alive()), nq))
@@ -2499,13 +2513,16 @@ class reduce_collect_otas (object):
         try:
             nq=0
             while (True):
-                self.intermediate_queue.get_nowait()
+                self.intermediate_queue.get(block=True,timeout=0.001)
                 nq += 1
-        except:
+        except Queue.Empty:
             pass
+        self.logger.debug("inserting sentinel")
         self.intermediate_queue.put(multiprocessing.queues._sentinel)
+        self.logger.debug("closing queue")
         self.intermediate_queue.close()
         # self.intermediate_queue.join_thread()
+        self.logger.debug("Joining thread")
         self.intermediate_queue._thread.join(timeout=0.1) #join_thread()
         self.logger.debug("intermediate data queue closed (alive: %s / %d)" % (
             str(self.intermediate_queue._thread.is_alive()), nq))
@@ -2514,26 +2531,35 @@ class reduce_collect_otas (object):
         try:
             nq=0
             while (True):
-                self.intermediate_results_queue.get_nowait()
+                self.intermediate_results_queue.get(block=True,timeout=0.001)
                 nq += 1
-        except:
+        except Queue.Empty:
             pass
+        self.logger.debug("inserting sentinel")
         self.intermediate_results_queue.put(multiprocessing.queues._sentinel)
+        self.logger.debug("closing queue")
         self.intermediate_results_queue.close()
+        self.logger.debug("Joining thread")
         self.intermediate_results_queue._thread.join(timeout=0.1) #join_thread()
         self.logger.debug("Intermediate results queue closed (alive: %s / %d)" % (
             str(self.intermediate_results_queue._thread.is_alive()), nq))
         #self.intermediate_results_queue._thread = None
 
         try:
+            self.logger.debug("Starting to empty intermediate_data_ack_queue")
             nq=0
             while (True):
-                self.intermediate_data_ack_queue.get_nowait()
+                self.intermediate_data_ack_queue.get(block=True,timeout=0.001)
                 nq += 1
-        except:
+                self.logger.debug("Received message from intermediate_data_ack_queue: %d" % (nq))
+        except Queue.Empty:
+            self.logger.debug("Received Queue.Empty exception while clearing intermediate_data_ack_queue")
             pass
+        self.logger.debug("inserting sentinel")
         self.intermediate_data_ack_queue.put(multiprocessing.queues._sentinel)
+        self.logger.debug("closing queue")
         self.intermediate_data_ack_queue.close()
+        self.logger.debug("Joining thread")
         self.intermediate_data_ack_queue._thread.join(timeout=0.1) #join_thread()
         self.logger.debug("intermediate data received Ack queue closed (alive: %s / %d)" % (
             str(self.intermediate_data_ack_queue._thread.is_alive()), nq))
@@ -2580,9 +2606,10 @@ class reduce_collect_otas (object):
                 except AssertionError:
                     pass
 
-                self.logger.debug("Putting one set (# %d) of intermediate data back in work queue" % (
-                    self.intermed_results_sent))
+                self.logger.debug("Putting one set (# %d / %d) of intermediate data back in work queue" % (
+                    self.intermed_results_sent, job['intermediate_data_sent']))
                 job['intermediate_data_sent'] += 1
+                self.intermed_results_sent += 1
             time.sleep(0.2)
         self.logger.debug("Shutting down broadcast_intermediate_data")
 
