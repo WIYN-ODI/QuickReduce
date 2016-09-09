@@ -195,8 +195,6 @@ Calibration data:
         #                    else cmdline_arg_set_or_default('-fringe', "auto")
     options['fringe_vectors'] = cmdline_arg_set_or_default("-fringevectors", options['fringe_vectors'])
 
-    options['pupilghost_dir'] = cmdline_arg_set_or_default2('-pupilghost', None)
-
     options['fixwcs'] = cmdline_arg_isset("-fixwcs")
 
     # For now assume that the WCS template file is located in the same directory as the executable
@@ -375,7 +373,7 @@ Calibration data:
         
     options['simple-tan-wcs'] = cmdline_arg_isset("-tanwcs")
 
-    options['crosstalk'] = cmdline_arg_set_or_default("-crosstalk", "auto")
+    options['crosstalk'] = cmdline_arg_set_or_default2("-crosstalk", "auto")
 
     options['trimcell'] = cmdline_arg_set_or_default("-trimcell", None)
     if (not options['trimcell'] == None):

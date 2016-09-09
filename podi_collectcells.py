@@ -532,10 +532,25 @@ def collect_reduce_ota(filename,
             hdulist=hdulist)
 
         # Now go through each of the 8 lines
-        logger.debug("Starting crosstalk correction (%s)" % (extname))
-        outcome = podi_crosstalk.apply_crosstalk_correction(
-            hdulist, fpl, extname2id, options, reduction_log)
-        logger.debug("Done with crosstalk correction")
+        if (not mastercals.apply_crosstalk()):
+            reduction_log.not_selected('crosstalk')
+        elif (mastercals.crosstalk(mjd, ota) is None):
+            logger.warning("Cross-talk correction requested, but failed!")
+            reduction_log.fail('crosstalk')
+        else:
+            xtalk_file = mastercals.crosstalk(mjd, ota)
+            logger.info("Starting crosstalk correction (%s)" % (extname))
+            reduction_files_used['crosstalk'] = xtalk_file
+
+            outcome = podi_crosstalk.apply_crosstalk_correction(
+                hdulist,
+                xtalk_file = xtalk_file,
+                fpl = fpl,
+                extname2id = extname2id,
+                options = options,
+                reduction_log = reduction_log
+            )
+            logger.debug("Done with crosstalk correction")
 
         #
         # Allocate memory for the merged frame, and set all pixels by default to NaN.

@@ -348,6 +348,37 @@ class ODICalibrations(object):
         return self.verify_fn(full_fn)
 
 
+    #
+    # CROSSTALK #######################
+    #
+    def apply_crosstalk(self):
+        print "XTALK:", self.options['crosstalk']
+        return (not self.options['crosstalk'] == False)
+
+    def crosstalk(self, mjd=0, ota=None):
+
+        xtalk = self.options['crosstalk']
+        if (xtalk is not None and os.path.isfile(xtalk)):
+            full_filename = xtalk
+        else:
+
+            if (xtalk is not None and os.path.isdir(xtalk)):
+                xtalk_dir = xtalk
+            else:
+                xtalk_dir = "%s/crosstalk/%s" % (self.mastercal_dir, self.fpl.layout.lower())
+
+            print "XTALK-DIR: ", xtalk_dir
+            history_fn = "%s/crosstalk.history" % (xtalk_dir)
+            hist = CalibrationHistory(history_fn)
+            fn = hist.find(mjd)
+
+            if (fn is None):
+                return None
+
+            full_filename = "%s/%s" % (xtalk_dir, fn)
+            print full_filename
+
+        return self.verify_fn(full_filename)
 
 
 
