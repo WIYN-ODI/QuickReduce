@@ -375,6 +375,8 @@ Calibration data:
 
     options['crosstalk'] = cmdline_arg_set_or_default2("-crosstalk", "auto")
 
+    options['pupilghost_dir'] = cmdline_arg_set_or_default2("-pupilghost", "auto")
+
     options['trimcell'] = cmdline_arg_set_or_default("-trimcell", None)
     if (not options['trimcell'] == None):
         try:
