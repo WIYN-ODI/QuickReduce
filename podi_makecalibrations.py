@@ -836,6 +836,11 @@ podi_makecalibrations.py input.list calib-directory
     reference = None
     if (cmdline_arg_isset("-reference")):
         reference = cmdline_arg_set_or_default("-reference", None)
+        if (reference is not None):
+            items = reference.split(",")
+            if (len(items) > 1):
+                # we have multiple files
+                reference = items
 
     # Check if we are to throw all flats (DFLATs _and_ TFLATs) into the same 
     # output file, or keep them separate (default)
