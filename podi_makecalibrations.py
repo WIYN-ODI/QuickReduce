@@ -703,7 +703,24 @@ def compare_to_reference(hdulist, references, return_reference=False):
 
     if (type(references) == list):
         # search for the right file
-        return error_return
+        found_match = False
+        for fn in references:
+            if (not os.path.isfile(fn)):
+                continue
+            refhdu = pyfits.open(fn)
+            if (not refhdu[0].header['OBSTYPE'] == hdulist[0].header['OBSTYPE']):
+                refhdu.close()
+                continue
+            if (hdulist[0].header['OBSTYPE'] in ['DFLAT','TFLAT'] and
+                    not hdulist[0].header['FILTER'] == refhdu[0].header['FILTER']):
+                refhdu.close()
+                continue
+            found_match = True
+            ref_return = fn
+            break
+        if (not found_match):
+            return error_return
+
     elif (os.path.isdir(references)):
         # this is a directory, construct the filename based on the usual rules
         if (obstype == "BIAS"):
