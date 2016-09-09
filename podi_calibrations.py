@@ -204,7 +204,7 @@ class ODICalibrations(object):
     # PUPILGHOST #######################
     #
     def apply_pupilghost(self):
-        print "considering PG correction",(not self.options['pupilghost_dir'] == False)
+        # print "considering PG correction",(not self.options['pupilghost_dir'] == False)
         return (not self.options['pupilghost_dir'] == False)
 
     def pupilghost(self, mjd=0, filter_level=None, binning=None):
@@ -214,7 +214,7 @@ class ODICalibrations(object):
         if (binning is None):
             binning = self.binning
 
-        print "Looking for pupilghost filename"
+        # print "Looking for pupilghost filename"
 
         pg_dir = self.options['pupilghost_dir']
         if (pg_dir is not None and os.path.isfile(pg_dir)):
@@ -239,7 +239,7 @@ class ODICalibrations(object):
     # BAD PIXEL MASK #######################
     #
     def apply_bpm(self):
-        #print self.options['bpm_dir']
+        # print self.options['bpm_dir']
         return (not self.options['bpm_dir'] == False)
     def bpm(self, ota, fpl=None, layout=None):
 
@@ -352,7 +352,7 @@ class ODICalibrations(object):
     # CROSSTALK #######################
     #
     def apply_crosstalk(self):
-        print "XTALK:", self.options['crosstalk']
+        # print "XTALK:", self.options['crosstalk']
         return (not self.options['crosstalk'] == False)
 
     def crosstalk(self, mjd=0, ota=None):
@@ -367,7 +367,7 @@ class ODICalibrations(object):
             else:
                 xtalk_dir = "%s/crosstalk/%s" % (self.mastercal_dir, self.fpl.layout.lower())
 
-            print "XTALK-DIR: ", xtalk_dir
+            # print "XTALK-DIR: ", xtalk_dir
             history_fn = "%s/crosstalk.history" % (xtalk_dir)
             hist = CalibrationHistory(history_fn)
             fn = hist.find(mjd)
@@ -376,7 +376,7 @@ class ODICalibrations(object):
                 return None
 
             full_filename = "%s/%s" % (xtalk_dir, fn)
-            print full_filename
+            # print full_filename
 
         return self.verify_fn(full_filename)
 

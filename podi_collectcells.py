@@ -539,7 +539,7 @@ def collect_reduce_ota(filename,
             reduction_log.fail('crosstalk')
         else:
             xtalk_file = mastercals.crosstalk(mjd, ota)
-            logger.info("Starting crosstalk correction (%s)" % (extname))
+            logger.debug("Starting crosstalk correction (%s)" % (extname))
             reduction_files_used['crosstalk'] = xtalk_file
 
             outcome = podi_crosstalk.apply_crosstalk_correction(
