@@ -1473,21 +1473,21 @@ def collect_reduce_ota(filename,
     filter_level = get_filter_level(hdulist[0].header)
     filter_name = get_valid_filter_name(hdulist[0].header)
     if (not mastercals.apply_pupilghost()):
-        logger.info("PG not selected")
+        logger.debug("PG not selected")
         reduction_log.not_selected('pupilghost')
     elif (False): #not 'PGAFCTD' in hdu.header or not hdu.header['PGAFCTD']):
         # This frame does not contain the keyword labeling it as affected by
         # the pupilghost. In that case we don't need to do anything
-        logger.info("This extension (%s) does not have any pupilghost problem" % (extname))
+        logger.debug("This extension (%s) does not have any pupilghost problem" % (extname))
         reduction_log.not_required('pupilghost')
     elif (mastercals.pupilghost() is None):
         reduction_log.missing_data('pupilghost')
         logger.critical("Pupilghost correction requested, but no template found")
     else:
-        logger.info("Getting ready to subtract pupil ghost from science frame")
+        logger.debug("Getting ready to subtract pupil ghost from science frame")
         # binning = ota_list[0].header['BINNING']
         pg_template = mastercals.pupilghost()
-        logger.info("looking for pupil ghost template %s..." % (pg_template))
+        logger.debug("looking for pupil ghost template %s..." % (pg_template))
 
         # If we have a template for this level
         logger.debug("\n   Using pupilghost template %s, filter %s ... " % (pg_template, filter_name))
@@ -1506,7 +1506,7 @@ def collect_reduce_ota(filename,
             pgcenter = 'data'
         else:
 
-            logger.info("Using PG center position: %f %f" % (
+            logger.debug("Using PG center position: %f %f" % (
                 pupilghost_center_x, pupilghost_center_y))
 
             pgcenter = numpy.array([pupilghost_center_x, pupilghost_center_y])
@@ -1515,7 +1515,7 @@ def collect_reduce_ota(filename,
                 pgcenter = 'data'
 
         # Compute the pupilghost image for this OTA at the right orientation
-        logger.info("Starting pg scaling")
+        logger.debug("Starting pg scaling")
         pupilghost_template = podi_matchpupilghost.compute_pupilghost_template_ota(
             hdu, pg_hdu,
             rotate=True,
@@ -1525,7 +1525,7 @@ def collect_reduce_ota(filename,
 
         data_products['pupilghost-template'] = pupilghost_template
         if (pupilghost_template is not None):
-            print "PG-template:", extname, "\n", pupilghost_template
+            # print "PG-template:", extname, "\n", pupilghost_template
             _, pupilghost_scaling = podi_matchpupilghost.get_pupilghost_scaling_ota(
                 science_hdu=hdu,
                 pupilghost_frame=pg_hdu, #pupilghost_template,
@@ -1534,7 +1534,7 @@ def collect_reduce_ota(filename,
                 pg_matched=True,
                 return_all=True,
             )
-            print pupilghost_scaling
+            # print pupilghost_scaling
             data_products['pupilghost-scaling'] = pupilghost_scaling
             logger.debug("PG scaling:\n%s" % (str(pupilghost_scaling)))
             reduction_log.attempt('pupilghost')
