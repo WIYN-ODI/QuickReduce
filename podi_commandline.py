@@ -386,6 +386,15 @@ Calibration data:
 
     options['compressed_hdu'] = cmdline_arg_isset("-fpack")
 
+
+    #
+    # Set default values to enable some options by default
+    #
+    default_opts = ['wcs_distortion', 'crosstalk', 'nonlinearity']
+    for opt in default_opts:
+        if (options[opt] == False and options[opt] is not None and options[opt] not in ["-","no"]):
+            options[opt] = None
+
     return options
 
 
