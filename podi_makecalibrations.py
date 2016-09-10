@@ -768,6 +768,8 @@ def compare_to_reference(hdulist, references, return_reference=False, save_diff=
         # diff_fn = "diff_%s.fits" % (obstype)
         logger.info("Saving diff-frame to %s" % (save_diff))
         clobberfile(save_diff)
+        diff[0].header['REFCOMP'] = (os.path.abspath(ref_return), "reference frame")
+        diff[0].header['REFCMPOP'] = (op, "comparison operator")
         diff.writeto(save_diff, clobber=True)
 
     return diff if not return_reference else diff, ref_return
