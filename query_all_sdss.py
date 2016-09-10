@@ -45,13 +45,7 @@ def run_query(sql_query):
     #print "_______",fsql,"_________"
     params = urllib.urlencode({'cmd': fsql, 'format': 'csv'})
     #print params
-
-    # SDSS-DR 8
-    # url = 'http://skyserver.sdss3.org/dr8/en/tools/search/x_sql.asp'
-
-    # SDSS DR13
-    url = 'http://skyserver.sdss.org/dr13/en/tools/search/sql.aspx'
-
+    url = 'http://skyserver.sdss3.org/dr8/en/tools/search/x_sql.asp'
     sdss = urllib.urlopen(url+'?%s' % params)
     # Budavari end
 
@@ -120,45 +114,66 @@ if __name__ == "__main__":
                 print "#########################"
             
             
-        count_entries = """\
-SELECT COUNT(*) from Star
-where
-ra>%(ramin)f and ra<%(ramax)f and
-dec between %(min_dec)f and %(max_dec)f
-AND ((flags_r & 0x10000000) != 0)
--- detected in BINNED1
-AND ((flags_r & 0x8100000c00a4) = 0)
--- not EDGE, NOPROFILE, PEAKCENTER, NOTCHECKED, PSF_FLUX_INTERP,
--- SATURATED, or BAD_COUNTS_ERROR
-AND (((flags_r & 0x400000000000) = 0) or (psfmagerr_r <= 0.2))
--- not DEBLEND_NOPEAK or small PSF error
--- (substitute psfmagerr in other band as appropriate)
-AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
--- not INTERP_CENTER or not COSMIC_RAY""" % \
-            {"ramin": r_min[i], 
-             "ramax": r_max[i],
-#             "min_dec": -30, 
-#             "max_dec": -32,}
-             "min_dec": d_min[i], 
-             "max_dec": d_max[i],}
+#         count_entries = """\
+# SELECT COUNT(*) from Star
+# where
+# ra>%(ramin)f and ra<%(ramax)f and
+# dec between %(min_dec)f and %(max_dec)f
+# AND ((flags_r & 0x10000000) != 0)
+# -- detected in BINNED1
+# AND ((flags_r & 0x8100000c00a4) = 0)
+# -- not EDGE, NOPROFILE, PEAKCENTER, NOTCHECKED, PSF_FLUX_INTERP,
+# -- SATURATED, or BAD_COUNTS_ERROR
+# AND (((flags_r & 0x400000000000) = 0) or (psfmagerr_r <= 0.2))
+# -- not DEBLEND_NOPEAK or small PSF error
+# -- (substitute psfmagerr in other band as appropriate)
+# AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
+# -- not INTERP_CENTER or not COSMIC_RAY""" % \
+#             {"ramin": r_min[i],
+#              "ramax": r_max[i],
+# #             "min_dec": -30,
+# #             "max_dec": -32,}
+#              "min_dec": d_min[i],
+#              "max_dec": d_max[i],}
+#
+#         #print count_entries
+#
+#         answer = run_query(count_entries)
+#         #print "___",answer,"___"
+#
+#         if (len(answer) > 2):
+#             print ''.join(answer)
+#             continue
+#
+#         count = int(answer[1].strip())
+#         print "---> expecting %s stars as result" % (count)
+#         #print ''.join(answer)
 
-        #print count_entries
+        #
+        # Query SDSS for the expected number of sources
+        #
+        source_count, sdss_sql_query = podi_search_ipprefcat.load_catalog_from_sdss(
+            ra=[r_min[i], r_max[i]],
+            dec=[d_min[i], d_max[i]],
+            sdss_filter="r",
+            return_query=True,
+            dr=13,
+            count_only=True,
+        )
+        #print sdss_results, type(sdss_results), sdss_results.shape
+        #source_count = sdss_results.astype(numpy.int) + 0
+        print source_count
 
-        answer = run_query(count_entries)
-        #print "___",answer,"___"
 
-        if (len(answer) > 2):
-            print ''.join(answer)
-            continue
+        if (source_count > 0):
 
-        count = int(answer[1].strip())
-        print "---> expecting %s stars as result" % (count)
-        #print ''.join(answer)
-
-        if (count > 0):
-            
             catalog, sqlquery = podi_search_ipprefcat.load_catalog_from_sdss(
-                [r_min[i], r_max[i]], [d_min[i], d_max[i]], "r", return_query=True)
+                ra=[r_min[i], r_max[i]],
+                dec=[d_min[i], d_max[i]],
+                sdss_filter="r",
+                return_query=True,
+                dr=13,
+                count_only=False,
             )
             # podi_photcalib.load_catalog_from_sdss([r_min[i], r_max[i]], [d_min[i], d_max[i]], "r", return_query=True)
             #print catalog.shape
@@ -170,11 +185,13 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
             sdss_cat = numpy.zeros(shape=(0,12))
             print "nothing expected..."
 
+        print sdss_cat.shape
+
         # Create a catalog to hold the results:
-        
+
         #sys.exit(0)
 
-        columns = [\
+        columns = [
             pyfits.Column(name='RA',       format='E', unit='degrees',    array=sdss_cat[:, 0], disp='right ascension'),
             pyfits.Column(name='DEC',      format='E', unit='degrees',    array=sdss_cat[:, 1], disp='declination'),
             pyfits.Column(name='MAG_U',    format='E', unit='magnitudes', array=sdss_cat[:, 2], disp='photometry in u'),
@@ -194,7 +211,7 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
         #print sqlquery.replace("\n", " ")
         primhdu.header.add_history("SQL-Query sent to SDSS:")
         primhdu.header.add_history(sqlquery.replace("\n", " "))
-        primhdu.header["EXPCOUNT"] = (count, "expected return count")
+        primhdu.header["EXPCOUNT"] = (source_count, "expected return count")
         primhdu.header["CNTSRECV"] = (sdss_cat.shape[0], "returned count")
         primhdu.header["R_MIN"] = (r_min[i], "min RA")
         primhdu.header["R_MAX"] = (r_max[i], "max RA")
@@ -202,7 +219,7 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
         primhdu.header["D_MAX"] = (d_max[i], "max DEC")
 
         coldefs = pyfits.ColDefs(columns)
-        tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
+        tbhdu = pyfits.BinTableHDU.from_columns(coldefs)
 
         hdulist = pyfits.HDUList([primhdu, tbhdu])
         hdulist.writeto(cat_fitsfile, clobber=True)

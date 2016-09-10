@@ -34,6 +34,9 @@ from podi_definitions import *
 from podi_commandline import *
 import pyfits
 
+import urllib
+import urllib2
+
 IPP_DIR = "/Volumes/odifile/Catalogs/IPPRefCat/catdir.synth.grizy/"
 
 def twomass_from_cds(ra, dec, radius, verbose):
@@ -74,7 +77,148 @@ def twomass_from_cds(ra, dec, radius, verbose):
 
 
 
-def load_catalog_from_sdss(ra, dec, sdss_filter, verbose=False, return_query=False, max_catsize=-1):
+def query_sdss_dr8(sql_query):
+    # Taken from Tomas Budavari's sqlcl script
+    # see http://skyserver.sdss3.org/dr8/en/help/download/sqlcl/default.asp
+    import urllib
+    # Filter out comments starting with "--"
+    fsql = ""
+    for line in sql_query.split('\n'):
+        fsql += line.split('--')[0] + ' ' + os.linesep;
+    params = urllib.urlencode({'cmd': fsql, 'format': 'csv'})
+    url = 'http://skyserver.sdss3.org/dr8/en/tools/search/x_sql.asp'
+    sdss = urllib.urlopen(url + '?%s' % params)
+    # Budavari end
+
+
+    answer = []
+    for line in sdss:
+        if (max_catsize > 0 and len(answer) >= max_catsize):
+            break
+        answer.append(line)
+        if (((len(answer) - 1) % 10) == 0):
+            if (verbose): stdout_write("\rFound %d stars so far ..." % (len(answer) - 1))
+    # answer = sdss.readlines()
+    if (answer[0].strip() == "No objects have been found"):
+        stdout_write(" nothing found\n")
+        if (return_query):
+            return numpy.zeros(shape=(0, 12)), fsql  # sql_query
+        return numpy.zeros(shape=(0, 12))
+
+    # stdout_write(" found %d stars!\n" % (len(answer)-1))
+    logger.debug(" found %d stars!\n" % (len(answer) - 1))
+
+    if (verbose):
+        print "Returned from SDSS:"
+        print "####################################################"
+        print ''.join(answer)
+        print "####################################################"
+
+    # If we are here, then the query returned at least some results.
+    # Dump the first line just repeating what the output was
+    del answer[0]
+
+    # if (verbose): print "Found %d results" % (len(answer))
+    results = numpy.zeros(shape=(len(answer), 12))
+    # Results are comma-separated, so split them up and save as numpy array
+    for i in range(len(answer)):
+        items = answer[i].split(",")
+        for col in range(len(items)):
+            results[i, col] = float(items[col])
+            # ra, dec = float(items[0]), float(items[1])
+            # mag, mag_err =  float(items[2]), float(items[3])
+            # results[i, :] = [ra, dec, mag, mag, mag_err, mag_err]
+
+    return results
+
+
+
+def query_sdss_dr13(sql_query):
+
+    # Filter out comments starting with "--"
+    fsql = ""
+    for line in sql_query.split('\n'):
+        no_comment =line.split('--')[0]
+        if (len(no_comment) <= 0):
+            continue
+        fsql += no_comment + ' ' + os.linesep;
+
+    get_params = {
+        'cmd': fsql,
+        'format': 'csv',
+        'searchtool': 'SQL',
+        'TaskName': "Skyserver.Search.SQL",
+        'syntax': 'NoSyntax',
+        'ReturnHtml': 'false',
+        'TableName': ''
+    }
+    params = urllib.urlencode(get_params)
+
+
+    url = 'http://skyserver.sdss.org/dr13/en/tools/search/x_results.aspx'
+    #return fsql
+
+    full_url = url + '?%s' % params
+    sdss = urllib2.urlopen(full_url)
+
+    # print fsql
+    # print full_url
+    sdss_results = ""
+    # while (True):
+    #     try:
+
+
+    answer = sdss.read()
+    sdss_results += answer
+        # except Exception as e:
+        #     print "exception while reading from URL:\n",e
+
+
+    # data = numpy.genfromtxt(sdss, dtype=float, delimiter=',', names=True, skip_header=1)
+    # print data
+
+
+    lines = sdss_results.splitlines()
+    #
+    column_names = lines[1].split(",")
+
+    n_rows = len(lines)-2
+    n_columns = len(column_names)
+
+    print "Found %d items, each with %d return columns" % (n_rows, n_columns)
+    if (n_rows == 1 and n_columns == 1):
+        return float(lines[2])
+
+    # allocate numpy data buffer
+    data_buffer = numpy.empty((n_rows, n_columns))
+    for i,line in enumerate(lines[2:]):
+        data = numpy.fromstring(line, dtype=numpy.float, count=n_columns, sep=',').reshape((1,-1))
+        data_buffer[i,:] = data[:]
+
+    # data = "\n".join(lines[2:])
+    # data = numpy.fromstring("\n".join(lines[2:]))
+    # print lines
+    # print column_names
+    # print data
+    #
+    # print data_buffer
+
+    return data_buffer
+
+
+    # http://skyserver.sdss.org/dr13/en/tools/search/x_results.aspx?
+    # searchtool=SQL&
+    # TaskName=Skyserver.Search.SQL&
+    # syntax=NoSyntax&
+    # ReturnHtml=false&
+    # cmd=SELECT+COUNT%28*%29+from+Star+%0D%0Awhere+%0D%0Ara%3E15.000000+and+ra%3C17.500000+and+%0D%0Adec+between+0.000000+and+2.500000+%0D%0AAND+%28%28flags_r+%26+0x10000000%29+%21%3D+0%29+%0D%0A+%0D%0AAND+%28%28flags_r+%26+0x8100000c00a4%29+%3D+0%29+%0D%0A+%0D%0A+%0D%0AAND+%28%28%28flags_r+%26+0x400000000000%29+%3D+0%29+or+%28psfmagerr_r+%3C%3D+0.2%29%29+%0D%0A+%0D%0A+%0D%0AAND+%28%28%28flags_r+%26+0x100000000000%29+%3D+0%29+or+%28flags_r+%26+0x1000%29+%3D+0%29+%0D%0A&
+    # format=csv&
+    # TableName=
+
+
+
+
+def load_catalog_from_sdss(ra, dec, sdss_filter, verbose=False, return_query=False, max_catsize=-1, dr=13, count_only=False):
     """
     Query the SDSS online and return a catalog of sources within the specified 
     area
@@ -142,12 +286,21 @@ def load_catalog_from_sdss(ra, dec, sdss_filter, verbose=False, return_query=Fal
         min_dec = dec - 0.6
         max_dec = dec + 0.6
 
+
+    if (count_only):
+        select = "COUNT(*)"
+    else:
+        if (dr == 8):
+            select = "ra,dec, u, err_u, g, err_g, r, err_r, i, err_i, z, err_z"
+        else:
+            select = "ra, dec, psfMag_u, psfMagErr_u, psfMag_g, psfMagErr_g, psfMag_r, psfMagErr_r, psfMag_i, psfMagErr_i, psfMag_z, psfMagErr_z"
+
     #
     # This query is taken from the SDSS website and selects stars with clean photometry
     # --> http://skyserver.sdss3.org/dr8/en/help/docs/realquery.asp#cleanStars
     #
     sql_query = """\
-SELECT ra,dec, psfMag_u, psfMagErr_u, psfMag_g, psfMagErr_g, psfMag_r, psfMagErr_r, psfMag_i, psfMagErr_i, psfMag_z, psfMagErr_z
+SELECT %(select)s
 FROM Star 
 WHERE 
 %(ra_query)s AND dec BETWEEN %(min_dec)f and %(max_dec)f
@@ -165,6 +318,7 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
        "min_ra": min_ra, "max_ra": max_ra,
        "min_dec": min_dec, "max_dec": max_dec,
        "ra_query": ra_query,
+       "select": select,
        }
 
     if (verbose): print sql_query
@@ -172,65 +326,19 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
     logger.debug(sql_query)
 
     # stdout_write("Downloading catalog from SDSS ...")
+    if (dr == 8):
+        results = query_sdss_dr8(sql_query)
+    else:
+        results = query_sdss_dr13(sql_query)
 
-    # Taken from Tomas Budavari's sqlcl script
-    # see http://skyserver.sdss3.org/dr8/en/help/download/sqlcl/default.asp 
-    import urllib
-    # Filter out comments starting with "--"
-    fsql = ""
-    for line in sql_query.split('\n'):
-        fsql += line.split('--')[0] + ' ' + os.linesep;
-    params = urllib.urlencode({'cmd': fsql, 'format': 'csv'})
-    # SDSS-DR 8
-    # url = 'http://skyserver.sdss3.org/dr8/en/tools/search/x_sql.asp'
+    if (count_only):
+        # this is awkward, but the return-type is a 0-d numpy array that first needs to
+        # be converted into a plain number
+        results = int(results)
 
-    # SDSS DR13
-    url = 'http://skyserver.sdss.org/dr13/en/tools/search/sql.aspx'
-    sdss = urllib.urlopen(url+'?%s' % params)
-    # Budavari end
-
-
-    answer = []
-    for line in sdss:
-        if (max_catsize > 0 and len(answer) >= max_catsize):
-            break
-        answer.append(line)
-        if (((len(answer)-1)%10) == 0):
-            if (verbose): stdout_write("\rFound %d stars so far ..." % (len(answer)-1))
-    #answer = sdss.readlines()
-    if (answer[0].strip() == "No objects have been found"):
-        stdout_write(" nothing found\n")
-        if (return_query):
-            return numpy.zeros(shape=(0,12)), fsql #sql_query
-        return numpy.zeros(shape=(0,12))
-
-    # stdout_write(" found %d stars!\n" % (len(answer)-1))
-    logger.debug(" found %d stars!\n" % (len(answer)-1))
-
-    if (verbose):
-        print "Returned from SDSS:"
-        print "####################################################"
-        print ''.join(answer)
-        print "####################################################"
-
-    # If we are here, then the query returned at least some results.
-    # Dump the first line just repeating what the output was
-    del answer[0]
-
-    
-    # if (verbose): print "Found %d results" % (len(answer))
-    results = numpy.zeros(shape=(len(answer),12))
-    # Results are comma-separated, so split them up and save as numpy array
-    for i in range(len(answer)):
-        items = answer[i].split(",")
-        for col in range(len(items)):
-            results[i, col] = float(items[col])
-        #ra, dec = float(items[0]), float(items[1])
-        #mag, mag_err =  float(items[2]), float(items[3])
-        #results[i, :] = [ra, dec, mag, mag, mag_err, mag_err]
-    
     if (return_query):
-        return results, fsql #sql_query
+        return results, sql_query
+
     return results
 
 
