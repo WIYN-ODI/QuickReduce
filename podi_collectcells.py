@@ -4698,7 +4698,7 @@ def collectcells(input, outputfile,
     unstage_data(options, staged_data, input)
     logger.debug("Done unstaging data!")
 
-    podi_logging.print_stacktrace()
+    # podi_logging.print_stacktrace()
 
     if (batchmode):
         logger.info("All work completed successfully, parsing output for further processing")
