@@ -691,7 +691,7 @@ def gain_readnoise_to_tech_hdu(hdulist, gain, readnoise):
 
 
 
-def compare_to_reference(hdulist, references, return_reference=False):
+def compare_to_reference(hdulist, references, return_reference=False, save_diff=None):
 
     logger = logging.getLogger("Compare2Reference")
 
@@ -764,7 +764,11 @@ def compare_to_reference(hdulist, references, return_reference=False):
     logger.info("Using comparison operator: %s" % (op))
     diff = podi_imarith.hdu_imarith(hdulist, op, refhdu)
 
-    diff.writeto("diff_%s.fits" % (obstype), clobber=True)
+    if (save_diff is not None):
+        # diff_fn = "diff_%s.fits" % (obstype)
+        logger.info("Saving diff-frame to %s" % (save_diff))
+        clobberfile(save_diff)
+        diff.writeto(save_diff, clobber=True)
 
     return diff if not return_reference else diff, ref_return
 
@@ -851,6 +855,7 @@ podi_makecalibrations.py input.list calib-directory
         logger.info("Applying non-linearity correction")
 
     reference = None
+    save_refcomp = False
     if (cmdline_arg_isset("-reference")):
         reference = cmdline_arg_set_or_default("-reference", None)
         if (reference is not None):
@@ -858,6 +863,8 @@ podi_makecalibrations.py input.list calib-directory
             if (len(items) > 1):
                 # we have multiple files
                 reference = items
+        save_refcomp = cmdline_arg_isset("-saverefcomp")
+
 
     # Check if we are to throw all flats (DFLATs _and_ TFLATs) into the same 
     # output file, or keep them separate (default)
@@ -1067,7 +1074,13 @@ podi_makecalibrations.py input.list calib-directory
 
                 # compare to reference frame
                 if (reference is not None):
-                    diff, ref_fn = compare_to_reference(bias_hdu, reference, return_reference = True)
+                    diff_fn = bias_frame[:-5]+".refcomp.fits" if save_refcomp else None
+                    diff, ref_fn = compare_to_reference(
+                            bias_hdu,
+                            reference,
+                            return_reference = True,
+                            save_diff = diff_fn
+                    )
                     podi_diagnosticplots.plot_cellbycell_stats(
                         hdulist = diff,
                         title = "difference %s vs %s" % (bias_frame, ref_fn),
@@ -1143,7 +1156,8 @@ podi_makecalibrations.py input.list calib-directory
 
                 # compare to reference frame
                 if (reference is not None):
-                    diff, ref_fn = compare_to_reference(dark_hdu, reference, return_reference=True)
+                    diff_fn = dark_frame[:-5]+".refcomp.fits" if save_refcomp else None
+                    diff, ref_fn = compare_to_reference(dark_hdu, reference, return_reference=True, save_diff=diff_fn)
                     podi_diagnosticplots.plot_cellbycell_stats(
                         hdulist=diff,
                         title="difference %s vs %s" % (dark_frame, ref_fn),
@@ -1472,7 +1486,13 @@ podi_makecalibrations.py input.list calib-directory
 
                         # compare to reference frame
                         if (reference is not None):
-                            diff, ref_fn = compare_to_reference(flat_hdus, reference, return_reference=True)
+                            diff_fn = flat_frame[:-5] + ".refcomp.fits" if save_refcomp else None
+                            diff, ref_fn = compare_to_reference(
+                                    flat_hdus,
+                                    reference,
+                                    return_reference=True,
+                                    save_diff=diff_fn
+                            )
                             podi_diagnosticplots.plot_cellbycell_stats(
                                 hdulist=diff,
                                 title="difference %s vs %s" % (flat_frame, ref_fn),
