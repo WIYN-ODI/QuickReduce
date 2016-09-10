@@ -1627,24 +1627,10 @@ def plot_cellbycell_stats(
             all_label_coords.append([x1, y1])
 
     if (crossout_missing):
-        # codes = [matplotlib.path.Path.MOVETO,
-        #          matplotlib.path.Path.LINETO,
-        #          matplotlib.path.Path.LINETO,
-        #          matplotlib.path.Path.LINETO,
-        #          matplotlib.path.Path.LINETO,
-        #          matplotlib.path.Path.LINETO,
-        #          matplotlib.path.Path.MOVETO,
-        #          matplotlib.path.Path.LINETO,
-        #  ]
-        # for line in lines_to_plot:
-        #     print line
-        #     path = matplotlib.path.Path(line, codes)
-        #     patch = matplotlib.patches.PathPatch(path, facecolor=None)
-        #     ax.add_patch(patch)
         all_lines = numpy.array(lines_to_plot)
-        print all_lines
-        print all_lines.shape
-        print all_lines[0, :, :]
+        # print all_lines
+        # print all_lines.shape
+        # print all_lines[0, :, :]
 
         ax.plot(all_lines[:, :, 0].flatten(),
                 all_lines[:, :, 1].flatten(),
