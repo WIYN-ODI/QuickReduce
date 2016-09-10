@@ -31,7 +31,7 @@ from podi_definitions import *
 import pyfits
 
 import podi_photcalib
-
+import podi_search_ipprefcat
 
 def run_query(sql_query):
 
@@ -45,7 +45,13 @@ def run_query(sql_query):
     #print "_______",fsql,"_________"
     params = urllib.urlencode({'cmd': fsql, 'format': 'csv'})
     #print params
-    url = 'http://skyserver.sdss3.org/dr8/en/tools/search/x_sql.asp'
+
+    # SDSS-DR 8
+    # url = 'http://skyserver.sdss3.org/dr8/en/tools/search/x_sql.asp'
+
+    # SDSS DR13
+    url = 'http://skyserver.sdss.org/dr13/en/tools/search/sql.aspx'
+
     sdss = urllib.urlopen(url+'?%s' % params)
     # Budavari end
 
@@ -151,7 +157,10 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
 
         if (count > 0):
             
-            catalog, sqlquery = podi_photcalib.load_catalog_from_sdss([r_min[i], r_max[i]], [d_min[i], d_max[i]], "r", return_query=True)
+            catalog, sqlquery = podi_search_ipprefcat.load_catalog_from_sdss(
+                [r_min[i], r_max[i]], [d_min[i], d_max[i]], "r", return_query=True)
+            )
+            # podi_photcalib.load_catalog_from_sdss([r_min[i], r_max[i]], [d_min[i], d_max[i]], "r", return_query=True)
             #print catalog.shape
 
             #print catalog[:10]

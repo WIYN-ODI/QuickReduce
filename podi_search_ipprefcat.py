@@ -147,7 +147,7 @@ def load_catalog_from_sdss(ra, dec, sdss_filter, verbose=False, return_query=Fal
     # --> http://skyserver.sdss3.org/dr8/en/help/docs/realquery.asp#cleanStars
     #
     sql_query = """\
-SELECT ra,dec, u, err_u, g, err_g, r, err_r, i, err_i, z, err_z
+SELECT ra,dec, psfMag_u, psfMagErr_u, psfMag_g, psfMagErr_g, psfMag_r, psfMagErr_r, psfMag_i, psfMagErr_i, psfMag_z, psfMagErr_z
 FROM Star 
 WHERE 
 %(ra_query)s AND dec BETWEEN %(min_dec)f and %(max_dec)f
@@ -181,7 +181,11 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
     for line in sql_query.split('\n'):
         fsql += line.split('--')[0] + ' ' + os.linesep;
     params = urllib.urlencode({'cmd': fsql, 'format': 'csv'})
-    url = 'http://skyserver.sdss3.org/dr8/en/tools/search/x_sql.asp'
+    # SDSS-DR 8
+    # url = 'http://skyserver.sdss3.org/dr8/en/tools/search/x_sql.asp'
+
+    # SDSS DR13
+    url = 'http://skyserver.sdss.org/dr13/en/tools/search/sql.aspx'
     sdss = urllib.urlopen(url+'?%s' % params)
     # Budavari end
 
