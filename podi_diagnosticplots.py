@@ -1533,6 +1533,7 @@ def plot_cellbycell_stats(
         showlabels=True,
         units=None,
         crossout_missing=True,
+        plotformat=None,
 ):
     """
 
@@ -1548,6 +1549,9 @@ def plot_cellbycell_stats(
 
     if (title is not None):
         ax.set_title(title, fontsize=10.)
+
+    if (plotformat is None):
+        plotformat = ['pdf']
 
     fpl = podi_focalplanelayout.FocalPlaneLayout(hdulist)
 
@@ -1697,7 +1701,12 @@ def plot_cellbycell_stats(
 
     logger.debug("Saving plot as %s" % (plotfile))
     fig.set_size_inches(8, 6)
-    fig.savefig(plotfile, dpi=300, bbox_inches='tight')
+    for ft in plotformat:
+        plot_fn = "%s.%s" % (plotfile, ft)
+        try:
+            fig.savefig(plot_fn, dpi=300, bbox_inches='tight')
+        except (IOError, ValueError) as err:
+            logger.error("Unable to create %s: %s" % (plot_fn, str(err)))
 
     matplotlib.pyplot.close(fig)
     matplotlib.pyplot.close()

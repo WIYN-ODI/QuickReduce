@@ -1072,11 +1072,12 @@ podi_makecalibrations.py input.list calib-directory
                         hdulist = diff,
                         title = "difference %s vs %s" % (bias_frame, ref_fn),
                         vmin = -15., vmax = 15.,
-                        plotfile = bias_frame[:-5] + ".refcomp.pdf",
+                        plotfile = bias_frame[:-5] + ".refcomp",
                         showlabels = True,
                         stats = [("", numpy.nanmean), ("", numpy.std)],
                         numberformat = "%.3f",
-                        units="bias counts [ADU]"
+                        units="bias counts [ADU]",
+                        plotformat=options['plotformat'],
                     )
                 bias_hdu.close()
                 del bias_hdu
@@ -1148,11 +1149,12 @@ podi_makecalibrations.py input.list calib-directory
                         title="difference %s vs %s" % (dark_frame, ref_fn),
                         vmin=-0.025, #15./dark_hdu[0].header['EXPTIME'],
                         vmax=+0.025, #15./dark_hdu[0].header['EXPTIME'],
-                        plotfile=dark_frame[:-5] + ".refcomp.pdf",
+                        plotfile=dark_frame[:-5] + ".refcomp",
                         showlabels=True,
                         stats=[("", numpy.nanmean), ("", numpy.std)],
                         numberformat="%.3f",
                         units="dark current [ADU/s]",
+                        plotformat=options['plotformat'],
                     )
 
                 dark_hdu.close()
@@ -1475,11 +1477,12 @@ podi_makecalibrations.py input.list calib-directory
                                 hdulist=diff,
                                 title="difference %s vs %s" % (flat_frame, ref_fn),
                                 vmin=0.95, vmax=1.05,
-                                plotfile=flat_frame[:-5]+".refcomp.pdf",
+                                plotfile=flat_frame[:-5]+".refcomp",
                                 showlabels=True,
                                 stats = [("", numpy.nanmean),("", numpy.std)],
                                 numberformat="%.3f",
-                                units="relative throughput"
+                                units="relative throughput",
+                                plotformat=options['plotformat'],
                             )
 
                         flat_hdus.close()
