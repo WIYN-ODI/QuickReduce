@@ -100,6 +100,8 @@ import logging
 import podi_sitesetup as sitesetup
 import podi_focalplanelayout
 import podi_associations
+import podi_imarith
+import podi_diagnosticplots
 
 def strip_fits_extension_from_filename(filename):
     """
@@ -687,6 +689,93 @@ def gain_readnoise_to_tech_hdu(hdulist, gain, readnoise):
     return 
 
 
+
+
+def compare_to_reference(hdulist, references, return_reference=False, save_diff=None):
+
+    logger = logging.getLogger("Compare2Reference")
+
+    obstype = hdulist[0].header['OBSTYPE']
+    binning = hdulist[0].header['BINNING']
+
+    ref_return = None
+    error_return = None if not return_reference else None, None
+
+    if (type(references) == list):
+        # search for the right file
+        found_match = False
+        for fn in references:
+            if (not os.path.isfile(fn)):
+                continue
+            refhdu = pyfits.open(fn)
+            if (not refhdu[0].header['OBSTYPE'] == hdulist[0].header['OBSTYPE']):
+                refhdu.close()
+                continue
+            if (hdulist[0].header['OBSTYPE'] in ['DFLAT','TFLAT'] and
+                    not hdulist[0].header['FILTER'] == refhdu[0].header['FILTER']):
+                refhdu.close()
+                continue
+            found_match = True
+            ref_return = fn
+            break
+        if (not found_match):
+            return error_return
+
+    elif (os.path.isdir(references)):
+        # this is a directory, construct the filename based on the usual rules
+        if (obstype == "BIAS"):
+            fn = "%s/bias_bin%d.fits" % (references, binning)
+        elif (obstype == "DARK"):
+            fn = "%s/dark_yes_bin%d.fits" % (references, binning)
+        elif (obstype in ['DFLAT', 'TFLAT']):
+            filtername = hdulist[0].header['FILTER']
+            fn = "%s/%s_%s_bin%d.fits" % (references, obstype.lower(), filtername, binning)
+        else:
+            return error_return
+        logger.info("Checking for reference file: %s" % (fn))
+        if (os.path.isfile(fn)):
+            refhdu = pyfits.open(fn)
+            ref_return = fn
+        else:
+            logger.warning("No reference file found!")
+            return error_return
+    elif (os.path.isfile(references)):
+        # if it's a file, just open it
+        refhdu = pyfits.open(references)
+        ref_return = references
+    elif (type(references) == pyfits.hdu.HDUList):
+        # if its a fits-file, use it directly
+        refhdu = references
+        ref_return = "in_memory"
+
+    if (hdulist is None or refhdu is None):
+        return error_return
+
+    #
+    # Now we have both the image and the correct reference, now apply the comparison
+    #
+    if (obstype in ['DARK', 'BIAS']):
+        op = "-"
+    elif (obstype in ['DFLAT', 'TFLAT']):
+        op = "/"
+    else:
+        return error_return
+
+    logger.info("Using comparison operator: %s" % (op))
+    diff = podi_imarith.hdu_imarith(hdulist, op, refhdu)
+
+    if (save_diff is not None):
+        # diff_fn = "diff_%s.fits" % (obstype)
+        logger.info("Saving diff-frame to %s" % (save_diff))
+        clobberfile(save_diff)
+        diff[0].header['REFCOMP'] = (os.path.abspath(ref_return), "reference frame")
+        diff[0].header['REFCMPOP'] = (op, "comparison operator")
+        diff.writeto(save_diff, clobber=True)
+
+    return diff if not return_reference else diff, ref_return
+
+
+
 valid_PG_filters = [
     'odi_g', 'odi_r', 'odi_i', 'odi_z'
     ]
@@ -766,6 +855,18 @@ podi_makecalibrations.py input.list calib-directory
 
     if (options['nonlinearity-set']):
         logger.info("Applying non-linearity correction")
+
+    reference = None
+    save_refcomp = False
+    if (cmdline_arg_isset("-reference")):
+        reference = cmdline_arg_set_or_default("-reference", None)
+        if (reference is not None):
+            items = reference.split(",")
+            if (len(items) > 1):
+                # we have multiple files
+                reference = items
+        save_refcomp = cmdline_arg_isset("-saverefcomp")
+
 
     # Check if we are to throw all flats (DFLATs _and_ TFLATs) into the same 
     # output file, or keep them separate (default)
@@ -973,6 +1074,26 @@ podi_makecalibrations.py input.list calib-directory
                     bias_hdu[0].header['OBJECT'] = "master-bias"
                     bias_hdu.writeto(bias_frame, clobber=True)
 
+                # compare to reference frame
+                if (reference is not None):
+                    diff_fn = bias_frame[:-5]+".refcomp.fits" if save_refcomp else None
+                    diff, ref_fn = compare_to_reference(
+                            bias_hdu,
+                            reference,
+                            return_reference = True,
+                            save_diff = diff_fn
+                    )
+                    podi_diagnosticplots.plot_cellbycell_stats(
+                        hdulist = diff,
+                        title = "difference %s vs %s" % (bias_frame, ref_fn),
+                        vmin = -15., vmax = 15.,
+                        plotfile = bias_frame[:-5] + ".refcomp",
+                        showlabels = True,
+                        stats = [("", numpy.nanmean), ("", numpy.std)],
+                        numberformat = "%.3f",
+                        units="bias counts [ADU]",
+                        plotformat=options['plotformat'],
+                    )
                 bias_hdu.close()
                 del bias_hdu
                 
@@ -1034,6 +1155,23 @@ podi_makecalibrations.py input.list calib-directory
                 if (not dark_hdu == None):
                     dark_hdu[0].header['OBJECT'] = "master-dark"
                     dark_hdu.writeto(dark_frame, clobber=True)
+
+                # compare to reference frame
+                if (reference is not None):
+                    diff_fn = dark_frame[:-5]+".refcomp.fits" if save_refcomp else None
+                    diff, ref_fn = compare_to_reference(dark_hdu, reference, return_reference=True, save_diff=diff_fn)
+                    podi_diagnosticplots.plot_cellbycell_stats(
+                        hdulist=diff,
+                        title="difference %s vs %s" % (dark_frame, ref_fn),
+                        vmin=-0.025, #15./dark_hdu[0].header['EXPTIME'],
+                        vmax=+0.025, #15./dark_hdu[0].header['EXPTIME'],
+                        plotfile=dark_frame[:-5] + ".refcomp",
+                        showlabels=True,
+                        stats=[("", numpy.nanmean), ("", numpy.std)],
+                        numberformat="%.3f",
+                        units="dark current [ADU/s]",
+                        plotformat=options['plotformat'],
+                    )
 
                 dark_hdu.close()
                 del dark_hdu
@@ -1347,6 +1485,28 @@ podi_makecalibrations.py input.list calib-directory
 
                         # And finally write the (maybe pupilghost-corrected) flat-field to disk
                         flat_hdus.writeto(flat_frame, clobber=True)
+
+                        # compare to reference frame
+                        if (reference is not None):
+                            diff_fn = flat_frame[:-5] + ".refcomp.fits" if save_refcomp else None
+                            diff, ref_fn = compare_to_reference(
+                                    flat_hdus,
+                                    reference,
+                                    return_reference=True,
+                                    save_diff=diff_fn
+                            )
+                            podi_diagnosticplots.plot_cellbycell_stats(
+                                hdulist=diff,
+                                title="difference %s vs %s" % (flat_frame, ref_fn),
+                                vmin=0.95, vmax=1.05,
+                                plotfile=flat_frame[:-5]+".refcomp",
+                                showlabels=True,
+                                stats = [("", numpy.nanmean),("", numpy.std)],
+                                numberformat="%.3f",
+                                units="relative throughput",
+                                plotformat=options['plotformat'],
+                            )
+
                         flat_hdus.close()
                         del flat_hdus
                     else:

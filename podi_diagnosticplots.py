@@ -45,6 +45,7 @@ import matplotlib.lines
 from podi_definitions import *
 from podi_commandline import *
 import podi_sitesetup as sitesetup
+import podi_focalplanelayout
 
 import Queue
 import multiprocessing
@@ -1496,7 +1497,208 @@ def  diagplot_psfshape_map(ra, dec, elongation, angle, fwhm, ota,
     return
 
 
+def crossout(x, y, size):
+    # [
+    #     [ota_x, ota_y],
+    #     [ota_x + ota_cellsize, ota_y],
+    #     [ota_x + ota_cellsize, ota_y + ota_cellsize],
+    #     [ota_x, ota_y + ota_cellsize],
+    #     [ota_x, ota_y],
+    #     [ota_x + ota_cellsize, ota_y + ota_cellsize],
+    #     [ota_x + ota_cellsize, ota_y],
+    #     [ota_x, ota_y + ota_cellsize],
+    # ])
 
+    coords = [
+        [x, y],
+        [x + size, y],
+        [x + size, y + size],
+        [x, y + size],
+        [x, y],
+        [x + size, y + size],
+        [None, None],
+        [x + size, y],
+        [x, y + size],
+        [None, None],
+    ]
+    return coords
+
+def plot_cellbycell_stats(
+        hdulist,
+        title=None,
+        vmin=None, vmax=None,
+        plotfile=None,
+        stats=None,
+        numberformat="%.3f",
+        showlabels=True,
+        units=None,
+        crossout_missing=True,
+        plotformat=None,
+):
+    """
+
+    Function generating the WCS shift plot from the given data.
+
+    """
+
+    logger = logging.getLogger("DiagPlot_CellbyCellStats")
+
+    fig = matplotlib.pyplot.figure()
+    ax = fig.add_subplot(111)
+    ax.ticklabel_format(useOffset=False)
+
+    if (title is not None):
+        ax.set_title(title, fontsize=10.)
+
+    if (plotformat is None):
+        plotformat = ['pdf']
+
+    fpl = podi_focalplanelayout.FocalPlaneLayout(hdulist)
+
+    if (stats is None):
+        stats = [('', numpy.nanmean),
+                 ('', numpy.std),
+                 ]
+
+    # prepare boxes and text
+    cellsize = 0.12
+    ota_cellsize = 8*cellsize
+    all_corners = []
+    all_colors = []
+    all_labels = []
+    all_label_coords = []
+    # get stats by ota
+
+    lines_to_plot = []
+
+    for ota_x, ota_y in itertools.product(range(8), repeat=2):
+        extname = "OTA%d%d.SCI" % (ota_x, ota_y)
+
+        try:
+            data = hdulist[extname].data
+        except:
+            logger.debug("There's no OTA %s" % (extname))
+            lines_to_plot.append(crossout(ota_x, ota_y, ota_cellsize))
+            continue
+        logger.debug("Working on cell-by-cell stats from OTA %s" % (extname))
+
+        for cell_x, cell_y in itertools.product(range(8), repeat=2):
+
+            # figure out if the cell is one of the broken ones
+            cell = (cell_x, cell_y)
+            if (cell in fpl.broken_cells[hdulist[extname].header['OTA_ID']]):
+                lines_to_plot.append(crossout(ota_x+cell_x*cellsize, ota_y+(7-cell_y)*cellsize, cellsize))
+                continue
+
+            labels = []
+            colorvalue = None
+            # all is good, compute statistics
+            for statname, statfct in stats:
+                # print statname, statfct
+
+                cellarea = cell2ota__get_target_region(
+                    x=cell_x,
+                    y=cell_y,
+                    binning=fpl.get_hardware_binning(),
+                    trimcell=15)
+                x1, x2, y1, y2 = cellarea
+                value = statfct(data[y1:y2, x1:x2])
+
+                if (statname != ''):
+                    label = "%s: %s" % (statname, numberformat % (value))
+                else:
+                    label = numberformat % value
+                labels.append(label)
+
+                if (colorvalue is None):
+                    colorvalue = value
+
+            # save the color value for this cell
+            all_colors.append(colorvalue)
+
+            # compute the corners of each cell so we can plot each cell as little rectangular polygon later
+            x1 = ota_x + cell_x * cellsize
+            y1 = ota_y + (7 - cell_y) * cellsize
+            corners = [[x1, y1], [x1 + cellsize, y1], [x1 + cellsize, y1 + cellsize], [x1, y1 + cellsize]]
+            all_corners.append(corners)
+
+            # save what text to put where
+            all_labels.append("\n".join(labels))
+            all_label_coords.append([x1, y1])
+
+    if (crossout_missing):
+        all_lines = numpy.array(lines_to_plot)
+        # print all_lines
+        # print all_lines.shape
+        # print all_lines[0, :, :]
+
+        ax.plot(all_lines[:, :, 0].flatten(),
+                all_lines[:, :, 1].flatten(),
+                c='#bbbbbb',
+                linewidth=0.2)
+
+    #
+    #
+    #
+
+    cmap = matplotlib.pyplot.cm.get_cmap('spectral')
+
+    corners = numpy.array(all_corners)
+    ax.set_xlim([0, 8])
+    ax.set_ylim([0, 8])
+
+    nl_min = numpy.min(all_colors[numpy.isfinite(all_colors)]) if vmin is None else vmin
+    nl_max = numpy.max(all_colors[numpy.isfinite(all_colors)]) if vmax is None else vmax
+
+    colorvalues = cmap(
+        (numpy.array(all_colors) - nl_min) / (nl_max - nl_min))  # [matplotlib.pyplot.cm.jet(x) for x in all_intensity]
+    norm_colors = (numpy.array(all_colors) - nl_min) / (nl_max - nl_min)
+
+    coll = matplotlib.collections.PolyCollection(corners,  # facecolor='#505050', #
+                                                 facecolor=colorvalues,
+                                                 edgecolor='black', linestyle='-', linewidth=0.1,
+                                                 cmap=matplotlib.pyplot.cm.get_cmap('spectral'),
+                                                 )
+
+    img = matplotlib.pyplot.imshow([[1e9], [1e9]], vmin=nl_min, vmax=nl_max, cmap=cmap, extent=(0, 0, 0, 0),
+                                   origin='lower')
+
+    if (units is None):
+        fig.colorbar(img, format=numberformat)
+    else:
+        fig.colorbar(img, format=numberformat, label=units)
+
+    #
+    # also show the values as text labels in each cell
+    #
+    if (showlabels):
+        for cell in range(len(all_labels)):
+            x, y = all_label_coords[cell]
+            label = all_labels[cell]
+            color = "white" if norm_colors[cell] < 0.15 else 'black'
+            ax.text(x+0.5*cellsize, y+0.5*cellsize, label,
+                    ha='center', va='center', color=color,
+                    fontsize=1.1)
+            # print x,y,label
+
+    ax.set_xlim(-0.1, 8.1)
+    ax.set_ylim(-0.1, 8.1)
+    ax.add_collection(coll)
+
+    logger.debug("Saving plot as %s" % (plotfile))
+    fig.set_size_inches(8, 6)
+    for ft in plotformat:
+        plot_fn = "%s.%s" % (plotfile, ft)
+        try:
+            fig.savefig(plot_fn, dpi=300, bbox_inches='tight')
+        except (IOError, ValueError) as err:
+            logger.error("Unable to create %s: %s" % (plot_fn, str(err)))
+
+    matplotlib.pyplot.close(fig)
+    matplotlib.pyplot.close()
+    logger.debug("done!")
+
+    return
 
 
 #####################################################################################
@@ -1651,4 +1853,8 @@ if __name__ == "__main__":
     #    wcsdiag_shift(matched_cat, None)
 
 
-    
+
+
+
+
+
