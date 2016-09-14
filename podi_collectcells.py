@@ -1283,6 +1283,21 @@ def collect_reduce_ota(filename,
         # Now add the canned WCS solution
         if (not mastercals.apply_wcs()): #['wcs_distortion'] == None):
             reduction_log.not_selected('wcs_dist')
+        elif (mastercals.wcs(mjd) == "plain"):
+            #
+            # If there's no WCS system at all, at least put in something semi-reasonable
+            #
+            logger.warning("Adding plain WCS as fall-back solution")
+            for a,b in itertools.product(range(10), repeat=2):
+                keyname = "WAT%d_%03d" % (a,b)
+                if (keyname in hdu.header):
+                    del hdu.header[keyname]
+            for a,b in itertools.product(range(2), range(100)):
+                keyname = "PV%d_%d" % (a,b)
+                if (keyname in hdu.header):
+                    del hdu.header[keyname]
+            hdu.header['CRPIX1'] = (4-ota_c_x)*4500
+            hdu.header['CRPIX2'] = (4-ota_c_y)*4500
         elif (mastercals.wcs(mjd) is None):
             reduction_log.fail("wcs_dist")
         else:

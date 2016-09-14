@@ -326,7 +326,9 @@ class ODICalibrations(object):
         return (not self.options['wcs_distortion'] == False)
     def wcs(self, mjd=0):
         wcs_param = self.options['wcs_distortion']
-        if (wcs_param is not None and os.path.isfile(wcs_param)):
+        if (wcs_param == "plain"):
+            return "plain"
+        elif (wcs_param is not None and os.path.isfile(wcs_param)):
             full_fn = wcs_param
         else:
             if (wcs_param is not None and os.path.isdir(wcs_param)):
