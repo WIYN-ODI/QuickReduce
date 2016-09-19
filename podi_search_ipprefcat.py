@@ -230,9 +230,26 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
     return results
 
 
+def table_to_ndarray(tbhdu):
+
+    logger = logging.getLogger("Table2Array")
+    n_fields = tbhdu.header['TFIELDS']
+    n_entries = tbhdu.header['NAXIS2']
+
+    logger.debug("Found %d columns and %d rows" % (n_fields, n_entries))
+
+    databuffer = numpy.empty((n_entries, n_fields))
+    for i in range(n_fields):
+        databuffer[:,i] = tbhdu.data.field(i)
+
+    # print databuffer.shape
+    # numpy.savetxt(fn[:-5]+".dump", databuffer)
+    return databuffer
 
 
-def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose=False):
+
+def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose=False,
+                          ):
 
     logger = logging.getLogger("ReadCatalog")
 
@@ -448,17 +465,44 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
 
             if (verbose): print "# Read %d stars from catalog %s ..." % (array_to_add.shape[0], catalogfile)
 
+        elif (cattype == "general"):
+
+            try:
+                hdu_cat = pyfits.open(catalogfile)
+            except:
+                logger.warning("Unable to open catalog (%s) file %s" % (
+                    cattype, catalogfile))
+                continue
+
+            # read table into a nd-array buffer
+            cat_full = table_to_ndarray(hdu_cat[1])
+
+            # Read the RA and DEC values
+            cat_ra  = cat_full[:,0]
+            cat_dec = cat_full[:,1]
+
+            # To slect the right region, shift a temporary catalog
+            cat_ra_shifted = cat_ra
+            if (max_ra > 360.):
+                cat_ra_shifted[cat_ra < 180] += 360
+            elif (min_ra < 0):
+                cat_ra_shifted[cat_ra > 180] -= 360
+
+            select_from_cat = (cat_ra_shifted > min_ra) & (cat_ra_shifted < max_ra ) & (cat_dec > min_dec) & (cat_dec < max_dec)
+
+            array_to_add = cat_full[select_from_cat]
+
         else:
-            print "This catalog name is not known"
+            logger.eror("This catalog name is not known")
             return None
 
-        if (type(full_catalog) == type(None)):
+        if (full_catalog is None):
             full_catalog = array_to_add
         else:
             full_catalog = numpy.append(full_catalog, array_to_add, axis=0)
         #print photom_grizy[:3,:]
         
-    if (verbose): print "# Read a total of %d stars from %d catalogs!" % (full_catalog.shape[0], len(files_to_read))
+    logger.debug("Read a total of %d stars from %d catalogs!" % (full_catalog.shape[0], len(files_to_read)))
     return full_catalog
 
 
