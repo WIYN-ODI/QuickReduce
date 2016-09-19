@@ -308,10 +308,15 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
         skytable['R_MIN'][selected] -= 360
 
     if (verbose): print "# Search radius: RA=%.1f ... %.1f   DEC=%.1f ... %.1f" % (min_ra, max_ra, min_dec, max_dec)
-    
-    needed_catalogs = (skytable['PARENT'] > 0) & (skytable['PARENT'] < 25) & \
-         (skytable['R_MAX'] > min_ra)  & (skytable['R_MIN'] < max_ra) & \
-         (skytable['D_MAX'] > min_dec) & (skytable['D_MIN'] < max_dec)
+
+    try:
+        needed_catalogs = (skytable['PARENT'] > 0) & (skytable['PARENT'] < 25) & \
+                          (skytable['R_MAX'] > min_ra) & (skytable['R_MIN'] < max_ra) & \
+                          (skytable['D_MAX'] > min_dec) & (skytable['D_MIN'] < max_dec)
+    except KeyError:
+        # try without the PARENT field
+        needed_catalogs =   (skytable['R_MAX'] > min_ra)  & (skytable['R_MIN'] < max_ra) & \
+                            (skytable['D_MAX'] > min_dec) & (skytable['D_MIN'] < max_dec)
 
     #print skytable[needed_catalogs]
     
@@ -468,10 +473,10 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
         elif (cattype == "general"):
 
             try:
-                hdu_cat = pyfits.open(catalogfile)
+                hdu_cat = pyfits.open(catalogname)
             except:
                 logger.warning("Unable to open catalog (%s) file %s" % (
-                    cattype, catalogfile))
+                    cattype, catalogname))
                 continue
 
             # read table into a nd-array buffer
@@ -510,29 +515,29 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
 
 
 if __name__ == "__main__":
-    
-    ra = float(get_clean_cmdline()[1])
-    dec = float(get_clean_cmdline()[2])
-    radius = float(get_clean_cmdline()[3])
+
+    basedir = get_clean_cmdline()[1]
+    ra = float(get_clean_cmdline()[2])
+    dec = float(get_clean_cmdline()[3])
+    radius = float(get_clean_cmdline()[4])
 
     dec_min, dec_max = dec-radius, dec+radius
     dec_range = numpy.array([dec_min, dec_max])
     cos_dec = numpy.min( numpy.cos(numpy.radians(dec_range)))
     ra_range = numpy.array([ ra-radius/cos_dec, ra+radius/cos_dec])
 
-    basedir = "/Volumes/odifile/Catalogs/IPPRefCat/catdir.synth.grizy/"
-
-    import podi_sitesetup as sitesetup
-    basedir = sitesetup.wcs_ref_dir
-    catalog_type = sitesetup.wcs_ref_type
-
-    basedir = cmdline_arg_set_or_default("-basedir", sitesetup.wcs_ref_dir)
-    catalog_type = cmdline_arg_set_or_default("-cattype", sitesetup.wcs_ref_type)
-    verbose = cmdline_arg_isset("-v")
+    # import podi_sitesetup as sitesetup
+    # basedir = sitesetup.wcs_ref_dir
+    # catalog_type = sitesetup.wcs_ref_type
+    #
+    # basedir = cmdline_arg_set_or_default("-basedir", sitesetup.wcs_ref_dir)
+    # catalog_type = cmdline_arg_set_or_default("-cattype", sitesetup.wcs_ref_type)
+    # verbose = cmdline_arg_isset("-v")
 
 
     # catalog = get_reference_catalog(ra, dec, radius, basedir=basedir, cattype=catalog_type, verbose=verbose)
-    catalog = get_reference_catalog(ra_range, dec_range, radius=None, basedir=basedir, cattype=catalog_type, verbose=verbose)
+    catalog = get_reference_catalog(ra_range, dec_range, radius=None, basedir=basedir,
+                                    cattype='general', verbose=False)
 
     # if (True): #False):
     #     for i in range(catalog.shape[0]):
