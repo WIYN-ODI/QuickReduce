@@ -1673,7 +1673,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             angle_steps=20, # arcmin
             fov=0.8,
             estimate_fmatch=True,
-            use_ota_coord_grid=True):
+            use_ota_coord_grid=True,
+            catalog_order=None):
 
     """
 
@@ -1721,6 +1722,9 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
 
     # Prepare the structure for the return values
     return_value = {}
+
+    if (catalog_order is None):
+        catalog_order = ['2mass']
 
     # Convert the max_pointing_error passed as parameter into a list
     try:
@@ -1818,14 +1822,37 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     if (reference_catalog == None):
         search_size = fov + max_pointing_error/60.
-        ref_raw = podi_search_ipprefcat.get_reference_catalog(center_ra, center_dec, search_size, 
-                                                              basedir=sitesetup.wcs_ref_dir,
-                                                              cattype=sitesetup.wcs_ref_type)
+
+        ref_raw = None
+        for (catalog_name, refmag) in catalog_order:
+
+            if (catalog_name not in sitesetup.catalog_directory):
+                logger.critical("Selected catalog (%s) is not registered - check sitesetup" % (catalog_name))
+                continue
+
+            ref_raw = podi_search_ipprefcat.get_reference_catalog(
+                    center_ra,
+                    center_dec,
+                    search_size,
+                    basedir=sitesetup.catalog_directory[catalog_name],
+                    cattype="general"
+            )
+            if (ref_raw is not None):
+                # we found the field in this catalog - no need to check other catalogs
+                break
+
+        if (ref_raw is None):
+            # we could not find any sources in any of the selected catalogs
+            # abort the WCS calibration
+            logger.critical("Unable to find reference sources for WCS calibration")
+            return return_value
 
         # Sort the reference catalog by brightness
-        logger.debug("Sorting reference catalog")
-        si = numpy.argsort(ref_raw[:,4])
-        ref_raw = ref_raw[si]
+        refmag_col = refmag - 1
+        if (refmag_col >= 0 and refmag_col < refraw.shape[1]):
+            logger.debug("Sorting reference catalog")
+            si = numpy.argsort(ref_raw[:,refmag_col])
+            ref_raw = ref_raw[si]
 
         # Now get rid of all info except coordinates
         ref_raw = ref_raw[:,0:2]

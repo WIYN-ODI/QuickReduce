@@ -4017,7 +4017,8 @@ def collectcells(input, outputfile,
                                         mode=sitesetup.fixwcs_mode,
                                         max_pointing_error=sitesetup.max_pointing_error,
                                         max_rotator_error=sitesetup.max_rotator_error,
-                                        min_contrast=sitesetup.min_wcs_quality)
+                                        min_contrast=sitesetup.min_wcs_quality,
+                                        catalog_order=sitesetup.wcscalib_order)
 
         # Use the fixed HDUList
         ota_list = ccmatched['hdulist']
