@@ -472,11 +472,21 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
 
         elif (cattype == "general"):
 
+            catalogfile = "%s/%s.fits" % (basedir, catalogname)
+            if (not os.path.isfile(catalogfile)):
+                # not a file, try adding .fits to the end of the filename
+                if (os.path.isfile(catalogfile+".fits")):
+                    catalogfile += ".fits"
+                else:
+                    # neither option (w/ or w/o .fits added is a file)
+                    logger.warning("Catalog file (%s) not found" % (catalogname))
+                    continue
+
             try:
-                hdu_cat = pyfits.open(catalogname)
+                hdu_cat = pyfits.open(catalogfile)
             except:
                 logger.warning("Unable to open catalog (%s) file %s" % (
-                    cattype, catalogname))
+                    cattype, catalogfile))
                 continue
 
             # read table into a nd-array buffer
@@ -506,8 +516,14 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
         else:
             full_catalog = numpy.append(full_catalog, array_to_add, axis=0)
         #print photom_grizy[:3,:]
-        
-    logger.debug("Read a total of %d stars from %d catalogs!" % (full_catalog.shape[0], len(files_to_read)))
+
+    if (full_catalog is None):
+        logger.warning("No stars found in area %d-%d, %d-%d from catalog %s" % (
+            ra[0], ra[1], dec[0], dec[1], basedir
+        ))
+    else:
+        logger.debug("Read a total of %d stars from %d catalogs!" % (full_catalog.shape[0], len(files_to_read)))
+
     return full_catalog
 
 
@@ -515,6 +531,13 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
 
 
 if __name__ == "__main__":
+
+    # Read all options from command line. This is 100% compatible
+    # with an individual call to podi_collectcells.
+    options = read_options_from_commandline(None)
+
+    # Setup everything we need for logging
+    podi_logging.setup_logging(options)
 
     basedir = get_clean_cmdline()[1]
     ra = float(get_clean_cmdline()[2])
@@ -547,3 +570,5 @@ if __name__ == "__main__":
     if (not catalog == None):
         numpy.savetxt(sys.stdout, catalog)
 
+    # Shutdown logging to shutdown cleanly
+    podi_logging.shutdown_logging(options)
