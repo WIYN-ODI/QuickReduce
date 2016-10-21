@@ -1292,7 +1292,7 @@ def collect_reduce_ota(filename,
 
                             if (ret.poll() == None):
                                 # sextractor completed
-                                logger.info("Sex complete!")
+                                logger.debug("SourceExtractor completed successfully!")
                                 break
                             time.sleep(0.1)
 
