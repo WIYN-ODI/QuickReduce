@@ -230,17 +230,50 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
     return results
 
 
-def table_to_ndarray(tbhdu):
+def table_to_ndarray(tbhdu, select_header_list=None, overwrite_select=False):
 
     logger = logging.getLogger("Table2Array")
-    n_fields = tbhdu.header['TFIELDS']
     n_entries = tbhdu.header['NAXIS2']
 
-    logger.debug("Found %d columns and %d rows" % (n_fields, n_entries))
+    if (select_header_list is None):
 
-    databuffer = numpy.empty((n_entries, n_fields))
-    for i in range(n_fields):
-        databuffer[:,i] = tbhdu.data.field(i)
+        # no selection of what columns to read
+
+        n_fields = tbhdu.header['TFIELDS']
+
+        logger.debug("Found %d columns and %d rows" % (n_fields, n_entries))
+
+        databuffer = numpy.empty((n_entries, n_fields))
+        for i in range(n_fields):
+            try:
+                coldata = numpy.array(tbhdu.data.field(i))
+                databuffer[:,i] = coldata[:] #tbhdu.data.field(i)
+            except ValueError:
+                pass
+
+    else:
+
+        n_fields = len(select_header_list)
+        if (overwrite_select):
+            n_fields += tbhdu.header['TFIELDS']
+        logger.debug("Reading select list of %d columns for %d sources" % (n_fields, n_entries))
+
+        databuffer = numpy.empty((n_entries, n_fields))
+        for i, fieldname in enumerate(select_header_list):
+            try:
+                coldata = numpy.array(tbhdu.data.field(fieldname))
+                databuffer[:, i] = coldata[:]  # tbhdu.data.field(i)
+            except ValueError:
+                pass
+
+        if (overwrite_select):
+            for i in range(tbhdu.header['TFIELDS']):
+                try:
+                    coldata = numpy.array(tbhdu.data.field(i))
+                    databuffer[:,i+len(select_header_list)] = coldata[:] #tbhdu.data.field(i)
+                except ValueError:
+                    pass
+
 
     # print databuffer.shape
     # numpy.savetxt(fn[:-5]+".dump", databuffer)
@@ -248,7 +281,7 @@ def table_to_ndarray(tbhdu):
 
 
 
-def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose=False,
+def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose=False, overwrite_select=False,
                           ):
 
     logger = logging.getLogger("ReadCatalog")
@@ -273,6 +306,13 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
         return None
 
     skytable_hdu = pyfits.open(skytable_filename)
+
+    select_header_list = None
+    if ('NSELECT' in skytable_hdu[0].header):
+        n_select = skytable_hdu[0].header['NSELECT']
+        select_header_list = [None] * n_select
+        for i in range(n_select):
+            select_header_list[i] = skytable_hdu[0].header['SELECT%02d' % (i+1)]
 
     #print skytable_hdu.info()
 
@@ -506,7 +546,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
             select_from_cat = (cat_ra_shifted > min_ra) & (cat_ra_shifted < max_ra ) & (cat_dec > min_dec) & (cat_dec < max_dec)
 
             array_to_add = cat_full[select_from_cat]
-
+            logger.info("Read %d sources from %s" % (array_to_add.shape[0], catalogname))
         else:
             logger.eror("This catalog name is not known")
             return None
@@ -560,15 +600,21 @@ if __name__ == "__main__":
 
     # catalog = get_reference_catalog(ra, dec, radius, basedir=basedir, cattype=catalog_type, verbose=verbose)
     catalog = get_reference_catalog(ra_range, dec_range, radius=None, basedir=basedir,
-                                    cattype='general', verbose=False)
+                                    cattype='general', verbose=False, overwrite_select=True)
 
     # if (True): #False):
     #     for i in range(catalog.shape[0]):
     #         for j in range(catalog.shape[1]):
     #             print catalog[i,j],
     #         print
-    if (not catalog == None):
-        numpy.savetxt(sys.stdout, catalog)
 
-    # Shutdown logging to shutdown cleanly
+    try:
+        out_fn = get_clean_cmdline()[5]
+    except:
+        out_fn = sys.stdout
+    #print catalog
+    if (catalog is not None):
+        numpy.savetxt(out_fn, catalog)
+
+
     podi_logging.shutdown_logging(options)
