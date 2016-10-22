@@ -299,7 +299,13 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
 
     # print "In get_ref_catalog, cattype=%s, dir=%s" % (cattype, basedir)
 
+    if (basedir is None or not os.path.isdir(basedir)):
+        #(basedir is not None and not os.path.isdir(basedir))):
+        logger.warning("Unable to find reference catalog: %s" % (str(basedir)))
+        return None
+
     # Load the SkyTable so we know in what files to look for the catalog"
+    logger.info("Using catalog found in %s" % (basedir))
     skytable_filename = "%s/SkyTable.fits" % (basedir)
     if (not os.path.isfile(skytable_filename)):
         logger.error("Unable to find catalog index file in %s!" % (basedir))
@@ -313,6 +319,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
         select_header_list = [None] * n_select
         for i in range(n_select):
             select_header_list[i] = skytable_hdu[0].header['SELECT%02d' % (i+1)]
+        print "Selecting the following columns:", ", ".join(select_header_list)
 
     #print skytable_hdu.info()
 
@@ -512,14 +519,15 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
 
         elif (cattype == "general"):
 
-            catalogfile = "%s/%s.fits" % (basedir, catalogname)
+            catalogfile = "%s/%s" % (basedir, catalogname)
+            # print catalogfile
             if (not os.path.isfile(catalogfile)):
                 # not a file, try adding .fits to the end of the filename
                 if (os.path.isfile(catalogfile+".fits")):
                     catalogfile += ".fits"
                 else:
                     # neither option (w/ or w/o .fits added is a file)
-                    logger.warning("Catalog file (%s) not found" % (catalogname))
+                    logger.warning("Catalog file (%s) not found (base-dir: %s)" % (os.path.abspath(catalogfile), basedir))
                     continue
 
             try:
@@ -530,7 +538,9 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
                 continue
 
             # read table into a nd-array buffer
-            cat_full = table_to_ndarray(hdu_cat[1])
+            cat_full = table_to_ndarray(hdu_cat[1], select_header_list=select_header_list,
+                                        overwrite_select=overwrite_select)
+            # print cat_full.shape
 
             # Read the RA and DEC values
             cat_ra  = cat_full[:,0]
@@ -558,8 +568,10 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
         #print photom_grizy[:3,:]
 
     if (full_catalog is None):
-        logger.warning("No stars found in area %d-%d, %d-%d from catalog %s" % (
-            ra[0], ra[1], dec[0], dec[1], basedir
+        logger.warning("No stars found in area %s, %s from catalog %s" % (
+            str(ra), str(dec),
+            #ra[0], ra[1], dec[0], dec[1],
+            basedir
         ))
     else:
         logger.debug("Read a total of %d stars from %d catalogs!" % (full_catalog.shape[0], len(files_to_read)))
@@ -597,6 +609,8 @@ if __name__ == "__main__":
     # catalog_type = cmdline_arg_set_or_default("-cattype", sitesetup.wcs_ref_type)
     # verbose = cmdline_arg_isset("-v")
 
+    print "RA: ", ra_range
+    print "DEC:", dec_range
 
     # catalog = get_reference_catalog(ra, dec, radius, basedir=basedir, cattype=catalog_type, verbose=verbose)
     catalog = get_reference_catalog(ra_range, dec_range, radius=None, basedir=basedir,
