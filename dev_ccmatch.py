@@ -1759,7 +1759,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             radec = numpy.array(wcs.pix2wcs(_x.ravel(), _y.ravel()))
 
             # merge into long list across all OTAs
-            ota_coord_grid = radec if ota_coord_grid == None else \
+            ota_coord_grid = radec if ota_coord_grid is None else \
                 numpy.append(ota_coord_grid, radec, axis=0)
 
             #numpy.savetxt("ota_grid_coords", ota_grid_coords)
@@ -1820,21 +1820,25 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # 
     # Create the reference catalog
     #
+    print catalog_order
     if (reference_catalog == None):
         search_size = fov + max_pointing_error/60.
 
         ref_raw = None
-        for (catalog_name, refmag) in catalog_order:
+        for catalog_name in catalog_order:
 
             if (catalog_name not in sitesetup.catalog_directory):
                 logger.critical("Selected catalog (%s) is not registered - check sitesetup" % (catalog_name))
                 continue
 
+            catalog_basedir, catalog_refmag = sitesetup.catalog_directory[catalog_name]
+            logger.info("Using %s catalog from %s for astrometric calibration" % (
+                catalog_name, catalog_basedir))
             ref_raw = podi_search_ipprefcat.get_reference_catalog(
                     center_ra,
                     center_dec,
                     search_size,
-                    basedir=sitesetup.catalog_directory[catalog_name],
+                    basedir=catalog_basedir,
                     cattype="general"
             )
             if (ref_raw is not None):
@@ -1848,8 +1852,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             return return_value
 
         # Sort the reference catalog by brightness
-        refmag_col = refmag - 1
-        if (refmag_col >= 0 and refmag_col < refraw.shape[1]):
+        refmag_col = catalog_refmag - 1
+        if (refmag_col >= 0 and refmag_col < ref_raw.shape[1]):
             logger.debug("Sorting reference catalog")
             si = numpy.argsort(ref_raw[:,refmag_col])
             ref_raw = ref_raw[si]
@@ -1964,7 +1968,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         #
         
         ref_close = match_catalog_areas(
-            ota_coord_grid if (use_ota_coord_grid and not ota_coord_grid == None) else src_raw, 
+            ota_coord_grid if (use_ota_coord_grid and ota_coord_grid is not None) else src_raw,
             ref_raw, pointing_error/60.)
         logger.debug("area matched ref. catalog: "+str(ref_close.shape))
         if (ref_close.shape[0] <= 0):
