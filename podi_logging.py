@@ -466,9 +466,9 @@ def podi_log_master_quit(log_master_info):
 
     log_master_info['queue'].put(None)
     try:
-        print "joining log listener"
+        # print "joining log listener"
         log_master_info['listener'].join()
-        print "done joining log listener"
+        # print "done joining log listener"
     except (KeyboardInterrupt, SystemExit):
         pass
 
