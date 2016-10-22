@@ -282,6 +282,7 @@ def table_to_ndarray(tbhdu, select_header_list=None, overwrite_select=False):
 
 
 def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose=False, overwrite_select=False,
+                          quiet=False,
                           ):
 
     logger = logging.getLogger("ReadCatalog")
@@ -305,7 +306,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
         return None
 
     # Load the SkyTable so we know in what files to look for the catalog"
-    logger.info("Using catalog found in %s" % (basedir))
+    logger.debug("Using catalog found in %s" % (basedir))
     skytable_filename = "%s/SkyTable.fits" % (basedir)
     if (not os.path.isfile(skytable_filename)):
         logger.error("Unable to find catalog index file in %s!" % (basedir))
@@ -319,7 +320,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
         select_header_list = [None] * n_select
         for i in range(n_select):
             select_header_list[i] = skytable_hdu[0].header['SELECT%02d' % (i+1)]
-        print "Selecting the following columns:", ", ".join(select_header_list)
+        logger.debug("Selecting the following columns: %s" % (", ".join(select_header_list)))
 
     #print skytable_hdu.info()
 
@@ -556,7 +557,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
             select_from_cat = (cat_ra_shifted > min_ra) & (cat_ra_shifted < max_ra ) & (cat_dec > min_dec) & (cat_dec < max_dec)
 
             array_to_add = cat_full[select_from_cat]
-            logger.info("Read %d sources from %s" % (array_to_add.shape[0], catalogname))
+            logger.debug("Read %d sources from %s" % (array_to_add.shape[0], catalogname))
         else:
             logger.eror("This catalog name is not known")
             return None
@@ -591,6 +592,9 @@ if __name__ == "__main__":
     # Setup everything we need for logging
     podi_logging.setup_logging(options)
 
+    quietmode = cmdline_arg_isset("-quiet")
+    max_number_sources = int(cmdline_arg_set_or_default("-max", -1))
+
     basedir = get_clean_cmdline()[1]
     ra = float(get_clean_cmdline()[2])
     dec = float(get_clean_cmdline()[3])
@@ -609,12 +613,14 @@ if __name__ == "__main__":
     # catalog_type = cmdline_arg_set_or_default("-cattype", sitesetup.wcs_ref_type)
     # verbose = cmdline_arg_isset("-v")
 
-    print "RA: ", ra_range
-    print "DEC:", dec_range
+    print "# Catalog directory:", basedir
+    print "# RA: ", ra_range, " -- DEC:", dec_range
+    # print "DEC:", dec_range
 
     # catalog = get_reference_catalog(ra, dec, radius, basedir=basedir, cattype=catalog_type, verbose=verbose)
     catalog = get_reference_catalog(ra_range, dec_range, radius=None, basedir=basedir,
-                                    cattype='general', verbose=False, overwrite_select=True)
+                                    cattype='general', verbose=False, overwrite_select=False,
+                                    quiet=quietmode)
 
     # if (True): #False):
     #     for i in range(catalog.shape[0]):
@@ -626,6 +632,10 @@ if __name__ == "__main__":
         out_fn = get_clean_cmdline()[5]
     except:
         out_fn = sys.stdout
+
+    if (max_number_sources > 0):
+        catalog = catalog[:max_number_sources]
+
     #print catalog
     if (catalog is not None):
         numpy.savetxt(out_fn, catalog)
