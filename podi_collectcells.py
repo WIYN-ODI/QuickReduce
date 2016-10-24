@@ -797,6 +797,8 @@ def collect_reduce_ota(filename,
                 if (fppos_bias == fppos):
                     # This is the one
                     try:
+                        if (not options['keep_cells'] == False):
+                            bias_ext.data[numpy.isnan(bias_ext.data)] = 0.
                         merged -= bias_ext.data
                         logger.debug("Subtracting bias: %s" % (bias_filename))
                     except:
@@ -841,6 +843,8 @@ def collect_reduce_ota(filename,
                     # This is the one
                     dark_scaling = exposure_time / darktime
                     try:
+                        if (not options['keep_cells'] == False):
+                            dark_ext.data[numpy.isnan(dark_ext.data)] = 0.
                         merged -= (dark_ext.data * dark_scaling)
                         logger.debug("Subtracting dark: %s (scaling=%.2f)" % (dark_filename, dark_scaling))
                     except:
@@ -880,6 +884,8 @@ def collect_reduce_ota(filename,
                 if (fppos_flatfield == fppos):
                     # This is the one
                     try:
+                        if (not options['keep_cells'] == False):
+                            ff_ext.data[numpy.isnan(ff_ext.data)] = 1.
                         merged /= ff_ext.data
                         logger.debug("Dividing by flatfield: %s" % (flatfield_filename))
                     except:
