@@ -386,6 +386,22 @@ Calibration data:
 
     options['compressed_hdu'] = cmdline_arg_isset("-fpack")
 
+    options['keep_cells'] = cmdline_arg_set_or_default2("-keepcells", None)
+    if (options['keep_cells'] != False and options['keep_cells'] is not None):
+        if (options['keep_cells'] == "most"):
+            options['keep_cells'] = [
+                '24.04', '24.04', '24.05', '24.06', '24.07', '24.03',
+                '24.10', '24.12', '24.14', '24.15', '24.16', '24.17', '24.27',
+                '24.00', '24.20', '24.36', '24.44', '24.76',
+                '53.61',
+                '41.61',
+                '14.66',
+                '31.11',
+                '52.15',
+                '44.60']
+        else:
+            options['keep_cells'] = options['keep_cells'].split(",")
+        logger.info("Keeping the following cells: %s" % (",".join(options['keep_cells'])))
 
     #
     # Set default values to enable some options by default
@@ -510,6 +526,8 @@ def set_default_options(options_in=None):
     options['crosstalk'] = None
 
     options['trimcell'] = None
+
+    options['keep_all_cells'] = False
 
     return options
 

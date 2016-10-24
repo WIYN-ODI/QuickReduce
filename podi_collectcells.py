@@ -695,7 +695,18 @@ def collect_reduce_ota(filename,
             cellmode_id = get_cellmode(hdulist[0].header, hdulist[cell].header, fpl)
             if (not cellmode_id == 0):
                 # This means it either broken (id=-1) or in video-mode (id=1)
-                continue
+                if (options['keep_cells'] == False):
+                    # no keep_cells option
+                    continue
+                elif (options['keep_cells'] is None):
+                    # keep all cells
+                    pass
+                else:
+                    cell_id = "%02d.%1d%1d" % (ota, wm_cellx, wm_celly)
+                    if (cell_id in options['keep_cells']):
+                        pass
+                    else:
+                        continue
 
             # logger.debug("ota %02d, cell %d,%d: gain=%f, ron=%f, ron(e-)=%f" % (
             #     ota, wm_cellx, wm_celly, gain, readnoise, readnoise_electrons))
