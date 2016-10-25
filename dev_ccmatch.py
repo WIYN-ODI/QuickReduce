@@ -2519,6 +2519,19 @@ def compute_wcs_quality(odi_2mass_matched, hdr=None):
     rms_ddec = numpy.sqrt(numpy.mean(d_dec**2)) * 3600.
     rms_comb = numpy.sqrt(numpy.mean(d_dec**2+d_ra**2)) * 3600.
 
+    d_combined = numpy.hypot(d_dec, d_ra)
+    valid = numpy.isfinite(d_combined)
+    for iteration in range(3):
+        d_stats = numpy.percentile(d_combined[valid], [16,50,84])
+        d_median = d_stats[1]
+        d_sigma = 0.5*(d_stats[2] - d_stats[0])
+        bad = (d_combined > d_median + 3*d_sigma) | (d_combined < d_median - 3*d_sigma)
+        valid[bad] = False
+    clip_rms_dra = numpy.sqrt(numpy.mean(d_ra[valid]**2)) * 3600.
+    clip_rms_ddec = numpy.sqrt(numpy.mean(d_dec[valid]**2)) * 3600.
+    clip_rms_comb = numpy.sqrt(numpy.mean(d_dec[valid]**2+d_ra[valid]**2)) * 3600.
+
+
     try:
         lsig_ra = scipy.stats.scoreatpercentile(d_ra, 16)
         hsig_ra = scipy.stats.scoreatpercentile(d_ra, 84)
@@ -2547,6 +2560,10 @@ def compute_wcs_quality(odi_2mass_matched, hdr=None):
     results['MEDIAN-DEC'] = wcs_mean_ddec
     results['STARCOUNT'] = d_ra.shape[0]
 
+    results['RMS-RA-CLIP'] = clip_rms_dra
+    results['RMS-DEC-CLIP'] = clip_rms_ddec
+    results['RMS-CLIP'] = clip_rms_comb
+
     logger.debug("WCS quality: mean-offset=%(MEDIAN-RA).3f  , %(MEDIAN-DEC).3f [arcsec]" % results)
     logger.debug("WCS quality: mean-rms=%(RMS-RA).3f , %(RMS-DEC).3f , %(RMS).3f [arcsec]" % results)
     logger.debug("WCS quality: sigma=%(SIGMA-RA).3f , %(SIGMA-DEC).3f , %(SIGMA).3f [arcsec]" % results)
@@ -2562,7 +2579,11 @@ def compute_wcs_quality(odi_2mass_matched, hdr=None):
         hdr["WCS_SIGA"] = (results['SIGMA-RA'],               "1-sigma width of WCS error in Ra")
         hdr["WCS_SIGD"] = (results['SIGMA-DEC'],              "1-sigma width of WCS error in Dec")
         hdr["WCS_SIG"]  = (results['SIGMA'],                  "1-sigma width of WCS error combined")
- 
+
+        hdr['WCSCRMSA'] = (make_valid(results['RMS-RA-CLIP']), "rms (clipped) in RA [arcsec]")
+        hdr['WCSCRMSD'] = (make_valid(results['RMS-DEC-CLIP']), "rms (clipped) in DEC [arcsec]")
+        hdr['WCSCRMS']  = (make_valid(results['RMS-CLIP']), "rms (clipped) combined [arcsec]")
+
     return results
 
 
