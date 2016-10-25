@@ -594,6 +594,8 @@ if __name__ == "__main__":
 
     quietmode = cmdline_arg_isset("-quiet")
     max_number_sources = int(cmdline_arg_set_or_default("-max", -1))
+    output_format = cmdline_arg_set_or_default("-format", "dat")
+    all_columns = cmdline_arg_isset("-allcols")
 
     basedir = get_clean_cmdline()[1]
     ra = float(get_clean_cmdline()[2])
@@ -619,7 +621,7 @@ if __name__ == "__main__":
 
     # catalog = get_reference_catalog(ra, dec, radius, basedir=basedir, cattype=catalog_type, verbose=verbose)
     catalog = get_reference_catalog(ra_range, dec_range, radius=None, basedir=basedir,
-                                    cattype='general', verbose=False, overwrite_select=False,
+                                    cattype='general', verbose=False, overwrite_select=all_columns,
                                     quiet=quietmode)
 
     # if (True): #False):
@@ -637,8 +639,62 @@ if __name__ == "__main__":
         catalog = catalog[:max_number_sources]
 
     #print catalog
+    print output_format
     if (catalog is not None):
-        numpy.savetxt(out_fn, catalog)
 
+        if (output_format == "dat"):
+            numpy.savetxt(out_fn, catalog)
+        elif (output_format == "fitsldac"):
+            primhdu = pyfits.PrimaryHDU()
+
+            ldac_hdr_data = pyfits.ImageHDU()
+            ldac_hdr_data.header['NAXIS'] = 2
+            ldac_hdr_data.header['NAXIS1'] = 4096
+            ldac_hdr_data.header['NAXIS2'] = 4096
+            ldac_hdr_data.header['RADESYS'] = 'ICRS'
+            ldac_hdr_data.header['CTYPE1'] = 'RA---STG'
+            ldac_hdr_data.header['CTYPE2'] = 'DEC--STG'
+            ldac_hdr_data.header['CRVAL1'] = ra
+            ldac_hdr_data.header['CRVAL2'] = dec
+            ldac_hdr_data.header['CRPIX1'] = 2048
+            ldac_hdr_data.header['CRPIX2'] = 2048
+            ldac_hdr_data.header['CD1_1'] = 5e-5
+            ldac_hdr_data.header['CD2_2'] = 5e-5
+            ldac_hdr_data.header['CD1_2'] = 0.
+            ldac_hdr_data.header['CD2_1'] = 0
+            ldac_hdr_data_as_string = str(ldac_hdr_data.header)
+
+            ldac_hdr = pyfits.BinTableHDU.from_columns(
+                pyfits.ColDefs([pyfits.Column(
+                    #name='header',
+                    name='Field Header Card',
+                    format='%dA' % (len(ldac_hdr_data_as_string)),
+                    #dim='(%d,%d)' % (80, len(ldac_hdr_data_as_string)),
+                    #array=[ldac_hdr_data_as_string],
+                )])
+            )
+            ldac_hdr.name = "LDAC_IMHEAD"
+
+            ldac_data = pyfits.BinTableHDU.from_columns(pyfits.ColDefs([
+                pyfits.Column(name="X_WORLD", format='1D',
+                              unit='deg', disp='E15', array=catalog[:,0]),
+                pyfits.Column(name="Y_WORLD", format='1D',
+                              unit='deg', disp='E15', array=catalog[:, 1]),
+                pyfits.Column(name="ERRA_WORLD", format='1D',
+                              unit='deg', disp='E12', array=catalog[:, 2]),
+                pyfits.Column(name="ERRB_WORLD", format='1D',
+                              unit='deg', disp='E12', array=catalog[:, 3]),
+                pyfits.Column(name="MAG", format='1E',
+                              unit='mag', disp='F8.4', array=catalog[:, 4]),
+                pyfits.Column(name="MAGERR", format='1E',
+                              unit='mag', disp='F8.4', array=catalog[:, 5]),
+                pyfits.Column(name="OBSDATE", format='1D',
+                              unit='yr', disp='F13.8', array=numpy.ones((catalog.shape[0]))*2000.),
+
+            ]))
+            ldac_data.name = 'LDAC_OBJECTS'
+
+            hdulist = pyfits.HDUList([primhdu, ldac_hdr, ldac_data])
+            hdulist.writeto(out_fn, clobber=True)
 
     podi_logging.shutdown_logging(options)
