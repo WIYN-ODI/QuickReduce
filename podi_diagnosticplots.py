@@ -79,13 +79,20 @@ def plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list,
 
     count, xedges, yedges = numpy.histogram2d(d_ra*3600., d_dec*3600.,
                                               bins=[60,60], range=[[-3,3], [-3,3]])
-    img = ax.imshow(count.T, 
-                                   extent=(xedges[0],xedges[-1],yedges[0],yedges[-1]), 
-                                   origin='lower', 
-                                   cmap=cmap_bluewhite)
-    # interpolation='nearest', 
-    fig.colorbar(img, label='point density')
+    # img = ax.imshow(count.T,
+    #                                extent=(xedges[0],xedges[-1],yedges[0],yedges[-1]),
+    #                                origin='lower',
+    #                                cmap=cmap_bluewhite)
+    # # interpolation='nearest',
+    # fig.colorbar(img, label='point density')
 
+    max_dimension = 3.
+    n_sigma = 7
+    if (ota_global_stats is not None):
+        max_dimension = numpy.max([n_sigma*ota_global_stats['RMS-RA-CLIP'],
+                                   n_sigma*ota_global_stats['RMS-DEC-CLIP'],
+                                   0.5,])
+        #print "max:",max_dimension
 
     #
     # Draw the rings in the center to outline the RMS of the OTA and focal-plane
@@ -102,10 +109,10 @@ def plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list,
         global_text = """\
 Overall WCS (N=%(STARCOUNT)d):
 offset: %(MEDIAN-RA)+0.3f'' / %(MEDIAN-DEC)+0.3f''
-R.M.S. %(RMS-RA)0.3f'' / %(RMS-DEC)0.3f''
-%(RMS).3f'' (combined)\
+R.M.S. %(RMS-RA-CLIP)0.3f'' / %(RMS-DEC-CLIP)0.3f''
+%(RMS-CLIP).3f'' (combined)\
 """ % ota_global_stats
-        ax.text(-2.9, -2.9, global_text,
+        ax.text(-0.97*max_dimension, -0.97*max_dimension, global_text,
         horizontalalignment='right',
         verticalalignment='bottom',
                  fontsize=10, backgroundcolor='white')
@@ -122,10 +129,10 @@ R.M.S. %(RMS-RA)0.3f'' / %(RMS-DEC)0.3f''
         local_text = """\
 This OTA (N=%(STARCOUNT)d):
 offset: %(MEDIAN-RA)+0.3f'' / %(MEDIAN-DEC)+0.3f''
-R.M.S. %(RMS-RA)0.3f'' / %(RMS-DEC)0.3f''
-%(RMS).3f'' (combined)\
+R.M.S. %(RMS-RA-CLIP)0.3f'' / %(RMS-DEC-CLIP)0.3f''
+%(RMS-CLIP).3f'' (combined)\
 """ % ota_stats
-        ax.text(2.9, -2.9, local_text,
+        ax.text(0.97*max_dimension, -0.97*max_dimension, local_text,
                  horizontalalignment='left',
                  verticalalignment='bottom',
                  fontsize=10, backgroundcolor='white')
@@ -134,6 +141,7 @@ R.M.S. %(RMS-RA)0.3f'' / %(RMS-DEC)0.3f''
     # Add some histograms to the borders to illustrate the distribution
     # Only do so if there are at least 5 stars
     #
+    histogram_scale = 0.3*max_dimension
     if (d_ra.shape[0] > 5):
         from scipy.stats import gaussian_kde
         x = numpy.linspace(-3,3,600)
@@ -141,22 +149,21 @@ R.M.S. %(RMS-RA)0.3f'' / %(RMS-DEC)0.3f''
         density_ra.covariance_factor = lambda : .1
         density_ra._compute_covariance()
         peak_ra = numpy.max(density_ra(x))
-        ax.plot(x,3.-density_ra(x)/peak_ra, "-", color='black')
+        ax.plot(x,max_dimension-density_ra(x)/peak_ra*histogram_scale, "-", color='black')
 
         density_dec = gaussian_kde(d_dec*3600.)
         density_dec.covariance_factor = lambda : .1
         density_dec._compute_covariance()
         peak_dec = numpy.max(density_dec(x))
-        ax.plot(density_dec(x)/peak_dec-3., x, "-", color='black')
-
+        ax.plot(density_dec(x)/peak_dec*histogram_scale-max_dimension, x, "-", color='black')
 
 
     ax.plot(d_ra*3600., d_dec*3600., "b,", linewidth=0)
     ax.set_title(title)
     ax.set_xlabel("error RA * cos(DEC) [arcsec]")
     ax.set_ylabel("error DEC [arcsec]")
-    ax.set_xlim((3,-3))
-    ax.set_ylim((-3,3))
+    ax.set_xlim((max_dimension,-1.*max_dimension))
+    ax.set_ylim((-1.*max_dimension,max_dimension))
     ax.grid(True)
     ax.set_aspect('equal')
 
