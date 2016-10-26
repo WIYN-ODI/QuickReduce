@@ -17,22 +17,40 @@ if __name__ == "__main__":
         hdulist = pyfits.open(fn)
 
         col_names = ['ra', 'dec', 'ra_error', 'dec_error', 'phot_g_mean_mag']
-        columns = []
-        for col in col_names:
-            for tbcol in hdulist[1].columns:
-                if (tbcol.name == col):
-                    columns.append(pyfits.Column(name=col,
-                                                 format=tbcol.format,
-                                                 disp=tbcol.disp,
-                                                 unit=tbcol.unit,
-                                                 array=hdulist[1].data.field(col)))
 
         flux = hdulist[1].data.field('phot_g_mean_flux')
         flux_error = hdulist[1].data.field('phot_g_mean_flux_error')
         mag_error = flux_error / flux
         mag_error[(flux<=0) | (flux_error<=0)] = -99.9
-        columns.append(pyfits.Column(
-            name='phot_g_mean_mag_error', array=mag_error, unit='Magnitude[mag]', format='D'))
+
+        mas_to_deg = (1/1000.) / 3600.
+        columns = [
+            pyfits.Column(name='ra', format='D', unit='Angle[deg]',
+                          array=hdulist[1].data.field('ra')),
+            pyfits.Column(name='dec', format='D', unit='Angle[deg]',
+                          array=hdulist[1].data.field('dec')),
+
+            pyfits.Column(name='ra_error', format='D', unit='Angle[deg]',
+                          array=hdulist[1].data.field('ra_error')*mas_to_deg),
+            pyfits.Column(name='dec_error', format='D', unqit='Angle[deg]',
+                          array=hdulist[1].data.field('dec_error')*mas_to_deg),
+
+            pyfits.Column(name='phot_g_mean_mag', format='D', unit='Magnitude[mag]',
+                          array=hdulist[1].data.field('phot_g_mean_mag')),
+            pyfits.Column(name='phot_g_mean_mag_error', format='D', unit='Magnitude[mag]',
+                          array=mag_error),
+        ]
+        # for col in col_names:
+        #     for tbcol in hdulist[1].columns:
+        #         if (tbcol.name == col):
+        #             columns.append(pyfits.Column(name=col,
+        #                                          format=tbcol.format,
+        #                                          disp=tbcol.disp,
+        #                                          unit=tbcol.unit,
+        #                                          array=hdulist[1].data.field(col)))
+        #
+        # columns.append(pyfits.Column(
+        #     name='phot_g_mean_mag_error', array=mag_error, unit='Magnitude[mag]', format='D'))
 
         coldefs = pyfits.ColDefs(columns)
         tbhdu = pyfits.BinTableHDU.from_columns(coldefs)
