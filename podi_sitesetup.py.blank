@@ -25,6 +25,8 @@ from podi_definitions import *
 from podi_commandline import *
 number_cpus = "auto"
 
+catalog_directory = {}
+
 #
 #
 # DO NOT MODIFY ANYTHING ABOVE THIS LINE
