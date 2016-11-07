@@ -685,6 +685,7 @@ def photocalib_zeropoint(output_filename,
     delta = 0.3 if zp_std < 0.3 else zp_std
     # close_to_median = (zp_raw > zp_median - 3 * delta) & (zp_raw < zp_median + 3 * delta)
     
+
     #zp_max, zp_min = zp_median+3*delta, zp_median-3*delta
     zp_min = zp_median-sitesetup.diagplot__zeropoint_ZPrange[0] if \
              (sitesetup.diagplot__zeropoint_ZPrange[0] > 0) else zp_median-5*zp_std-0.3
@@ -755,38 +756,38 @@ def photocalib_zeropoint(output_filename,
     #
     # full_cat = details['odi_sdss_matched']
     # full_sdss_mag = full_cat[:, details['photref_col_mag']]
-    # full_odi_mag = full_cat[:, details['odi_col_mag']] 
+    # full_odi_mag = full_cat[:, details['odi_col_mag']]
     # full_sdss_err = full_cat[:, details['photref_col_err']]
-    # full_odi_err = full_cat[:, details['odi_col_err']] 
+    # full_odi_err = full_cat[:, details['odi_col_err']]
     # full_zp = full_sdss_mag - full_odi_mag
     # within_std = numpy.fabs(full_zp - zp_median) <= zp_std
     # outside_std = numpy.fabs(full_zp - zp_median) > zp_std
 
 
     #
-    # Plot sources with large (i.e.exceeding the limit specified 
+    # Plot sources with large (i.e.exceeding the limit specified
     # in the sitesetup configuration) errors
     #
     largeerr_cat = details['odi_sdss_matched_largeerrors']
     largeerr_sdss_mag = largeerr_cat[:, details['photref_col_mag']]
-    largeerr_odi_mag = largeerr_cat[:, details['odi_col_mag']] 
+    largeerr_odi_mag = largeerr_cat[:, details['odi_col_mag']]
     largeerr_sdss_err = largeerr_cat[:, details['photref_col_err']]
-    largeerr_odi_err = largeerr_cat[:, details['odi_col_err']] 
+    largeerr_odi_err = largeerr_cat[:, details['odi_col_err']]
     largeerr_zp = largeerr_sdss_mag - largeerr_odi_mag
-    ax.errorbar(largeerr_sdss_mag, 
+    ax.errorbar(largeerr_sdss_mag,
                 largeerr_zp,
-                xerr=largeerr_sdss_err, 
+                xerr=largeerr_sdss_err,
                 yerr=numpy.hypot(largeerr_sdss_err, largeerr_odi_err),
                 capsize=0,
-                fmt='.', ms=0, color='#606060', 
+                fmt='.', ms=0, color='#606060',
                 label='ignored (#: %d)' % n_ignored)
 
-               
+
     # smallerr_cat = details['odi_sdss_matched_smallerrors']
     # smallerr_sdss_mag = smallerr_cat[:, details['photref_col_mag']]
-    # smallerr_odi_mag = smallerr_cat[:, details['odi_col_mag']] 
+    # smallerr_odi_mag = smallerr_cat[:, details['odi_col_mag']]
     # smallerr_sdss_err = smallerr_cat[:, details['photref_col_err']]
-    # smallerr_odi_err = smallerr_cat[:, details['odi_col_err']] 
+    # smallerr_odi_err = smallerr_cat[:, details['odi_col_err']]
     # smallerr_zp = smallerr_sdss_mag - smallerr_odi_mag
 
     #
@@ -799,12 +800,12 @@ def photocalib_zeropoint(output_filename,
                 yerr=numpy.hypot(ref_cat[:, details['photref_col_err']],
                                  ref_cat[:, details['odi_col_err']]),
                 capsize=0,
-                fmt="+", ms=5, color='blue', linewidth=1, 
+                fmt="+", ms=5, color='blue', linewidth=1,
                 label='valid calibrator (#: %d)' % n_ref)
 
     #
     # And for completeness, also plot sources deemed outliers
-    # 
+    #
     outlier_cat = details['odi_sdss_matched_outlier']
     ax.errorbar(outlier_cat[:, details['photref_col_mag']],
                 outlier_cat[:, details['photref_col_mag']]-outlier_cat[:, details['odi_col_mag']],
@@ -812,7 +813,7 @@ def photocalib_zeropoint(output_filename,
                 yerr=numpy.hypot(outlier_cat[:, details['photref_col_err']],
                                  outlier_cat[:, details['odi_col_err']]),
                 capsize=0,
-                fmt="+", ms=5, color='red', linewidth=1, 
+                fmt="+", ms=5, color='red', linewidth=1,
                 label='outlier (#: %d)' % n_outlier)
 
     #
@@ -821,7 +822,7 @@ def photocalib_zeropoint(output_filename,
     matplotlib.pyplot.plot(x_values+1, y_values*zp_median, linewidth=1, ls='-', color='white')
 
     #
-    # Add some additional data about the restricted fitting range and 
+    # Add some additional data about the restricted fitting range and
     # the slope of phot. ZP with SDSS magnitude
     #
     if (not details == None):
@@ -836,12 +837,12 @@ def photocalib_zeropoint(output_filename,
             # ax.plot(slopefit_x, slopefit_y, "k-", label="fit ZP(%s-ODI)" % (details['catalog']))
 
     ax.grid(True)
-    ax.legend(loc='upper left', borderaxespad=0.5, prop={'size':9})
+    # ax.legend(loc='upper left', borderaxespad=0.5, prop={'size':9})
 
     rms = details['rms']
     sem = details['sem']
     photzp_text = u"ZP = %.3f \u00b1 %.3f mag\nr.m.s/s.e.m. = %.3f/%.3f mag" % (
-        zp_median, zp_std, rms, sem, 
+        zp_median, zp_std, rms, sem,
     )
     ax.text(0.96, 0.05, photzp_text, fontsize=15,
             horizontalalignment='right',
@@ -851,7 +852,7 @@ def photocalib_zeropoint(output_filename,
 
     title_string = title if (title != None) else ""
     matplotlib.pyplot.title(title_string)
-    ref_mag_name = "reference" 
+    ref_mag_name = "reference"
     ref_filter = "none"
     if (not details == None and 'catalog' in details):
         ref_mag_name = details['catalog']
