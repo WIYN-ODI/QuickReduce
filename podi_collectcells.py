@@ -4411,7 +4411,7 @@ def collectcells(input, outputfile,
 
         # Now convert the matched source catalog into a valid FITS extension 
         # and add it to the output.
-        if (not odi_sdss_matched == None and odi_sdss_matched.shape[0] > 0):
+        if (odi_sdss_matched is not None and odi_sdss_matched.shape[0] > 0):
             logger.debug("Adding matched SDSS=ODI source catalog to output as FITS extension")
             match_tablehdu = create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details)
             # Copy a bunch of headers so we can makes heads and tails of the catalog
