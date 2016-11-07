@@ -859,13 +859,39 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                 break
             else:
                 logger.warning("Problem with querying the IPPRef catalog")
-                
+
+        elif (catname in sitesetup.catalog_directory):
+            # So basically we know where to find this catalog, but we are not sure yet
+            # the catalog covers the filter we need
+            if (catname not in sitesetup.catalog_mags):
+                # this catalog is not properly registered for the photometric calibration
+                logger.error("Chosen catalog for photometric calibration (%s) is known but not well described!" % (catname))
+                return error_return_value
+            if (sdss_filter not in sitesetup.catalog_mags[catname]):
+                # this catalog does not have the right photometric data
+                logger.error("Chosen catalog for photometric calibration (%s) does not contain photometry in this filter band (%s)" % (
+                    catname, sdss_filter))
+                return error_return_value
+            logger.info("Using %s for photometric calibration" % (catname))
+            catalog_basedir, cat_mag = sitesetup.catalog_directory[catname]
+            _std_stars = podi_search_ipprefcat.get_reference_catalog(
+                    ra_range, dec_range, radius=None,
+                    basedir=catalog_basedir,
+                    cattype="general"
+            )
+            if (_std_stars is not None and _std_stars.shape[0] > 0):
+                detailed_return['catalog'] = catname
+                std_stars = _std_stars
+                logger.info("Found %d reference sources in %s catalog" % (std_stars.shape[0], catname))
+                break
+            else:
+                logger.warning("Problem with querying the %s catalog" % (catname))
         else:
             logger.error("Illegal catalog name in the photcalib order: %s" % (catname))
             return error_return_value
 
 
-    if (std_stars == None or
+    if (std_stars is None or
         type(std_stars) == numpy.ndarray and std_stars.shape[0] <= 0):
         # No sources found, report a photometric calibration failure.
         return error_return_value
@@ -1024,6 +1050,70 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         else:
             logger.debug("No reference photometry for this filter (%s -> %s) found in IPPRef" % (
                 filtername, sdss_filter))
+    elif (catname in sitesetup.catalog_mags):
+        logger.info("Using custom reference catalog")
+        # Compute the calibration magnitude from SDSS,
+        # accounting for color-terms if needed
+
+        # if we get to here, the catalog has photometry for this filter, but not
+        # necessarily photometry to compensate for color terms
+        try:
+            mag_col = sitesetup.catalog_mags[catname].index(sdss_filter)
+            sdss_mag = odi_sdss_matched[:, (source_cat.shape[1] + mag_col)]
+            photref_col_mag = source_cat.shape[1] + mag_col
+        except ValueError:
+            logger.critical("XXX This shouldn't happen")
+
+        sdss_filter_error = "err_"+sdss_filter
+        try:
+            err_col = sitesetup.catalog_mags[catname].index(sdss_filter_error)
+            sdss_magerr = odi_sdss_matched[:, (source_cat.shape[1] + err_col)]
+            photref_col_err = source_cat.shape[1] + err_col
+        except ValueError:
+            logger.warning("Photometric reference catalog does not contain uncertainty %s" % (sdss_filter_error))
+            err_col = -1
+            sdss_magerr = numpy.zeros_like(sdss_mag)
+            photref_col_err = numpy.NaN
+
+        #pc = sdss_photometric_column[sdss_filter]
+        detailed_return['reference_filter'] = sdss_filter
+
+        #photref_col_mag = source_cat.shape[1] + mag_col
+        #photref_col_err = source_cat.shape[1] + err_col
+
+        #sdss_mag = odi_sdss_matched[:, (source_cat.shape[1] + mag_col)]
+        #sdss_magerr = odi_sdss_matched[:, (source_cat.shape[1] + err_col)]
+
+        # print filtername, photzp_colorterms
+        if (filtername in photzp_colorterms):
+            logger.info("Found color-term definition for this filter (%s)" % (filtername))
+            colorterm, filter1, filter2 = photzp_colorterms[filtername]
+
+            try:
+                colterm_mag1 = sitesetup.catalog_mags[catname].index(filter1)
+                colterm_mag2 = sitesetup.catalog_mags[catname].index(filter2)
+
+                sdss_color = odi_sdss_matched[:, (source_cat.shape[1] + colterm_mag1)] - \
+                             odi_sdss_matched[:, (source_cat.shape[1] + colterm_mag2)]
+
+                color_correction = colorterm * sdss_color
+
+                odi_sdss_matched[:, (source_cat.shape[1] + mag_col)] -= color_correction
+
+                detailed_return['colorterm'] = colorterm
+
+                detailed_return['colorcorrection'] = "sdss_%s - sdss_%s" % (filter1, filter2)
+            except ValueError:
+                # one of the color-term filters wasn't found
+                detailed_return['colorterm'] = None
+                logger.debug("Insufficient reference photometry to compensate color-term")
+
+                # col1 = sdss_photometric_column[filter1]
+            # col2 = sdss_photometric_column[filter2]
+        else:
+            detailed_return['colorterm'] = None
+            logger.debug("No color-term definition for this filter (%s)" % (filtername))
+
     else:
         return error_return_value
 
@@ -1166,15 +1256,19 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
     # print "\n"*10,detailed_return,"\n"*5
 
-
+    print "\n"*10
+    print photref_col_mag
+    print photref_col_err
     if (odi_sdss_matched.shape[0] > 0):
 
         #
         # Now select only sources with reference uncertainties <~ 0.02 mag
         # The detailed cutoff can be configured via the sitesetup.py configuration
         #
-        small_reference_errors = odi_sdss_matched[:, photref_col_err] \
-                            < sitesetup.photcalib_error_cutoff[detailed_return['catalog']]
+        error_cutoff = 0.02
+        if (detailed_return['catalog'] in sitesetup.photcalib_error_cutoff):
+            error_cutoff = sitesetup.photcalib_error_cutoff[detailed_return['catalog']]
+        small_reference_errors = odi_sdss_matched[:, photref_col_err] < error_cutoff
         if (numpy.sum(small_reference_errors) > 5):
             small_errors = odi_sdss_matched[small_reference_errors].copy()
             large_errors = odi_sdss_matched[~small_reference_errors].copy()
