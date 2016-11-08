@@ -1256,9 +1256,6 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
     # print "\n"*10,detailed_return,"\n"*5
 
-    print "\n"*10
-    print photref_col_mag
-    print photref_col_err
     if (odi_sdss_matched.shape[0] > 0):
 
         #
