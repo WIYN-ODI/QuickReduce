@@ -252,6 +252,23 @@ import psutil
 
 from podi_plotting import *
 
+#
+# Un-comment this block to get warnings with tracebacks for easier locating
+#
+# import warnings
+# #warnings.simplefilter("error")
+# warnings.simplefilter("ignore", RuntimeWarning)
+# import traceback
+# import warnings
+# import sys
+# def warn_with_traceback(message, category, filename, lineno, file=None, line=None):
+#     print"\n"*3
+#     traceback.print_stack()
+#     log = file if hasattr(file,'write') else sys.stderr
+#     log.write(warnings.formatwarning(message, category, filename, lineno, line))
+#     print "\n"*3
+# warnings.showwarning = warn_with_traceback
+
 gain_correct_frames = False
 from podi_definitions import *
 from podi_commandline import *
@@ -4404,7 +4421,8 @@ def collectcells(input, outputfile,
         # Compute the sky-brightness 
         sky_arcsec = sky_global_median / (0.11**2) # convert counts/pixel to counts/arcsec*2
         sky_mag = -99.
-	if (sky_arcsec > 0 and zeropoint_exptime < 99): -2.5 * math.log10(sky_arcsec) + zeropoint_exptime
+        if (sky_arcsec > 0 and zeropoint_exptime < 99):
+            sky_mag = -2.5 * math.log10(sky_arcsec) + zeropoint_exptime
         ota_list[0].header['SKYMAG'] = sky_mag
 
 
@@ -4466,7 +4484,7 @@ def collectcells(input, outputfile,
         options['photcalib'] and
         enough_stars_for_fixwcs):
 
-        if (options['photcalib'] and not odi_sdss_matched == None and odi_sdss_matched.shape[0] > 0):
+        if (options['photcalib'] and odi_sdss_matched is not None and odi_sdss_matched.shape[0] > 0):
             # Use the SDSS catalog if available
             flags = odi_sdss_matched[:,SXcolumn['flags']+2]
             valid_flags = (flags == 0)
