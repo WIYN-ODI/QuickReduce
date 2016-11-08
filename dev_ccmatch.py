@@ -1742,7 +1742,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # in reference catalog
     #
     n_points = 5.
-    idx_y, idx_x = numpy.indices((n_points,n_points))
+    idx_y, idx_x = numpy.indices((int(n_points),int(n_points)))
     ota_coord_grid = None
     if (use_ota_coord_grid):
         for ext in input_hdu:

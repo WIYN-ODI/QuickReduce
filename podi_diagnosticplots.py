@@ -722,7 +722,7 @@ def photocalib_zeropoint(output_filename,
 
     # Prepare a histogram to illustrate the distribution of ZP values
     binwidth = numpy.max([(0.2 * zp_std), 0.025])
-    nbins = (zp_max - zp_min) / binwidth
+    nbins = int(math.ceil((zp_max - zp_min) / binwidth))
     small_errors = details['odi_sdss_matched_smallerrors']
     zp_good = small_errors[:, details['photref_col_mag']] \
               - small_errors[:, details['odi_col_mag']]
