@@ -3042,7 +3042,7 @@ def collectcells(input, outputfile,
         for key, value in options['additional_fits_headers'].iteritems():
             ota_list[0].header[key] = (value, "user-added keyword")
             _firstkey = key if _firstkey is None else _firstkey
-        add_fits_header_title(header, "User-added keywords", _firstkey)
+        add_fits_header_title(ota_list[0].header, "User-added keywords", _firstkey)
 
     ota_list[0].header['BINNING'] = (binning, "binning factor")
 
