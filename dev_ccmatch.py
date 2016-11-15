@@ -1820,8 +1820,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # 
     # Create the reference catalog
     #
-    print catalog_order
-    if (reference_catalog == None):
+    logger.debug("Checking the following catalogs for WCS: %s" % (",".join(catalog_order)))
+    if (reference_catalog is None):
         search_size = fov + max_pointing_error/60.
 
         ref_raw = None
@@ -1860,8 +1860,10 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
 
         # Now get rid of all info except coordinates
         ref_raw = ref_raw[:,0:2]
+        return_value['astrmcat'] = catalog_name
     else:
         ref_raw = reference_catalog #numpy.loadtxt(ref_catfile)[:,0:2]
+        return_value['astrmcat'] = 'from_memory'
     logger.debug("ref. cat (raw) ="+str(ref_raw.shape))
     
 

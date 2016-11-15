@@ -4041,7 +4041,7 @@ def collectcells(input, outputfile,
         ota_list = ccmatched['hdulist']
 
         ota_list[0].header['WCSFIXED'] = True
-        ota_list[0].header['ASTRMCAT'] = "2MASS"
+        ota_list[0].header['ASTRMCAT'] = ccmatched['astrmcat'] #"2MASS"
         ota_list[0].header['WCSMXPOS'] = (ccmatched['max_pointing_error_searched'],
                                           "maximum pointing offset searched for success")
         ota_list[0].header['WCSEXPOS'] = (ccmatched['max_pointing_error'],
