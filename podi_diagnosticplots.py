@@ -275,7 +275,7 @@ def wcsdiag_scatter(matched_radec_odi,
             if (title_info is not None):
                 title_info['OTA'] = this_ota
                 try:
-                    title = "WCS Scatter - %(OBSID)s - OTA %(OTA)02d\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec" % title_info
+                    title = "WCS Scatter (reference: %(ASTRMCAT)s)\n%(OBSID)s - OTA %(OTA)02d\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec" % title_info
                 except:
                     pass
                
