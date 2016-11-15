@@ -62,8 +62,9 @@ import podi_logging, logging
 
 
 
-def plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list, 
+def plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list,
                          title="WCS Scatter",
+                         high_s2n=None,
                          ota_stats = None, ota_global_stats = None):
     """
 
@@ -117,7 +118,7 @@ R.M.S. %(RMS-RA-CLIP)0.3f'' / %(RMS-DEC-CLIP)0.3f''
         verticalalignment='bottom',
                  fontsize=10, backgroundcolor='white')
 
-    if (not ota_stats == None):
+    if (ota_stats is not None):
         x = ota_stats['MEDIAN-RA']
         y = ota_stats['MEDIAN-DEC']
         width = ota_stats['RMS-RA']
@@ -158,7 +159,14 @@ R.M.S. %(RMS-RA-CLIP)0.3f'' / %(RMS-DEC-CLIP)0.3f''
         ax.plot(density_dec(x)/peak_dec*histogram_scale-max_dimension, x, "-", color='black')
 
 
-    ax.plot(d_ra*3600., d_dec*3600., "b,", linewidth=0)
+    if (high_s2n is not None):
+        # ax.plot(d_ra[high_s2n] * 3600., d_dec[high_s2n] * 3600., "b,", linewidth=0)
+        ax.scatter(d_ra[~high_s2n] * 3600., d_dec[~high_s2n] * 3600.,
+                   c='#aaaaaa', marker='.', linewidth=0, s=1)
+        ax.scatter(d_ra[high_s2n] * 3600., d_dec[high_s2n] * 3600.,
+                   c='blue', s=4, marker='.', linewidth=0)
+    else:
+        ax.plot(d_ra*3600., d_dec*3600., "b,", linewidth=0)
     ax.set_title(title)
     ax.set_xlabel("error RA * cos(DEC) [arcsec]")
     ax.set_ylabel("error DEC [arcsec]")
@@ -184,6 +192,7 @@ R.M.S. %(RMS-RA-CLIP)0.3f'' / %(RMS-DEC-CLIP)0.3f''
 def wcsdiag_scatter(matched_radec_odi, 
                     matched_radec_2mass, 
                     matched_ota,
+                    matched_odierror,
                     filename, options=None, ota_wcs_stats=None,
                     also_plot_singleOTAs=True,
                     title_info = None,
@@ -236,6 +245,7 @@ def wcsdiag_scatter(matched_radec_odi,
                 "ota_stats": None,
                 "ota_global_stats": ota_global_stats,
                 "title": title,
+                "high_s2n": (matched_odierror<0.02),
             }
     p = multiprocessing.Process(target=plot_wcsdiag_scatter, kwargs=plot_args)
     p.start()
@@ -276,7 +286,8 @@ def wcsdiag_scatter(matched_radec_odi,
             #     ota_plotfile = "%s/OTA%02d" % (filename, this_ota)
 
             plot_args= {"d_ra": d_ra[in_this_ota], 
-                        "d_dec": d_dec[in_this_ota], 
+                        "d_dec": d_dec[in_this_ota],
+                        "high_s2n": (matched_odierror[in_this_ota] < 0.02),
                         "filename": ota_plotfile, 
                         "extension_list": extension_list, 
                         "title": title,
