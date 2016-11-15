@@ -1770,6 +1770,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     return_value['max_pointing_error'] = max_pointing_error
     return_value['max_pointing_error_list'] = max_pointing_error_list
     return_value['contrasts'] = numpy.ones((max_pointing_error_list.shape[0])) * -1.
+    return_value['catalog_filenames'] = None
 
     if (type(source_catalog) == str):
         # Load the source catalog file
@@ -1834,12 +1835,13 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             catalog_basedir, catalog_refmag = sitesetup.catalog_directory[catalog_name]
             logger.info("Using %s catalog from %s for astrometric calibration" % (
                 catalog_name, catalog_basedir))
-            ref_raw = podi_search_ipprefcat.get_reference_catalog(
+            ref_raw, catalog_files = podi_search_ipprefcat.get_reference_catalog(
                     center_ra,
                     center_dec,
                     search_size,
                     basedir=catalog_basedir,
-                    cattype="general"
+                    cattype="general",
+                    return_filenames=True,
             )
             if (ref_raw is not None):
                 # we found the field in this catalog - no need to check other catalogs
@@ -1861,6 +1863,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         # Now get rid of all info except coordinates
         ref_raw = ref_raw[:,0:2]
         return_value['astrmcat'] = catalog_name
+        return_value['catalog_filenames'] = catalog_files
     else:
         ref_raw = reference_catalog #numpy.loadtxt(ref_catfile)[:,0:2]
         return_value['astrmcat'] = 'from_memory'

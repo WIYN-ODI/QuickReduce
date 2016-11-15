@@ -4056,6 +4056,10 @@ def collectcells(input, outputfile,
                                           "Minimum WCS quality for successful calibration")
         ota_list[0].header['WCSCAL'] = ccmatched['valid_wcs_solution']
 
+        master_reduction_files_used = podi_associations.collect_reduction_files_used(
+            master_reduction_files_used,
+            {'wcs-reference': ccmatched['catalog_filenames']})
+
         #
         # Now add some headers to visualize the WCS quality (i.e. number of 
         # matched sources for each OTA)

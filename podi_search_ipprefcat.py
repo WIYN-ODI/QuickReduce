@@ -282,10 +282,11 @@ def table_to_ndarray(tbhdu, select_header_list=None, overwrite_select=False):
 
 
 def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose=False, overwrite_select=False,
-                          quiet=False,
+                          quiet=False, return_filenames=False,
                           ):
 
     logger = logging.getLogger("ReadCatalog")
+    catalog_filenames = None
 
     # Handle the separate case of web-based catalogs
     if (cattype.startswith("web:")):
@@ -387,6 +388,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
     # Load all frames, one by one, and select all stars in the valid range.
     # Then add them to the catalog with RAs and DECs
     full_catalog = None #numpy.zeros(shape=(0,6))
+    catalog_filenames = []
     for catalogname in files_to_read:
 
         if (cattype == "IPPRef"):
@@ -400,6 +402,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
                 logger.warning("Unable to open IPPRef file %s" % (catalogfile))
                 continue
 
+            catalog_filenames.append(catalogfile)
             # Read the RA and DEC values
             cat_ra  = hdu_cat['DVO_AVERAGE_ELIXIR'].data.field('RA')
             cat_dec = hdu_cat['DVO_AVERAGE_ELIXIR'].data.field('DEC')
@@ -440,6 +443,8 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
                 logger.warning("Unable to open catalog (%s) file %s" % (
                     cattype, catalogfile))
                 continue
+
+            catalog_filenames.append(catalogfile)
 
             # Read the RA and DEC values
             cat_ra  = hdu_cat[1].data.field('ra')
@@ -538,6 +543,8 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
                     cattype, catalogfile))
                 continue
 
+            catalog_filenames.append(catalogfile)
+
             # read table into a nd-array buffer
             cat_full = table_to_ndarray(hdu_cat[1], select_header_list=select_header_list,
                                         overwrite_select=overwrite_select)
@@ -576,6 +583,9 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
         ))
     else:
         logger.debug("Read a total of %d stars from %d catalogs!" % (full_catalog.shape[0], len(files_to_read)))
+
+    if (return_filenames):
+        return full_catalog, catalog_filenames
 
     return full_catalog
 
