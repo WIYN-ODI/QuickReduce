@@ -93,6 +93,7 @@ def plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list,
         max_dimension = numpy.max([n_sigma*ota_global_stats['RMS-RA-CLIP'],
                                    n_sigma*ota_global_stats['RMS-DEC-CLIP'],
                                    0.5,])
+        max_dimension = 3. if max_dimension > 3 else max_dimension
         #print "max:",max_dimension
 
     #
