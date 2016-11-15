@@ -99,7 +99,7 @@ def plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list,
     #
     # Draw the rings in the center to outline the RMS of the OTA and focal-plane
     #
-    if (not ota_global_stats == None):
+    if (ota_global_stats is not None):
         x = ota_global_stats['MEDIAN-RA']
         y = ota_global_stats['MEDIAN-DEC']
         width = ota_global_stats['RMS-RA']
@@ -176,7 +176,7 @@ R.M.S. %(RMS-RA-CLIP)0.3f'' / %(RMS-DEC-CLIP)0.3f''
     ax.grid(True)
     ax.set_aspect('equal')
 
-    if (filename == None):
+    if (filename is None):
         fig.show()
     else:
         for ext in extension_list:
@@ -221,19 +221,19 @@ def wcsdiag_scatter(matched_radec_odi,
     d_dec = matched_radec_odi[:,1] - matched_radec_2mass[:,1]
     ota = matched_ota
 
-    if (options == None):
+    if (options is None):
         extension_list = ['png']
     else:
         extension_list = options['plotformat']
 
     # Create one plot for the full focalplane
-    ota_global_stats = None if ota_wcs_stats == None else ota_wcs_stats['full']
+    ota_global_stats = None if ota_wcs_stats is None else ota_wcs_stats['full']
 
     title = "WCS Scatter - full focal plane"
-    if (not title_info == None):
+    if (title_info is not None):
         logger.debug("Received information for a more descriptive plot title for WCS scatter")
         try:
-            title = "WCS Scatter - %(OBSID)s (focal-plane) \n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec" % title_info
+            title = "WCS Scatter (reference: %(ASTRMCAT)s)\n%(OBSID)s (focal-plane) \n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec" % title_info
             logger.debug(title)
         except:
             pass
@@ -267,12 +267,12 @@ def wcsdiag_scatter(matched_radec_odi,
             extname = "OTA%02d.SCI" % (this_ota)
 
             ota_stats = None
-            if (not ota_wcs_stats == None):
+            if (ota_wcs_stats is not None):
                 if (extname in ota_wcs_stats):
                     ota_stats = ota_wcs_stats[extname]
 
             title = "WSC Scatter - OTA %02d" % (this_ota)
-            if (not title_info == None):
+            if (title_info is not None):
                 title_info['OTA'] = this_ota
                 try:
                     title = "WCS Scatter - %(OBSID)s - OTA %(OTA)02d\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec" % title_info
@@ -416,7 +416,7 @@ def plot_wcsdiag_shift(radec, d_radec,
     #           angles='xy', scale_units='xy', scale=1, pivot='middle',
     #           headwidth=0)
 
-    if (not ota_outlines == None):
+    if (ota_outlines is not None):
         corners = numpy.array(ota_outlines)
         if (around_zero):
             corners[:,:,0][corners[:,:,0] > 180.] -= 360.
@@ -431,7 +431,7 @@ def plot_wcsdiag_shift(radec, d_radec,
     # ax.text(arrow_x, arrow_y-2*vector_scaling/3600., "%d''" % (2*arrow_length*3600), 
     #                        horizontalalignment='center')
 
-    if (filename == None):
+    if (filename is None):
         fig.show()
     else:
         for ext in extension_list:
@@ -496,7 +496,7 @@ def wcsdiag_shift(matched_radec_odi,
     # d_dec = good_matches[:,1] - good_matches[:,3]
     # ota = good_matches[:,10]
     
-    if (options == None):
+    if (options is None):
         extension_list = ['png']
     else:
         extension_list = options['plotformat']
@@ -505,7 +505,7 @@ def wcsdiag_shift(matched_radec_odi,
 
     # Create one plot for the full focalplane
     title = "WCS errors - full focal plane"
-    if (not title_info == None):
+    if (title_info is not None):
         logger.debug("Received information for a more descriptive plot title for WCS scatter")
         try:
             title = "WCS Errors - %(OBSID)s (focal-plane) \n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec" % title_info
@@ -534,7 +534,7 @@ def wcsdiag_shift(matched_radec_odi,
 
             extname = "OTA%02d.SCI" % (this_ota)
             title = "WSC Error - OTA %02d" % (this_ota)
-            if (not title_info == None):
+            if (title_info is not None):
                 title_info['OTA'] = this_ota
                 try:
                     title = "WCS Errors - %(OBSID)s OTA %(OTA)02d\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec" % title_info
@@ -837,9 +837,9 @@ def photocalib_zeropoint(output_filename,
     # Add some additional data about the restricted fitting range and
     # the slope of phot. ZP with SDSS magnitude
     #
-    if (not details == None):
+    if (details is not None):
         # Add some information about the fitted slope
-        if (not details['zp_magnitude_slope'] == None):
+        if (details['zp_magnitude_slope'] is not None):
             fit, err = details['zp_magnitude_slope']
             full_cat = details['odi_sdss_matched']
             minx = numpy.min(full_cat[:, details['photref_col_mag']])
@@ -866,7 +866,7 @@ def photocalib_zeropoint(output_filename,
     matplotlib.pyplot.title(title_string)
     ref_mag_name = "reference"
     ref_filter = "none"
-    if (not details == None and 'catalog' in details):
+    if (details is not None and 'catalog' in details):
         ref_mag_name = details['catalog']
         ref_filter = details['reference_filter']
 
@@ -876,11 +876,11 @@ def photocalib_zeropoint(output_filename,
     matplotlib.pyplot.ylim((zp_min, zp_max))
 #    matplotlib.pyplot.axes().set_aspect('equal')
 
-    if (output_filename == None):
+    if (output_filename is None):
         fig.show()
     else:
         fig.set_size_inches(8,6)
-        if (not options == None):
+        if (options is not None):
             for ext in options['plotformat']:
                 if (ext != ''):
                     fig.savefig(output_filename+"."+ext, bbox_inches='tight')
@@ -939,7 +939,7 @@ def plot_zeropoint_map(details, ota_select, ota_outlines, output_filename, optio
     zp_min, zp_max = zp_range
 
     full_catalog = details['odi_sdss_matched_smallerrors'].copy()
-    if (not ota_select == None):
+    if (ota_select is not None):
         in_this_ota = full_catalog[:, SXcolumn['ota']+2] == ota_select
         full_catalog = full_catalog[in_this_ota]
 
@@ -972,7 +972,7 @@ def plot_zeropoint_map(details, ota_select, ota_outlines, output_filename, optio
                                    s=9, cmap=matplotlib.pyplot.cm.get_cmap(colormap_name))
         #matplotlib.pyplot.colorbar(sc, cm)
 
-    if (not ota_outlines == None):
+    if (ota_outlines is not None):
         corners = numpy.array(ota_outlines)
         if (around_zero):
             corners[:,:,0][corners[:,:,0] > 180.] -= 360.
@@ -988,11 +988,11 @@ def plot_zeropoint_map(details, ota_select, ota_outlines, output_filename, optio
     colorbar = matplotlib.pyplot.colorbar(cmap=matplotlib.pyplot.cm.get_cmap(colormap_name))
     colorbar.set_label("phot. zeropoint")
 
-    if (output_filename == None):
+    if (output_filename is None):
         fig.show()
     else:
         fig.set_size_inches(8,6)
-        if (not options == None):
+        if (options is not None):
             for ext in options['plotformat']:
                 if (ext != ''):
                     fig.savefig(output_filename+"."+ext, dpi=100, bbox_inches='tight')
@@ -1141,7 +1141,7 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
                                    vmin=fwhm_min, vmax=fwhm_max, edgecolor='none',
                                    s=9, cmap=matplotlib.pyplot.cm.get_cmap(colormap_name))
 
-    if (not ota_outlines == None):
+    if (ota_outlines is not None):
         corners = numpy.array(ota_outlines)
         if (around_zero):
             corners[:,:,0][corners[:,:,0] > 180.] -= 360.
@@ -1160,11 +1160,11 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
     colorbar = matplotlib.pyplot.colorbar(cmap=matplotlib.pyplot.cm.get_cmap(colormap_name)) #spectral
     colorbar.set_label("FWHM [arcsec]")
 
-    if (output_filename == None):
+    if (output_filename is None):
         fig.show()
     else:
         fig.set_size_inches(8,6)
-        if (not options == None):
+        if (options is not None):
             for ext in options['plotformat']:
                 if (ext != ''):
                     fig.savefig(output_filename+"."+ext, dpi=100,bbox_inches='tight')
@@ -1208,7 +1208,7 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
     processes = []
 
     title = "PSF map"
-    if (not title_info == None):
+    if (title_info is not None):
         try:
             title = "FWHM map - %(OBSID)s (focal plane)\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec)" % title_info
         except:
@@ -1250,7 +1250,7 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
             dec_ota = dec[in_this_ota]
 
             title = "PSF map, OTA %02d" % (this_ota)
-            if (not title_info == None):
+            if (title_info is not None):
                 title_info['OTA'] = this_ota
                 try:
                     title = "FWHM map - %(OBSID)s OTA %(OTA)02d\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec)" % title_info
@@ -1384,7 +1384,7 @@ def plot_psfshape_map(ra, dec, elongation, angle, fwhm,
     ax.set_xlim(ax.get_xlim()[::-1])
 
     # Draw OTA outlines if requested
-    if (not ota_outlines == None):
+    if (ota_outlines is not None):
         corners = numpy.array(ota_outlines)
         if (around_zero):
             corners[:,:,0][corners[:,:,0] > 180.] -= 360.
@@ -1392,12 +1392,12 @@ def plot_psfshape_map(ra, dec, elongation, angle, fwhm,
         ax.add_collection(coll)
 
     # Save plot to file
-    if (output_filename == None):
+    if (output_filename is None):
         matplotlib.pyplot.show()
         fig.show()
     else:
         fig.set_size_inches(8,6)
-        if (not options == None):
+        if (options is not None):
             for ext in options['plotformat']:
                 if (ext != ''):
                     fig.savefig(output_filename+"."+ext, dpi=100,bbox_inches='tight')
@@ -1436,7 +1436,7 @@ def  diagplot_psfshape_map(ra, dec, elongation, angle, fwhm, ota,
     processes = []
 
     title = "PSF Shape"
-    if (not title_info == None):
+    if (title_info is not None):
         try:
             title = "PSF Shape - %(OBSID)s (focal plane)\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec)" % title_info
         except:
@@ -1484,7 +1484,7 @@ def  diagplot_psfshape_map(ra, dec, elongation, angle, fwhm, ota,
             fwhm_ota = fwhm[in_this_ota]
             title = "PSF map, OTA %02d" % (this_ota)
 
-            if (not title_info == None):
+            if (title_info is not None):
                 title_info['OTA'] = this_ota
                 try:
                     title = "PSF Shape - %(OBSID)s OTA %(OTA)02d\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec)" % title_info
