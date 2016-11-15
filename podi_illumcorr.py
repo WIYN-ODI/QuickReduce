@@ -66,7 +66,7 @@ import sys
 import os
 import pyfits
 import numpy
-numpy.seterr(divide='ignore', invalid='ignore')
+#numpy.seterr(divide='ignore', invalid='ignore')
 import scipy
 import scipy.stats
 import scipy.optimize

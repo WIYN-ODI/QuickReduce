@@ -49,7 +49,7 @@ import multiprocessing
 import Queue
 import time
 
-numpy.seterr(divide='ignore', invalid='ignore')
+#numpy.seterr(divide='ignore', invalid='ignore')
 
 
 limit_overexposed = 55000

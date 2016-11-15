@@ -94,7 +94,7 @@ import podi_logging
 import logging
 import podi_focalplanelayout
 
-numpy.seterr(divide='ignore', invalid='ignore')
+#numpy.seterr(divide='ignore', invalid='ignore')
 
 try:
     import cPickle as pickle

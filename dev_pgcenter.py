@@ -15,7 +15,7 @@ from podi_definitions import *
 from podi_commandline import *
 import itertools
 
-numpy.seterr(divide='ignore', invalid='ignore')
+#numpy.seterr(divide='ignore', invalid='ignore')
 
 # def rebin_image(data, binfac):
     
