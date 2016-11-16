@@ -144,20 +144,29 @@ R.M.S. %(RMS-RA-CLIP)0.3f'' / %(RMS-DEC-CLIP)0.3f''
     # Only do so if there are at least 5 stars
     #
     histogram_scale = 0.3*max_dimension
+    select = [
+        (numpy.ones(d_ra.shape, dtype=numpy.bool), '#808080')
+    ]
+    if (high_s2n is not None):
+        select.append((high_s2n, 'blue'))
+
     if (d_ra.shape[0] > 5):
         from scipy.stats import gaussian_kde
         x = numpy.linspace(-3,3,600)
-        density_ra = gaussian_kde(d_ra*3600.)
-        density_ra.covariance_factor = lambda : .1
-        density_ra._compute_covariance()
-        peak_ra = numpy.max(density_ra(x))
-        ax.plot(x,max_dimension-density_ra(x)/peak_ra*histogram_scale, "-", color='black')
 
-        density_dec = gaussian_kde(d_dec*3600.)
-        density_dec.covariance_factor = lambda : .1
-        density_dec._compute_covariance()
-        peak_dec = numpy.max(density_dec(x))
-        ax.plot(density_dec(x)/peak_dec*histogram_scale-max_dimension, x, "-", color='black')
+        for (sample, color) in select:
+            density_ra = gaussian_kde(d_ra[sample]*3600.)
+            density_ra.covariance_factor = lambda : .1
+            density_ra._compute_covariance()
+            peak_ra = numpy.max(density_ra(x))
+            ax.plot(x,max_dimension-density_ra(x)/peak_ra*histogram_scale, "-", color=color)#'black')
+
+            density_dec = gaussian_kde(d_dec[sample]*3600.)
+            density_dec.covariance_factor = lambda : .1
+            density_dec._compute_covariance()
+            peak_dec = numpy.max(density_dec(x))
+            ax.plot(density_dec(x)/peak_dec*histogram_scale-max_dimension, x, "-", color=color)#'black')
+
 
 
     if (high_s2n is not None):
