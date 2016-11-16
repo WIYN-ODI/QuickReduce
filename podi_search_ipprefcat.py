@@ -288,30 +288,38 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
     logger = logging.getLogger("ReadCatalog")
     catalog_filenames = None
 
+    error_return = (None, None) if return_filenames else None
+
     # Handle the separate case of web-based catalogs
     if (cattype.startswith("web:")):
 
         if (cattype == "web:2mass"):
-            return twomass_from_cds(ra, dec, radius, verbose)
+            cat = twomass_from_cds(ra, dec, radius, verbose)
+            if (return_filenames):
+                return cat, None
+            return cat
         elif (cattype == "web:sdss"):
-            return load_catalog_from_sdss(ra, dec, 
+            cat = load_catalog_from_sdss(ra, dec,
                                           verbose=verbose, 
                                           return_query=False, 
                                           max_catsize=-1)
+            if (return_filenames):
+                return cat, None
+            return cat
 
     # print "In get_ref_catalog, cattype=%s, dir=%s" % (cattype, basedir)
 
     if (basedir is None or not os.path.isdir(basedir)):
         #(basedir is not None and not os.path.isdir(basedir))):
         logger.warning("Unable to find reference catalog: %s" % (str(basedir)))
-        return None
+        return error_return
 
     # Load the SkyTable so we know in what files to look for the catalog"
     logger.debug("Using catalog found in %s" % (basedir))
     skytable_filename = "%s/SkyTable.fits" % (basedir)
     if (not os.path.isfile(skytable_filename)):
         logger.error("Unable to find catalog index file in %s!" % (basedir))
-        return None
+        return error_return
 
     skytable_hdu = pyfits.open(skytable_filename)
 
@@ -544,6 +552,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
                 continue
 
             catalog_filenames.append(catalogfile)
+            logger.debug("Adding %s to list of catalog files being used" % (catalogfile))
 
             # read table into a nd-array buffer
             cat_full = table_to_ndarray(hdu_cat[1], select_header_list=select_header_list,
@@ -567,7 +576,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
             logger.debug("Read %d sources from %s" % (array_to_add.shape[0], catalogname))
         else:
             logger.eror("This catalog name is not known")
-            return None
+            return error_return
 
         if (full_catalog is None):
             full_catalog = array_to_add
@@ -584,6 +593,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
     else:
         logger.debug("Read a total of %d stars from %d catalogs!" % (full_catalog.shape[0], len(files_to_read)))
 
+    # print catalog_filenames
     if (return_filenames):
         return full_catalog, catalog_filenames
 

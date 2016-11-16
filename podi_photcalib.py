@@ -759,6 +759,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     detailed_return['aperture_magerr'] = None
     detailed_return['catalog'] = "none"
     detailed_return['reference_filter'] = "none"
+    detailed_return['reference_catalog_files'] = None
 
     # Eliminate all stars with flags
     if (eliminate_flags):
@@ -796,15 +797,18 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         return error_return_value
 
     std_stars = None
+    ref_filenames = None
     for catname in sitesetup.photcalib_order:
 
         if (catname == "sdss"):
             # Figure out which SDSS to use for calibration
             logger.info("Querying the SDSS catalog")
-            _std_stars = podi_search_ipprefcat.get_reference_catalog(ra_range, dec_range, 
+            _std_stars, ref_filenames = podi_search_ipprefcat.get_reference_catalog(ra_range, dec_range,
                                                                     radius=None,
                                                                     basedir=sitesetup.sdss_ref_dir,
-                                                                    cattype="sdss")
+                                                                    cattype="sdss",
+                                                                    return_filenames=True)
+
             if (not _std_stars == None and _std_stars.shape[0] > 0):
                 detailed_return['catalog'] = "SDSS"
                 # Found some SDSS stars
@@ -823,15 +827,15 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                 not sitesetup.ucac4_ref_dir == "none" and
                 os.path.isdir(sitesetup.ucac4_ref_dir)):
                 logger.debug("Running UCAC4 query (%s)" % (sitesetup.ucac4_ref_dir))
-                _std_stars = podi_search_ipprefcat.get_reference_catalog(
+                _std_stars, ref_filenames = podi_search_ipprefcat.get_reference_catalog(
                     ra=ra_range, 
                     dec=dec_range,
                     radius=None,
                     basedir=sitesetup.ucac4_ref_dir,
                     cattype='ucac4',
-                    verbose=False
+                    verbose=False,
+                    return_filenames=True
                 )
-
 
                 # Sort out all stars with invalid magnitudes
                 valid = (_std_stars[:,2] < 20) & (numpy.fabs(_std_stars[:,3]) <= 0.9)
@@ -847,10 +851,11 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
         elif (catname == "ippref"):
             logger.debug("Running IPPRef query (%s)" % (sitesetup.ippref_ref_dir))
-            _std_stars = podi_search_ipprefcat.get_reference_catalog(ra_range, dec_range, 
+            _std_stars, ref_filenames = podi_search_ipprefcat.get_reference_catalog(ra_range, dec_range,
                                                                      radius=None,
                                                                      basedir=sitesetup.ippref_ref_dir,
-                                                                     cattype="IPPRef")
+                                                                     cattype="IPPRef",
+                                                                     return_filenames=True)
             #print "IPP:", _std_stars
             if (not _std_stars == None and _std_stars.shape[0] > 0):
                 detailed_return['catalog'] = "IPPRef"
@@ -874,10 +879,11 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                 return error_return_value
             logger.info("Using %s for photometric calibration" % (catname))
             catalog_basedir, cat_mag = sitesetup.catalog_directory[catname]
-            _std_stars = podi_search_ipprefcat.get_reference_catalog(
+            _std_stars, ref_filenames = podi_search_ipprefcat.get_reference_catalog(
                     ra_range, dec_range, radius=None,
                     basedir=catalog_basedir,
-                    cattype="general"
+                    cattype="general",
+                    return_filenames=True
             )
             if (_std_stars is not None and _std_stars.shape[0] > 0):
                 detailed_return['catalog'] = catname
@@ -895,6 +901,9 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         type(std_stars) == numpy.ndarray and std_stars.shape[0] <= 0):
         # No sources found, report a photometric calibration failure.
         return error_return_value
+
+    print "REF FILES:", ref_filenames
+    detailed_return['reference_catalog_files'] = ref_filenames
 
     #
     # Now go through each of the extension
@@ -1961,7 +1970,7 @@ if __name__ == "__main__":
         #fig.show()
         # fig.savefig(plotfile)
         matplotlib.pyplot.savefig(plotfile)
-        logger.info("Results written to %s!\n" % (plotfile))
+        logger.info("Results written to %s!" % (plotfile))
 
         podi_logging.shutdown_logging(options)
     

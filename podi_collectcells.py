@@ -4430,7 +4430,9 @@ def collectcells(input, outputfile,
             sky_mag = -2.5 * math.log10(sky_arcsec) + zeropoint_exptime
         ota_list[0].header['SKYMAG'] = sky_mag
 
-
+        master_reduction_files_used = podi_associations.collect_reduction_files_used(
+            master_reduction_files_used, {'photcalib-reference': photcalib_details['reference_catalog_files']}
+        )
 
         # Now convert the matched source catalog into a valid FITS extension 
         # and add it to the output.
