@@ -1306,7 +1306,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             _dum, clipping_mask = three_sigma_clip(zp, return_mask=True)
 
         zp_clipped = zp[clipping_mask]
-        zperr_clipped = zperr[clipping_mask]
+        zperr_clipped = zp_err[clipping_mask]
         sdss_mag_clipped = sdss_mag[clipping_mask]
 
         detailed_return['odi_sdss_matched_clipped'] = small_errors[clipping_mask].copy()
