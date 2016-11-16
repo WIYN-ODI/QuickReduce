@@ -902,7 +902,6 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         # No sources found, report a photometric calibration failure.
         return error_return_value
 
-    print "REF FILES:", ref_filenames
     detailed_return['reference_catalog_files'] = ref_filenames
 
     #
