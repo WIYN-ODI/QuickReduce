@@ -252,6 +252,23 @@ import psutil
 
 from podi_plotting import *
 
+#
+# Un-comment this block to get warnings with tracebacks for easier locating
+#
+# import warnings
+# #warnings.simplefilter("error")
+# warnings.simplefilter("ignore", RuntimeWarning)
+# import traceback
+# import warnings
+# import sys
+# def warn_with_traceback(message, category, filename, lineno, file=None, line=None):
+#     print"\n"*3
+#     traceback.print_stack()
+#     log = file if hasattr(file,'write') else sys.stderr
+#     log.write(warnings.formatwarning(message, category, filename, lineno, line))
+#     print "\n"*3
+# warnings.showwarning = warn_with_traceback
+
 gain_correct_frames = False
 from podi_definitions import *
 from podi_commandline import *
@@ -1292,7 +1309,7 @@ def collect_reduce_ota(filename,
 
                             if (ret.poll() == None):
                                 # sextractor completed
-                                logger.info("Sex complete!")
+                                logger.debug("SourceExtractor completed successfully!")
                                 break
                             time.sleep(0.1)
 
@@ -4017,13 +4034,14 @@ def collectcells(input, outputfile,
                                         mode=sitesetup.fixwcs_mode,
                                         max_pointing_error=sitesetup.max_pointing_error,
                                         max_rotator_error=sitesetup.max_rotator_error,
-                                        min_contrast=sitesetup.min_wcs_quality)
+                                        min_contrast=sitesetup.min_wcs_quality,
+                                        catalog_order=sitesetup.wcscalib_order)
 
         # Use the fixed HDUList
         ota_list = ccmatched['hdulist']
 
         ota_list[0].header['WCSFIXED'] = True
-        ota_list[0].header['ASTRMCAT'] = "2MASS"
+        ota_list[0].header['ASTRMCAT'] = ccmatched['astrmcat'] #"2MASS"
         ota_list[0].header['WCSMXPOS'] = (ccmatched['max_pointing_error_searched'],
                                           "maximum pointing offset searched for success")
         ota_list[0].header['WCSEXPOS'] = (ccmatched['max_pointing_error'],
@@ -4037,6 +4055,10 @@ def collectcells(input, outputfile,
         ota_list[0].header['WCSMINQ']  = (sitesetup.min_wcs_quality,
                                           "Minimum WCS quality for successful calibration")
         ota_list[0].header['WCSCAL'] = ccmatched['valid_wcs_solution']
+
+        master_reduction_files_used = podi_associations.collect_reduction_files_used(
+            master_reduction_files_used,
+            {'wcs-reference': ccmatched['catalog_filenames']})
 
         #
         # Now add some headers to visualize the WCS quality (i.e. number of 
@@ -4181,6 +4203,7 @@ def collectcells(input, outputfile,
         podi_diagnosticplots.wcsdiag_scatter(matched_radec_odi=odi_2mass_matched[:,0:2], 
                                              matched_radec_2mass=odi_2mass_matched[:,-2:],
                                              matched_ota=odi_2mass_matched[:,SXcolumn['ota']],
+                                             matched_odierror=odi_2mass_matched[:, SXcolumn['mag_err_auto']],
                                              filename=plotfilename, 
                                              options=options,
                                              ota_wcs_stats=ota_wcs_stats,
@@ -4403,14 +4426,15 @@ def collectcells(input, outputfile,
         # Compute the sky-brightness 
         sky_arcsec = sky_global_median / (0.11**2) # convert counts/pixel to counts/arcsec*2
         sky_mag = -99.
-	if (sky_arcsec > 0 and zeropoint_exptime < 99): -2.5 * math.log10(sky_arcsec) + zeropoint_exptime
+        if (sky_arcsec > 0 and zeropoint_exptime < 99):
+            sky_mag = -2.5 * math.log10(sky_arcsec) + zeropoint_exptime
         ota_list[0].header['SKYMAG'] = sky_mag
 
 
 
         # Now convert the matched source catalog into a valid FITS extension 
         # and add it to the output.
-        if (not odi_sdss_matched == None and odi_sdss_matched.shape[0] > 0):
+        if (odi_sdss_matched is not None and odi_sdss_matched.shape[0] > 0):
             logger.debug("Adding matched SDSS=ODI source catalog to output as FITS extension")
             match_tablehdu = create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details)
             # Copy a bunch of headers so we can makes heads and tails of the catalog
@@ -4465,7 +4489,7 @@ def collectcells(input, outputfile,
         options['photcalib'] and
         enough_stars_for_fixwcs):
 
-        if (options['photcalib'] and not odi_sdss_matched == None and odi_sdss_matched.shape[0] > 0):
+        if (options['photcalib'] and odi_sdss_matched is not None and odi_sdss_matched.shape[0] > 0):
             # Use the SDSS catalog if available
             flags = odi_sdss_matched[:,SXcolumn['flags']+2]
             valid_flags = (flags == 0)

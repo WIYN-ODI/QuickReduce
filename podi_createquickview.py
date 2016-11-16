@@ -56,7 +56,7 @@ import Image
 # import ImageDraw
 import itertools
 
-numpy.seterr(divide='ignore', invalid='ignore')
+#numpy.seterr(divide='ignore', invalid='ignore')
 
 limit_overexposed = 55000
 overexposed = [1.0, 0.0, 0.0]

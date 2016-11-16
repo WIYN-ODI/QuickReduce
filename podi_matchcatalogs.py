@@ -71,10 +71,10 @@ def match_catalogs(ref_full, odi_full, matching_radius=2, verbose=False):
                                                         matching_radius=matching_radius,
                                                         verbose=verbose)
             
-            if (matched_cat_segment == None):
+            if (matched_cat_segment is None):
                 continue
 
-            matched_cat = matched_cat_segment if (matched_cat == None) \
+            matched_cat = matched_cat_segment if (matched_cat is None) \
                 else numpy.append(matched_cat, matched_cat_segment, axis=0)
 
     # numpy.savetxt("matched.raw", matched_cat)
