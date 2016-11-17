@@ -1258,10 +1258,10 @@ def log_shift_rotation(hdulist, params, n_step=1, description="",
     hdulist[0].header['WCS%d_DA'  % n_step] = (params[0], "%s angle [deg]" % (description))
     hdulist[0].header['WCS%d_DRA' % n_step] = (params[1]*3600., "%s d_RA [arcsec]" % (description))
     hdulist[0].header['WCS%d_DDE' % n_step] = (params[2]*3600, "%s d_DEC [arcsec]" % (description))
-    hdulist[0].header['WCS%d_N'   % n_step] = (params[3], "%s n_matches" % (description))
+    hdulist[0].header['WCS%d_N'   % n_step] = (int(params[3]), "%s n_matches" % (description))
 
     if (not n_random_matches == None):
-        hdulist[0].header['WCS_NRND'] = (n_random_matches if n_random_matches >= 0 else -1, 
+        hdulist[0].header['WCS_NRND'] = (int(n_random_matches) if n_random_matches >= 0 else -1,
                                          "number of random matches")
     if (not wcs_contrast == None):
         hdulist[0].header['WCS_QUAL'] = (wcs_contrast, "WCS quality")
