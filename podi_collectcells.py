@@ -5087,7 +5087,7 @@ def twomasscat_to_tablehdu(catalog):
     coldefs = pyfits.ColDefs(columns)
     tbhdu = pyfits.BinTableHDU.from_columns(coldefs)
 
-    tbhdu.name = "CAT.2MASS"
+    tbhdu.name = "CAT.WCSREF"
     return tbhdu
 
 
