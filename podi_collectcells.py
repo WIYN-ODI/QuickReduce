@@ -4120,19 +4120,19 @@ def collectcells(input, outputfile,
             logger.debug("Creating a FITS table for the matched ODI+2MASS catalog")
             odi_2mass_cat = ccmatched['matched_src+2mass']
             columns = [pyfits.Column(name='ODI_RA', format='D', unit='degrees', 
-                                     array=odi_2mass_cat[:,  0], disp='ODI right ascension'),
+                                     array=odi_2mass_cat[:,  0], disp='F12.8'),
                        pyfits.Column(name='ODI_DEC', format='D', unit='degrees', 
-                                     array=odi_2mass_cat[:,  1], disp='ODI declination'),
-                       pyfits.Column(name='TWOMASS_RA', format='D', unit='degrees', 
-                                     array=odi_2mass_cat[:, -2], disp='2MASS right ascension'),
-                       pyfits.Column(name='TWOMASS_DEC', format='D', unit='degrees', 
-                                     array=odi_2mass_cat[:, -1], disp='2MASS declination'),
-                       pyfits.Column(name='OTA', format='E', unit='',
-                                     array=odi_2mass_cat[:, 8], disp='source OTA'),
+                                     array=odi_2mass_cat[:,  1], disp='F12.8'),
+                       pyfits.Column(name='REF_RA', format='D', unit='degrees',
+                                     array=odi_2mass_cat[:, -2], disp='F12.8'),
+                       pyfits.Column(name='REF_DEC', format='D', unit='degrees',
+                                     array=odi_2mass_cat[:, -1], disp='F12.8'),
+                       pyfits.Column(name='OTA', format='I', unit='',
+                                     array=odi_2mass_cat[:, 8].astype(numpy.int), disp='I2.2'),
             ]
             coldefs = pyfits.ColDefs(columns)
             matchedhdu = pyfits.BinTableHDU.from_columns(coldefs)
-            matchedhdu.name = "CAT.ODI+2MASS"
+            matchedhdu.name = "WCSCAL.CAT"
             matchedhdu.header['MATCHRAD'] = (2., "matching radius in arcsec")
             ota_list.append(matchedhdu)
 
