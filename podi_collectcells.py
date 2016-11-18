@@ -5080,8 +5080,8 @@ def wcs2odi(radec, wcs):
 def twomasscat_to_tablehdu(catalog): 
     
     columns = [\
-        pyfits.Column(name='RA',  format='D', array=catalog[:,0]),
-        pyfits.Column(name='DEC', format='D', array=catalog[:,1]),
+        pyfits.Column(name='RA',  format='D', disp='F12.8', array=catalog[:,0]),
+        pyfits.Column(name='DEC', format='D', disp='F12.8', array=catalog[:,1]),
         ]
 
     coldefs = pyfits.ColDefs(columns)
@@ -5126,57 +5126,57 @@ def odi_sources_to_tablehdu(source_cat):
     columns = [\
                pyfits.Column(name='RA', format='D', unit='degrees',
                              array=source_cat[:,SXcolumn['ra']],
-                             disp='right ascension'),
+                             disp='F12.8'),
                pyfits.Column(name='DEC',            format='D', unit='degrees',
                              array=source_cat[:,SXcolumn['dec']], 
-                             disp='declination'),
+                             disp='F12.8'),
                pyfits.Column(name='X',              format='E', unit='pixel',
                              array=source_cat[:,SXcolumn['x']],
-                             disp='center x'),
+                             disp='F8.3'),
                pyfits.Column(name='Y',              format='E', unit='pixel',
                              array=source_cat[:,SXcolumn['y']], 
-                             disp='center y'),
+                             disp='F8.3'),
                pyfits.Column(name='FWHM_IMAGE',     format='E', unit='pixel',
                              array=source_cat[:,SXcolumn['fwhm_image']],
-                             disp='FWHM in pixels'),
+                             disp='F6.2'),
                pyfits.Column(name='FWHM_WORLD',     format='E', unit='deg',
                              array=source_cat[:,SXcolumn['fwhm_world']],
-                             disp='FWHM in degrees'),
+                             disp='F10.6'),
                pyfits.Column(name='BACKGROUND',     format='E', unit='counts',
                              array=source_cat[:,SXcolumn['background']],
-                             disp='background level'),
+                             disp='F8.1'),
                pyfits.Column(name='FLAGS',          format='I', unit='',
                              array=source_cat[:,SXcolumn['flags']],
-                             disp='SExtractor flags'),
+                             disp='B8.8'),
                pyfits.Column(name='OTA',            format='I', unit='',
                              array=source_cat[:,SXcolumn['ota']],
-                             disp='source OTA'),
+                             disp='I2.2'),
 
                pyfits.Column(name='MAG_AUTO',        format='E', unit='mag',
                              array=source_cat[:,SXcolumn['mag_auto']],
-                             disp='auto-mag'),
+                             disp='F8.4'),
                pyfits.Column(name='MAGERR_AUTO',     format='E', unit='mag',
                              array=source_cat[:,SXcolumn['mag_err_auto']],
-                             disp=''),
+                             disp='F8.4'),
         
                pyfits.Column(name='FLUX_MAX',       format='E', unit='counts',
                              array=source_cat[:,SXcolumn['flux_max']],
-                             disp='max count rate'),
+                             disp='F8.1'),
                pyfits.Column(name='AWIN_IMAGE',     format='E', unit='pixel',
                              array=source_cat[:,SXcolumn['major_axis']],
-                             disp='major semi-axis'),
+                             disp='F8.3'),
                pyfits.Column(name='BWIN_IMAGE',     format='E', unit='pixel',
                              array=source_cat[:,SXcolumn['minor_axis']],
-                             disp='minor semi-axis'),
+                             disp='F8.3'),
                pyfits.Column(name='THETAWIN_IMAGE', format='E', unit='degrees',
                              array=source_cat[:,SXcolumn['position_angle']],
-                             disp='position angle'),
+                             disp='F5.1'),
                pyfits.Column(name='ELONGATION',     format='E', unit='',
                              array=source_cat[:,SXcolumn['elongation']],
-                             disp='elongation'),
+                             disp='F8.4'),
                pyfits.Column(name='ELLIPTICITY',    format='E', unit='',
                              array=source_cat[:,SXcolumn['ellipticity']],
-                             disp='ellipticity'),
+                             disp='F7.5'),
            ]
 
     # Add all aperture photometry
@@ -5187,13 +5187,13 @@ def odi_sources_to_tablehdu(source_cat):
         columns.append(pyfits.Column(name='MAG_D%02d' % (int(apsize*10.)), 
                                      format='E', unit='mag',
                                      array=source_cat[:,SXcolumn[col_mag]],
-                                     disp='aperture mag %0.1f arcsec diameter' % (apsize)
+                                     disp='F8.4'
                                  )
         )
         columns.append(pyfits.Column(name='MAGERR_D%02d' % (int(apsize*10.)),
                                      format='E', unit='mag',
                                      array=source_cat[:,SXcolumn[col_magerr]],
-                                     disp='ap. mag error %0.1f arcsec diameter' % (apsize)
+                                     disp='F8.4'
                                  )
         )
 
