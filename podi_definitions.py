@@ -155,6 +155,7 @@ SXcolumn_names = [
     'position_angle',
     'elongation',
     'ellipticity',
+    'source_id'
 ]
 # Convert columns into dictionary to make look-up easier
 SXcolumn = {}

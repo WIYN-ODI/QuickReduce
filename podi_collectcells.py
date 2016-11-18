@@ -4813,10 +4813,10 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
         #
         # Ra/Dec from ODI catalog
         #
-        pyfits.Column(name='ODI_RA', disp='right ascension',
+        pyfits.Column(name='ODI_RA', disp='F12.8',
                       format='D', unit='degrees', 
                       array=odi_sdss_matched[:, 0]),
-        pyfits.Column(name='ODI_DEC', disp='right ascension',
+        pyfits.Column(name='ODI_DEC', disp='F12.8',
                       format='D', unit='degrees', 
                       array=odi_sdss_matched[:, 1]),
 
@@ -4842,48 +4842,48 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
         #
         # Ra/Dec from SDSS
         #
-        columns.append(pyfits.Column(name='SDSS_RA', disp='right ascension',
+        columns.append(pyfits.Column(name='SDSS_RA', disp='F12.8',
                                      format='D', unit='degrees', 
                                      array=odi_sdss_matched[:, 2]))
-        columns.append(pyfits.Column(name='SDSS_DEC', disp='declination',
+        columns.append(pyfits.Column(name='SDSS_DEC', disp='F12.8',
                                      format='D', unit='degrees', 
                                      array=odi_sdss_matched[:, 3]))
 
         #
         # Now add the SDSS magnitudes
         #
-        columns.append(pyfits.Column(name='SDSS_MAG_U', disp='SDSS magnitude u-band',
+        columns.append(pyfits.Column(name='SDSS_MAG_U', disp='F7.4',
                                      format='E', unit='mag', 
                                      array=odi_sdss_matched[:, SDSScolumn['u']]))
-        columns.append(pyfits.Column(name='SDSS_ERR_U', disp='SDSS magnitude error u-band',
+        columns.append(pyfits.Column(name='SDSS_ERR_U', disp='F7.4',
                       format='E', unit='mag', 
                       array=odi_sdss_matched[:, SDSScolumn['u_err']]))
 
-        columns.append(pyfits.Column(name='SDSS_MAG_G', disp='SDSS magnitude g-band',
+        columns.append(pyfits.Column(name='SDSS_MAG_G', disp='F7.4',
                       format='E', unit='mag', 
                       array=odi_sdss_matched[:, SDSScolumn['g']]))
-        columns.append(pyfits.Column(name='SDSS_ERR_G', disp='SDSS magnitude error g-band',
+        columns.append(pyfits.Column(name='SDSS_ERR_G', disp='F7.4',
                       format='E', unit='mag', 
                       array=odi_sdss_matched[:, SDSScolumn['g_err']]))
 
-        columns.append(pyfits.Column(name='SDSS_MAG_R', disp='SDSS magnitude r-band',
+        columns.append(pyfits.Column(name='SDSS_MAG_R', disp='F7.4',
                       format='E', unit='mag', 
                       array=odi_sdss_matched[:, SDSScolumn['r']]))
-        columns.append(pyfits.Column(name='SDSS_ERR_R', disp='SDSS magnitude error r-band',
+        columns.append(pyfits.Column(name='SDSS_ERR_R', disp='F7.4',
                       format='E', unit='mag', 
                       array=odi_sdss_matched[:, SDSScolumn['r_err']]))
 
-        columns.append(pyfits.Column(name='SDSS_MAG_I', disp='SDSS magnitude i-band',
+        columns.append(pyfits.Column(name='SDSS_MAG_I', disp='F7.4',
                       format='E', unit='mag', 
                       array=odi_sdss_matched[:, SDSScolumn['i']]))
-        columns.append(pyfits.Column(name='SDSS_ERR_I', disp='SDSS magnitude error i-band',
+        columns.append(pyfits.Column(name='SDSS_ERR_I', disp='F7.4',
                       format='E', unit='mag', 
                       array=odi_sdss_matched[:, SDSScolumn['i_err']]))
 
-        columns.append(pyfits.Column(name='SDSS_MAG_Z', disp='SDSS magnitude z-band',
+        columns.append(pyfits.Column(name='SDSS_MAG_Z', disp='F7.4',
                       format='E', unit='mag', 
                       array=odi_sdss_matched[:, SDSScolumn['z']]))
-        columns.append(pyfits.Column(name='SDSS_ERR_Z', disp='SDSS magnitude error z-band',
+        columns.append(pyfits.Column(name='SDSS_ERR_Z', disp='F7.4',
                       format='E', unit='mag', 
                       array=odi_sdss_matched[:, SDSScolumn['z_err']]))
         # end SDSS
@@ -4892,10 +4892,10 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
         #
         # Ra/Dec from SDSS
         #
-        columns.append(pyfits.Column(name='UCAC_RA', disp='right ascension',
+        columns.append(pyfits.Column(name='UCAC_RA', disp='F12.8',
                                      format='D', unit='degrees', 
                                      array=odi_sdss_matched[:, 2]))
-        columns.append(pyfits.Column(name='UCAC_DEC', disp='declination',
+        columns.append(pyfits.Column(name='UCAC_DEC', disp='F12.8',
                                      format='D', unit='degrees', 
                                      array=odi_sdss_matched[:, 3]))
 
@@ -4925,7 +4925,7 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
                          ('APASS_ERR_i', "UCAC/APASS mag error i", 'ERR_I'), 
                     ]
         for (name, disp, col) in ucac_columns:
-            columns.append(pyfits.Column(name=name, disp=disp,
+            columns.append(pyfits.Column(name=name, disp='F7.4',
                                          format='E', unit='mag', 
                                          array=odi_sdss_matched[:, UCACcolumn[col]]))
 
@@ -4934,10 +4934,10 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
         #
         # Ra/Dec from IPPRef
         #
-        columns.append(pyfits.Column(name='IPP_RA', disp='right ascension',
+        columns.append(pyfits.Column(name='IPP_RA', disp='F12.8',
                                      format='D', unit='degrees', 
                                      array=odi_sdss_matched[:, 2]))
-        columns.append(pyfits.Column(name='IPP_DEC', disp='declination',
+        columns.append(pyfits.Column(name='IPP_DEC', disp='F12.8',
                                      format='D', unit='degrees', 
                                      array=odi_sdss_matched[:, 3]))
 
@@ -4961,23 +4961,49 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
                         ('IPP_ERR_Z', "synth. IPP mag error z", 'ERR_Z'), 
                     ]
         for (name, disp, col) in ipp_columns:
-            columns.append(pyfits.Column(name=name, disp=disp,
+            columns.append(pyfits.Column(name=name, disp='F7.4',
                                          format='E', unit='mag', 
                                          array=odi_sdss_matched[:, IPPcolumn[col]]))
 
         # end UCAC
 
+    elif (photcalib_details['catalog'] in sitesetup.catalog_directory and
+          photcalib_details['catalog'] in sitesetup.catalog_mags):
 
-    columns.append(pyfits.Column(name='ODI_FWHM', disp='FWHM in ODI frame',
+        # print "SXcolumns:", len(SXcolumn)
+        # print "cat cols:", len(sitesetup.catalog_mags[photcalib_details['catalog']])
+        # print odi_sdss_matched.shape
+        # numpy.savetxt("photcal.cat", odi_sdss_matched)
+        for i_key, key in enumerate(sitesetup.catalog_mags[photcalib_details['catalog']]):
+            if (key == ''):
+                continue
+            table_key = ('ref_%s' % (key)).upper()
+
+            if (key in ['ra', 'dec']):
+                col = i_key + 2
+                unit = 'degrees'
+            else:
+                col = i_key + len(SXcolumn)
+                unit = 'mag'
+
+            columns.append(pyfits.Column(name=table_key, format='D', unit=unit,
+                                     array=odi_sdss_matched[:, col]))
+
+    else:
+        logger.warning("Catalog not properly configured for output as TABLE extension")
+        pass
+
+
+    columns.append(pyfits.Column(name='ODI_FWHM', disp='F10.8',
                                  format='D', unit='degrees', 
                                  array=odi_sdss_matched[:, SXcolumn['fwhm_world']+2]))
 
     columns.append(pyfits.Column(name='ODI_MAG_AUTO', format='E', unit='mag',
                                  array=odi_sdss_matched[:,SXcolumn['mag_auto']+2],
-                                 disp='auto-mag'))
+                                 disp='F7.4'))
     columns.append(pyfits.Column(name='ODI_ERR_AUTO', format='E', unit='mag',
                                  array=odi_sdss_matched[:,SXcolumn['mag_err_auto']+2],
-                                 disp='auto-mag error'))
+                                 disp='F6.4'))
         
 
 
@@ -4991,13 +5017,13 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
         columns.append(pyfits.Column(name='ODI_MAG_D%02d' % (int(apsize*10.)), 
                                      format='E', unit='mag',
                                      array=odi_sdss_matched[:,SXcolumn[col_mag]+2],
-                                     disp='aperture mag %0.1f arcsec diameter' % (apsize)
-                                 )
+                                     disp='F8.4'
+                                     )
         )
         columns.append(pyfits.Column(name='ODI_ERR_D%02d' % (int(apsize*10.)),
                                      format='E', unit='mag',
                                      array=odi_sdss_matched[:,SXcolumn[col_magerr]+2],
-                                     disp='ap. mag error %0.1f arcsec diameter' % (apsize)
+                                     disp='F8.4'
                                  )
         )
 
@@ -5008,19 +5034,19 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
     columns.append(pyfits.Column(name='ODI_X',
                                      format='E', unit='pixel',
                                      array=odi_sdss_matched[:,SXcolumn['x']+2],
-                                     disp='source coordinate X'
+                                     disp='F7.2'
                                  )
     )
     columns.append(pyfits.Column(name='ODI_Y',
                                      format='E', unit='pixel',
                                      array=odi_sdss_matched[:,SXcolumn['y']+2],
-                                     disp='source coordinate Y'
+                                     disp='F7.2'
                                  )
     )
     columns.append(pyfits.Column(name='ODI_OTA',
-                                     format='E', unit='',
-                                     array=odi_sdss_matched[:,SXcolumn['ota']+2],
-                                     disp='source OTA'
+                                     format='I', unit='',
+                                     array=odi_sdss_matched[:,SXcolumn['ota']+2].astype(numpy.int),
+                                     disp='I2.2'
                                  )
     )
 
