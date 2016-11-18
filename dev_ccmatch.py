@@ -1258,10 +1258,10 @@ def log_shift_rotation(hdulist, params, n_step=1, description="",
     hdulist[0].header['WCS%d_DA'  % n_step] = (params[0], "%s angle [deg]" % (description))
     hdulist[0].header['WCS%d_DRA' % n_step] = (params[1]*3600., "%s d_RA [arcsec]" % (description))
     hdulist[0].header['WCS%d_DDE' % n_step] = (params[2]*3600, "%s d_DEC [arcsec]" % (description))
-    hdulist[0].header['WCS%d_N'   % n_step] = (params[3], "%s n_matches" % (description))
+    hdulist[0].header['WCS%d_N'   % n_step] = (int(params[3]), "%s n_matches" % (description))
 
     if (not n_random_matches == None):
-        hdulist[0].header['WCS_NRND'] = (n_random_matches if n_random_matches >= 0 else -1, 
+        hdulist[0].header['WCS_NRND'] = (int(n_random_matches) if n_random_matches >= 0 else -1,
                                          "number of random matches")
     if (not wcs_contrast == None):
         hdulist[0].header['WCS_QUAL'] = (wcs_contrast, "WCS quality")
@@ -1673,7 +1673,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             angle_steps=20, # arcmin
             fov=0.8,
             estimate_fmatch=True,
-            use_ota_coord_grid=True):
+            use_ota_coord_grid=True,
+            catalog_order=None):
 
     """
 
@@ -1722,6 +1723,9 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # Prepare the structure for the return values
     return_value = {}
 
+    if (catalog_order is None):
+        catalog_order = ['2mass']
+
     # Convert the max_pointing_error passed as parameter into a list
     try:
         max_pointing_error_list = list(max_pointing_error)
@@ -1738,7 +1742,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # in reference catalog
     #
     n_points = 5.
-    idx_y, idx_x = numpy.indices((n_points,n_points))
+    idx_y, idx_x = numpy.indices((int(n_points),int(n_points)))
     ota_coord_grid = None
     if (use_ota_coord_grid):
         for ext in input_hdu:
@@ -1755,7 +1759,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             radec = numpy.array(wcs.pix2wcs(_x.ravel(), _y.ravel()))
 
             # merge into long list across all OTAs
-            ota_coord_grid = radec if ota_coord_grid == None else \
+            ota_coord_grid = radec if ota_coord_grid is None else \
                 numpy.append(ota_coord_grid, radec, axis=0)
 
             #numpy.savetxt("ota_grid_coords", ota_grid_coords)
@@ -1766,6 +1770,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     return_value['max_pointing_error'] = max_pointing_error
     return_value['max_pointing_error_list'] = max_pointing_error_list
     return_value['contrasts'] = numpy.ones((max_pointing_error_list.shape[0])) * -1.
+    return_value['catalog_filenames'] = None
 
     if (type(source_catalog) == str):
         # Load the source catalog file
@@ -1816,21 +1821,52 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # 
     # Create the reference catalog
     #
-    if (reference_catalog == None):
+    logger.debug("Checking the following catalogs for WCS: %s" % (",".join(catalog_order)))
+    if (reference_catalog is None):
         search_size = fov + max_pointing_error/60.
-        ref_raw = podi_search_ipprefcat.get_reference_catalog(center_ra, center_dec, search_size, 
-                                                              basedir=sitesetup.wcs_ref_dir,
-                                                              cattype=sitesetup.wcs_ref_type)
+
+        ref_raw = None
+        for catalog_name in catalog_order:
+
+            if (catalog_name not in sitesetup.catalog_directory):
+                logger.critical("Selected catalog (%s) is not registered - check sitesetup" % (catalog_name))
+                continue
+
+            catalog_basedir, catalog_refmag = sitesetup.catalog_directory[catalog_name]
+            logger.info("Using %s catalog from %s for astrometric calibration" % (
+                catalog_name, catalog_basedir))
+            ref_raw, catalog_files = podi_search_ipprefcat.get_reference_catalog(
+                    center_ra,
+                    center_dec,
+                    search_size,
+                    basedir=catalog_basedir,
+                    cattype="general",
+                    return_filenames=True,
+            )
+            if (ref_raw is not None):
+                # we found the field in this catalog - no need to check other catalogs
+                break
+
+        if (ref_raw is None):
+            # we could not find any sources in any of the selected catalogs
+            # abort the WCS calibration
+            logger.critical("Unable to find reference sources for WCS calibration")
+            return return_value
 
         # Sort the reference catalog by brightness
-        logger.debug("Sorting reference catalog")
-        si = numpy.argsort(ref_raw[:,4])
-        ref_raw = ref_raw[si]
+        refmag_col = catalog_refmag - 1
+        if (refmag_col >= 0 and refmag_col < ref_raw.shape[1]):
+            logger.debug("Sorting reference catalog")
+            si = numpy.argsort(ref_raw[:,refmag_col])
+            ref_raw = ref_raw[si]
 
         # Now get rid of all info except coordinates
         ref_raw = ref_raw[:,0:2]
+        return_value['astrmcat'] = catalog_name
+        return_value['catalog_filenames'] = catalog_files
     else:
         ref_raw = reference_catalog #numpy.loadtxt(ref_catfile)[:,0:2]
+        return_value['astrmcat'] = 'from_memory'
     logger.debug("ref. cat (raw) ="+str(ref_raw.shape))
     
 
@@ -1937,7 +1973,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         #
         
         ref_close = match_catalog_areas(
-            ota_coord_grid if (use_ota_coord_grid and not ota_coord_grid == None) else src_raw, 
+            ota_coord_grid if (use_ota_coord_grid and ota_coord_grid is not None) else src_raw,
             ref_raw, pointing_error/60.)
         logger.debug("area matched ref. catalog: "+str(ref_close.shape))
         if (ref_close.shape[0] <= 0):
@@ -2488,6 +2524,19 @@ def compute_wcs_quality(odi_2mass_matched, hdr=None):
     rms_ddec = numpy.sqrt(numpy.mean(d_dec**2)) * 3600.
     rms_comb = numpy.sqrt(numpy.mean(d_dec**2+d_ra**2)) * 3600.
 
+    d_combined = numpy.hypot(d_dec, d_ra)
+    valid = numpy.isfinite(d_combined)
+    for iteration in range(3):
+        d_stats = numpy.percentile(d_combined[valid], [16,50,84])
+        d_median = d_stats[1]
+        d_sigma = 0.5*(d_stats[2] - d_stats[0])
+        bad = (d_combined > d_median + 3*d_sigma) | (d_combined < d_median - 3*d_sigma)
+        valid[bad] = False
+    clip_rms_dra = numpy.sqrt(numpy.mean(d_ra[valid]**2)) * 3600.
+    clip_rms_ddec = numpy.sqrt(numpy.mean(d_dec[valid]**2)) * 3600.
+    clip_rms_comb = numpy.sqrt(numpy.mean(d_dec[valid]**2+d_ra[valid]**2)) * 3600.
+
+
     try:
         lsig_ra = scipy.stats.scoreatpercentile(d_ra, 16)
         hsig_ra = scipy.stats.scoreatpercentile(d_ra, 84)
@@ -2516,6 +2565,10 @@ def compute_wcs_quality(odi_2mass_matched, hdr=None):
     results['MEDIAN-DEC'] = wcs_mean_ddec
     results['STARCOUNT'] = d_ra.shape[0]
 
+    results['RMS-RA-CLIP'] = clip_rms_dra
+    results['RMS-DEC-CLIP'] = clip_rms_ddec
+    results['RMS-CLIP'] = clip_rms_comb
+
     logger.debug("WCS quality: mean-offset=%(MEDIAN-RA).3f  , %(MEDIAN-DEC).3f [arcsec]" % results)
     logger.debug("WCS quality: mean-rms=%(RMS-RA).3f , %(RMS-DEC).3f , %(RMS).3f [arcsec]" % results)
     logger.debug("WCS quality: sigma=%(SIGMA-RA).3f , %(SIGMA-DEC).3f , %(SIGMA).3f [arcsec]" % results)
@@ -2531,7 +2584,11 @@ def compute_wcs_quality(odi_2mass_matched, hdr=None):
         hdr["WCS_SIGA"] = (results['SIGMA-RA'],               "1-sigma width of WCS error in Ra")
         hdr["WCS_SIGD"] = (results['SIGMA-DEC'],              "1-sigma width of WCS error in Dec")
         hdr["WCS_SIG"]  = (results['SIGMA'],                  "1-sigma width of WCS error combined")
- 
+
+        hdr['WCSCRMSA'] = (make_valid(results['RMS-RA-CLIP']), "rms (clipped) in RA [arcsec]")
+        hdr['WCSCRMSD'] = (make_valid(results['RMS-DEC-CLIP']), "rms (clipped) in DEC [arcsec]")
+        hdr['WCSCRMS']  = (make_valid(results['RMS-CLIP']), "rms (clipped) combined [arcsec]")
+
     return results
 
 

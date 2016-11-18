@@ -252,6 +252,23 @@ import psutil
 
 from podi_plotting import *
 
+#
+# Un-comment this block to get warnings with tracebacks for easier locating
+#
+# import warnings
+# #warnings.simplefilter("error")
+# warnings.simplefilter("ignore", RuntimeWarning)
+# import traceback
+# import warnings
+# import sys
+# def warn_with_traceback(message, category, filename, lineno, file=None, line=None):
+#     print"\n"*3
+#     traceback.print_stack()
+#     log = file if hasattr(file,'write') else sys.stderr
+#     log.write(warnings.formatwarning(message, category, filename, lineno, line))
+#     print "\n"*3
+# warnings.showwarning = warn_with_traceback
+
 gain_correct_frames = False
 from podi_definitions import *
 from podi_commandline import *
@@ -1292,7 +1309,7 @@ def collect_reduce_ota(filename,
 
                             if (ret.poll() == None):
                                 # sextractor completed
-                                logger.info("Sex complete!")
+                                logger.debug("SourceExtractor completed successfully!")
                                 break
                             time.sleep(0.1)
 
@@ -2828,7 +2845,7 @@ def collectcells(input, outputfile,
 
     **********************************************************************
     * This is podi_collectcells                                          *
-    * (c) 2012-2015: Ralf Kotulla, kotulla@wisc.edu                      *
+    * (c) 2012-2017: Ralf Kotulla, kotulla@wisc.edu                      *
     *                University of Wisconsin - Madison                   *
     *                WIYN Observatory, Inc                               *
     *                                                                    *
@@ -3042,7 +3059,7 @@ def collectcells(input, outputfile,
         for key, value in options['additional_fits_headers'].iteritems():
             ota_list[0].header[key] = (value, "user-added keyword")
             _firstkey = key if _firstkey is None else _firstkey
-        add_fits_header_title(header, "User-added keywords", _firstkey)
+        add_fits_header_title(ota_list[0].header, "User-added keywords", _firstkey)
 
     ota_list[0].header['BINNING'] = (binning, "binning factor")
 
@@ -4017,13 +4034,14 @@ def collectcells(input, outputfile,
                                         mode=sitesetup.fixwcs_mode,
                                         max_pointing_error=sitesetup.max_pointing_error,
                                         max_rotator_error=sitesetup.max_rotator_error,
-                                        min_contrast=sitesetup.min_wcs_quality)
+                                        min_contrast=sitesetup.min_wcs_quality,
+                                        catalog_order=sitesetup.wcscalib_order)
 
         # Use the fixed HDUList
         ota_list = ccmatched['hdulist']
 
         ota_list[0].header['WCSFIXED'] = True
-        ota_list[0].header['ASTRMCAT'] = "2MASS"
+        ota_list[0].header['ASTRMCAT'] = ccmatched['astrmcat'] #"2MASS"
         ota_list[0].header['WCSMXPOS'] = (ccmatched['max_pointing_error_searched'],
                                           "maximum pointing offset searched for success")
         ota_list[0].header['WCSEXPOS'] = (ccmatched['max_pointing_error'],
@@ -4037,6 +4055,10 @@ def collectcells(input, outputfile,
         ota_list[0].header['WCSMINQ']  = (sitesetup.min_wcs_quality,
                                           "Minimum WCS quality for successful calibration")
         ota_list[0].header['WCSCAL'] = ccmatched['valid_wcs_solution']
+
+        master_reduction_files_used = podi_associations.collect_reduction_files_used(
+            master_reduction_files_used,
+            {'wcs-reference': ccmatched['catalog_filenames']})
 
         #
         # Now add some headers to visualize the WCS quality (i.e. number of 
@@ -4098,19 +4120,19 @@ def collectcells(input, outputfile,
             logger.debug("Creating a FITS table for the matched ODI+2MASS catalog")
             odi_2mass_cat = ccmatched['matched_src+2mass']
             columns = [pyfits.Column(name='ODI_RA', format='D', unit='degrees', 
-                                     array=odi_2mass_cat[:,  0], disp='ODI right ascension'),
+                                     array=odi_2mass_cat[:,  0], disp='F12.8'),
                        pyfits.Column(name='ODI_DEC', format='D', unit='degrees', 
-                                     array=odi_2mass_cat[:,  1], disp='ODI declination'),
-                       pyfits.Column(name='TWOMASS_RA', format='D', unit='degrees', 
-                                     array=odi_2mass_cat[:, -2], disp='2MASS right ascension'),
-                       pyfits.Column(name='TWOMASS_DEC', format='D', unit='degrees', 
-                                     array=odi_2mass_cat[:, -1], disp='2MASS declination'),
-                       pyfits.Column(name='OTA', format='E', unit='',
-                                     array=odi_2mass_cat[:, 8], disp='source OTA'),
+                                     array=odi_2mass_cat[:,  1], disp='F12.8'),
+                       pyfits.Column(name='REF_RA', format='D', unit='degrees',
+                                     array=odi_2mass_cat[:, -2], disp='F12.8'),
+                       pyfits.Column(name='REF_DEC', format='D', unit='degrees',
+                                     array=odi_2mass_cat[:, -1], disp='F12.8'),
+                       pyfits.Column(name='OTA', format='I', unit='',
+                                     array=odi_2mass_cat[:, 8].astype(numpy.int), disp='I2.2'),
             ]
             coldefs = pyfits.ColDefs(columns)
             matchedhdu = pyfits.BinTableHDU.from_columns(coldefs)
-            matchedhdu.name = "CAT.ODI+2MASS"
+            matchedhdu.name = "WCSCAL.CAT"
             matchedhdu.header['MATCHRAD'] = (2., "matching radius in arcsec")
             ota_list.append(matchedhdu)
 
@@ -4181,6 +4203,7 @@ def collectcells(input, outputfile,
         podi_diagnosticplots.wcsdiag_scatter(matched_radec_odi=odi_2mass_matched[:,0:2], 
                                              matched_radec_2mass=odi_2mass_matched[:,-2:],
                                              matched_ota=odi_2mass_matched[:,SXcolumn['ota']],
+                                             matched_odierror=odi_2mass_matched[:, SXcolumn['mag_err_auto']],
                                              filename=plotfilename, 
                                              options=options,
                                              ota_wcs_stats=ota_wcs_stats,
@@ -4403,14 +4426,17 @@ def collectcells(input, outputfile,
         # Compute the sky-brightness 
         sky_arcsec = sky_global_median / (0.11**2) # convert counts/pixel to counts/arcsec*2
         sky_mag = -99.
-	if (sky_arcsec > 0 and zeropoint_exptime < 99): -2.5 * math.log10(sky_arcsec) + zeropoint_exptime
+        if (sky_arcsec > 0 and zeropoint_exptime < 99):
+            sky_mag = -2.5 * math.log10(sky_arcsec) + zeropoint_exptime
         ota_list[0].header['SKYMAG'] = sky_mag
 
-
+        master_reduction_files_used = podi_associations.collect_reduction_files_used(
+            master_reduction_files_used, {'photcalib-reference': photcalib_details['reference_catalog_files']}
+        )
 
         # Now convert the matched source catalog into a valid FITS extension 
         # and add it to the output.
-        if (not odi_sdss_matched == None and odi_sdss_matched.shape[0] > 0):
+        if (odi_sdss_matched is not None and odi_sdss_matched.shape[0] > 0):
             logger.debug("Adding matched SDSS=ODI source catalog to output as FITS extension")
             match_tablehdu = create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details)
             # Copy a bunch of headers so we can makes heads and tails of the catalog
@@ -4465,7 +4491,7 @@ def collectcells(input, outputfile,
         options['photcalib'] and
         enough_stars_for_fixwcs):
 
-        if (options['photcalib'] and not odi_sdss_matched == None and odi_sdss_matched.shape[0] > 0):
+        if (options['photcalib'] and odi_sdss_matched is not None and odi_sdss_matched.shape[0] > 0):
             # Use the SDSS catalog if available
             flags = odi_sdss_matched[:,SXcolumn['flags']+2]
             valid_flags = (flags == 0)
@@ -4787,10 +4813,10 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
         #
         # Ra/Dec from ODI catalog
         #
-        pyfits.Column(name='ODI_RA', disp='right ascension',
+        pyfits.Column(name='ODI_RA', disp='F12.8',
                       format='D', unit='degrees', 
                       array=odi_sdss_matched[:, 0]),
-        pyfits.Column(name='ODI_DEC', disp='right ascension',
+        pyfits.Column(name='ODI_DEC', disp='F12.8',
                       format='D', unit='degrees', 
                       array=odi_sdss_matched[:, 1]),
 
@@ -4816,48 +4842,48 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
         #
         # Ra/Dec from SDSS
         #
-        columns.append(pyfits.Column(name='SDSS_RA', disp='right ascension',
+        columns.append(pyfits.Column(name='SDSS_RA', disp='F12.8',
                                      format='D', unit='degrees', 
                                      array=odi_sdss_matched[:, 2]))
-        columns.append(pyfits.Column(name='SDSS_DEC', disp='declination',
+        columns.append(pyfits.Column(name='SDSS_DEC', disp='F12.8',
                                      format='D', unit='degrees', 
                                      array=odi_sdss_matched[:, 3]))
 
         #
         # Now add the SDSS magnitudes
         #
-        columns.append(pyfits.Column(name='SDSS_MAG_U', disp='SDSS magnitude u-band',
+        columns.append(pyfits.Column(name='SDSS_MAG_U', disp='F7.4',
                                      format='E', unit='mag', 
                                      array=odi_sdss_matched[:, SDSScolumn['u']]))
-        columns.append(pyfits.Column(name='SDSS_ERR_U', disp='SDSS magnitude error u-band',
+        columns.append(pyfits.Column(name='SDSS_ERR_U', disp='F7.4',
                       format='E', unit='mag', 
                       array=odi_sdss_matched[:, SDSScolumn['u_err']]))
 
-        columns.append(pyfits.Column(name='SDSS_MAG_G', disp='SDSS magnitude g-band',
+        columns.append(pyfits.Column(name='SDSS_MAG_G', disp='F7.4',
                       format='E', unit='mag', 
                       array=odi_sdss_matched[:, SDSScolumn['g']]))
-        columns.append(pyfits.Column(name='SDSS_ERR_G', disp='SDSS magnitude error g-band',
+        columns.append(pyfits.Column(name='SDSS_ERR_G', disp='F7.4',
                       format='E', unit='mag', 
                       array=odi_sdss_matched[:, SDSScolumn['g_err']]))
 
-        columns.append(pyfits.Column(name='SDSS_MAG_R', disp='SDSS magnitude r-band',
+        columns.append(pyfits.Column(name='SDSS_MAG_R', disp='F7.4',
                       format='E', unit='mag', 
                       array=odi_sdss_matched[:, SDSScolumn['r']]))
-        columns.append(pyfits.Column(name='SDSS_ERR_R', disp='SDSS magnitude error r-band',
+        columns.append(pyfits.Column(name='SDSS_ERR_R', disp='F7.4',
                       format='E', unit='mag', 
                       array=odi_sdss_matched[:, SDSScolumn['r_err']]))
 
-        columns.append(pyfits.Column(name='SDSS_MAG_I', disp='SDSS magnitude i-band',
+        columns.append(pyfits.Column(name='SDSS_MAG_I', disp='F7.4',
                       format='E', unit='mag', 
                       array=odi_sdss_matched[:, SDSScolumn['i']]))
-        columns.append(pyfits.Column(name='SDSS_ERR_I', disp='SDSS magnitude error i-band',
+        columns.append(pyfits.Column(name='SDSS_ERR_I', disp='F7.4',
                       format='E', unit='mag', 
                       array=odi_sdss_matched[:, SDSScolumn['i_err']]))
 
-        columns.append(pyfits.Column(name='SDSS_MAG_Z', disp='SDSS magnitude z-band',
+        columns.append(pyfits.Column(name='SDSS_MAG_Z', disp='F7.4',
                       format='E', unit='mag', 
                       array=odi_sdss_matched[:, SDSScolumn['z']]))
-        columns.append(pyfits.Column(name='SDSS_ERR_Z', disp='SDSS magnitude error z-band',
+        columns.append(pyfits.Column(name='SDSS_ERR_Z', disp='F7.4',
                       format='E', unit='mag', 
                       array=odi_sdss_matched[:, SDSScolumn['z_err']]))
         # end SDSS
@@ -4866,10 +4892,10 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
         #
         # Ra/Dec from SDSS
         #
-        columns.append(pyfits.Column(name='UCAC_RA', disp='right ascension',
+        columns.append(pyfits.Column(name='UCAC_RA', disp='F12.8',
                                      format='D', unit='degrees', 
                                      array=odi_sdss_matched[:, 2]))
-        columns.append(pyfits.Column(name='UCAC_DEC', disp='declination',
+        columns.append(pyfits.Column(name='UCAC_DEC', disp='F12.8',
                                      format='D', unit='degrees', 
                                      array=odi_sdss_matched[:, 3]))
 
@@ -4899,7 +4925,7 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
                          ('APASS_ERR_i', "UCAC/APASS mag error i", 'ERR_I'), 
                     ]
         for (name, disp, col) in ucac_columns:
-            columns.append(pyfits.Column(name=name, disp=disp,
+            columns.append(pyfits.Column(name=name, disp='F7.4',
                                          format='E', unit='mag', 
                                          array=odi_sdss_matched[:, UCACcolumn[col]]))
 
@@ -4908,10 +4934,10 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
         #
         # Ra/Dec from IPPRef
         #
-        columns.append(pyfits.Column(name='IPP_RA', disp='right ascension',
+        columns.append(pyfits.Column(name='IPP_RA', disp='F12.8',
                                      format='D', unit='degrees', 
                                      array=odi_sdss_matched[:, 2]))
-        columns.append(pyfits.Column(name='IPP_DEC', disp='declination',
+        columns.append(pyfits.Column(name='IPP_DEC', disp='F12.8',
                                      format='D', unit='degrees', 
                                      array=odi_sdss_matched[:, 3]))
 
@@ -4935,23 +4961,49 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
                         ('IPP_ERR_Z', "synth. IPP mag error z", 'ERR_Z'), 
                     ]
         for (name, disp, col) in ipp_columns:
-            columns.append(pyfits.Column(name=name, disp=disp,
+            columns.append(pyfits.Column(name=name, disp='F7.4',
                                          format='E', unit='mag', 
                                          array=odi_sdss_matched[:, IPPcolumn[col]]))
 
         # end UCAC
 
+    elif (photcalib_details['catalog'] in sitesetup.catalog_directory and
+          photcalib_details['catalog'] in sitesetup.catalog_mags):
 
-    columns.append(pyfits.Column(name='ODI_FWHM', disp='FWHM in ODI frame',
+        # print "SXcolumns:", len(SXcolumn)
+        # print "cat cols:", len(sitesetup.catalog_mags[photcalib_details['catalog']])
+        # print odi_sdss_matched.shape
+        # numpy.savetxt("photcal.cat", odi_sdss_matched)
+        for i_key, key in enumerate(sitesetup.catalog_mags[photcalib_details['catalog']]):
+            if (key == ''):
+                continue
+            table_key = ('ref_%s' % (key)).upper()
+
+            if (key in ['ra', 'dec']):
+                col = i_key + 2
+                unit = 'degrees'
+            else:
+                col = i_key + len(SXcolumn)
+                unit = 'mag'
+
+            columns.append(pyfits.Column(name=table_key, format='D', unit=unit,
+                                     array=odi_sdss_matched[:, col]))
+
+    else:
+        logger.warning("Catalog not properly configured for output as TABLE extension")
+        pass
+
+
+    columns.append(pyfits.Column(name='ODI_FWHM', disp='F10.8',
                                  format='D', unit='degrees', 
                                  array=odi_sdss_matched[:, SXcolumn['fwhm_world']+2]))
 
     columns.append(pyfits.Column(name='ODI_MAG_AUTO', format='E', unit='mag',
                                  array=odi_sdss_matched[:,SXcolumn['mag_auto']+2],
-                                 disp='auto-mag'))
+                                 disp='F7.4'))
     columns.append(pyfits.Column(name='ODI_ERR_AUTO', format='E', unit='mag',
                                  array=odi_sdss_matched[:,SXcolumn['mag_err_auto']+2],
-                                 disp='auto-mag error'))
+                                 disp='F6.4'))
         
 
 
@@ -4965,13 +5017,13 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
         columns.append(pyfits.Column(name='ODI_MAG_D%02d' % (int(apsize*10.)), 
                                      format='E', unit='mag',
                                      array=odi_sdss_matched[:,SXcolumn[col_mag]+2],
-                                     disp='aperture mag %0.1f arcsec diameter' % (apsize)
-                                 )
+                                     disp='F8.4'
+                                     )
         )
         columns.append(pyfits.Column(name='ODI_ERR_D%02d' % (int(apsize*10.)),
                                      format='E', unit='mag',
                                      array=odi_sdss_matched[:,SXcolumn[col_magerr]+2],
-                                     disp='ap. mag error %0.1f arcsec diameter' % (apsize)
+                                     disp='F8.4'
                                  )
         )
 
@@ -4982,19 +5034,19 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
     columns.append(pyfits.Column(name='ODI_X',
                                      format='E', unit='pixel',
                                      array=odi_sdss_matched[:,SXcolumn['x']+2],
-                                     disp='source coordinate X'
+                                     disp='F7.2'
                                  )
     )
     columns.append(pyfits.Column(name='ODI_Y',
                                      format='E', unit='pixel',
                                      array=odi_sdss_matched[:,SXcolumn['y']+2],
-                                     disp='source coordinate Y'
+                                     disp='F7.2'
                                  )
     )
     columns.append(pyfits.Column(name='ODI_OTA',
-                                     format='E', unit='',
-                                     array=odi_sdss_matched[:,SXcolumn['ota']+2],
-                                     disp='source OTA'
+                                     format='I', unit='',
+                                     array=odi_sdss_matched[:,SXcolumn['ota']+2].astype(numpy.int),
+                                     disp='I2.2'
                                  )
     )
 
@@ -5028,14 +5080,14 @@ def wcs2odi(radec, wcs):
 def twomasscat_to_tablehdu(catalog): 
     
     columns = [\
-        pyfits.Column(name='RA',  format='D', array=catalog[:,0]),
-        pyfits.Column(name='DEC', format='D', array=catalog[:,1]),
+        pyfits.Column(name='RA',  format='D', disp='F12.8', array=catalog[:,0]),
+        pyfits.Column(name='DEC', format='D', disp='F12.8', array=catalog[:,1]),
         ]
 
     coldefs = pyfits.ColDefs(columns)
     tbhdu = pyfits.BinTableHDU.from_columns(coldefs)
 
-    tbhdu.name = "CAT.2MASS"
+    tbhdu.name = "CAT.WCSREF"
     return tbhdu
 
 
@@ -5074,57 +5126,57 @@ def odi_sources_to_tablehdu(source_cat):
     columns = [\
                pyfits.Column(name='RA', format='D', unit='degrees',
                              array=source_cat[:,SXcolumn['ra']],
-                             disp='right ascension'),
+                             disp='F12.8'),
                pyfits.Column(name='DEC',            format='D', unit='degrees',
                              array=source_cat[:,SXcolumn['dec']], 
-                             disp='declination'),
+                             disp='F12.8'),
                pyfits.Column(name='X',              format='E', unit='pixel',
                              array=source_cat[:,SXcolumn['x']],
-                             disp='center x'),
+                             disp='F8.3'),
                pyfits.Column(name='Y',              format='E', unit='pixel',
                              array=source_cat[:,SXcolumn['y']], 
-                             disp='center y'),
+                             disp='F8.3'),
                pyfits.Column(name='FWHM_IMAGE',     format='E', unit='pixel',
                              array=source_cat[:,SXcolumn['fwhm_image']],
-                             disp='FWHM in pixels'),
+                             disp='F6.2'),
                pyfits.Column(name='FWHM_WORLD',     format='E', unit='deg',
                              array=source_cat[:,SXcolumn['fwhm_world']],
-                             disp='FWHM in degrees'),
+                             disp='F10.6'),
                pyfits.Column(name='BACKGROUND',     format='E', unit='counts',
                              array=source_cat[:,SXcolumn['background']],
-                             disp='background level'),
+                             disp='F8.1'),
                pyfits.Column(name='FLAGS',          format='I', unit='',
                              array=source_cat[:,SXcolumn['flags']],
-                             disp='SExtractor flags'),
+                             disp='B8.8'),
                pyfits.Column(name='OTA',            format='I', unit='',
                              array=source_cat[:,SXcolumn['ota']],
-                             disp='source OTA'),
+                             disp='I2.2'),
 
                pyfits.Column(name='MAG_AUTO',        format='E', unit='mag',
                              array=source_cat[:,SXcolumn['mag_auto']],
-                             disp='auto-mag'),
+                             disp='F8.4'),
                pyfits.Column(name='MAGERR_AUTO',     format='E', unit='mag',
                              array=source_cat[:,SXcolumn['mag_err_auto']],
-                             disp=''),
+                             disp='F8.4'),
         
                pyfits.Column(name='FLUX_MAX',       format='E', unit='counts',
                              array=source_cat[:,SXcolumn['flux_max']],
-                             disp='max count rate'),
+                             disp='F8.1'),
                pyfits.Column(name='AWIN_IMAGE',     format='E', unit='pixel',
                              array=source_cat[:,SXcolumn['major_axis']],
-                             disp='major semi-axis'),
+                             disp='F8.3'),
                pyfits.Column(name='BWIN_IMAGE',     format='E', unit='pixel',
                              array=source_cat[:,SXcolumn['minor_axis']],
-                             disp='minor semi-axis'),
+                             disp='F8.3'),
                pyfits.Column(name='THETAWIN_IMAGE', format='E', unit='degrees',
                              array=source_cat[:,SXcolumn['position_angle']],
-                             disp='position angle'),
+                             disp='F5.1'),
                pyfits.Column(name='ELONGATION',     format='E', unit='',
                              array=source_cat[:,SXcolumn['elongation']],
-                             disp='elongation'),
+                             disp='F8.4'),
                pyfits.Column(name='ELLIPTICITY',    format='E', unit='',
                              array=source_cat[:,SXcolumn['ellipticity']],
-                             disp='ellipticity'),
+                             disp='F7.5'),
            ]
 
     # Add all aperture photometry
@@ -5135,13 +5187,13 @@ def odi_sources_to_tablehdu(source_cat):
         columns.append(pyfits.Column(name='MAG_D%02d' % (int(apsize*10.)), 
                                      format='E', unit='mag',
                                      array=source_cat[:,SXcolumn[col_mag]],
-                                     disp='aperture mag %0.1f arcsec diameter' % (apsize)
+                                     disp='F8.4'
                                  )
         )
         columns.append(pyfits.Column(name='MAGERR_D%02d' % (int(apsize*10.)),
                                      format='E', unit='mag',
                                      array=source_cat[:,SXcolumn[col_magerr]],
-                                     disp='ap. mag error %0.1f arcsec diameter' % (apsize)
+                                     disp='F8.4'
                                  )
         )
 

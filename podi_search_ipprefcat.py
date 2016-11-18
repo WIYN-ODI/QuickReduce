@@ -230,32 +230,106 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
     return results
 
 
+def table_to_ndarray(tbhdu, select_header_list=None, overwrite_select=False):
+
+    logger = logging.getLogger("Table2Array")
+    n_entries = tbhdu.header['NAXIS2']
+
+    if (select_header_list is None):
+
+        # no selection of what columns to read
+
+        n_fields = tbhdu.header['TFIELDS']
+
+        logger.debug("Found %d columns and %d rows" % (n_fields, n_entries))
+
+        databuffer = numpy.empty((n_entries, n_fields))
+        for i in range(n_fields):
+            try:
+                coldata = numpy.array(tbhdu.data.field(i))
+                databuffer[:,i] = coldata[:] #tbhdu.data.field(i)
+            except ValueError:
+                pass
+
+    else:
+
+        n_fields = len(select_header_list)
+        if (overwrite_select):
+            n_fields += tbhdu.header['TFIELDS']
+        logger.debug("Reading select list of %d columns for %d sources" % (n_fields, n_entries))
+
+        databuffer = numpy.empty((n_entries, n_fields))
+        for i, fieldname in enumerate(select_header_list):
+            try:
+                coldata = numpy.array(tbhdu.data.field(fieldname))
+                databuffer[:, i] = coldata[:]  # tbhdu.data.field(i)
+            except ValueError:
+                pass
+
+        if (overwrite_select):
+            for i in range(tbhdu.header['TFIELDS']):
+                try:
+                    coldata = numpy.array(tbhdu.data.field(i))
+                    databuffer[:,i+len(select_header_list)] = coldata[:] #tbhdu.data.field(i)
+                except ValueError:
+                    pass
 
 
-def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose=False):
+    # print databuffer.shape
+    # numpy.savetxt(fn[:-5]+".dump", databuffer)
+    return databuffer
+
+
+
+def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose=False, overwrite_select=False,
+                          quiet=False, return_filenames=False,
+                          ):
 
     logger = logging.getLogger("ReadCatalog")
+    catalog_filenames = None
+
+    error_return = (None, None) if return_filenames else None
 
     # Handle the separate case of web-based catalogs
     if (cattype.startswith("web:")):
 
         if (cattype == "web:2mass"):
-            return twomass_from_cds(ra, dec, radius, verbose)
+            cat = twomass_from_cds(ra, dec, radius, verbose)
+            if (return_filenames):
+                return cat, None
+            return cat
         elif (cattype == "web:sdss"):
-            return load_catalog_from_sdss(ra, dec, 
+            cat = load_catalog_from_sdss(ra, dec,
                                           verbose=verbose, 
                                           return_query=False, 
                                           max_catsize=-1)
+            if (return_filenames):
+                return cat, None
+            return cat
 
     # print "In get_ref_catalog, cattype=%s, dir=%s" % (cattype, basedir)
 
+    if (basedir is None or not os.path.isdir(basedir)):
+        #(basedir is not None and not os.path.isdir(basedir))):
+        logger.warning("Unable to find reference catalog: %s" % (str(basedir)))
+        return error_return
+
     # Load the SkyTable so we know in what files to look for the catalog"
+    logger.debug("Using catalog found in %s" % (basedir))
     skytable_filename = "%s/SkyTable.fits" % (basedir)
     if (not os.path.isfile(skytable_filename)):
         logger.error("Unable to find catalog index file in %s!" % (basedir))
-        return None
+        return error_return
 
     skytable_hdu = pyfits.open(skytable_filename)
+
+    select_header_list = None
+    if ('NSELECT' in skytable_hdu[0].header):
+        n_select = skytable_hdu[0].header['NSELECT']
+        select_header_list = [None] * n_select
+        for i in range(n_select):
+            select_header_list[i] = skytable_hdu[0].header['SELECT%02d' % (i+1)]
+        logger.debug("Selecting the following columns: %s" % (", ".join(select_header_list)))
 
     #print skytable_hdu.info()
 
@@ -291,10 +365,15 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
         skytable['R_MIN'][selected] -= 360
 
     if (verbose): print "# Search radius: RA=%.1f ... %.1f   DEC=%.1f ... %.1f" % (min_ra, max_ra, min_dec, max_dec)
-    
-    needed_catalogs = (skytable['PARENT'] > 0) & (skytable['PARENT'] < 25) & \
-         (skytable['R_MAX'] > min_ra)  & (skytable['R_MIN'] < max_ra) & \
-         (skytable['D_MAX'] > min_dec) & (skytable['D_MIN'] < max_dec)
+
+    try:
+        needed_catalogs = (skytable['PARENT'] > 0) & (skytable['PARENT'] < 25) & \
+                          (skytable['R_MAX'] > min_ra) & (skytable['R_MIN'] < max_ra) & \
+                          (skytable['D_MAX'] > min_dec) & (skytable['D_MIN'] < max_dec)
+    except KeyError:
+        # try without the PARENT field
+        needed_catalogs =   (skytable['R_MAX'] > min_ra)  & (skytable['R_MIN'] < max_ra) & \
+                            (skytable['D_MAX'] > min_dec) & (skytable['D_MIN'] < max_dec)
 
     #print skytable[needed_catalogs]
     
@@ -317,6 +396,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
     # Load all frames, one by one, and select all stars in the valid range.
     # Then add them to the catalog with RAs and DECs
     full_catalog = None #numpy.zeros(shape=(0,6))
+    catalog_filenames = []
     for catalogname in files_to_read:
 
         if (cattype == "IPPRef"):
@@ -330,6 +410,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
                 logger.warning("Unable to open IPPRef file %s" % (catalogfile))
                 continue
 
+            catalog_filenames.append(catalogfile)
             # Read the RA and DEC values
             cat_ra  = hdu_cat['DVO_AVERAGE_ELIXIR'].data.field('RA')
             cat_dec = hdu_cat['DVO_AVERAGE_ELIXIR'].data.field('DEC')
@@ -370,6 +451,8 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
                 logger.warning("Unable to open catalog (%s) file %s" % (
                     cattype, catalogfile))
                 continue
+
+            catalog_filenames.append(catalogfile)
 
             # Read the RA and DEC values
             cat_ra  = hdu_cat[1].data.field('ra')
@@ -448,17 +531,72 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
 
             if (verbose): print "# Read %d stars from catalog %s ..." % (array_to_add.shape[0], catalogfile)
 
-        else:
-            print "This catalog name is not known"
-            return None
+        elif (cattype == "general"):
 
-        if (type(full_catalog) == type(None)):
+            catalogfile = "%s/%s" % (basedir, catalogname)
+            # print catalogfile
+            if (not os.path.isfile(catalogfile)):
+                # not a file, try adding .fits to the end of the filename
+                if (os.path.isfile(catalogfile+".fits")):
+                    catalogfile += ".fits"
+                else:
+                    # neither option (w/ or w/o .fits added is a file)
+                    logger.warning("Catalog file (%s) not found (base-dir: %s)" % (os.path.abspath(catalogfile), basedir))
+                    continue
+
+            try:
+                hdu_cat = pyfits.open(catalogfile)
+            except:
+                logger.warning("Unable to open catalog (%s) file %s" % (
+                    cattype, catalogfile))
+                continue
+
+            catalog_filenames.append(catalogfile)
+            logger.debug("Adding %s to list of catalog files being used" % (catalogfile))
+
+            # read table into a nd-array buffer
+            cat_full = table_to_ndarray(hdu_cat[1], select_header_list=select_header_list,
+                                        overwrite_select=overwrite_select)
+            # print cat_full.shape
+
+            # Read the RA and DEC values
+            cat_ra  = cat_full[:,0]
+            cat_dec = cat_full[:,1]
+
+            # To slect the right region, shift a temporary catalog
+            cat_ra_shifted = cat_ra
+            if (max_ra > 360.):
+                cat_ra_shifted[cat_ra < 180] += 360
+            elif (min_ra < 0):
+                cat_ra_shifted[cat_ra > 180] -= 360
+
+            select_from_cat = (cat_ra_shifted > min_ra) & (cat_ra_shifted < max_ra ) & (cat_dec > min_dec) & (cat_dec < max_dec)
+
+            array_to_add = cat_full[select_from_cat]
+            logger.debug("Read %d sources from %s" % (array_to_add.shape[0], catalogname))
+        else:
+            logger.eror("This catalog name is not known")
+            return error_return
+
+        if (full_catalog is None):
             full_catalog = array_to_add
         else:
             full_catalog = numpy.append(full_catalog, array_to_add, axis=0)
         #print photom_grizy[:3,:]
-        
-    if (verbose): print "# Read a total of %d stars from %d catalogs!" % (full_catalog.shape[0], len(files_to_read))
+
+    if (full_catalog is None):
+        logger.warning("No stars found in area %s, %s from catalog %s" % (
+            str(ra), str(dec),
+            #ra[0], ra[1], dec[0], dec[1],
+            basedir
+        ))
+    else:
+        logger.debug("Read a total of %d stars from %d catalogs!" % (full_catalog.shape[0], len(files_to_read)))
+
+    # print catalog_filenames
+    if (return_filenames):
+        return full_catalog, catalog_filenames
+
     return full_catalog
 
 
@@ -466,35 +604,117 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
 
 
 if __name__ == "__main__":
-    
-    ra = float(get_clean_cmdline()[1])
-    dec = float(get_clean_cmdline()[2])
-    radius = float(get_clean_cmdline()[3])
+
+    # Read all options from command line. This is 100% compatible
+    # with an individual call to podi_collectcells.
+    options = read_options_from_commandline(None)
+
+    # Setup everything we need for logging
+    podi_logging.setup_logging(options)
+
+    quietmode = cmdline_arg_isset("-quiet")
+    max_number_sources = int(cmdline_arg_set_or_default("-max", -1))
+    output_format = cmdline_arg_set_or_default("-format", "dat")
+    all_columns = cmdline_arg_isset("-allcols")
+
+    basedir = get_clean_cmdline()[1]
+    ra = float(get_clean_cmdline()[2])
+    dec = float(get_clean_cmdline()[3])
+    radius = float(get_clean_cmdline()[4])
 
     dec_min, dec_max = dec-radius, dec+radius
     dec_range = numpy.array([dec_min, dec_max])
     cos_dec = numpy.min( numpy.cos(numpy.radians(dec_range)))
     ra_range = numpy.array([ ra-radius/cos_dec, ra+radius/cos_dec])
 
-    basedir = "/Volumes/odifile/Catalogs/IPPRefCat/catdir.synth.grizy/"
+    # import podi_sitesetup as sitesetup
+    # basedir = sitesetup.wcs_ref_dir
+    # catalog_type = sitesetup.wcs_ref_type
+    #
+    # basedir = cmdline_arg_set_or_default("-basedir", sitesetup.wcs_ref_dir)
+    # catalog_type = cmdline_arg_set_or_default("-cattype", sitesetup.wcs_ref_type)
+    # verbose = cmdline_arg_isset("-v")
 
-    import podi_sitesetup as sitesetup
-    basedir = sitesetup.wcs_ref_dir
-    catalog_type = sitesetup.wcs_ref_type
-
-    basedir = cmdline_arg_set_or_default("-basedir", sitesetup.wcs_ref_dir)
-    catalog_type = cmdline_arg_set_or_default("-cattype", sitesetup.wcs_ref_type)
-    verbose = cmdline_arg_isset("-v")
-
+    print "# Catalog directory:", basedir
+    print "# RA: ", ra_range, " -- DEC:", dec_range
+    # print "DEC:", dec_range
 
     # catalog = get_reference_catalog(ra, dec, radius, basedir=basedir, cattype=catalog_type, verbose=verbose)
-    catalog = get_reference_catalog(ra_range, dec_range, radius=None, basedir=basedir, cattype=catalog_type, verbose=verbose)
+    catalog = get_reference_catalog(ra_range, dec_range, radius=None, basedir=basedir,
+                                    cattype='general', verbose=False, overwrite_select=all_columns,
+                                    quiet=quietmode)
 
     # if (True): #False):
     #     for i in range(catalog.shape[0]):
     #         for j in range(catalog.shape[1]):
     #             print catalog[i,j],
     #         print
-    if (not catalog == None):
-        numpy.savetxt(sys.stdout, catalog)
 
+    try:
+        out_fn = get_clean_cmdline()[5]
+    except:
+        out_fn = sys.stdout
+
+    if (max_number_sources > 0):
+        catalog = catalog[:max_number_sources]
+
+    #print catalog
+    print output_format
+    if (catalog is not None):
+
+        if (output_format == "dat"):
+            numpy.savetxt(out_fn, catalog)
+        elif (output_format == "fitsldac"):
+            primhdu = pyfits.PrimaryHDU()
+
+            ldac_hdr_data = pyfits.ImageHDU()
+            ldac_hdr_data.header['NAXIS'] = 2
+            ldac_hdr_data.header['NAXIS1'] = 4096
+            ldac_hdr_data.header['NAXIS2'] = 4096
+            ldac_hdr_data.header['RADESYS'] = 'ICRS'
+            ldac_hdr_data.header['CTYPE1'] = 'RA---STG'
+            ldac_hdr_data.header['CTYPE2'] = 'DEC--STG'
+            ldac_hdr_data.header['CRVAL1'] = ra
+            ldac_hdr_data.header['CRVAL2'] = dec
+            ldac_hdr_data.header['CRPIX1'] = 2048
+            ldac_hdr_data.header['CRPIX2'] = 2048
+            ldac_hdr_data.header['CD1_1'] = 5e-5
+            ldac_hdr_data.header['CD2_2'] = 5e-5
+            ldac_hdr_data.header['CD1_2'] = 0.
+            ldac_hdr_data.header['CD2_1'] = 0
+            ldac_hdr_data_as_string = str(ldac_hdr_data.header)
+
+            ldac_hdr = pyfits.BinTableHDU.from_columns(
+                pyfits.ColDefs([pyfits.Column(
+                    #name='header',
+                    name='Field Header Card',
+                    format='%dA' % (len(ldac_hdr_data_as_string)),
+                    #dim='(%d,%d)' % (80, len(ldac_hdr_data_as_string)),
+                    #array=[ldac_hdr_data_as_string],
+                )])
+            )
+            ldac_hdr.name = "LDAC_IMHEAD"
+
+            ldac_data = pyfits.BinTableHDU.from_columns(pyfits.ColDefs([
+                pyfits.Column(name="X_WORLD", format='1D',
+                              unit='deg', disp='E15', array=catalog[:,0]),
+                pyfits.Column(name="Y_WORLD", format='1D',
+                              unit='deg', disp='E15', array=catalog[:, 1]),
+                pyfits.Column(name="ERRA_WORLD", format='1D',
+                              unit='deg', disp='E12', array=catalog[:, 2]),
+                pyfits.Column(name="ERRB_WORLD", format='1D',
+                              unit='deg', disp='E12', array=catalog[:, 3]),
+                pyfits.Column(name="MAG", format='1E',
+                              unit='mag', disp='F8.4', array=catalog[:, 4]),
+                pyfits.Column(name="MAGERR", format='1E',
+                              unit='mag', disp='F8.4', array=catalog[:, 5]),
+                pyfits.Column(name="OBSDATE", format='1D',
+                              unit='yr', disp='F13.8', array=numpy.ones((catalog.shape[0]))*2000.),
+
+            ]))
+            ldac_data.name = 'LDAC_OBJECTS'
+
+            hdulist = pyfits.HDUList([primhdu, ldac_hdr, ldac_data])
+            hdulist.writeto(out_fn, clobber=True)
+
+    podi_logging.shutdown_logging(options)

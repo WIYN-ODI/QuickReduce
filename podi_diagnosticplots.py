@@ -62,8 +62,9 @@ import podi_logging, logging
 
 
 
-def plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list, 
+def plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list,
                          title="WCS Scatter",
+                         high_s2n=None,
                          ota_stats = None, ota_global_stats = None):
     """
 
@@ -79,18 +80,26 @@ def plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list,
 
     count, xedges, yedges = numpy.histogram2d(d_ra*3600., d_dec*3600.,
                                               bins=[60,60], range=[[-3,3], [-3,3]])
-    img = ax.imshow(count.T, 
-                                   extent=(xedges[0],xedges[-1],yedges[0],yedges[-1]), 
-                                   origin='lower', 
-                                   cmap=cmap_bluewhite)
-    # interpolation='nearest', 
-    fig.colorbar(img, label='point density')
+    # img = ax.imshow(count.T,
+    #                                extent=(xedges[0],xedges[-1],yedges[0],yedges[-1]),
+    #                                origin='lower',
+    #                                cmap=cmap_bluewhite)
+    # # interpolation='nearest',
+    # fig.colorbar(img, label='point density')
 
+    max_dimension = 3.
+    n_sigma = 7
+    if (ota_global_stats is not None):
+        max_dimension = numpy.max([n_sigma*ota_global_stats['RMS-RA-CLIP'],
+                                   n_sigma*ota_global_stats['RMS-DEC-CLIP'],
+                                   0.5,])
+        max_dimension = 3. if max_dimension > 3 else max_dimension
+        #print "max:",max_dimension
 
     #
     # Draw the rings in the center to outline the RMS of the OTA and focal-plane
     #
-    if (not ota_global_stats == None):
+    if (ota_global_stats is not None):
         x = ota_global_stats['MEDIAN-RA']
         y = ota_global_stats['MEDIAN-DEC']
         width = ota_global_stats['RMS-RA']
@@ -102,15 +111,15 @@ def plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list,
         global_text = """\
 Overall WCS (N=%(STARCOUNT)d):
 offset: %(MEDIAN-RA)+0.3f'' / %(MEDIAN-DEC)+0.3f''
-R.M.S. %(RMS-RA)0.3f'' / %(RMS-DEC)0.3f''
-%(RMS).3f'' (combined)\
+R.M.S. %(RMS-RA-CLIP)0.3f'' / %(RMS-DEC-CLIP)0.3f''
+%(RMS-CLIP).3f'' (combined)\
 """ % ota_global_stats
-        ax.text(-2.9, -2.9, global_text,
+        ax.text(-0.97*max_dimension, -0.97*max_dimension, global_text,
         horizontalalignment='right',
         verticalalignment='bottom',
                  fontsize=10, backgroundcolor='white')
 
-    if (not ota_stats == None):
+    if (ota_stats is not None):
         x = ota_stats['MEDIAN-RA']
         y = ota_stats['MEDIAN-DEC']
         width = ota_stats['RMS-RA']
@@ -122,10 +131,10 @@ R.M.S. %(RMS-RA)0.3f'' / %(RMS-DEC)0.3f''
         local_text = """\
 This OTA (N=%(STARCOUNT)d):
 offset: %(MEDIAN-RA)+0.3f'' / %(MEDIAN-DEC)+0.3f''
-R.M.S. %(RMS-RA)0.3f'' / %(RMS-DEC)0.3f''
-%(RMS).3f'' (combined)\
+R.M.S. %(RMS-RA-CLIP)0.3f'' / %(RMS-DEC-CLIP)0.3f''
+%(RMS-CLIP).3f'' (combined)\
 """ % ota_stats
-        ax.text(2.9, -2.9, local_text,
+        ax.text(0.97*max_dimension, -0.97*max_dimension, local_text,
                  horizontalalignment='left',
                  verticalalignment='bottom',
                  fontsize=10, backgroundcolor='white')
@@ -134,33 +143,49 @@ R.M.S. %(RMS-RA)0.3f'' / %(RMS-DEC)0.3f''
     # Add some histograms to the borders to illustrate the distribution
     # Only do so if there are at least 5 stars
     #
+    histogram_scale = 0.3*max_dimension
+    select = [
+        (numpy.ones(d_ra.shape, dtype=numpy.bool), '#808080')
+    ]
+    if (high_s2n is not None):
+        select.append((high_s2n, 'blue'))
+
     if (d_ra.shape[0] > 5):
         from scipy.stats import gaussian_kde
         x = numpy.linspace(-3,3,600)
-        density_ra = gaussian_kde(d_ra*3600.)
-        density_ra.covariance_factor = lambda : .1
-        density_ra._compute_covariance()
-        peak_ra = numpy.max(density_ra(x))
-        ax.plot(x,3.-density_ra(x)/peak_ra, "-", color='black')
 
-        density_dec = gaussian_kde(d_dec*3600.)
-        density_dec.covariance_factor = lambda : .1
-        density_dec._compute_covariance()
-        peak_dec = numpy.max(density_dec(x))
-        ax.plot(density_dec(x)/peak_dec-3., x, "-", color='black')
+        for (sample, color) in select:
+            density_ra = gaussian_kde(d_ra[sample]*3600.)
+            density_ra.covariance_factor = lambda : .1
+            density_ra._compute_covariance()
+            peak_ra = numpy.max(density_ra(x))
+            ax.plot(x,max_dimension-density_ra(x)/peak_ra*histogram_scale, "-", color=color)#'black')
+
+            density_dec = gaussian_kde(d_dec[sample]*3600.)
+            density_dec.covariance_factor = lambda : .1
+            density_dec._compute_covariance()
+            peak_dec = numpy.max(density_dec(x))
+            ax.plot(density_dec(x)/peak_dec*histogram_scale-max_dimension, x, "-", color=color)#'black')
 
 
 
-    ax.plot(d_ra*3600., d_dec*3600., "b,", linewidth=0)
+    if (high_s2n is not None):
+        # ax.plot(d_ra[high_s2n] * 3600., d_dec[high_s2n] * 3600., "b,", linewidth=0)
+        ax.scatter(d_ra[~high_s2n] * 3600., d_dec[~high_s2n] * 3600.,
+                   c='#aaaaaa', marker='.', linewidth=0, s=1)
+        ax.scatter(d_ra[high_s2n] * 3600., d_dec[high_s2n] * 3600.,
+                   c='blue', s=4, marker='.', linewidth=0)
+    else:
+        ax.plot(d_ra*3600., d_dec*3600., "b,", linewidth=0)
     ax.set_title(title)
     ax.set_xlabel("error RA * cos(DEC) [arcsec]")
     ax.set_ylabel("error DEC [arcsec]")
-    ax.set_xlim((3,-3))
-    ax.set_ylim((-3,3))
+    ax.set_xlim((max_dimension,-1.*max_dimension))
+    ax.set_ylim((-1.*max_dimension,max_dimension))
     ax.grid(True)
     ax.set_aspect('equal')
 
-    if (filename == None):
+    if (filename is None):
         fig.show()
     else:
         for ext in extension_list:
@@ -177,6 +202,7 @@ R.M.S. %(RMS-RA)0.3f'' / %(RMS-DEC)0.3f''
 def wcsdiag_scatter(matched_radec_odi, 
                     matched_radec_2mass, 
                     matched_ota,
+                    matched_odierror,
                     filename, options=None, ota_wcs_stats=None,
                     also_plot_singleOTAs=True,
                     title_info = None,
@@ -204,19 +230,19 @@ def wcsdiag_scatter(matched_radec_odi,
     d_dec = matched_radec_odi[:,1] - matched_radec_2mass[:,1]
     ota = matched_ota
 
-    if (options == None):
+    if (options is None):
         extension_list = ['png']
     else:
         extension_list = options['plotformat']
 
     # Create one plot for the full focalplane
-    ota_global_stats = None if ota_wcs_stats == None else ota_wcs_stats['full']
+    ota_global_stats = None if ota_wcs_stats is None else ota_wcs_stats['full']
 
     title = "WCS Scatter - full focal plane"
-    if (not title_info == None):
+    if (title_info is not None):
         logger.debug("Received information for a more descriptive plot title for WCS scatter")
         try:
-            title = "WCS Scatter - %(OBSID)s (focal-plane) \n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec" % title_info
+            title = "WCS Scatter (reference: %(ASTRMCAT)s)\n%(OBSID)s (focal-plane) \n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec" % title_info
             logger.debug(title)
         except:
             pass
@@ -229,6 +255,7 @@ def wcsdiag_scatter(matched_radec_odi,
                 "ota_stats": None,
                 "ota_global_stats": ota_global_stats,
                 "title": title,
+                "high_s2n": (matched_odierror<0.02),
             }
     p = multiprocessing.Process(target=plot_wcsdiag_scatter, kwargs=plot_args)
     p.start()
@@ -249,15 +276,15 @@ def wcsdiag_scatter(matched_radec_odi,
             extname = "OTA%02d.SCI" % (this_ota)
 
             ota_stats = None
-            if (not ota_wcs_stats == None):
+            if (ota_wcs_stats is not None):
                 if (extname in ota_wcs_stats):
                     ota_stats = ota_wcs_stats[extname]
 
             title = "WSC Scatter - OTA %02d" % (this_ota)
-            if (not title_info == None):
+            if (title_info is not None):
                 title_info['OTA'] = this_ota
                 try:
-                    title = "WCS Scatter - %(OBSID)s - OTA %(OTA)02d\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec" % title_info
+                    title = "WCS Scatter (reference: %(ASTRMCAT)s)\n%(OBSID)s - OTA %(OTA)02d\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec" % title_info
                 except:
                     pass
                
@@ -269,7 +296,8 @@ def wcsdiag_scatter(matched_radec_odi,
             #     ota_plotfile = "%s/OTA%02d" % (filename, this_ota)
 
             plot_args= {"d_ra": d_ra[in_this_ota], 
-                        "d_dec": d_dec[in_this_ota], 
+                        "d_dec": d_dec[in_this_ota],
+                        "high_s2n": (matched_odierror[in_this_ota] < 0.02),
                         "filename": ota_plotfile, 
                         "extension_list": extension_list, 
                         "title": title,
@@ -397,7 +425,7 @@ def plot_wcsdiag_shift(radec, d_radec,
     #           angles='xy', scale_units='xy', scale=1, pivot='middle',
     #           headwidth=0)
 
-    if (not ota_outlines == None):
+    if (ota_outlines is not None):
         corners = numpy.array(ota_outlines)
         if (around_zero):
             corners[:,:,0][corners[:,:,0] > 180.] -= 360.
@@ -412,7 +440,7 @@ def plot_wcsdiag_shift(radec, d_radec,
     # ax.text(arrow_x, arrow_y-2*vector_scaling/3600., "%d''" % (2*arrow_length*3600), 
     #                        horizontalalignment='center')
 
-    if (filename == None):
+    if (filename is None):
         fig.show()
     else:
         for ext in extension_list:
@@ -477,7 +505,7 @@ def wcsdiag_shift(matched_radec_odi,
     # d_dec = good_matches[:,1] - good_matches[:,3]
     # ota = good_matches[:,10]
     
-    if (options == None):
+    if (options is None):
         extension_list = ['png']
     else:
         extension_list = options['plotformat']
@@ -486,7 +514,7 @@ def wcsdiag_shift(matched_radec_odi,
 
     # Create one plot for the full focalplane
     title = "WCS errors - full focal plane"
-    if (not title_info == None):
+    if (title_info is not None):
         logger.debug("Received information for a more descriptive plot title for WCS scatter")
         try:
             title = "WCS Errors - %(OBSID)s (focal-plane) \n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec" % title_info
@@ -515,7 +543,7 @@ def wcsdiag_shift(matched_radec_odi,
 
             extname = "OTA%02d.SCI" % (this_ota)
             title = "WSC Error - OTA %02d" % (this_ota)
-            if (not title_info == None):
+            if (title_info is not None):
                 title_info['OTA'] = this_ota
                 try:
                     title = "WCS Errors - %(OBSID)s OTA %(OTA)02d\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec" % title_info
@@ -678,6 +706,7 @@ def photocalib_zeropoint(output_filename,
     delta = 0.3 if zp_std < 0.3 else zp_std
     # close_to_median = (zp_raw > zp_median - 3 * delta) & (zp_raw < zp_median + 3 * delta)
     
+
     #zp_max, zp_min = zp_median+3*delta, zp_median-3*delta
     zp_min = zp_median-sitesetup.diagplot__zeropoint_ZPrange[0] if \
              (sitesetup.diagplot__zeropoint_ZPrange[0] > 0) else zp_median-5*zp_std-0.3
@@ -714,7 +743,7 @@ def photocalib_zeropoint(output_filename,
 
     # Prepare a histogram to illustrate the distribution of ZP values
     binwidth = numpy.max([(0.2 * zp_std), 0.025])
-    nbins = (zp_max - zp_min) / binwidth
+    nbins = int(math.ceil((zp_max - zp_min) / binwidth))
     small_errors = details['odi_sdss_matched_smallerrors']
     zp_good = small_errors[:, details['photref_col_mag']] \
               - small_errors[:, details['odi_col_mag']]
@@ -748,38 +777,38 @@ def photocalib_zeropoint(output_filename,
     #
     # full_cat = details['odi_sdss_matched']
     # full_sdss_mag = full_cat[:, details['photref_col_mag']]
-    # full_odi_mag = full_cat[:, details['odi_col_mag']] 
+    # full_odi_mag = full_cat[:, details['odi_col_mag']]
     # full_sdss_err = full_cat[:, details['photref_col_err']]
-    # full_odi_err = full_cat[:, details['odi_col_err']] 
+    # full_odi_err = full_cat[:, details['odi_col_err']]
     # full_zp = full_sdss_mag - full_odi_mag
     # within_std = numpy.fabs(full_zp - zp_median) <= zp_std
     # outside_std = numpy.fabs(full_zp - zp_median) > zp_std
 
 
     #
-    # Plot sources with large (i.e.exceeding the limit specified 
+    # Plot sources with large (i.e.exceeding the limit specified
     # in the sitesetup configuration) errors
     #
     largeerr_cat = details['odi_sdss_matched_largeerrors']
     largeerr_sdss_mag = largeerr_cat[:, details['photref_col_mag']]
-    largeerr_odi_mag = largeerr_cat[:, details['odi_col_mag']] 
+    largeerr_odi_mag = largeerr_cat[:, details['odi_col_mag']]
     largeerr_sdss_err = largeerr_cat[:, details['photref_col_err']]
-    largeerr_odi_err = largeerr_cat[:, details['odi_col_err']] 
+    largeerr_odi_err = largeerr_cat[:, details['odi_col_err']]
     largeerr_zp = largeerr_sdss_mag - largeerr_odi_mag
-    ax.errorbar(largeerr_sdss_mag, 
+    ax.errorbar(largeerr_sdss_mag,
                 largeerr_zp,
-                xerr=largeerr_sdss_err, 
+                xerr=largeerr_sdss_err,
                 yerr=numpy.hypot(largeerr_sdss_err, largeerr_odi_err),
                 capsize=0,
-                fmt='.', ms=0, color='#606060', 
+                fmt='.', ms=0, color='#606060',
                 label='ignored (#: %d)' % n_ignored)
 
-               
+
     # smallerr_cat = details['odi_sdss_matched_smallerrors']
     # smallerr_sdss_mag = smallerr_cat[:, details['photref_col_mag']]
-    # smallerr_odi_mag = smallerr_cat[:, details['odi_col_mag']] 
+    # smallerr_odi_mag = smallerr_cat[:, details['odi_col_mag']]
     # smallerr_sdss_err = smallerr_cat[:, details['photref_col_err']]
-    # smallerr_odi_err = smallerr_cat[:, details['odi_col_err']] 
+    # smallerr_odi_err = smallerr_cat[:, details['odi_col_err']]
     # smallerr_zp = smallerr_sdss_mag - smallerr_odi_mag
 
     #
@@ -792,12 +821,12 @@ def photocalib_zeropoint(output_filename,
                 yerr=numpy.hypot(ref_cat[:, details['photref_col_err']],
                                  ref_cat[:, details['odi_col_err']]),
                 capsize=0,
-                fmt="+", ms=5, color='blue', linewidth=1, 
+                fmt="+", ms=5, color='blue', linewidth=1,
                 label='valid calibrator (#: %d)' % n_ref)
 
     #
     # And for completeness, also plot sources deemed outliers
-    # 
+    #
     outlier_cat = details['odi_sdss_matched_outlier']
     ax.errorbar(outlier_cat[:, details['photref_col_mag']],
                 outlier_cat[:, details['photref_col_mag']]-outlier_cat[:, details['odi_col_mag']],
@@ -805,7 +834,7 @@ def photocalib_zeropoint(output_filename,
                 yerr=numpy.hypot(outlier_cat[:, details['photref_col_err']],
                                  outlier_cat[:, details['odi_col_err']]),
                 capsize=0,
-                fmt="+", ms=5, color='red', linewidth=1, 
+                fmt="+", ms=5, color='red', linewidth=1,
                 label='outlier (#: %d)' % n_outlier)
 
     #
@@ -814,12 +843,12 @@ def photocalib_zeropoint(output_filename,
     matplotlib.pyplot.plot(x_values+1, y_values*zp_median, linewidth=1, ls='-', color='white')
 
     #
-    # Add some additional data about the restricted fitting range and 
+    # Add some additional data about the restricted fitting range and
     # the slope of phot. ZP with SDSS magnitude
     #
-    if (not details == None):
+    if (details is not None):
         # Add some information about the fitted slope
-        if (not details['zp_magnitude_slope'] == None):
+        if (details['zp_magnitude_slope'] is not None):
             fit, err = details['zp_magnitude_slope']
             full_cat = details['odi_sdss_matched']
             minx = numpy.min(full_cat[:, details['photref_col_mag']])
@@ -829,12 +858,12 @@ def photocalib_zeropoint(output_filename,
             # ax.plot(slopefit_x, slopefit_y, "k-", label="fit ZP(%s-ODI)" % (details['catalog']))
 
     ax.grid(True)
-    ax.legend(loc='upper left', borderaxespad=0.5, prop={'size':9})
+    # ax.legend(loc='upper left', borderaxespad=0.5, prop={'size':9})
 
     rms = details['rms']
     sem = details['sem']
     photzp_text = u"ZP = %.3f \u00b1 %.3f mag\nr.m.s/s.e.m. = %.3f/%.3f mag" % (
-        zp_median, zp_std, rms, sem, 
+        zp_median, zp_std, rms, sem,
     )
     ax.text(0.96, 0.05, photzp_text, fontsize=15,
             horizontalalignment='right',
@@ -844,9 +873,9 @@ def photocalib_zeropoint(output_filename,
 
     title_string = title if (title != None) else ""
     matplotlib.pyplot.title(title_string)
-    ref_mag_name = "reference" 
+    ref_mag_name = "reference"
     ref_filter = "none"
-    if (not details == None and 'catalog' in details):
+    if (details is not None and 'catalog' in details):
         ref_mag_name = details['catalog']
         ref_filter = details['reference_filter']
 
@@ -856,11 +885,11 @@ def photocalib_zeropoint(output_filename,
     matplotlib.pyplot.ylim((zp_min, zp_max))
 #    matplotlib.pyplot.axes().set_aspect('equal')
 
-    if (output_filename == None):
+    if (output_filename is None):
         fig.show()
     else:
         fig.set_size_inches(8,6)
-        if (not options == None):
+        if (options is not None):
             for ext in options['plotformat']:
                 if (ext != ''):
                     fig.savefig(output_filename+"."+ext, bbox_inches='tight')
@@ -919,7 +948,7 @@ def plot_zeropoint_map(details, ota_select, ota_outlines, output_filename, optio
     zp_min, zp_max = zp_range
 
     full_catalog = details['odi_sdss_matched_smallerrors'].copy()
-    if (not ota_select == None):
+    if (ota_select is not None):
         in_this_ota = full_catalog[:, SXcolumn['ota']+2] == ota_select
         full_catalog = full_catalog[in_this_ota]
 
@@ -952,7 +981,7 @@ def plot_zeropoint_map(details, ota_select, ota_outlines, output_filename, optio
                                    s=9, cmap=matplotlib.pyplot.cm.get_cmap(colormap_name))
         #matplotlib.pyplot.colorbar(sc, cm)
 
-    if (not ota_outlines == None):
+    if (ota_outlines is not None):
         corners = numpy.array(ota_outlines)
         if (around_zero):
             corners[:,:,0][corners[:,:,0] > 180.] -= 360.
@@ -968,11 +997,11 @@ def plot_zeropoint_map(details, ota_select, ota_outlines, output_filename, optio
     colorbar = matplotlib.pyplot.colorbar(cmap=matplotlib.pyplot.cm.get_cmap(colormap_name))
     colorbar.set_label("phot. zeropoint")
 
-    if (output_filename == None):
+    if (output_filename is None):
         fig.show()
     else:
         fig.set_size_inches(8,6)
-        if (not options == None):
+        if (options is not None):
             for ext in options['plotformat']:
                 if (ext != ''):
                     fig.savefig(output_filename+"."+ext, dpi=100, bbox_inches='tight')
@@ -1121,7 +1150,7 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
                                    vmin=fwhm_min, vmax=fwhm_max, edgecolor='none',
                                    s=9, cmap=matplotlib.pyplot.cm.get_cmap(colormap_name))
 
-    if (not ota_outlines == None):
+    if (ota_outlines is not None):
         corners = numpy.array(ota_outlines)
         if (around_zero):
             corners[:,:,0][corners[:,:,0] > 180.] -= 360.
@@ -1140,11 +1169,11 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
     colorbar = matplotlib.pyplot.colorbar(cmap=matplotlib.pyplot.cm.get_cmap(colormap_name)) #spectral
     colorbar.set_label("FWHM [arcsec]")
 
-    if (output_filename == None):
+    if (output_filename is None):
         fig.show()
     else:
         fig.set_size_inches(8,6)
-        if (not options == None):
+        if (options is not None):
             for ext in options['plotformat']:
                 if (ext != ''):
                     fig.savefig(output_filename+"."+ext, dpi=100,bbox_inches='tight')
@@ -1188,7 +1217,7 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
     processes = []
 
     title = "PSF map"
-    if (not title_info == None):
+    if (title_info is not None):
         try:
             title = "FWHM map - %(OBSID)s (focal plane)\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec)" % title_info
         except:
@@ -1230,7 +1259,7 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
             dec_ota = dec[in_this_ota]
 
             title = "PSF map, OTA %02d" % (this_ota)
-            if (not title_info == None):
+            if (title_info is not None):
                 title_info['OTA'] = this_ota
                 try:
                     title = "FWHM map - %(OBSID)s OTA %(OTA)02d\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec)" % title_info
@@ -1364,7 +1393,7 @@ def plot_psfshape_map(ra, dec, elongation, angle, fwhm,
     ax.set_xlim(ax.get_xlim()[::-1])
 
     # Draw OTA outlines if requested
-    if (not ota_outlines == None):
+    if (ota_outlines is not None):
         corners = numpy.array(ota_outlines)
         if (around_zero):
             corners[:,:,0][corners[:,:,0] > 180.] -= 360.
@@ -1372,12 +1401,12 @@ def plot_psfshape_map(ra, dec, elongation, angle, fwhm,
         ax.add_collection(coll)
 
     # Save plot to file
-    if (output_filename == None):
+    if (output_filename is None):
         matplotlib.pyplot.show()
         fig.show()
     else:
         fig.set_size_inches(8,6)
-        if (not options == None):
+        if (options is not None):
             for ext in options['plotformat']:
                 if (ext != ''):
                     fig.savefig(output_filename+"."+ext, dpi=100,bbox_inches='tight')
@@ -1416,7 +1445,7 @@ def  diagplot_psfshape_map(ra, dec, elongation, angle, fwhm, ota,
     processes = []
 
     title = "PSF Shape"
-    if (not title_info == None):
+    if (title_info is not None):
         try:
             title = "PSF Shape - %(OBSID)s (focal plane)\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec)" % title_info
         except:
@@ -1464,7 +1493,7 @@ def  diagplot_psfshape_map(ra, dec, elongation, angle, fwhm, ota,
             fwhm_ota = fwhm[in_this_ota]
             title = "PSF map, OTA %02d" % (this_ota)
 
-            if (not title_info == None):
+            if (title_info is not None):
                 title_info['OTA'] = this_ota
                 try:
                     title = "PSF Shape - %(OBSID)s OTA %(OTA)02d\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec)" % title_info
@@ -1774,7 +1803,7 @@ if __name__ == "__main__":
         fitsfile = get_clean_cmdline()[1]
         hdulist = pyfits.open(fitsfile)
         
-        matched = hdulist['CAT.ODI+2MASS']
+        matched = hdulist['WCSCAL.CAT']
         
         table = matched.data
         n_src = matched.header['NAXIS2']
@@ -1784,8 +1813,8 @@ if __name__ == "__main__":
         matched_radec_odi = numpy.append(ra, dec, axis=1)
         print matched_radec_odi.shape
 
-        ra = table['TWOMASS_RA'].reshape((n_src,1))
-        dec = table['TWOMASS_DEC'].reshape((n_src,1))
+        ra = table['REF_RA'].reshape((n_src,1))
+        dec = table['REF_DEC'].reshape((n_src,1))
         matched_radec_2mass = numpy.append(ra, dec, axis=1)
  
         matched_ota = table['OTA']

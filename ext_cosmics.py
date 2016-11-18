@@ -18,7 +18,7 @@ __version__ = '0.4'
 
 import os
 import numpy as np
-np.seterr(all='ignore')
+#np.seterr(all='ignore')
 import math
 try:
     import scipy.signal as signal
