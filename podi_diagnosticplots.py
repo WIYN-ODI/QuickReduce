@@ -1803,7 +1803,7 @@ if __name__ == "__main__":
         fitsfile = get_clean_cmdline()[1]
         hdulist = pyfits.open(fitsfile)
         
-        matched = hdulist['CAT.ODI+2MASS']
+        matched = hdulist['WCSCAL.CAT']
         
         table = matched.data
         n_src = matched.header['NAXIS2']
@@ -1813,8 +1813,8 @@ if __name__ == "__main__":
         matched_radec_odi = numpy.append(ra, dec, axis=1)
         print matched_radec_odi.shape
 
-        ra = table['TWOMASS_RA'].reshape((n_src,1))
-        dec = table['TWOMASS_DEC'].reshape((n_src,1))
+        ra = table['REF_RA'].reshape((n_src,1))
+        dec = table['REF_DEC'].reshape((n_src,1))
         matched_radec_2mass = numpy.append(ra, dec, axis=1)
  
         matched_ota = table['OTA']
