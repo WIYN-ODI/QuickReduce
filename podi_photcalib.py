@@ -1978,9 +1978,73 @@ if __name__ == "__main__":
         color = estimate_mean_star_color(filtername)
         print color
 
+    elif (cmdline_arg_isset("-redo")):
+
+        import podi_commandline
+
+        options = podi_commandline.set_default_options()
+        podi_logging.setup_logging(options)
+        options = podi_commandline.read_options_from_commandline(options)
+        input_filename = get_clean_cmdline()[1]
+
+        ota_list = pyfits.open(input_filename)
+
+        exptime = ota_list[0].header['EXPTIME']
+        titlestring = "%s\n(obsid: %s - filter: %s- exptime: %ds)" % (
+            ota_list[0].header['OBJECT'],
+            ota_list[0].header['OBSID'],
+            ota_list[0].header['FILTER'],
+            int(ota_list[0].header['EXPTIME']),
+        )
+        filter_name = get_valid_filter_name(ota_list[0].header)
+
+        #
+        # Load the ODI source catalog
+        #
+        odi_cat_data = ota_list['CAT.ODI'].data
+        n_stars = ota_list['CAT.ODI'].header['NAXIS2']
+        odi_cat = numpy.empty((n_stars, len(SXcolumn)))
+        for col in ['ra', 'dec', 'x', 'y', 'fwhm_image', 'fwhm_world', 'background', 'flags', 'ota',]:
+            pass
+
+        translate = [('RA', 'ra'), ('DEC', 'dec'),
+                     ('X', 'x'), ('Y', 'y'),
+                     ('FWHM_IMAGE', 'fwhm_image'), ('FWHM_WORLD', 'fwhm_world'),
+                     ('BACKGROUND', 'background'), ('FLAGS', 'flags'), ('OTA', 'ota'),
+                     ('MAG_AUTO', 'mag_auto'), ('MAGERR_AUTO', 'mag_err_auto'),
+                     ('FLUX_MAX', 'flux_max'),
+                     ('AWIN_IMAGE', 'major_axis'), ('BWIN_IMAGE', 'minor_axis'), ('THETAWIN_IMAGE','position_angle'),
+                     ('ELONGATION','elongation'), ('ELLIPTICITY','ellipticity'),
+                     ]
+        # Add all aperture photometry
+        for i in range(len(SXapertures)):
+            apsize = SXapertures[i]
+            col_mag = "mag_aper_%0.1f" % (apsize)
+            col_magerr = "mag_err_%0.1f" % (apsize)
+            translate.append( ('MAG_D%02d' % (int(apsize * 10.)), "mag_aper_%0.1f" % (apsize) ))
+            translate.append( ('MAGERR_D%02d' % (int(apsize * 10.)), "mag_err_%0.1f" % (apsize) ))
+
+        for (tablekey, catkey) in translate:
+            odi_cat[:, SXcolumn[catkey]] = odi_cat_data.field(tablekey)
+
+        outputfile = input_filename
+        photcalib_details = {}
+        zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = \
+            photcalib(odi_cat, outputfile, filter_name,
+                                     exptime=exptime,
+                                     diagplots=True, #options['create_qaplots'],
+                                     plottitle=titlestring,
+                                     otalist=ota_list,
+                                     options=options,
+                                     detailed_return=photcalib_details)
+
+        podi_logging.shutdown_logging(options)
+
     else:
         fitsfile = get_clean_cmdline()[1]
         output_filename = get_clean_cmdline()[2]
         calibdir = get_clean_cmdline()[3]
 
         photcalib(fitsfile, output_filename, calibdir)
+
+
