@@ -226,8 +226,8 @@ def measure_focus_ota(filename, n_stars=5):
             pass
 
     # Run SourceExtractor on the file
-    sex_config = "%s/.config/focus.sexconf" % (sitesetup.exec_dir)
-    sex_param = "%s/.config/focus.sexparam" % (sitesetup.exec_dir)
+    sex_config = "%s/config/focus.sexconf" % (sitesetup.exec_dir)
+    sex_param = "%s/config/focus.sexparam" % (sitesetup.exec_dir)
     catfile = "%s/tmp.%s_OTA%02d.cat" % (sitesetup.scratch_dir, obsid, ota)
     sex_cmd = "%(sexcmd)s -c %(sex_config)s -PARAMETERS_NAME %(sex_param)s -CATALOG_NAME %(catfile)s %(filename)s" % {
         "sexcmd": sitesetup.sextractor,

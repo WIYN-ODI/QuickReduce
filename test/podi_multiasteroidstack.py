@@ -199,8 +199,8 @@ if __name__ == "__main__":
             catfile = "%s__%s.cat" % (target_name, obj_name)
 
             basepath, _ = os.path.split(os.path.abspath(sys.argv[0]))
-            sex_config_file = "%s/../.config/wcsfix.sex" % (basepath)
-            parameters_file = "%s/../.config/wcsfix.sexparam" % (basepath)
+            sex_config_file = "%s/../config/wcsfix.sex" % (basepath)
+            parameters_file = "%s/../config/wcsfix.sexparam" % (basepath)
             sexcmd = "%(sex)s -c %(conf)s -PARAMETERS_NAME %(param)s -CATALOG_NAME %(catfile)s \
                        -WEIGHT_IMAGE %(weightfile)s -WEIGHT_GAIN N -WEIGHT_TYPE MAP_VAR %(input)s" % {
                 'sex': sitesetup.sextractor, 

@@ -1395,8 +1395,8 @@ def collect_reduce_ota(filename,
                 catfile = "%s/tmp.pid%d.%s_OTA%02d.cat" % (sitesetup.sextractor_cache_dir, process_id, obsid, ota)
                 tmphdulist.writeto(fitsfile, clobber=True)
                 logger.debug("Wrote temp file to %s" % (fitsfile))
-                sex_config_file = "%s/.config/wcsfix.sex" % (sitesetup.exec_dir)
-                parameters_file = "%s/.config/wcsfix.sexparam" % (sitesetup.exec_dir)
+                sex_config_file = "%s/config/wcsfix.sex" % (sitesetup.exec_dir)
+                parameters_file = "%s/config/wcsfix.sexparam" % (sitesetup.exec_dir)
                 sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s" % (
                     sitesetup.sextractor, sex_config_file, parameters_file, catfile, 
                     fitsfile)

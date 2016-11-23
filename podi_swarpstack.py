@@ -846,7 +846,7 @@ def mp_swarp_single(sgl_queue, dum):
                 %(mask_raw)s
             """ % {
                 'swarp': sitesetup.swarp_exec,
-                'swarp_default': "%s/.config/swarp.default" % (sitesetup.exec_dir),
+                'swarp_default': "%s/config/swarp.default" % (sitesetup.exec_dir),
                 'mask_raw': this_mask,
                 'mask_aligned': mask_aligned,
                 'center_ra': out_crval1,
@@ -929,8 +929,8 @@ def create_mask(fitsfile, swarp_params):
     #
     # We use source-extractor to create the mask
     #        
-    sex_default = "%s/.config/swarpstack_mask.conf" % (sitesetup.exec_dir)
-    params_default = "%s/.config/swarpstack_mask.params" % (sitesetup.exec_dir)
+    sex_default = "%s/config/swarpstack_mask.conf" % (sitesetup.exec_dir)
+    params_default = "%s/config/swarpstack_mask.params" % (sitesetup.exec_dir)
     segmentation_file = "%s/%s.segmentation.fits" % (unique_singledir, fitsbase)
 
     sex_cmd = """
@@ -1013,7 +1013,7 @@ def swarpstack(outputfile,
     logger = logging.getLogger("SwarpStack - Prepare")
 
     # Figure out the config path
-    swarp_default = "%s/.config/swarp.default" % (sitesetup.exec_dir)
+    swarp_default = "%s/config/swarp.default" % (sitesetup.exec_dir)
     logger.debug("Using swarp-default in %s" % (swarp_default))
 
     if (len(inputlist) <= 0):
