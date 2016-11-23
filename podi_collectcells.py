@@ -1040,7 +1040,8 @@ def collect_reduce_ota(filename,
                         x1, x2, y1, y2 = cell2ota__get_target_region(cx, cy, binning)
                         merged[y1:y2, x1:x2], gain = podi_nonlinearity.apply_gain_correction(
                             merged[y1:y2, x1:x2], cx, cy, nonlin_data, return_gain=True)
-                        all_gains[cx,cy] /= gain
+                        if (gain > 0):
+                            all_gains[cx,cy] /= gain
                     reduction_log.success('gain')
                     hdu.header['GAINMTHD'] = "relative"
             elif (options['gain_method'] == 'header'):
