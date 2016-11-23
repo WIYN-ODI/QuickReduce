@@ -74,7 +74,7 @@ if __name__ == "__main__":
             }
 
             # sex-command
-            sex = "sex -c /work/podi_devel/.config/wcsfix.sex \
+            sex = "sex -c /work/podi_devel/config/wcsfix.sex \
             -CATALOG_NAME %(catname)s -DETECT_MINAREA %(detarea)02d \
             -DETECT_THRESH %(detsigma)02d -ANALYSIS_THRESH %(detsigma)02d \
             %(filename)s -VERBOSE_TYPE NORMAL " % opts

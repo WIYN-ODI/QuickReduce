@@ -193,7 +193,7 @@ def photcalib_old(fitsfile, output_filename, calib_directory, overwrite_cat=None
     """
 
     tmp, dummy = os.path.split(sys.argv[0])
-    dot_config_dir = tmp + "/.config/"
+    dot_config_dir = tmp + "/config/"
     print dot_config_dir
     
     hdulist = pyfits.open(fitsfile)
@@ -1538,8 +1538,8 @@ if __name__ == "__main__":
 
                 # Run SourceExtractor
                 logger.info("Starting source-extractor")
-                sex_config_file = "%s/.config/wcsfix.sex" % (options['exec_dir'])
-                parameters_file = "%s/.config/wcsfix.sexparam" % (options['exec_dir'])
+                sex_config_file = "%s/config/wcsfix.sex" % (options['exec_dir'])
+                parameters_file = "%s/config/wcsfix.sexparam" % (options['exec_dir'])
                 catfile = "%s.cat" % (inputfile[:-5])
                 sexcmd = "%(sex)s -c %(config)s -PARAMETERS_NAME %(params)s -CATALOG_NAME %(cat)s %(fits)s" % {
                     'sex': sitesetup.sextractor, 
@@ -1667,8 +1667,8 @@ if __name__ == "__main__":
                           
             # Run SourceExtractor
             print "Running source-extractor"
-            sex_config_file = "%s/.config/wcsfix.sex" % (options['exec_dir'])
-            parameters_file = "%s/.config/wcsfix.sexparam" % (options['exec_dir'])
+            sex_config_file = "%s/config/wcsfix.sex" % (options['exec_dir'])
+            parameters_file = "%s/config/wcsfix.sexparam" % (options['exec_dir'])
             catfile = "%s.cat" % (inputfile[:-5])
             sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s %s" % (
                         sitesetup.sextractor, sex_config_file, parameters_file, catfile, 

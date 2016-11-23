@@ -97,6 +97,21 @@ def cmdline_arg_set_or_default(name, defvalue):
     return defvalue
 
 
+def cmdline_arg_set_or_default2(name, defvalue):
+    """
+
+    Return the value of a command line argument. If no argument was passed (for
+    example -flag= ), assign the specified default value instead.
+
+    """
+
+    if (cmdline_arg_isset(name)):
+        val = get_cmdline_arg(name)
+        if (val is None):
+            return defvalue
+        return val
+    return False
+
 import podi_sitesetup as sitesetup
 from podi_definitions import *
 
@@ -155,7 +170,7 @@ def read_options_from_commandline(options=None, ignore_errors=False):
     options['flat_dir'] = read_comma_separated_list(
         cmdline_arg_set_or_default("-flat", options['flat_dir']))
 
-    options['bpm_dir']  = cmdline_arg_set_or_default("-bpm", "auto")
+    options['bpm_dir']  = cmdline_arg_set_or_default2("-bpm", "auto")
         
     if (options['verbose']):
         print """
@@ -174,20 +189,20 @@ Calibration data:
 
     options["update_persistency_only"] = cmdline_arg_isset("-update_persistency_only")
 
-    options['fringe_dir'] = None if not cmdline_arg_isset("-fringe") \
-                            else cmdline_arg_set_or_default('-fringe', "auto")
-    options['fringe_vectors'] = cmdline_arg_set_or_default("-fringevectors", options['fringe_vectors'])
+    options['fringe_dir'] = cmdline_arg_set_or_default2("-fringe", "auto")
 
-    options['pupilghost_dir'] = cmdline_arg_set_or_default('-pupilghost', None)
+        #None if not cmdline_arg_isset("-fringe") \
+        #                    else cmdline_arg_set_or_default('-fringe', "auto")
+    options['fringe_vectors'] = cmdline_arg_set_or_default("-fringevectors", options['fringe_vectors'])
 
     options['fixwcs'] = cmdline_arg_isset("-fixwcs")
 
     # For now assume that the WCS template file is located in the same directory as the executable
-    options['wcs_distortion'] = sitesetup.exec_dir + "/"
-    options['wcs_distortion'] = cmdline_arg_set_or_default("-wcs", options['wcs_distortion'])
-    if (not os.path.isfile(options['wcs_distortion']) and 
-        not os.path.isdir(options['wcs_distortion'])):
-        options['wcs_distortion'] = None
+    #options['wcs_distortion'] = sitesetup.exec_dir + "/"
+    options['wcs_distortion'] = cmdline_arg_set_or_default2("-wcs", "auto") #options['wcs_distortion'])
+    # if (not os.path.isfile(options['wcs_distortion']) and
+    #     not os.path.isdir(options['wcs_distortion'])):
+    #     options['wcs_distortion'] = None
 
     options['clobber'] = not cmdline_arg_isset("-noclobber")
     
@@ -247,7 +262,7 @@ Calibration data:
     options['photcalib'] = cmdline_arg_isset("-photcalib")
 
     options['nonlinearity-set'] = cmdline_arg_isset("-nonlinearity")
-    options['nonlinearity'] = cmdline_arg_set_or_default("-nonlinearity", None)
+    options['nonlinearity'] = cmdline_arg_set_or_default2("-nonlinearity", "auto")
 
     if (cmdline_arg_isset('-plotformat')):
         inputstr = cmdline_arg_set_or_default("-plotformat", "png")
@@ -358,7 +373,9 @@ Calibration data:
         
     options['simple-tan-wcs'] = cmdline_arg_isset("-tanwcs")
 
-    options['crosstalk'] = cmdline_arg_set_or_default("-crosstalk", "auto")
+    options['crosstalk'] = cmdline_arg_set_or_default2("-crosstalk", "auto")
+
+    options['pupilghost_dir'] = cmdline_arg_set_or_default2("-pupilghost", "auto")
 
     options['trimcell'] = cmdline_arg_set_or_default("-trimcell", None)
     if (not options['trimcell'] == None):
@@ -368,6 +385,31 @@ Calibration data:
             options['trimcell'] = None
 
     options['compressed_hdu'] = cmdline_arg_isset("-fpack")
+
+    options['keep_cells'] = cmdline_arg_set_or_default2("-keepcells", None)
+    if (options['keep_cells'] != False and options['keep_cells'] is not None):
+        if (options['keep_cells'] == "most"):
+            options['keep_cells'] = [
+                '24.04', '24.04', '24.05', '24.06', '24.07', '24.03',
+                '24.10', '24.12', '24.14', '24.15', '24.16', '24.17', '24.27',
+                '24.00', '24.20', '24.36', '24.44', '24.76',
+                '53.61',
+                '41.61',
+                '14.66',
+                '31.11',
+                '52.15',
+                '44.60']
+        else:
+            options['keep_cells'] = options['keep_cells'].split(",")
+        logger.info("Keeping the following cells: %s" % (",".join(options['keep_cells'])))
+
+    #
+    # Set default values to enable some options by default
+    #
+    default_opts = ['wcs_distortion', 'crosstalk', 'nonlinearity']
+    for opt in default_opts:
+        if (options[opt] == False and options[opt] is not None and options[opt] not in ["-","no"]):
+            options[opt] = None
 
     return options
 
@@ -484,6 +526,8 @@ def set_default_options(options_in=None):
     options['crosstalk'] = None
 
     options['trimcell'] = None
+
+    options['keep_all_cells'] = False
 
     return options
 

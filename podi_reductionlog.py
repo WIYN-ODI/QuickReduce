@@ -31,6 +31,7 @@ class ReductionLog:
         self.steps['crosstalk']   = (None, '_XTALK'  , 'crosstalk correction')
         self.steps['gain']        = (None, '_GAIN'   , 'explicit gain correction')
         self.steps['trimcell']    = (None, '_TRIMCEL', 'trim edges of all cells')
+        self.steps['nonlinearity']= (None, '_NONLIN' , 'non-linearity correction')
         self.steps['bias']        = (None, '_BIAS'   , 'bias subtraction')
         self.steps['dark']        = (None, '_DARK'   , 'dark correction')
         self.steps['flat']        = (None, '_FLAT'   , 'flatfielding')
@@ -145,7 +146,15 @@ class ReductionLog:
                             self._not_required]):
 
                 self.set(step, self._success)
-                
+
+            elif (this in [self._attempt,
+                           self._no_data,
+                           self._missing_data] and
+                  other in [self._attempt,
+                            self._no_data,
+                            self._missing_data]):
+                self.set(step, self._missing_data)
+
             else:
                 pass
                 logging.getLogger("ReductionLog").warning("Unable to handle outcome combination: %s & %s" % (

@@ -251,9 +251,9 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
             logger.info("No work necessary, re-using existing data ...")
 
         if (conf_file is None):
-            conf_file = "%s/.config/illumcorr.conf" % (sitesetup.exec_dir)
+            conf_file = "%s/config/illumcorr.conf" % (sitesetup.exec_dir)
         if (param_file is None):
-            param_file = "%s/.config/illumcorr.param" % (sitesetup.exec_dir)
+            param_file = "%s/config/illumcorr.param" % (sitesetup.exec_dir)
         if (not os.path.isfile(segmask) or redo):
             logger.debug("Creating segmentation mask: %s" % (segmask))
             sex_cmd = """%(sex)s -c %(conf)s
@@ -267,7 +267,7 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
                 'sex': sitesetup.sextractor,
                 'conf': conf_file,
                 'params': param_file,
-                'filtername': "%s/.config/gauss_5.0_9x9.conv" % (sitesetup.exec_dir),
+                'filtername': "%s/config/gauss_5.0_9x9.conv" % (sitesetup.exec_dir),
                 'segfile': segmask,
 #                'image': fitsfile,
                 'image': input2sex_file,

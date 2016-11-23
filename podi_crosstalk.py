@@ -226,23 +226,23 @@ def apply_old_crosstalk_correction(hdulist, fpl, extname2id):
     return hdulist
 
 
-def apply_crosstalk_correction(hdulist, fpl, extname2id, options, reduction_log):
+def apply_crosstalk_correction(hdulist, xtalk_file, fpl, extname2id, options, reduction_log):
 
     logger = logging.getLogger("CrossTalk")
 
-    reduction_log.attempt('crosstalk')
-    if (options['crosstalk'] == 'none'):
-        logger.debug("Skipping crosstalk correction")
-        reduction_log.not_selected('crosstalk')
+    if (xtalk_file is not None and not os.path.isfile(xtalk_file)):
+        reduction_log.fail('crosstalk')
         return hdulist
 
+    reduction_log.attempt('crosstalk')
+
     # Find the correct crosstalk coefficient file for this detector
-    ota = int(hdulist[0].header['FPPOS'][2:])
-    extname = "OTA%02d.SCI" % ota
-    xtalk_file = fpl.get_crosstalk_file(ota, options)
+    # ota = int(hdulist[0].header['FPPOS'][2:])
+    # extname = "OTA%02d.SCI" % ota
+    # xtalk_file = fpl.get_crosstalk_file(ota, options)
     logger.debug("XTalk-File: %s" % (xtalk_file))
 
-    if (xtalk_file == None):
+    if (xtalk_file is None):
         res = apply_old_crosstalk_correction(hdulist, fpl, extname2id)
         reduction_log.success('crosstalk')
         return res

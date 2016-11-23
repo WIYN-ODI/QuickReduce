@@ -81,8 +81,8 @@ def make_catalogs(inputlist):
             continue
 
         logger.debug("Ordering source catalog for %s" % (fitsfile))
-        sex_config_file = "%s/.config/diffphot.sex" % (sitesetup.exec_dir)
-        parameters_file = "%s/.config/diffphot.sexparam" % (sitesetup.exec_dir)
+        sex_config_file = "%s/config/diffphot.sex" % (sitesetup.exec_dir)
+        parameters_file = "%s/config/diffphot.sexparam" % (sitesetup.exec_dir)
         sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s" % (
             sitesetup.sextractor, sex_config_file, parameters_file, catfile, 
             fitsfile)
@@ -147,8 +147,8 @@ def sextract_and_load(jobqueue, resultqueue, skipotas, cos_declination):
         if (not os.path.isfile(catfile)):
 
             logger.debug("Ordering source catalog for %s" % (fitsfile))
-            sex_config_file = "%s/.config/diffphot.sex" % (sitesetup.exec_dir)
-            parameters_file = "%s/.config/diffphot.sexparam" % (sitesetup.exec_dir)
+            sex_config_file = "%s/config/diffphot.sex" % (sitesetup.exec_dir)
+            parameters_file = "%s/config/diffphot.sexparam" % (sitesetup.exec_dir)
 
             weightfile = fitsfile[:-5]+".weight.fits"
             weightoption = ""

@@ -68,8 +68,8 @@ def make_catalogs(inputlist, sex_config, sex_param, use_weight=True):
             weight_params = "-WEIGHT_TYPE MAP_WEIGHT -WEIGHT_IMAGE %s" % (weightfile)
 
         logger.debug("Ordering source catalog for %s" % (fitsfile))
-        sex_config_file = "%s/.config/%s" % (sitesetup.exec_dir, sex_config)
-        parameters_file = "%s/.config/%s" % (sitesetup.exec_dir, sex_param)
+        sex_config_file = "%s/config/%s" % (sitesetup.exec_dir, sex_config)
+        parameters_file = "%s/config/%s" % (sitesetup.exec_dir, sex_param)
         sexcmd = "%(sex)s -c %(config)s -PARAMETERS_NAME %(param)s -CATALOG_NAME %(catname)s %(weight)s %(inputfile)s" % {
             'sex': sitesetup.sextractor,
             'config': sex_config_file,

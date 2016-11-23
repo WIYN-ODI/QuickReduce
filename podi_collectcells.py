@@ -296,6 +296,8 @@ import podi_guidestars
 import podi_shifthistory
 
 import podi_associations
+import podi_calibrations
+from podi_calibrations import check_filename_directory
 
 from podi_reductionlog import *
 from version import record_pipeline_versioning
@@ -340,6 +342,61 @@ def read_techdata(techdata_hdulist, ota_x, ota_y, wm_cellx, wm_celly):
         pass
 
     return gain, readnoise, readnoise_e
+
+
+def apply_wcs_distortion(filename, hdu, binning, reduction_log=None):
+
+    logger = logging.getLogger("ApplyWCSmodel")
+
+    reduction_log.attempt('wcs_dist')
+
+    try:
+        wcs = pyfits.open(filename)
+    except:
+        reduction_log.fail('wcs_dist')
+        logger.error("Could not open WCS distortion model (%s)" % (filename))
+        return False
+
+    extname = hdu.header['EXTNAME']
+
+    try:
+        wcs_header = wcs[extname].header
+    except:
+        reduction_log.fail('wcs_dist')
+        logger.warning("Could not find distortion model for %s" % (extname))
+        return False
+
+    try:
+        for hdr_name in ('CRPIX1', 'CRPIX2'):
+            wcs_header[hdr_name] /= binning
+        for hdr_name in ('CD1_1', 'CD1_2', 'CD2_1', 'CD2_2'):
+            wcs_header[hdr_name] *= binning
+
+        cards = wcs_header.cards
+        for (keyword, value, comment) in cards:
+            if (keyword not in ['CRVAL1', 'CRVAL2']):
+                hdu.header[keyword] = (value, comment)
+
+        d_crval1 = wcs_header['CRVAL1']
+        if (d_crval1 > 180):
+            d_crval1 -= 360
+        hdu.header['CRVAL2'] += wcs_header['CRVAL2']
+        hdu.header["CRVAL1"] += d_crval1 / math.cos(math.radians(hdu.header['CRVAL2']))
+        # print "change crval1 by",wcs_header['CRVAL1'], d_crval1, wcs_header['CRVAL1'] / math.cos(math.radians(hdu.header['CRVAL2']))
+
+        # Make sure to write RAs that are positive
+        if (hdu.header["CRVAL1"] < 0):
+            hdu.header['CRVAL1'] -= math.floor(hdu.header['CRVAL1'] / 360.) * 360.
+        elif (hdu.header['CRVAL1'] > 360.):
+            hdu.header['CRVAL1'] = math.fmod(hdu.header['CRVAL1'], 360.0)
+
+    except:
+        logger.critical("something went wrong while applying the WCS model")
+        reduction_log.partial_fail('wcs_dist')
+        podi_logging.log_exception()
+
+    reduction_log.success('wcs_dist')
+    return True
 
 
 def collect_reduce_ota(filename,
@@ -488,11 +545,30 @@ def collect_reduce_ota(filename,
 
         logger.info("Starting work on OTA %02d of %s ..." % (ota, obsid))
 
+        mastercals = podi_calibrations.ODICalibrations(
+            cmdline_options=options,
+            hdulist=hdulist)
+
         # Now go through each of the 8 lines
-        logger.debug("Starting crosstalk correction (%s)" % (extname))
-        outcome = podi_crosstalk.apply_crosstalk_correction(
-            hdulist, fpl, extname2id, options, reduction_log)
-        logger.debug("Done with crosstalk correction")
+        if (not mastercals.apply_crosstalk()):
+            reduction_log.not_selected('crosstalk')
+        elif (mastercals.crosstalk(mjd, ota) is None):
+            logger.warning("Cross-talk correction requested, but failed!")
+            reduction_log.fail('crosstalk')
+        else:
+            xtalk_file = mastercals.crosstalk(mjd, ota)
+            logger.debug("Starting crosstalk correction (%s)" % (extname))
+            reduction_files_used['crosstalk'] = xtalk_file
+
+            outcome = podi_crosstalk.apply_crosstalk_correction(
+                hdulist,
+                xtalk_file = xtalk_file,
+                fpl = fpl,
+                extname2id = extname2id,
+                options = options,
+                reduction_log = reduction_log
+            )
+            logger.debug("Done with crosstalk correction")
 
         #
         # Allocate memory for the merged frame, and set all pixels by default to NaN.
@@ -516,19 +592,48 @@ def collect_reduce_ota(filename,
         except KeyError:
             exposure_time = 0
 
+        # nonlin_data = None
+        # if (options['nonlinearity-set'] or options['gain_method'] == "relative"):
+        #     nonlinearity_file = options['nonlinearity']
+        #     if (options['nonlinearity'] == None or
+        #         options['nonlinearity'] == "" or
+        #         not os.path.isfile(nonlinearity_file)):
+        #         nonlinearity_file = podi_calibrations.find_nonlinearity_coefficient_file(mjd, options)
+        #     if (options['verbose']):
+        #         print "Using non-linearity coefficients from",nonlinearity_file
+        #     logger.debug("Using non-linearity coefficients from file %s"  % (nonlinearity_file))
+        #     nonlin_data = podi_nonlinearity.load_nonlinearity_correction_table(nonlinearity_file, ota)
+        #     if (options['nonlinearity-set']):
+        #         reduction_files_used['nonlinearity'] = nonlinearity_file
+
         nonlin_data = None
-        if (options['nonlinearity-set'] or options['gain_method'] == "relative"):
-            nonlinearity_file = options['nonlinearity']
-            if (options['nonlinearity'] == None or 
-                options['nonlinearity'] == "" or
-                not os.path.isfile(nonlinearity_file)):
-                nonlinearity_file = podi_nonlinearity.find_nonlinearity_coefficient_file(mjd, options)
-            if (options['verbose']):
-                print "Using non-linearity coefficients from",nonlinearity_file
-            logger.debug("Using non-linearity coefficients from file %s"  % (nonlinearity_file))
+        if (not mastercals.apply_nonlinearity()):
+            reduction_log.not_selected('nonlinearity')
+        elif (mastercals.nonlinearity(mjd) is None):
+            reduction_log.fail('nonlinearity')
+        else:
+            reduction_log.attempt('nonlinearity')
+            nonlinearity_file = mastercals.nonlinearity(mjd=mjd)
+            logger.debug("Using non-linearity coefficients from file %s" % (nonlinearity_file))
             nonlin_data = podi_nonlinearity.load_nonlinearity_correction_table(nonlinearity_file, ota)
-            if (options['nonlinearity-set']):
+            if (nonlin_data is not None):
                 reduction_files_used['nonlinearity'] = nonlinearity_file
+                reduction_log.success('nonlinearity')
+            else:
+                logger.warning("Unable to load non-linearity corrections (%s)" % (nonlinearity_file))
+                reduction_log.fail('nonlinearity')
+
+        relative_gains = None
+        if (mastercals.apply_relative_gain()):
+            # In this mode, we also require a non-linearity correction file to be loaded
+            if (nonlin_data is not None):
+                # all done, we already loaded the file as part of the non-linearity correction startup
+                relative_gains = nonlin_data
+                pass
+            else:
+                relative_gains_file = mastercals.nonlinearity(mjd=mjd)
+                if (relative_gains_file is not None):
+                    relative_gains = podi_nonlinearity.load_nonlinearity_correction_table(relative_gains_file, ota)
 
         #
         # Search, first in the flat-field, then in the bias-frame for a 
@@ -608,7 +713,18 @@ def collect_reduce_ota(filename,
             cellmode_id = get_cellmode(hdulist[0].header, hdulist[cell].header, fpl)
             if (not cellmode_id == 0):
                 # This means it either broken (id=-1) or in video-mode (id=1)
-                continue
+                if (options['keep_cells'] == False):
+                    # no keep_cells option
+                    continue
+                elif (options['keep_cells'] is None):
+                    # keep all cells
+                    pass
+                else:
+                    cell_id = "%02d.%1d%1d" % (ota, wm_cellx, wm_celly)
+                    if (cell_id in options['keep_cells']):
+                        pass
+                    else:
+                        continue
 
             # logger.debug("ota %02d, cell %d,%d: gain=%f, ron=%f, ron(e-)=%f" % (
             #     ota, wm_cellx, wm_celly, gain, readnoise, readnoise_electrons))
@@ -682,85 +798,84 @@ def collect_reduce_ota(filename,
         #
 
         # If we are to do some bias subtraction:
-        if (options['bias_dir'] == None):
+        if (not mastercals.apply_bias()):
             reduction_log.not_selected('bias')
+        elif (mastercals.bias() is None):
+            reduction_log.fail('bias')
         else:
-            bias_filename = check_filename_directory(options['bias_dir'], "bias_bin%s.fits" % (binning))
-            if (not os.path.isfile(bias_filename)):
-                reduction_log.fail('bias')
-            else:
+            bias_filename = mastercals.bias()
+            bias = pyfits.open(bias_filename)
+            reduction_files_used['bias'] = bias_filename
 
-                bias = pyfits.open(bias_filename)
-                reduction_files_used['bias'] = bias_filename
+            # Search for the bias data for the current OTA
+            for bias_ext in bias[1:]:
+                if (not is_image_extension(bias_ext)):
+                    continue
+                fppos_bias = bias_ext.header['FPPOS']
+                if (fppos_bias == fppos):
+                    # This is the one
+                    try:
+                        if (not options['keep_cells'] == False):
+                            bias_ext.data[numpy.isnan(bias_ext.data)] = 0.
+                        merged -= bias_ext.data
+                        logger.debug("Subtracting bias: %s" % (bias_filename))
+                    except:
+                        logger.warning("Unable to subtract bias, dimensions don't match (data: %s, bias: %s)" % (
+                            str(merged.shape), str(bias_ext.data.shape)))
+                        reduction_log.fail('bias')
+                        pass
+                    break
 
-                # Search for the bias data for the current OTA
-                for bias_ext in bias[1:]:
-                    if (not is_image_extension(bias_ext)):
-                        continue
-                    fppos_bias = bias_ext.header['FPPOS']
-                    if (fppos_bias == fppos):
-                        # This is the one
-                        try:
-                            merged -= bias_ext.data
-                            logger.debug("Subtracting bias: %s" % (bias_filename))
-                        except:
-                            logger.warning("Unable to subtract bias, dimensions don't match (data: %s, bias: %s)" % (
-                                str(merged.shape), str(bias_ext.data.shape)))
-                            reduction_log.fail('bias')
-                            pass
-                        break
-
-                bias.close()
-                hdu.header.add_history("CC-BIAS: %s" % (os.path.abspath(bias_filename)))
-                del bias
-                reduction_log.success('bias')
+            bias.close()
+            hdu.header.add_history("CC-BIAS: %s" % (os.path.abspath(bias_filename)))
+            del bias
+            reduction_log.success('bias')
  
         #
         # Do some dark subtraction:
         # Add at some point: use different darks for all detectors switched on 
         # to minimize the integration glow in guide-OTAs
         #
-        if (options['dark_dir'] == None):
+        if (not mastercals.apply_dark()):
             reduction_log.not_selected('dark')
+        elif (mastercals.dark() is None):
+            reduction_log.fail('dark')
         else:
             # For now assume all detectors are switched on
-            detectorglow = "yes"
-
-            dark_filename = check_filename_directory(options['dark_dir'], "dark_%s_bin%d.fits" % (detectorglow, binning))
-            if (not os.path.isfile(dark_filename)):
-                reduction_log.fail('dark')
+            dark_filename = mastercals.dark()
+            dark = pyfits.open(dark_filename)
+            reduction_files_used['dark'] = dark_filename
+            if ('EXPMEAS' in dark[0].header):
+                darktime = dark[0].header['EXPMEAS']
+            elif ('EXPTIME' in dark[0].header):
+                darktime = dark[0].header['EXPTIME']
             else:
-                dark = pyfits.open(dark_filename)
-                reduction_files_used['dark'] = dark_filename
-                if ('EXPMEAS' in dark[0].header):
-                    darktime = dark[0].header['EXPMEAS']
-                elif ('EXPTIME' in dark[0].header):
-                    darktime = dark[0].header['EXPTIME']
-                else:
-                    darktime = 1.
+                darktime = 1.
 
-                # Search for the flatfield data for the current OTA
-                for dark_ext in dark[1:]:
-                    if (not is_image_extension(dark_ext)):
-                        continue
-                    fppos_dark = dark_ext.header['FPPOS']
-                    if (fppos_dark == fppos):
-                        # This is the one
-                        dark_scaling = exposure_time / darktime
-                        try:
-                            merged -= (dark_ext.data * dark_scaling)
-                            logger.debug("Subtracting dark: %s (scaling=%.2f)" % (dark_filename, dark_scaling))
-                        except:
-                            logger.warning("Unable to subtract dark, dimensions don't match (data: %s, dark: %s)" % (
-                                str(merged.shape), str(dark_ext.data.shape)))
-                            reduction_log.fail('dark')
-                            pass
-                        break
+            # Search for the flatfield data for the current OTA
+            for dark_ext in dark[1:]:
+                if (not is_image_extension(dark_ext)):
+                    continue
+                fppos_dark = dark_ext.header['FPPOS']
+                if (fppos_dark == fppos):
+                    # This is the one
+                    dark_scaling = exposure_time / darktime
+                    try:
+                        if (not options['keep_cells'] == False):
+                            dark_ext.data[numpy.isnan(dark_ext.data)] = 0.
+                        merged -= (dark_ext.data * dark_scaling)
+                        logger.debug("Subtracting dark: %s (scaling=%.2f)" % (dark_filename, dark_scaling))
+                    except:
+                        logger.warning("Unable to subtract dark, dimensions don't match (data: %s, dark: %s)" % (
+                            str(merged.shape), str(dark_ext.data.shape)))
+                        reduction_log.fail('dark')
+                        pass
+                    break
 
-                dark.close()
-                hdu.header.add_history("CC-DARK: %s" % (os.path.abspath(dark_filename)))
-                del dark
-                reduction_log.success('dark')
+            dark.close()
+            hdu.header.add_history("CC-DARK: %s" % (os.path.abspath(dark_filename)))
+            del dark
+            reduction_log.success('dark')
 
         # By default, mark the frame as not affected by the pupilghost. This
         # might be overwritten if the flat-field has PG specifications.
@@ -769,82 +884,78 @@ def collect_reduce_ota(filename,
         # If the third parameter points to a directory with flat-fields
         hdu.header['GAIN'] = 1.3
         gain_from_flatfield = None
-        if (options['flat_dir'] == None):
+        pupilghost_center_x = pupilghost_center_y = None
+        if (not mastercals.apply_flat()):
             reduction_log.not_selected('flat')
+        elif (mastercals.flat(sitesetup.flat_order) is None):
+            reduction_log.fail('flat')
         else:
-            found_flatdata = False
-            for ft in sitesetup.flat_order:
-                flatfield_filename = check_filename_directory(options['flat_dir'], 
-                    "%s_%s_bin%d.fits" % (ft, filter_name, binning))
-                if (os.path.isfile(flatfield_filename)):
-                    found_flatdata = True
+            flatfield_filename = mastercals.flat(sitesetup.flat_order)
+            flatfield = pyfits.open(flatfield_filename)
+            reduction_files_used['flat'] = flatfield_filename
+
+            # Search for the flatfield data for the current OTA
+            for ff_ext in flatfield[1:]:
+                if (not is_image_extension(ff_ext)):
+                    continue
+                fppos_flatfield = ff_ext.header['FPPOS']
+                if (fppos_flatfield == fppos):
+                    # This is the one
+                    try:
+                        if (not options['keep_cells'] == False):
+                            ff_ext.data[numpy.isnan(ff_ext.data)] = 1.
+                        merged /= ff_ext.data
+                        logger.debug("Dividing by flatfield: %s" % (flatfield_filename))
+                    except:
+                        logger.warning("Unable to apply flat-field, dimensions don't match (data: %s, flat: %s)" % (
+                            str(merged.shape), str(ff_ext.data.shape)))
+                        reduction_log.partial_fail('flat')
+                        pass
+
+                    # If normalizing with the flat-field, overwrite the gain
+                    # keyword with the average gain value of the flatfield.
+                    ff_gain = flatfield[0].header['GAIN'] \
+            if ('GAIN' in flatfield[0].header and flatfield[0].header['GAIN'] > 0) else -1.
+                    gain_from_flatfield = ff_gain
+
+                    logger.debug("Checking if extension has PGAFCTD keyword: %s" % (str('PGAFCTD' in ff_ext.header)))
+                    if ('PGAFCTD' in ff_ext.header):
+                        logger.debug("Value of PGAFCTD header keyword: %s" % (str(ff_ext.header['PGAFCTD'])))
+                    if ('PGAFCTD' in ff_ext.header and ff_ext.header['PGAFCTD']):
+                        # Mark this extension as having a pupilghost problem.
+                        hdu.header['PGAFCTD'] = True
+
+                        # Also copy the center position of the pupilghost
+                        # If this is not stored in the flat-field, assume some
+                        # standard coordinates
+                        logger.debug("Found an extension affected by pupilghost: %s" % (extname))
+
+                        for pgheader in (
+                                'PGCENTER', 'PGCNTR_X', 'PGCNTR_Y',
+                                'PGTMPL_X', 'PGTMPL_Y',
+                                'PGREG_X1', 'PGREG_X2', 'PGREG_Y1', 'PGREG_Y2',
+                                'PGEFCTVX', 'PGEFCTVY',
+                                'PGSCALNG',
+                                'PGROTANG',
+                        ):
+                            if (pgheader in ff_ext.header):
+                                hdu.header[pgheader] = (ff_ext.header[pgheader], ff_ext.header.comments[pgheader])
+
+                        pupilghost_center_x = ff_ext.header['PGCNTR_X'] if 'PGCNTR_X' in ff_ext.header else numpy.NaN
+                        pupilghost_center_y = ff_ext.header['PGCNTR_Y'] if 'PGCNTR_Y' in ff_ext.header else numpy.NaN
+
+                        # if ('PGCNTR_X' in ff_ext.header):
+                        #     pupilghost_center_x = ff_ext.header['PGCNTR_X']
+                        #     hdu.header['PGCNTR_X'] = (pupilghost_center_x, "pupil ghost center position X")
+                        # if ('PGCNTR_Y' in ff_ext.header):
+                        #     pupilghost_center_y = ff_ext.header['PGCNTR_Y']
+                        #     hdu.header['PGCNTR_Y'] = (pupilghost_center_y, "pupil ghost center position Y")
                     break
-            if (not found_flatdata):
-                reduction_log.fail('flat')
-            else:
-                flatfield = pyfits.open(flatfield_filename)
-                reduction_files_used['flat'] = flatfield_filename
 
-                # Search for the flatfield data for the current OTA
-                for ff_ext in flatfield[1:]:
-                    if (not is_image_extension(ff_ext)):
-                        continue
-                    fppos_flatfield = ff_ext.header['FPPOS']
-                    if (fppos_flatfield == fppos):
-                        # This is the one
-                        try:
-                            merged /= ff_ext.data
-                            logger.debug("Dividing by flatfield: %s" % (flatfield_filename))
-                        except:
-                            logger.warning("Unable to apply flat-field, dimensions don't match (data: %s, flat: %s)" % (
-                                str(merged.shape), str(ff_ext.data.shape)))
-                            reduction_log.partial_fail('flat')
-                            pass
-
-                        # If normalizing with the flat-field, overwrite the gain
-                        # keyword with the average gain value of the flatfield.
-                        ff_gain = flatfield[0].header['GAIN'] \
-			    if ('GAIN' in flatfield[0].header and flatfield[0].header['GAIN'] > 0) else -1.
-                        gain_from_flatfield = ff_gain
-                        
-                        logger.debug("Checking if extension has PGAFCTD keyword: %s" % (str('PGAFCTD' in ff_ext.header)))
-                        if ('PGAFCTD' in ff_ext.header):
-                            logger.debug("Value of PGAFCTD header keyword: %s" % (str(ff_ext.header['PGAFCTD'])))
-                        if ('PGAFCTD' in ff_ext.header and ff_ext.header['PGAFCTD']):
-                            # Mark this extension as having a pupilghost problem.
-                            hdu.header['PGAFCTD'] = True
-
-                            # Also copy the center position of the pupilghost
-                            # If this is not stored in the flat-field, assume some
-                            # standard coordinates
-                            logger.debug("Found an extension affected by pupilghost: %s" % (extname))
-
-                            for pgheader in (
-                                    'PGCENTER', 'PGCNTR_X', 'PGCNTR_Y',
-                                    'PGTMPL_X', 'PGTMPL_Y', 
-                                    'PGREG_X1', 'PGREG_X2', 'PGREG_Y1', 'PGREG_Y2',
-                                    'PGEFCTVX', 'PGEFCTVY', 
-                                    'PGSCALNG',
-                                    'PGROTANG',
-                            ):
-                                if (pgheader in ff_ext.header):
-                                    hdu.header[pgheader] = (ff_ext.header[pgheader], ff_ext.header.comments[pgheader])
-
-                            pupilghost_center_x = ff_ext.header['PGCNTR_X'] if 'PGCNTR_X' in ff_ext.header else numpy.NaN
-                            pupilghost_center_y = ff_ext.header['PGCNTR_Y'] if 'PGCNTR_Y' in ff_ext.header else numpy.NaN
-
-                            # if ('PGCNTR_X' in ff_ext.header):
-                            #     pupilghost_center_x = ff_ext.header['PGCNTR_X']
-                            #     hdu.header['PGCNTR_X'] = (pupilghost_center_x, "pupil ghost center position X")
-                            # if ('PGCNTR_Y' in ff_ext.header):
-                            #     pupilghost_center_y = ff_ext.header['PGCNTR_Y']
-                            #     hdu.header['PGCNTR_Y'] = (pupilghost_center_y, "pupil ghost center position Y")
-                        break
-                        
-                flatfield.close()
-                hdu.header.add_history("CC-FLAT: %s" % (os.path.abspath(flatfield_filename)))
-                del flatfield
-                reduction_log.success('flat')
+            flatfield.close()
+            hdu.header.add_history("CC-FLAT: %s" % (os.path.abspath(flatfield_filename)))
+            del flatfield
+            reduction_log.success('flat')
 
         #
         # Apply illumination correction, if requested
@@ -886,20 +997,28 @@ def collect_reduce_ota(filename,
         # Finally, apply bad pixel masks 
         # Determine which region file we need
         # This function only returns valid filenames, or None otherwise
-        bpm_region_file = fpl.get_badpixel_regionfile(options['bpm_dir'], fppos)
-        if (bpm_region_file == None):
+        # bpm_region_file = fpl.get_badpixel_regionfile(options['bpm_dir'], fppos)
+        if (not mastercals.apply_bpm()):
             reduction_log.not_selected('badpixels')
+        elif (mastercals.bpm(ota=fppos) is None):
+            reduction_log.fail('badpixels')
         else:
+            bpm_region_file = mastercals.bpm(ota=fppos)
+        # if (bpm_region_file == None):
+        #     reduction_log.not_selected('badpixels')
+        # else:
             # Apply the bad pixel regions to file, marking all bad pixels as NaNs
             logger.debug("Applying BPM file: %s" % (bpm_region_file))
             mask_broken_regions(merged, bpm_region_file, reduction_log=reduction_log)
             reduction_files_used['bpm'] = bpm_region_file
+            reduction_log.success('badpixels')
 
         #
         # Now apply the gain correction
         #
 
         logger.debug("GAIN setting:"+str(options['gain_correct']))
+        hdu.header['GAINMTHD'] = ('none', "gain method")
         if (not options['gain_correct']):
             reduction_log.not_selected('gain')
         else:
@@ -907,18 +1026,23 @@ def collect_reduce_ota(filename,
             logger.debug("Applying gain correction (OTA %02d) - method: %s" % (ota, 
                 options['gain_method'] if not options['gain_method'] == None else "default:techdata"))
 
-            if (options['gain_method'] == 'relative'):
-                reduction_files_used['gain'] = nonlinearity_file
+            if (mastercals.apply_relative_gain()):
+                relative_gains_file = mastercals.nonlinearity(mjd=mjd)
+                if (relative_gains_file is None):
+                    reduction_log.fail('gain')
+                else:
+                    reduction_files_used['gain'] = relative_gains_file
                 
-                # Find the relative gain correction factor based on the non-linearity correction data
-                logger.debug("Apply gain correction from nonlinearity data")
+                    # Find the relative gain correction factor based on the non-linearity correction data
+                    logger.debug("Apply gain correction from nonlinearity data")
 
-                for cx, cy in itertools.product(range(8), repeat=2):
-                    x1, x2, y1, y2 = cell2ota__get_target_region(cx, cy, binning)
-                    merged[y1:y2, x1:x2], gain = podi_nonlinearity.apply_gain_correction(
-                        merged[y1:y2, x1:x2], cx, cy, nonlin_data, return_gain=True)
-                    all_gains[cx,cy] /= gain
-                reduction_log.success('gain')
+                    for cx, cy in itertools.product(range(8), repeat=2):
+                        x1, x2, y1, y2 = cell2ota__get_target_region(cx, cy, binning)
+                        merged[y1:y2, x1:x2], gain = podi_nonlinearity.apply_gain_correction(
+                            merged[y1:y2, x1:x2], cx, cy, nonlin_data, return_gain=True)
+                        all_gains[cx,cy] /= gain
+                    reduction_log.success('gain')
+                    hdu.header['GAINMTHD'] = "relative"
             elif (options['gain_method'] == 'header'):
                 logger.debug("Applying gain correction  with GAINS from header")
                 reduction_files_used['gain'] = filename
@@ -931,6 +1055,7 @@ def collect_reduce_ota(filename,
                     merged[y1:y2, x1:x2] *= gain
                     all_gains[cx,cy] /= gain
                 reduction_log.success('gain')
+                hdu.header['GAINMTHD'] = "raw_header"
 
             else:
                 if (not techdata == None):
@@ -947,6 +1072,7 @@ def collect_reduce_ota(filename,
                         merged[y1:y2, x1:x2] *= gain
                         all_gains[cx,cy] /= gain
                     reduction_log.success('gain')
+                    hdu.header['GAINMTHD'] = 'techdata'
                 else:
                     reduction_log.failed('gain')
                     logger.warning("GAIN correction using TECHDATA requested, but can't find a tech-data file")
@@ -1076,27 +1202,22 @@ def collect_reduce_ota(filename,
         #
         fringe_scaling = None
         fringe_scaling_median, fringe_scaling_std = -1, -1
-        if (options['fringe_dir'] == None):
+        if (not mastercals.apply_fringe()):
             reduction_log.not_selected('fringe')
+        elif (mastercals.fringe(mjd=mjd) is None or
+              mastercals.fringevector(ota=ota) is None):
+            reduction_log.fail('fringe')
+            logger.warning("De-fringing selected, but could not find either fringe template or fringe vectors")
         else:
+            logger.debug("Attempting fringe correction")
             reduction_log.attempt('fringe')
-            fringe_filename = fpl.get_fringe_filename(options['fringe_dir'])
-            fringe_vector_file = fpl.get_fringevector_regionfile(options['fringe_vectors'], ota)
-            logger.debug("fringe file %s found: %s" % (fringe_filename, os.path.isfile(fringe_filename)))
-            logger.debug("fringe vector %s found: %s" % (fringe_vector_file, os.path.isfile(fringe_vector_file)))
-            if (os.path.isfile(fringe_filename) and os.path.isfile(fringe_vector_file)):
-                reduction_files_used['fringemap'] = fringe_filename
-                reduction_files_used['fringevector'] = fringe_vector_file
-            if (options['verbose']):
-                print "fringe file:",fringe_filename, "    found:",os.path.isfile(fringe_filename)
-                print "fringe vector:",fringe_vector_file, "    found:",os.path.isfile(fringe_vector_file)
+            fringe_filename = mastercals.fringe(mjd=mjd)
+            fringe_vector_file = mastercals.fringevector(ota=ota)
+            reduction_files_used['fringemap'] = fringe_filename
+            reduction_files_used['fringevector'] = fringe_vector_file
 
-            # Do not determine fringe scaling if either or the input files does 
-            # not exist or any of the cells in this OTA is marked as video cell
-            if (os.path.isfile(fringe_filename)
-                and os.path.isfile(fringe_vector_file)
-                and hdu.header['CELLMODE'].find("V") < 0
-                ):
+            # Do not determine fringe scaling if this OTA is marked as video cell
+            if (hdu.header['CELLMODE'].find("V") < 0):
                 fringe_hdu = pyfits.open(fringe_filename)
                 for ext in fringe_hdu[1:]:
                     if (extname == ext.header['EXTNAME']):
@@ -1117,7 +1238,7 @@ def collect_reduce_ota(filename,
             #print "FRNG_STD", fringe_scaling_std
             hdu.header["FRNG_SCL"] = fringe_scaling_median
             hdu.header["FRNG_STD"] = fringe_scaling_std
-            hdu.header["FRNG_OK"] = (type(fringe_scaling) != type(None))
+            hdu.header["FRNG_OK"] = (fringe_scaling is not None)
 
         # Insert the DETSEC header so IRAF understands where to put the extensions
         start_x = ota_c_x * size_x #4096
@@ -1195,11 +1316,30 @@ def collect_reduce_ota(filename,
 
 
         # Now add the canned WCS solution
-        if (options['wcs_distortion'] == None):
+        if (not mastercals.apply_wcs()): #['wcs_distortion'] == None):
             reduction_log.not_selected('wcs_dist')
+        elif (mastercals.wcs(mjd) == "plain"):
+            #
+            # If there's no WCS system at all, at least put in something semi-reasonable
+            #
+            logger.warning("Adding plain WCS as fall-back solution")
+            for a,b in itertools.product(range(10), repeat=2):
+                keyname = "WAT%d_%03d" % (a,b)
+                if (keyname in hdu.header):
+                    del hdu.header[keyname]
+            for a,b in itertools.product(range(2), range(100)):
+                keyname = "PV%d_%d" % (a,b)
+                if (keyname in hdu.header):
+                    del hdu.header[keyname]
+            hdu.header['CRPIX1'] = (4-ota_c_x)*4500
+            hdu.header['CRPIX2'] = (4-ota_c_y)*4500
+        elif (mastercals.wcs(mjd) is None):
+            reduction_log.fail("wcs_dist")
         else:
-            wcsdistort = fpl.apply_wcs_distortion(options['wcs_distortion'], hdu, binning, reduction_log)
-            reduction_files_used['wcs'] = fpl.get_wcs_distortion_file(options['wcs_distortion'])
+            wcs_model_fn = mastercals.wcs(mjd)
+            logger.debug("Applying wcs from %s" % (str(wcs_model_fn)))
+            wcsdistort = apply_wcs_distortion(wcs_model_fn, hdu, binning, reduction_log)
+            reduction_files_used['wcs'] = wcs_model_fn
             if (options['simple-tan-wcs']):
                 hdu.header['CTYPE1'] = "RA---TAN"
                 hdu.header['CTYPE2'] = "DEC--TAN"
@@ -1273,8 +1413,8 @@ def collect_reduce_ota(filename,
                 catfile = "%s/tmp.pid%d.%s_OTA%02d.cat" % (sitesetup.sextractor_cache_dir, process_id, obsid, ota)
                 tmphdulist.writeto(fitsfile, clobber=True)
                 logger.debug("Wrote temp file to %s" % (fitsfile))
-                sex_config_file = "%s/.config/wcsfix.sex" % (sitesetup.exec_dir)
-                parameters_file = "%s/.config/wcsfix.sexparam" % (sitesetup.exec_dir)
+                sex_config_file = "%s/config/wcsfix.sex" % (sitesetup.exec_dir)
+                parameters_file = "%s/config/wcsfix.sexparam" % (sitesetup.exec_dir)
                 sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s" % (
                     sitesetup.sextractor, sex_config_file, parameters_file, catfile, 
                     fitsfile)
@@ -1386,88 +1526,88 @@ def collect_reduce_ota(filename,
 
     pupilghost_scaling = None
     pupilghost_template = None
-    if (options['pupilghost_dir'] == None):
+    filter_level = get_filter_level(hdulist[0].header)
+    filter_name = get_valid_filter_name(hdulist[0].header)
+    if (not mastercals.apply_pupilghost()):
+        logger.debug("PG not selected")
         reduction_log.not_selected('pupilghost')
+    elif (False): #not 'PGAFCTD' in hdu.header or not hdu.header['PGAFCTD']):
+        # This frame does not contain the keyword labeling it as affected by
+        # the pupilghost. In that case we don't need to do anything
+        logger.debug("This extension (%s) does not have any pupilghost problem" % (extname))
+        reduction_log.not_required('pupilghost')
+    elif (mastercals.pupilghost() is None):
+        reduction_log.missing_data('pupilghost')
+        logger.critical("Pupilghost correction requested, but no template found")
     else:
         logger.debug("Getting ready to subtract pupil ghost from science frame")
-        filter_level = get_filter_level(hdulist[0].header)
-        filter_name = get_valid_filter_name(hdulist[0].header)
         # binning = ota_list[0].header['BINNING']
-        pg_template = check_filename_directory(
-            options['pupilghost_dir'], 
-            "%s/pupilghost_template___level_%d__bin%d.fits" % (options['pupilghost_dir'], filter_level, binning))
-        logger.info("looking for pupil ghost template %s..." % (pg_template))
+        pg_template = mastercals.pupilghost()
+        logger.debug("looking for pupil ghost template %s..." % (pg_template))
 
         # If we have a template for this level
-        if (os.path.isfile(pg_template)):
-            logger.debug("\n   Using pupilghost template %s, filter %s ... " % (pg_template, filter_name))
-            pg_hdu = pyfits.open(pg_template)
+        logger.debug("\n   Using pupilghost template %s, filter %s ... " % (pg_template, filter_name))
+        pg_hdu = pyfits.open(pg_template)
 
-            # Getting the pupilghost scaling factors for this OTA
-            if (not 'PGAFCTD' in hdu.header or not hdu.header['PGAFCTD']):
-                # This frame does not contain the keyword labeling it as affected by
-                # the pupilghost. In that case we don't need to do anything
-                logger.info("This extension (%s) does not have any pupilghost problem" % (extname))
-                reduction_log.not_required('pupilghost')
-            else:
-                
-                reduction_files_used['pupilghost'] = pg_template
-                # print "redfiles used:", reduction_files_used
+        # Getting the pupilghost scaling factors for this OTA
+        reduction_files_used['pupilghost'] = pg_template
+        # print "redfiles used:", reduction_files_used
 
-                #
-                # Find center position of the pupilghost. Assume that the science 
-                # frames have the same pupilghost centering as the flatfield used for
-                # calibration, as this provides a more reliable center position.
-                #
-                logger.info("Using PG center position: %f %f" % (
-                    pupilghost_center_x, pupilghost_center_y))
-
-                pgcenter = numpy.array([pupilghost_center_x, pupilghost_center_y])
-                if (numpy.isnan(pupilghost_center_x) or numpy.isnan(pupilghost_center_y)):
-                    logger.info("At least one of the center positions in NaN, setting to 'data' instead")
-                    pgcenter = 'data'
-                    
-                # Compute the pupilghost image for this OTA at the right orientation
-                logger.info("Starting pg scaling")
-                pupilghost_template = podi_matchpupilghost.compute_pupilghost_template_ota(
-                    hdu, pg_hdu,
-                    rotate=True,
-                    non_negative=True,
-                    source_center_coords=pgcenter
-                )
-                
-                data_products['pupilghost-template'] = pupilghost_template
-                if (not type(pupilghost_template) == type(None)):
-                    print "PG-template:", extname, "\n", pupilghost_template
-                    _, pupilghost_scaling = podi_matchpupilghost.get_pupilghost_scaling_ota(
-                        science_hdu=hdu, 
-                        pupilghost_frame=pg_hdu, #pupilghost_template, 
-                        n_samples=750, boxwidth=20, 
-                        verbose=False,
-                        pg_matched=True,
-                        return_all=True,
-                    )
-                    print pupilghost_scaling
-                    data_products['pupilghost-scaling'] = pupilghost_scaling
-                    logger.debug("PG scaling:\n%s" % (str(pupilghost_scaling)))
-                    reduction_log.attempt('pupilghost')
-                    if (pupilghost_scaling == None):
-                        logger.info("No PG samples found for OTA %s" % (extname))
-                    else:
-                        logger.info("Found %d PG scaling samples" % (pupilghost_scaling.shape[0]))
-                else:
-                    logger.debug("Could not compute PG template for OTA %s" % (extname))
-                    reduction_log.missing_data('pupilghost')
-                logger.debug("Done with pg scaling")
+        #
+        # Find center position of the pupilghost. Assume that the science
+        # frames have the same pupilghost centering as the flatfield used for
+        # calibration, as this provides a more reliable center position.
+        #
+        if (pupilghost_center_x is None or pupilghost_center_y is None):
+            pgcenter = 'data'
         else:
-            logger.debug("No appropriate pupilghost template found!")
-            reduction_log.missing_data('pupilghost')
 
-            # # Find the optimal scaling factor
-            # logger.debug("Searching for optimal pupilghost scaling factor")
-            # any_affected, scaling, scaling_std = podi_matchpupilghost.get_pupilghost_scaling(ota_list, pg_hdu)
-            # logger.debug("Check if any OTA is affected: %s" % ("yes" if any_affected else "no"))
-            # logger.debug("Optimal scaling factor found: %.2f +/- %.2f" % (scaling, scaling_std))
+            logger.debug("Using PG center position: %f %f" % (
+                pupilghost_center_x, pupilghost_center_y))
+
+            pgcenter = numpy.array([pupilghost_center_x, pupilghost_center_y])
+            if (numpy.isnan(pupilghost_center_x) or numpy.isnan(pupilghost_center_y)):
+                logger.info("At least one of the center positions in NaN, setting to 'data' instead")
+                pgcenter = 'data'
+
+        # Compute the pupilghost image for this OTA at the right orientation
+        logger.debug("Starting pg scaling")
+        pupilghost_template = podi_matchpupilghost.compute_pupilghost_template_ota(
+            hdu, pg_hdu,
+            rotate=True,
+            non_negative=True,
+            source_center_coords=pgcenter
+        )
+
+        data_products['pupilghost-template'] = pupilghost_template
+        if (pupilghost_template is not None):
+            # print "PG-template:", extname, "\n", pupilghost_template
+            _, pupilghost_scaling = podi_matchpupilghost.get_pupilghost_scaling_ota(
+                science_hdu=hdu,
+                pupilghost_frame=pg_hdu, #pupilghost_template,
+                n_samples=750, boxwidth=20,
+                verbose=False,
+                pg_matched=True,
+                return_all=True,
+            )
+            # print pupilghost_scaling
+            data_products['pupilghost-scaling'] = pupilghost_scaling
+            logger.debug("PG scaling:\n%s" % (str(pupilghost_scaling)))
+            reduction_log.attempt('pupilghost')
+            if (pupilghost_scaling == None):
+                logger.info("No PG samples found for OTA %s" % (extname))
+            else:
+                logger.info("Found %d PG scaling samples" % (pupilghost_scaling.shape[0]))
+        else:
+            logger.debug("Could not compute PG template for OTA %s" % (extname))
+            reduction_log.no_data('pupilghost')
+        logger.debug("Done with pg scaling")
+
+        # # Find the optimal scaling factor
+        # logger.debug("Searching for optimal pupilghost scaling factor")
+        # any_affected, scaling, scaling_std = podi_matchpupilghost.get_pupilghost_scaling(ota_list, pg_hdu)
+        # logger.debug("Check if any OTA is affected: %s" % ("yes" if any_affected else "no"))
+        # logger.debug("Optimal scaling factor found: %.2f +/- %.2f" % (scaling, scaling_std))
 
     
     # Write the reduction log
@@ -1784,10 +1924,12 @@ def parallel_collect_reduce_ota(queue,
         logger.debug("Next up (maybe): pupilghost subtraction")
         try:
             # Also delete the pupilghost contribution
-            if (not type(pg_image) == type(None) and final_parameters['pupilghost-scaling-median'] > 0):
+            if (pg_image is not None and final_parameters['pupilghost-scaling-median'] > 0):
                 logger.debug("Subtracting pupilghost (%.2f)..." % (final_parameters['pupilghost-scaling-median']))
                 return_hdu.data -= (pg_image * final_parameters['pupilghost-scaling-median'])
                 reduction_log.success('pupilghost')
+            else:
+                reduction_log.fail('pupilghost')
         except:
             podi_logging.log_exception()
             pass
@@ -3884,6 +4026,9 @@ def collectcells(input, outputfile,
     ota_list[0].header['GAIN'] = (-1, "global average gain [e-/ADU]")
     ota_list[0].header['NGAIN'] = (0, "number of cells contribution to gain")
 
+    # XXX ADD HERE
+    # COPY GAIN METHOD FROM ANY CHILD HEADER TO PRIMARY HEADER
+
     if (global_gain_count > 0):
         ota_list[0].header['GAIN'] = global_gain_sum / global_gain_count
         ota_list[0].header['NGAIN'] = global_gain_count
@@ -5203,73 +5348,6 @@ def odi_sources_to_tablehdu(source_cat):
     tbhdu.name = "CAT.ODI"
     return tbhdu
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def check_filename_directory(given, default_filename):
-    """
-    Some of the options support either a directory or a filename. This function
-    checks if the input is a directory or a filename. In the first case, add 
-    the specified default filename and return the filename. In the latter case, 
-    simply return the filename.
-
-    Parameters
-    ----------
-    given : string
-
-        The value specified by the user, either a directory or filename
-
-    default_filename : string
-
-        In the case the user specified only a directory, append the name of this
-        filename
-
-    Returns
-    -------
-    filename
-
-    Example
-    -------
-    This function is called e.g. during bias-subtraction. Using the -bias 
-    option, the user can specify the bias file to be used during the reduction.
-    However, the default way of specifying the bias file is to simply give the 
-    directory with the calibration files, and collectcells adds the 'bias.fits'
-    during execution.
-
-    """
-
-    if (given == None):
-        return None
-
-    if (not type(given) == list):
-        _g = [given]
-    else:
-        _g = given
-
-    for g in _g:
-        if (os.path.isfile(g)):
-            return g
-        else:
-            fn = "%s/%s" % (g, default_filename)
-            if (os.path.isfile(fn)):
-                return fn
-
-    return ""
 
 
 
