@@ -308,6 +308,7 @@ class ODICalibrations(object):
 
             # Now assemble the entire filename
             full_filename = "%s/%s" % (nl_basedir, fn)
+            # print mjd, full_filename
 
         return self.verify_fn(full_filename)
 
@@ -424,6 +425,7 @@ class CalibrationHistory(object):
             # print "FIND: ", mjd, i_mjd, self.filenames[i]
             if (mjd >= i_mjd):
                 fn = self.filenames[i]
+            else:
                 break
         if (fn is not None):
             return fn
