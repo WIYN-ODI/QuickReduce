@@ -140,7 +140,7 @@ class PhotFlatFrame(object):
         return self.ota_list
 
 
-    def get_ota_zeropoints(self, ota=None, x=2048, y=2048, radius=2048, strict_ota=False):
+    def get_ota_zeropoints(self, ota=None, x=2048, y=2048, radius=2048, strict_ota=False, return_error=True):
         if (ota is None):
             return None
 
@@ -158,6 +158,7 @@ class PhotFlatFrame(object):
                                           radius=radius*0.11/60)
         return_cat = self.catalog[indices]
         zp = self.zeropoint[indices]
+        zperr = self.zeropoint_error[indices]
 
         if (strict_ota and False):
             # only return sources from the selected ota
@@ -165,235 +166,239 @@ class PhotFlatFrame(object):
             this_ota = (return_cat[:, self.field_names['OTA']] == ota_num)
             return_cat = return_cat[this_ota]
             zp = zp[this_ota]
+            zperr = zperr[this_ota]
 
         #print return_cat.shape,
+        if (return_error):
+            return zp, zperr
+
         return zp
 
 
 
 
 
-class PhotFrame(object):
-    def __init__(self, filename):
-
-        self.field_names = {}
-        self.catalog = None
-        self.wcs = {}
-        self.file_loaded = False
-        self.zeropoints_computed = False
-        self.apertures = numpy.array([20, 30, 40, 50, 60, 80, 100, 120])
-
-        self.filename = filename
-        _, bn = os.path.split(filename)
-        self.filebase = bn
-
-        self.logger = logging.getLogger("PF(%s)" % (bn))
-
-        self.neighbor_count = 250
-        self.neighbor_radius = 0
-
-        self.scaling_factor = 0
-
-        self.read_frame()
-
-    def read_frame(self):
-
-        if (self.file_loaded):
-            return self.file_loaded
-
-        self.logger.debug("Reading %s" % (self.filename))
-        hdulist = pyfits.open(self.filename)
-
-        #
-        # Read general relavant properties
-        #
-
-        self.phot_reference = hdulist[0].header['PHOTMCAT']
-        # self.magzero = hdulist[0].header['MAGZERO']
-        self.magzero = hdulist[0].header['PHOTZP_X']
-        self.ref_filter = hdulist[0].header['PHOTFILT']
-
-        #
-        # Read the photometric catalog(s)
-        #
-
-        try:
-            photcalib_tbhdu = hdulist['CAT.PHOTCALIB']
-        except:
-            self.logger.warning("No PHOTCALIB table found in %s" % (self.filename))
-            photcalib_tbhu = None
-            return False
-
-        #
-        # Now extract all sources for each OTA
-        #
-        tfields = photcalib_tbhdu.header['TFIELDS']
-        nstars = photcalib_tbhdu.header['NAXIS2']
-        catalog = numpy.empty((nstars, tfields))
-
-        for field in range(tfields):
-            catalog[:, field] = photcalib_tbhdu.data.field(field)
-            ttype = 'TTYPE%d' % (field + 1)
-            if (ttype in photcalib_tbhdu.header):
-                fieldname = photcalib_tbhdu.header[ttype]
-                self.field_names[fieldname] = field
-
-        self.catalog = catalog
-        self.logger.info("Read %d matched sources from %s" % (
-            catalog.shape[0], self.filename))
-
-        #
-        # Read all WCS headers
-        #
-        for ext in hdulist:
-            if (not is_image_extension(ext)):
-                continue
-            wcs = astWCS.WCS(ext.header, mode='pyfits')
-            extname = ext.name
-
-            self.wcs[extname] = wcs
-
-        #
-        # compute a simplified WCS solution, ignoring distortion and the fact
-        # there are multiple OTAs
-        #
-        self.setup_quick_wcs()
-
-        #
-        # Update the neighbor radius
-        #
-        self.neighbor_radius = 4. * 60. / self.pixelscale
-
-        hdulist.close()
-        self.file_loaded = True
-        self.logger.debug("File read completed!")
-        return True
-
-    def setup_quick_wcs(self):
-        ota44 = self.wcs['OTA44.SCI'].header
-        simple = pyfits.ImageHDU()
-        for key in ['CD1_1', 'CD2_2', 'CD1_2', 'CD2_1',
-                    'CRVAL1', 'CRVAL2',
-                    'CRPIX1', 'CRPIX2',
-                    'NAXIS', 'NAXIS1', 'NAXIS2']:
-            simple.header[key] = ota44[key]
-        self.simple_wcs = self.wcs['OTA44.SCI']  # astWCS.WCS(simple.header, mode='pyfits')
-
-        self.simple_coords = numpy.array(self.simple_wcs.wcs2pix(self.catalog[:, 0], self.catalog[:, 1]))
-
-        self.simple_tree = scipy.spatial.cKDTree(self.simple_coords)
-        self.pixelscale = self.simple_wcs.getPixelSizeDeg() * 3600.
-
-        # numpy.savetxt("dummy_%s.cat" % (self.filebase),
-        #               numpy.append(self.simple_coords, self.catalog, axis=1))
-        # numpy.savetxt("dummy2_%s.cat" % (self.filebase), self.simple_coords)
-
-    def compute_zeropoints(self):
-
-        self.logger.debug("computing zeropoints")
-
-        ref_mag = "SDSS_MAG_%s" % (self.ref_filter.upper())
-        ref_err = "SDSS_ERR_%s" % (self.ref_filter.upper())
-
-        self.zeropoints = numpy.empty((self.catalog.shape[0], self.apertures.shape[0]))
-        self.zeropoints[:, :] = numpy.NaN
-
-        for idx, ap in enumerate(self.apertures):
-
-            odi_mag = "ODI_MAG_D%d" % (ap)
-            odi_err = "ODI_ERR_D%d" % (ap)
-
-            if (odi_mag in self.field_names and
-                        ref_mag in self.field_names):
-                zp = self.catalog[:, self.field_names[ref_mag]] - \
-                     self.catalog[:, self.field_names[odi_mag]]
-                self.zeropoints[:, idx] = zp
-
-        self.zeropoints_computed = True
-
-    def convert_to_relative(self):
-
-        # # compute position in the bottom left corner of OTA44
-        # ra_dec = self.wcs['OTA44.SCI'].pix2wcs(0,0)
-        # print ra_dec
-
-        #
-        # select all objects within 4 arcmin of the assumed center.
-        # define the median zeropoint as reference zeropoint
-        #
-        d, i = self.simple_tree.query(
-            [0, 0],
-            p=2,
-            k=1000,  # use 1000 sources at most
-            distance_upper_bound=(4 * 60 / self.pixelscale),
-        )
-        good_match = numpy.isfinite(d) & (i < self.catalog.shape[0])
-
-        near_center = self.zeropoints[i[good_match]]
-        # numpy.savetxt("center.cat", near_center)
-
-        center_zp = bottleneck.nanmedian(near_center, axis=0)
-
-        # self.zeropoints_relative = self.zeropoints - center_zp
-        self.zeropoints_relative = self.zeropoints - self.magzero
-
-        # print center_zp.shape
-        # print center_zp
-
-    def prep(self):
-        self.read_frame()
-        self.compute_zeropoints()
-        self.convert_to_relative()
-
-    def get_correction(self, ra_dec):
-
-        # make sure Ra/Dec has the right dimensions
-        if (ra_dec.ndim == 1):
-            ra_dec = ra_dec.reshape((1, -1))
-
-        #
-        # convert Ra/Dec to X/Y in the simple projected image
-        #
-        xy = numpy.array(self.simple_wcs.wcs2pix(ra_dec[:, 0], ra_dec[:, 1]))
-
-        #
-        # Query all stars around the given coordinates
-        #
-        d, i = self.simple_tree.query(xy, p=2,
-                                      k=self.neighbor_count,
-                                      distance_upper_bound=self.neighbor_radius,
-                                      )
-        # print d.shape
-
-        valid = numpy.isfinite(d) & (i < self.catalog.shape[0])
-
-        # prepare the result buffer
-        all_corrections = numpy.empty((ra_dec.shape[0], self.zeropoints_relative.shape[1]))
-        all_corrections[:, :] = numpy.NaN
-
-        for idx in range(ra_dec.shape[0]):
-            # print idx, ra_dec[idx], xy[idx]
-
-            nearby_sources = i[idx, :][valid[idx, :]]
-            # this_valid = valid[idx, :]
-            # print this_valid.shape, numpy.sum(this_valid), nearby_sources.shape
-
-            rel_zp = self.zeropoints_relative[nearby_sources]
-            # print rel_zp.shape
-
-            all_corrections[idx, :] = numpy.median(rel_zp, axis=0)
-            # print correction.shape
-
-        return all_corrections
-
-    def get_weight(self, targetzp=25.):
-        scaling_factor = math.pow(10, 0.4 * (targetzp - self.magzero))
-        return 1. / scaling_factor
-
-
-    def get_zeropoint(self, ra, dec):
-        pass
-
+# class PhotFrame(object):
+#     def __init__(self, filename):
+#
+#         self.field_names = {}
+#         self.catalog = None
+#         self.wcs = {}
+#         self.file_loaded = False
+#         self.zeropoints_computed = False
+#         self.apertures = numpy.array([20, 30, 40, 50, 60, 80, 100, 120])
+#
+#         self.filename = filename
+#         _, bn = os.path.split(filename)
+#         self.filebase = bn
+#
+#         self.logger = logging.getLogger("PF(%s)" % (bn))
+#
+#         self.neighbor_count = 250
+#         self.neighbor_radius = 0
+#
+#         self.scaling_factor = 0
+#
+#         self.read_frame()
+#
+#     def read_frame(self):
+#
+#         if (self.file_loaded):
+#             return self.file_loaded
+#
+#         self.logger.debug("Reading %s" % (self.filename))
+#         hdulist = pyfits.open(self.filename)
+#
+#         #
+#         # Read general relavant properties
+#         #
+#
+#         self.phot_reference = hdulist[0].header['PHOTMCAT']
+#         # self.magzero = hdulist[0].header['MAGZERO']
+#         self.magzero = hdulist[0].header['PHOTZP_X']
+#         self.ref_filter = hdulist[0].header['PHOTFILT']
+#
+#         #
+#         # Read the photometric catalog(s)
+#         #
+#
+#         try:
+#             photcalib_tbhdu = hdulist['CAT.PHOTCALIB']
+#         except:
+#             self.logger.warning("No PHOTCALIB table found in %s" % (self.filename))
+#             photcalib_tbhu = None
+#             return False
+#
+#         #
+#         # Now extract all sources for each OTA
+#         #
+#         tfields = photcalib_tbhdu.header['TFIELDS']
+#         nstars = photcalib_tbhdu.header['NAXIS2']
+#         catalog = numpy.empty((nstars, tfields))
+#
+#         for field in range(tfields):
+#             catalog[:, field] = photcalib_tbhdu.data.field(field)
+#             ttype = 'TTYPE%d' % (field + 1)
+#             if (ttype in photcalib_tbhdu.header):
+#                 fieldname = photcalib_tbhdu.header[ttype]
+#                 self.field_names[fieldname] = field
+#
+#         self.catalog = catalog
+#         self.logger.info("Read %d matched sources from %s" % (
+#             catalog.shape[0], self.filename))
+#
+#         #
+#         # Read all WCS headers
+#         #
+#         for ext in hdulist:
+#             if (not is_image_extension(ext)):
+#                 continue
+#             wcs = astWCS.WCS(ext.header, mode='pyfits')
+#             extname = ext.name
+#
+#             self.wcs[extname] = wcs
+#
+#         #
+#         # compute a simplified WCS solution, ignoring distortion and the fact
+#         # there are multiple OTAs
+#         #
+#         self.setup_quick_wcs()
+#
+#         #
+#         # Update the neighbor radius
+#         #
+#         self.neighbor_radius = 4. * 60. / self.pixelscale
+#
+#         hdulist.close()
+#         self.file_loaded = True
+#         self.logger.debug("File read completed!")
+#         return True
+#
+#     def setup_quick_wcs(self):
+#         ota44 = self.wcs['OTA44.SCI'].header
+#         simple = pyfits.ImageHDU()
+#         for key in ['CD1_1', 'CD2_2', 'CD1_2', 'CD2_1',
+#                     'CRVAL1', 'CRVAL2',
+#                     'CRPIX1', 'CRPIX2',
+#                     'NAXIS', 'NAXIS1', 'NAXIS2']:
+#             simple.header[key] = ota44[key]
+#         self.simple_wcs = self.wcs['OTA44.SCI']  # astWCS.WCS(simple.header, mode='pyfits')
+#
+#         self.simple_coords = numpy.array(self.simple_wcs.wcs2pix(self.catalog[:, 0], self.catalog[:, 1]))
+#
+#         self.simple_tree = scipy.spatial.cKDTree(self.simple_coords)
+#         self.pixelscale = self.simple_wcs.getPixelSizeDeg() * 3600.
+#
+#         # numpy.savetxt("dummy_%s.cat" % (self.filebase),
+#         #               numpy.append(self.simple_coords, self.catalog, axis=1))
+#         # numpy.savetxt("dummy2_%s.cat" % (self.filebase), self.simple_coords)
+#
+#     def compute_zeropoints(self):
+#
+#         self.logger.debug("computing zeropoints")
+#
+#         ref_mag = "SDSS_MAG_%s" % (self.ref_filter.upper())
+#         ref_err = "SDSS_ERR_%s" % (self.ref_filter.upper())
+#
+#         self.zeropoints = numpy.empty((self.catalog.shape[0], self.apertures.shape[0]))
+#         self.zeropoints[:, :] = numpy.NaN
+#
+#         for idx, ap in enumerate(self.apertures):
+#
+#             odi_mag = "ODI_MAG_D%d" % (ap)
+#             odi_err = "ODI_ERR_D%d" % (ap)
+#
+#             if (odi_mag in self.field_names and
+#                         ref_mag in self.field_names):
+#                 zp = self.catalog[:, self.field_names[ref_mag]] - \
+#                      self.catalog[:, self.field_names[odi_mag]]
+#                 self.zeropoints[:, idx] = zp
+#
+#         self.zeropoints_computed = True
+#
+#     def convert_to_relative(self):
+#
+#         # # compute position in the bottom left corner of OTA44
+#         # ra_dec = self.wcs['OTA44.SCI'].pix2wcs(0,0)
+#         # print ra_dec
+#
+#         #
+#         # select all objects within 4 arcmin of the assumed center.
+#         # define the median zeropoint as reference zeropoint
+#         #
+#         d, i = self.simple_tree.query(
+#             [0, 0],
+#             p=2,
+#             k=1000,  # use 1000 sources at most
+#             distance_upper_bound=(4 * 60 / self.pixelscale),
+#         )
+#         good_match = numpy.isfinite(d) & (i < self.catalog.shape[0])
+#
+#         near_center = self.zeropoints[i[good_match]]
+#         # numpy.savetxt("center.cat", near_center)
+#
+#         center_zp = bottleneck.nanmedian(near_center, axis=0)
+#
+#         # self.zeropoints_relative = self.zeropoints - center_zp
+#         self.zeropoints_relative = self.zeropoints - self.magzero
+#
+#         # print center_zp.shape
+#         # print center_zp
+#
+#     def prep(self):
+#         self.read_frame()
+#         self.compute_zeropoints()
+#         self.convert_to_relative()
+#
+#     def get_correction(self, ra_dec):
+#
+#         # make sure Ra/Dec has the right dimensions
+#         if (ra_dec.ndim == 1):
+#             ra_dec = ra_dec.reshape((1, -1))
+#
+#         #
+#         # convert Ra/Dec to X/Y in the simple projected image
+#         #
+#         xy = numpy.array(self.simple_wcs.wcs2pix(ra_dec[:, 0], ra_dec[:, 1]))
+#
+#         #
+#         # Query all stars around the given coordinates
+#         #
+#         d, i = self.simple_tree.query(xy, p=2,
+#                                       k=self.neighbor_count,
+#                                       distance_upper_bound=self.neighbor_radius,
+#                                       )
+#         # print d.shape
+#
+#         valid = numpy.isfinite(d) & (i < self.catalog.shape[0])
+#
+#         # prepare the result buffer
+#         all_corrections = numpy.empty((ra_dec.shape[0], self.zeropoints_relative.shape[1]))
+#         all_corrections[:, :] = numpy.NaN
+#
+#         for idx in range(ra_dec.shape[0]):
+#             # print idx, ra_dec[idx], xy[idx]
+#
+#             nearby_sources = i[idx, :][valid[idx, :]]
+#             # this_valid = valid[idx, :]
+#             # print this_valid.shape, numpy.sum(this_valid), nearby_sources.shape
+#
+#             rel_zp = self.zeropoints_relative[nearby_sources]
+#             # print rel_zp.shape
+#
+#             all_corrections[idx, :] = numpy.median(rel_zp, axis=0)
+#             # print correction.shape
+#
+#         return all_corrections
+#
+#     def get_weight(self, targetzp=25.):
+#         scaling_factor = math.pow(10, 0.4 * (targetzp - self.magzero))
+#         return 1. / scaling_factor
+#
+#
+#     def get_zeropoint(self, ra, dec):
+#         pass
+#
 
 
 
@@ -462,10 +467,14 @@ def expand_to_fullres_worker(job_queue, photflat, blocksize, shmem_out, shmem_sh
         # https://en.wikipedia.org/wiki/Bilinear_interpolation#Unit_Square
         #
         try:
-            f_00 = photflat[iy, ix]
-            f_01 = photflat[iy, ix + 1]
-            f_10 = photflat[iy + 1, ix]
-            f_11 = photflat[iy + 1, ix + 1]
+            f_00 = photflat[ix, iy]
+            f_01 = photflat[ix, iy+1]
+            f_10 = photflat[ix+1, iy]
+            f_11 = photflat[ix+1, iy+1]
+            # f_00 = photflat[iy, ix]
+            # f_01 = photflat[iy, ix + 1]
+            # f_10 = photflat[iy + 1, ix]
+            # f_11 = photflat[iy + 1, ix + 1]
         except IndexError:
             print "Index error accessing", ix, iy
             continue
@@ -473,7 +482,8 @@ def expand_to_fullres_worker(job_queue, photflat, blocksize, shmem_out, shmem_sh
         if (ix>=15 or iy>=15):
             print ix,iy, f_00, f_01, f_10, f_11
 
-        out = f_00 * omx_omy + f_10 * x_omy + f_01 * omx_y + f_11 * x_y
+        out = f_00 * omx_omy + f_10 * omx_y + f_01 * x_omy + f_11 * x_y
+        # out = f_00 * omx_omy + f_10 * x_omy + f_01 * omx_y + f_11 * x_y
         #out[:,:] = f_00
 
 
@@ -525,7 +535,7 @@ def expand_to_fullres(photflat, blocksize, out_dimension=None):
 
 
     # Now we have the photometric flat-field, convert it to scaling frame
-    print("writing results")
+    #print("writing results")
     photflat_2d = numpy.power(10, 0.4*out_buffer)
 
     return photflat_2d
@@ -591,7 +601,8 @@ if __name__ == "__main__":
         logger.info("Computing photometric flat-field for %s (%2d of %2d)" % (ota, i+1, len(unique_otas)))
 
         photflat = numpy.empty((n_samples,n_samples))
-
+        photflat_err = numpy.empty((n_samples,n_samples))
+        dump = open("dump_%s" % (ota[:-4]), "w")
         for _x,_y in itertools.product(range(n_samples), repeat=2):
             #print x,y
 
@@ -599,21 +610,41 @@ if __name__ == "__main__":
             y = ref_points[_y]
 
             full_zp_list = None
+            full_zperr_list = None
             for framename in pf.phot_frames:
                 frame = pf.phot_frames[framename]
                 #print framename, ota, x, y, frame
-                zp_list = frame.get_ota_zeropoints(ota=ota, x=x, y=y, radius=pixel_resolution*enlarge)
+                zp_list, zperr_list = frame.get_ota_zeropoints(ota=ota, x=x, y=y, radius=pixel_resolution*enlarge, return_error=True)
                 # correct zp for the specific offset
                 zp_list = zp_list - reference_zp[framename]
                 if (full_zp_list is None):
                     full_zp_list = zp_list
+                    full_zperr_list = zperr_list
                 else:
                     full_zp_list = numpy.append(full_zp_list, zp_list, axis=0)
+                    full_zperr_list = numpy.append(full_zperr_list, zperr_list, axis=0)
 
             # print ota, ota[3:5], x, y, full_zp_list.shape[0]
             running_sum += full_zp_list.shape[0]
 
-            photflat[_x,_y] = numpy.median(full_zp_list)
+            # ideally, do some outlier rejection here
+            _, mask = three_sigma_clip(full_zp_list, return_mask=True)
+            full_zp_list = full_zp_list[mask]
+            full_zperr_list = full_zperr_list[mask]
+
+            # compute the weighted mean correction factor
+            small_error = full_zperr_list < 0.03
+            full_zperr_list = full_zperr_list[small_error]
+            full_zp_list = full_zp_list[small_error]
+            photflat[_x,_y] = numpy.sum(full_zp_list/full_zperr_list) / numpy.sum(1./full_zperr_list)
+            photflat_err[_x,_y] = numpy.std(full_zp_list)
+
+            numpy.savetxt(dump,
+                          numpy.array([full_zp_list, full_zperr_list, numpy.ones((full_zp_list.shape[0]))*photflat[_x,_y]]).T)
+                          #numpy.append(full_zp_list.reshape((-1,1)), full_zperr_list.reshape((-1,1)), axis=1))
+            print >>dump, "\n"*10
+
+            # photflat[_x,_y] = numpy.median(full_zp_list)
 
         combined = numpy.empty((n_samples**2, 3))
         combined[:,0] = ix.ravel()
@@ -621,6 +652,9 @@ if __name__ == "__main__":
         combined[:,2] = photflat.ravel()
         numpy.savetxt("photflat.%s" % (ota), combined)
         numpy.savetxt("photflat.%s" % (ota[:-4]), photflat)
+
+        combined[:,2] = photflat_err.ravel()
+        numpy.savetxt("photflat.%s.err" % (ota[:-4]), combined)
 
         fullres = expand_to_fullres(photflat, blocksize=pixel_resolution)
         imghdu = pyfits.ImageHDU(data=fullres, name=ota)
