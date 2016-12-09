@@ -231,6 +231,8 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
             suffix = "bpmfixed"
         if (suffix == None and not swarp_params['subtract_back'] == 'swarp'):
             suffix = "skysub"
+        if (suffix is None and options['photflat'] is not None):
+            suffix = "photflat"
 
         if (not suffix == None):
             corrected_filename = "%(single_dir)s/%(obsid)s.%(suffix)s.%(fileid)d.fits" % {
@@ -466,6 +468,22 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                     logger.debug("Subtracting ds9/user skylevel (%f) from extension %s" % (skylevel, ext.name))
             else:
                 skylevel = hdulist[0].header['SKYLEVEL']
+
+            if (options['photflat'] is not None):
+                photflat_filename = options['photflat']
+                if (os.path.isfile(photflat_filename)):
+                    # apply correction
+                    photflat_hdu = pyfits.open(photflat_filename)
+                    master_reduction_files_used = podi_associations.collect_reduction_files_used(
+                        master_reduction_files_used, {"photflat": photflat_filename})
+                    for ext in hdulist:
+                        try:
+                            photflat_ext = photflat_hdu[ext.name]
+                            ext.data /= photflat_ext.data
+                            logger.debug("Successfully applied photometric flatfield for %s" % (ext.name))
+                        except (KeyError, ValueError, TypeError):
+                            continue
+
 
             if (not numpy.isnan(fluxscale_value)):
                 logger.debug("Applying flux-scaling (%.10e)" % (fluxscale_value))
