@@ -126,6 +126,7 @@ def create_nonlinearity_data(inputfiles, output_filename="nonlin.dat"):
             hdulist = pyfits.open(filename)
             exptime = hdulist[0].header['EXPTIME']
             expmeas = hdulist[0].header['EXPMEAS']
+            jd      = hdulist[0].header['MJD-OBS']
             print "Working on",filename, "exptime=",exptime
         except:
             print "#####"
@@ -160,7 +161,7 @@ def create_nonlinearity_data(inputfiles, output_filename="nonlin.dat"):
                     std_int = numpy.std(cell_center)
                     #print exptime, extname, ota, cellx, celly, median_int
 
-                    thiscell = [ota, otax, otay, cellx, celly, exptime, expmeas, median_int, mean_int, std_int]
+                    thiscell = [ota, otax, otay, cellx, celly, exptime, expmeas, median_int, mean_int, std_int,jd]
                     # if (ext == 1 and cellx == 0 and celly == 0):
                     #     print thiscell,
                     # else:
