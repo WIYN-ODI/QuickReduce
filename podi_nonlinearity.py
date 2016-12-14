@@ -33,6 +33,7 @@ input files**
   ``podi_nonlinearity.py file1.fits file2.fits``
 
 
+
 **Fit all data and compute non-linearity coefficients**
 
   ``podi_nonlinearity.py -fit (-mint=0.0) (-maxt=100.0) (-minf=10.0) \
@@ -223,7 +224,7 @@ def fit_nonlinearity_sequence(pinit, args):
                           
 def create_nonlinearity_fits(data, outputfits, polyorder=3, 
                              exptime_range=[0.1,2.5], intensity_range=[100,59000],
-                             verbose=False):
+                             verbose=False, reference_exptime=0):
     """
 
     Fit all non-linearity data for all cells, based on data created earlier. 
@@ -250,6 +251,44 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
     result_satlevel = numpy.zeros(shape=(data.shape[0]))
 
     total_working, total_broken = 0, 0
+
+    ### Correct for illumination variations if there is a reference exposure time given
+
+    if (reference_exptime > 0):
+        logger.info ("Determining illumination variations at Texp=%4f" %(reference_exptime))
+
+        jd_baseline = sorted (set (data[ data[:,5] == reference_exptime,10]))
+        timed_median = []
+
+        for jd in jd_baseline:
+            allcells = data[data[:,10 ]== jd, 7]
+            timed_median.append (numpy.nanmedian (allcells))
+
+        timed_median /= numpy.mean (timed_median)
+
+        logger.info ("Illumination realtive variation is from %5.3f to %5.3f" % (numpy.min (timed_median), numpy.max(timed_median)))
+
+        matplotlib.pyplot.plot (jd_baseline, timed_median)
+        matplotlib.pyplot.savefig ("illumcor.png")
+
+        logger.info ("Correcting for illumination stability")
+
+        for datumidx in range (0,data.shape[0]):
+            act_jd = data[ datumidx, 10]
+
+            closestRefJDidx = numpy.abs(jd_baseline - act_jd).argmin()
+
+            # TODO: not only nearest neighbour, but interpolate!
+            correction = timed_median[closestRefJDidx]
+
+            # correct medlevel
+            data[datumidx,7] =   data[datumidx,7] / correction
+            data[datumidx,8] =   data[datumidx,8] / correction
+
+        logger.info ("stability corrections applied")
+
+
+
     for ota in otas:
         logger.info("Starting fits for OTA %02d" % (ota))
         working_cells = 0
@@ -974,6 +1013,8 @@ if __name__ == "__main__":
 
         verbose = cmdline_arg_isset("-verbose")
 
+        linverifyTexp = float(cmdline_arg_set_or_default("-lincorrect", -1))
+
         stdout_write("""
 Creating all fits
 -----------------------------------------------------
@@ -986,7 +1027,7 @@ Creating all fits
         create_nonlinearity_fits(data, outputfile, polyorder=polyorder,
                                  intensity_range=[min_level,max_level],
                                  exptime_range=[min_exptime, max_exptime],
-                                 verbose=verbose
+                                 verbose=verbose, reference_exptime=linverifyTexp
                                  )
         stdout_write("\n")
 
