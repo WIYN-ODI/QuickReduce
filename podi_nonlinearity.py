@@ -221,7 +221,46 @@ def fit_nonlinearity_sequence(pinit, args):
 
     return pfit, uncert
 
-                          
+
+def correct_measurements_forlampvariations (data, reference_exptime):
+    """Correct the intensity measurments for variations of the illuminating source.
+
+        The non-linearity input data should regulary interleave an exposure with a fixed exposure
+        time to monitor the brightness of the illumination. This procedure will assess the variation
+        of these exposures and correct the data array.
+
+
+
+    """
+    logger = logging.getLogger("NL-StbilityCorrect")
+    logger.info ("Determining illumination variations at Texp=%4f" %(reference_exptime))
+
+    jd_baseline = sorted (set (data[ data[:,5] == reference_exptime,10]))
+    timed_median = []
+
+    for jd in jd_baseline:
+        allcells = data[data[:,10 ]== jd, 7]
+        timed_median.append (numpy.nanmedian (allcells))
+
+    timed_median /= numpy.mean (timed_median)
+
+    logger.info ("Illumination realtive variation is from %5.3f to %5.3f" % (numpy.min (timed_median), numpy.max(timed_median)))
+
+    correction = numpy.interp (data[ :, 10], jd_baseline, timed_median)
+
+    matplotlib.pyplot.plot (data[ :, 10], correction, ".", label="obs")
+    matplotlib.pyplot.plot (jd_baseline, timed_median, 'o', label="input")
+    matplotlib.pyplot.savefig ("illumstabilitycor.png")
+
+    data[:,7] =   data[:,7] / correction
+    data[:,8] =   data[:,8] / correction
+
+    logger.info ("illumination stability corrections applied")
+
+
+
+
+
 def create_nonlinearity_fits(data, outputfits, polyorder=3, 
                              exptime_range=[0.1,2.5], intensity_range=[100,59000],
                              verbose=False, reference_exptime=0):
@@ -255,37 +294,8 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
     ### Correct for illumination variations if there is a reference exposure time given
 
     if (reference_exptime > 0):
-        logger.info ("Determining illumination variations at Texp=%4f" %(reference_exptime))
+        correct_measurements_forlampvariations(data, reference_exptime)
 
-        jd_baseline = sorted (set (data[ data[:,5] == reference_exptime,10]))
-        timed_median = []
-
-        for jd in jd_baseline:
-            allcells = data[data[:,10 ]== jd, 7]
-            timed_median.append (numpy.nanmedian (allcells))
-
-        timed_median /= numpy.mean (timed_median)
-
-        logger.info ("Illumination realtive variation is from %5.3f to %5.3f" % (numpy.min (timed_median), numpy.max(timed_median)))
-
-        matplotlib.pyplot.plot (jd_baseline, timed_median)
-        matplotlib.pyplot.savefig ("illumcor.png")
-
-        logger.info ("Correcting for illumination stability")
-
-        for datumidx in range (0,data.shape[0]):
-            act_jd = data[ datumidx, 10]
-
-            closestRefJDidx = numpy.abs(jd_baseline - act_jd).argmin()
-
-            # TODO: not only nearest neighbour, but interpolate!
-            correction = timed_median[closestRefJDidx]
-
-            # correct medlevel
-            data[datumidx,7] =   data[datumidx,7] / correction
-            data[datumidx,8] =   data[datumidx,8] / correction
-
-        logger.info ("stability corrections applied")
 
 
 
@@ -1103,7 +1113,12 @@ Creating all fits
         fitfile = get_clean_cmdline()[5]
         outputfile = get_clean_cmdline()[6]
 
+        linverifyTexp = float(cmdline_arg_set_or_default("-lincorrect", -1))
+
         data = numpy.loadtxt(datafile)
+        if linverifyTexp > 0:
+            correct_measurements_forlampvariations(data, linverifyTexp)
+
         create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile)
 
     elif (cmdline_arg_isset("-nonlinmap")):
