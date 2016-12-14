@@ -235,6 +235,8 @@ def correct_measurements_forlampvariations (data, reference_exptime):
     logger = logging.getLogger("NL-StbilityCorrect")
     logger.info ("Determining illumination variations at Texp=%4f" %(reference_exptime))
 
+    # Compensate for bug in ODI software, where MJD is start pont of exposure, not mid point.
+    data[:,10] += data[:,5] / 2. / 86400.
     jd_baseline = sorted (set (data[ data[:,5] == reference_exptime,10]))
     timed_median = []
 
@@ -244,16 +246,19 @@ def correct_measurements_forlampvariations (data, reference_exptime):
 
     timed_median /= numpy.mean (timed_median)
 
-    logger.info ("Illumination realtive variation is from %5.3f to %5.3f" % (numpy.min (timed_median), numpy.max(timed_median)))
+    logger.info ("Illumination\'s relative variation is from %5.3f to %5.3f" % (numpy.min (timed_median), numpy.max(timed_median)))
 
     correction = numpy.interp (data[ :, 10], jd_baseline, timed_median)
 
     matplotlib.pyplot.plot (data[ :, 10], correction, ".", label="obs")
     matplotlib.pyplot.plot (jd_baseline, timed_median, 'o', label="input")
-    matplotlib.pyplot.savefig ("illumstabilitycor.png")
+    matplotlib.pyplot.title ("Non-linearity stability of %s s exposures vs time" % (reference_exptime))
+    matplotlib.pyplot.xlabel ("Time [JD]")
+    matplotlib.pyplot.ylabel ("normalized Intensity")
+    matplotlib.pyplot.savefig ("illumstabilitytrend.png")
 
     data[:,7] =   data[:,7] / correction
-    data[:,8] =   data[:,8] / correction
+    data[:,8] =   data[:,8] /  correction
 
     logger.info ("illumination stability corrections applied")
 
