@@ -33,6 +33,7 @@ input files**
   ``podi_nonlinearity.py file1.fits file2.fits``
 
 
+
 **Fit all data and compute non-linearity coefficients**
 
   ``podi_nonlinearity.py -fit (-mint=0.0) (-maxt=100.0) (-minf=10.0) \
@@ -126,6 +127,7 @@ def create_nonlinearity_data(inputfiles, output_filename="nonlin.dat"):
             hdulist = pyfits.open(filename)
             exptime = hdulist[0].header['EXPTIME']
             expmeas = hdulist[0].header['EXPMEAS']
+            jd      = hdulist[0].header['MJD-OBS']
             print "Working on",filename, "exptime=",exptime
         except:
             print "#####"
@@ -160,7 +162,7 @@ def create_nonlinearity_data(inputfiles, output_filename="nonlin.dat"):
                     std_int = numpy.std(cell_center)
                     #print exptime, extname, ota, cellx, celly, median_int
 
-                    thiscell = [ota, otax, otay, cellx, celly, exptime, expmeas, median_int, mean_int, std_int]
+                    thiscell = [ota, otax, otay, cellx, celly, exptime, expmeas, median_int, mean_int, std_int,jd]
                     # if (ext == 1 and cellx == 0 and celly == 0):
                     #     print thiscell,
                     # else:
@@ -219,10 +221,54 @@ def fit_nonlinearity_sequence(pinit, args):
 
     return pfit, uncert
 
-                          
+
+def correct_measurements_forlampvariations (data, reference_exptime):
+    """Correct the intensity measurments for variations of the illuminating source.
+
+        The non-linearity input data should regulary interleave an exposure with a fixed exposure
+        time to monitor the brightness of the illumination. This procedure will assess the variation
+        of these exposures and correct the data array.
+
+
+
+    """
+    logger = logging.getLogger("NL-StbilityCorrect")
+    logger.info ("Determining illumination variations at Texp=%4f" %(reference_exptime))
+
+    # Compensate for bug in ODI software, where MJD is start pont of exposure, not mid point.
+    data[:,10] += data[:,5] / 2. / 86400.
+    jd_baseline = sorted (set (data[ data[:,5] == reference_exptime,10]))
+    timed_median = []
+
+    for jd in jd_baseline:
+        allcells = data[data[:,10 ]== jd, 7]
+        timed_median.append (numpy.nanmedian (allcells))
+
+    timed_median /= numpy.mean (timed_median)
+
+    logger.info ("Illumination\'s relative variation is from %5.3f to %5.3f" % (numpy.min (timed_median), numpy.max(timed_median)))
+
+    correction = numpy.interp (data[ :, 10], jd_baseline, timed_median)
+
+    matplotlib.pyplot.plot (data[ :, 10], correction, ".", label="obs")
+    matplotlib.pyplot.plot (jd_baseline, timed_median, 'o', label="input")
+    matplotlib.pyplot.title ("Non-linearity stability of %s s exposures vs time" % (reference_exptime))
+    matplotlib.pyplot.xlabel ("Time [JD]")
+    matplotlib.pyplot.ylabel ("normalized Intensity")
+    matplotlib.pyplot.savefig ("illumstabilitytrend.png")
+
+    data[:,7] =   data[:,7] / correction
+    data[:,8] =   data[:,8] /  correction
+
+    logger.info ("illumination stability corrections applied")
+
+
+
+
+
 def create_nonlinearity_fits(data, outputfits, polyorder=3, 
                              exptime_range=[0.1,2.5], intensity_range=[100,59000],
-                             verbose=False):
+                             verbose=False, reference_exptime=0):
     """
 
     Fit all non-linearity data for all cells, based on data created earlier. 
@@ -249,6 +295,15 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
     result_satlevel = numpy.zeros(shape=(data.shape[0]))
 
     total_working, total_broken = 0, 0
+
+    ### Correct for illumination variations if there is a reference exposure time given
+
+    if (reference_exptime > 0):
+        correct_measurements_forlampvariations(data, reference_exptime)
+
+
+
+
     for ota in otas:
         logger.info("Starting fits for OTA %02d" % (ota))
         working_cells = 0
@@ -943,6 +998,8 @@ if __name__ == "__main__":
 
         verbose = cmdline_arg_isset("-verbose")
 
+        linverifyTexp = float(cmdline_arg_set_or_default("-lincorrect", -1))
+
         stdout_write("""
 Creating all fits
 -----------------------------------------------------
@@ -955,7 +1012,7 @@ Creating all fits
         create_nonlinearity_fits(data, outputfile, polyorder=polyorder,
                                  intensity_range=[min_level,max_level],
                                  exptime_range=[min_exptime, max_exptime],
-                                 verbose=verbose
+                                 verbose=verbose, reference_exptime=linverifyTexp
                                  )
         stdout_write("\n")
 
@@ -1031,7 +1088,12 @@ Creating all fits
         fitfile = get_clean_cmdline()[5]
         outputfile = get_clean_cmdline()[6]
 
+        linverifyTexp = float(cmdline_arg_set_or_default("-lincorrect", -1))
+
         data = numpy.loadtxt(datafile)
+        if linverifyTexp > 0:
+            correct_measurements_forlampvariations(data, linverifyTexp)
+
         create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile)
 
     elif (cmdline_arg_isset("-nonlinmap")):
