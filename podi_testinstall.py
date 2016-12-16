@@ -46,8 +46,9 @@ def check_package(name):
     try:
         import_cmd = "import %s as pkg" % (name)
         exec(import_cmd)
-    except ImportError:
-        print "\nProblem importing %s" % (name)
+
+    except ImportError as e:
+        print "\nProblem importing %s :\n %s" % (name, str(e))
     except:
         print "\nSome error occured while trying to import %s" % (name)
     else:
