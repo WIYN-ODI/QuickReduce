@@ -50,24 +50,42 @@ import pyfits
 import podi_photcalib
 import urllib2
 import concurrent.futures
+
+
+
 def run_query_ps1dr1(minra,maxra,mindec,maxdec,  outfile, maxobj=1000000, mindet=5):
+    """
+    Query STSCI for PS1 DR1 data and write to file if defined.
+
+    :param minra:
+    :param maxra:
+    :param mindec:
+    :param maxdec:
+    :param outfile:
+    :param maxobj:
+    :param mindet:
+    :return:
+    """
 
 
+    # Do not duplicate efforts
     if os.path.isfile(cat_csvfile):
         print ("\t %s  already exists. skipping")
         return None
 
+    # But tell what we are up to
     stdout_write("\nNext: %s ---> RA=%.3f...%.3f, DEC=%.3f...%.3f\n" % (
         outfile, minra, maxra, mindec, maxdec ))
 
+    # Define the url to query catalog
     urltemplate = "http://gsss.stsci.edu/webservices/vo/CatalogSearch.aspx?BBOX=%s,%s,%s,%s&FORMAT=csv&CAT=PS1V3OBJECTS&MINDET=%s&MAXOBJ=%s"
     query = urltemplate % (minra,mindec,maxra,maxdec,mindet,maxobj)
     print "\tqueryurl is: %s" % (query)
 
+    # Get ready and query the url
     answer = []
     try:
         psdr1 = urllib2.urlopen(query, timeout=3600)
-
 
         for line in psdr1:
             answer.append(line)
@@ -79,14 +97,14 @@ def run_query_ps1dr1(minra,maxra,mindec,maxdec,  outfile, maxobj=1000000, mindet
     except Exception as e:
         print ("\tError while retieving catlog data: %s" %(e))
 
+    # We do not want errors. If we hae some, tell about it.
     if "Error" in answer[0]:
-        print "\tError while quering catalog: %s" % (answer[0])
+        print "\tError while querying catalog: %s" % (answer[0])
         return None
-
     else:
         stdout_write("\r\tFound a total of %d stars in PanSTARRS catalog\n" % (len(answer)-2))
 
-
+    # Now w are ready to write the output file. Note that on identified query error conditions, we will not write a file.
     if (outfile != None) and (len (answer) > 1):
         try:
             thefile = open (outfile, 'w')
@@ -135,8 +153,6 @@ if __name__ == "__main__":
 
     if sys.argv[1] == 'process':
         sys.exit (0)
-
-
 
     print ("No suitable action indicated on command line.")
 
