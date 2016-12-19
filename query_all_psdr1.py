@@ -23,6 +23,21 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
+"""
+Usage:
+
+  query_all_psdr1 download [basedir]
+
+  Start to download 1x1 degree chunks of PS1 DR1 from stsci mast via http requests.
+
+  [param] points to the base directory in which the catalog will be generated.
+
+  If not existsnt,a new directory basedir/raw will be created and contain the csv files with stellar photometry.
+
+
+"""
+
+
 import sys
 import numpy
 import os
@@ -34,18 +49,25 @@ import pyfits
 
 import podi_photcalib
 import urllib2
+import concurrent.futures
+def run_query_ps1dr1(minra,maxra,mindec,maxdec,  outfile, maxobj=1000000, mindet=5):
 
 
-def run_query_ps1dr1(minra,maxra,mindec,maxdec, maxobj=1000000, mindet=5, outfile=None):
+    if os.path.isfile(cat_csvfile):
+        print ("\t %s  already exists. skipping")
+        return None
+
+    stdout_write("\nNext: %s ---> RA=%.3f...%.3f, DEC=%.3f...%.3f\n" % (
+        outfile, minra, maxra, mindec, maxdec ))
 
     urltemplate = "http://gsss.stsci.edu/webservices/vo/CatalogSearch.aspx?BBOX=%s,%s,%s,%s&FORMAT=csv&CAT=PS1V3OBJECTS&MINDET=%s&MAXOBJ=%s"
     query = urltemplate % (minra,mindec,maxra,maxdec,mindet,maxobj)
-
     print "\tqueryurl is: %s" % (query)
 
+    answer = []
     try:
         psdr1 = urllib2.urlopen(query, timeout=3600)
-        answer = []
+
 
         for line in psdr1:
             answer.append(line)
@@ -79,26 +101,47 @@ def run_query_ps1dr1(minra,maxra,mindec,maxdec, maxobj=1000000, mindet=5, outfil
 
 
 if __name__ == "__main__":
-    
-    basedir = sys.argv[1]
+
+    #
+    # Step one: download data from STSCI and stage lcoally.
+    #
+
+    if sys.argv[1] == 'download':
+        basedir = sys.argv[2]
+
+        rawDirectory = basedir + "/raw"
+        # Increase this to make new friends at STSCI
+        nsimuquery = 1
 
 
-    for RA in range (0,360):
-        for DEC in range (-30,90):
-            cat_csvfile = basedir + "/raw/" + "ps1dr%03d_%04d.csv" % (RA,DEC)
+        if  not os.path.isdir(rawDirectory):
+           print  "creating missing  %s " % (rawDirectory)
+           os.makedirs (rawDirectory)
 
-        if (not os.path.isfile(cat_csvfile)):
-            stdout_write("\nNext: %s ---> RA=%.3f...%.3f, DEC=%.3f...%.3f\n" % (
-                cat_csvfile, RA, RA+1, DEC, DEC+1 ))
-            run_query_ps1dr1(RA,RA+1, DEC, DEC+1,  outfile=cat_csvfile)
-        else:
-            print "%s already exists. skipping" %(cat_csvfile)
+        pool = concurrent.futures.ThreadPoolExecutor (max_workers=nsimuquery)
+        futures=[]
+        for RA in range (0,360):
+            for DEC in range (-30,90):
+                cat_csvfile = rawDirectory + "/" + "ps1dr%03d_%04d.csv" % (RA,DEC)
+
+                futures.append ( pool.submit (run_query_ps1dr1, RA,RA+1, DEC, DEC+1, cat_csvfile) )
+                break
+            break
+        print ("Now let's wait for the plan to unfold")
+        concurrent.futures.wait(futures)
+        print ("Download done. I love it when a plan comes together.")
+        sys.exit (0)
+
+
+    if sys.argv[1] == 'process':
+        sys.exit (0)
 
 
 
+    print ("No suitable action indicated on command line.")
 
 
-# startat  = int(cmdline_arg_set_or_default("-startat", 0))
+    # startat  = int(cmdline_arg_set_or_default("-startat", 0))
 #
 # # Load the SkyTable so we know in what files to look for the catalog"
 # skytable_filename = "%s/SkyTable.fits" % (basedir)
