@@ -79,6 +79,8 @@ def run_query_ps1dr1(minra,maxra,mindec,maxdec,  outfile, maxobj=1000000, mindet
 
     # Define the url to query catalog
     urltemplate = "http://gsss.stsci.edu/webservices/vo/CatalogSearch.aspx?BBOX=%s,%s,%s,%s&FORMAT=csv&CAT=PS1V3OBJECTS&MINDET=%s&MAXOBJ=%s"
+
+
     query = urltemplate % (minra,mindec,maxra,maxdec,mindet,maxobj)
     print "\tqueryurl is: %s" % (query)
 
@@ -95,7 +97,7 @@ def run_query_ps1dr1(minra,maxra,mindec,maxdec,  outfile, maxobj=1000000, mindet
         psdr1.close()
 
     except Exception as e:
-        print ("\tError while retieving catlog data: %s" %(e))
+        print ("\tError while retrieving catlog data: %s" %(e))
 
     # We do not want errors. If we hae some, tell about it.
     if "Error" in answer[0]:
@@ -104,7 +106,7 @@ def run_query_ps1dr1(minra,maxra,mindec,maxdec,  outfile, maxobj=1000000, mindet
     else:
         stdout_write("\r\tFound a total of %d stars in PanSTARRS catalog\n" % (len(answer)-2))
 
-    # Now w are ready to write the output file. Note that on identified query error conditions, we will not write a file.
+    # Now we are ready to write the output file. Note that on identified query error conditions, we will not write a file.
     if (outfile != None) and (len (answer) > 1):
         try:
             thefile = open (outfile, 'w')
@@ -121,7 +123,7 @@ def run_query_ps1dr1(minra,maxra,mindec,maxdec,  outfile, maxobj=1000000, mindet
 if __name__ == "__main__":
 
     #
-    # Step one: download data from STSCI and stage lcoally.
+    # Step one: download data from STSCI and stage locally.
     #
 
     if sys.argv[1] == 'download':
@@ -147,7 +149,7 @@ if __name__ == "__main__":
             break
         print ("Now let's wait for the plan to unfold")
         concurrent.futures.wait(futures)
-        print ("Download done. I love it when a plan comes together.")
+        print ("Download done.")
         sys.exit (0)
 
 
