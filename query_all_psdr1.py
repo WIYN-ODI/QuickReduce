@@ -78,7 +78,7 @@ def run_query_ps1dr1(minra,maxra,mindec,maxdec,  outfile, maxobj=1000000, mindet
         outfile, minra, maxra, mindec, maxdec ))
 
     # Define the url to query catalog
-    urltemplate = "http://gsss.stsci.edu/webservices/vo/CatalogSearch.aspx?BBOX=%s,%s,%s,%s&FORMAT=csv&CAT=PS1V3OBJECTS&MINDET=%s&MAXOBJ=%s"
+    urltemplate = "http://gsss.stsci.edu/webservices/vo/CatalogSearch.aspx?BBOX=%.1f,%.1f,%.1f,%.1f&FORMAT=csv&CAT=PS1V3OBJECTS&MINDET=%s&MAXOBJ=%s"
 
 
     query = urltemplate % (minra,mindec,maxra,maxdec,mindet,maxobj)
@@ -131,7 +131,7 @@ if __name__ == "__main__":
 
         rawDirectory = basedir + "/raw"
         # Increase this to make new friends at STSCI
-        nsimuquery = 1
+        nsimuquery = 25
 
 
         if  not os.path.isdir(rawDirectory):
@@ -140,12 +140,13 @@ if __name__ == "__main__":
 
         pool = concurrent.futures.ThreadPoolExecutor (max_workers=nsimuquery)
         futures=[]
-        for RA in range (0,360):
-            for DEC in range (-30,90):
-                cat_csvfile = rawDirectory + "/" + "ps1dr%03d_%04d.csv" % (RA,DEC)
+        increment = 0.1
+        for RA in numpy.arange (0,360, increment):
+            for DEC in numpy.arange (-30,90, increment):
+                cat_csvfile = rawDirectory + "/" + "ps1dr%05d_%05d.csv" % (RA*10,DEC*10)
 
-                futures.append ( pool.submit (run_query_ps1dr1, RA,RA+1, DEC, DEC+1, cat_csvfile) )
-                break
+                futures.append ( pool.submit (run_query_ps1dr1, RA,RA+increment, DEC, DEC+increment, cat_csvfile) )
+                #break
             break
         print ("Now let's wait for the plan to unfold")
         concurrent.futures.wait(futures)
