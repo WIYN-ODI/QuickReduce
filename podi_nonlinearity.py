@@ -217,8 +217,9 @@ def fit_nonlinearity_sequence(pinit, args):
     fit = scipy.optimize.leastsq(err_fct, pinit, args=args, full_output=1)
 
     pfit = fit[0]
-    uncert = numpy.sqrt(numpy.diag(fit[1]))
 
+    uncert = numpy.sqrt(numpy.diag(fit[1]))
+    print pfit, uncert
     return pfit, uncert
 
 
@@ -241,7 +242,10 @@ def correct_measurements_forlampvariations (data, reference_exptime):
     timed_median = []
 
     for jd in jd_baseline:
-        allcells = data[data[:,10 ]== jd, 7]
+        # We only use the measurements from OTA 11, which seems to be most resilient to residual
+        # charge after saturation.
+
+        allcells = data[(data[:,10 ]== jd) & (data[:,0] == 11 ), 7]
         timed_median.append (numpy.nanmedian (allcells))
 
     timed_median /= numpy.mean (timed_median)
@@ -1023,14 +1027,14 @@ def compare_nonlinearity (coeff1_name, coeff2_name):
             for cx in range (0,8):
                 for cy in range (0,8):
                     ratio_2.append (coeff1[cx,cy][0] / coeff2[cx,cy][0])
-                    ratio_3.append (coeff1[cx,cy][1] / coeff2[cx,cy][1])
+         #           ratio_3.append (coeff1[cx,cy][1] / coeff2[cx,cy][1])
 
             #print ratio_3
             ax.plot (ratio_2, 'ro', label = '^2')
-            ax.plot (ratio_3, 'go', label = '^3')
+        #    ax.plot (ratio_3, 'go', label = '^3')
 
             all = numpy.concatenate ( (ratio_2,ratio_3),0)
-            ax.set_ylim ([numpy.nanpercentile (all,1), numpy.nanpercentile (all,99)])
+            ax.set_ylim ([numpy.nanpercentile (all,5), numpy.nanpercentile (all,95)])
             ax.set_title ("Coeff ratio for OTA %s" % (ota))
             ax.set_xlabel ("cell xy")
             ax.set_ylabel ("ratio of coeff ^2, ^3")
