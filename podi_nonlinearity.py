@@ -700,11 +700,11 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
         return y
 
     colors = ('red', 'green', 'blue', 'grey')
-    poly_fits = [None] * 3 #len(colors)
+    poly_fits = [None] * 2 #len(colors)
 
 #    error_range = [-0.4, 0.4]
     error_range = [-0.25, 0.25]
-
+    error_range = [0.98, 1.02]
     # Draw zero line
     hline_x = numpy.linspace(0,70,700)
     hline_y = numpy.zeros_like(hline_x)
@@ -732,7 +732,7 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
         label = "fit-order: %d" % (i+1)
         ax1.plot(fit_x/fluxscaling, evaluate_poly(fit_x, fit), label=label, c=colors[i])
         
-        timediff = exptimes - evaluate_poly(medlevel, fit)
+        timediff = exptimes / evaluate_poly(medlevel, fit)
         within_errors = (timediff < error_range[1]) & (timediff > error_range[0])
 
 #        ax2.scatter(medlevel[within_errors]/fluxscaling, timediff[within_errors], c=colors[i])
@@ -765,10 +765,10 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
     ax1.get_xaxis().set_ticklabels([]) #set_visible(False)
     ax1.set_ylabel("exposure time t_exp (~ true flux)")
     
-    ax2.set_ylabel("delta t_exp")
+    ax2.set_ylabel("ratio t_exp")
     ax2.set_xlabel("observed flux level (x1000 cts)")
 #    ax2.set_ylim([-0.27,0.27])
-    ax2.set_ylim([1.1*error_range[0], 1.1*error_range[1]])
+    ax2.set_ylim([error_range[0], error_range[1]])
     fig.savefig(outputfile)
 
     return
