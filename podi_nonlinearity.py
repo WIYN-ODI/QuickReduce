@@ -352,7 +352,7 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
                 idx_half_max = numpy.argmax(half_max_exptime)
                 t_half_max = exptime[idx_half_max] #numpy.max(exptime[medlevel <= half_max])
                 linear_slope = medlevel[idx_half_max] / t_half_max
-                logger.debug("linear slope: %f" % (linear_slope))
+                logger.info("linear slope: %f" % (linear_slope))
 
                 #
                 # Now go backwards from the largest exposure time, and check if 
@@ -1022,18 +1022,35 @@ def compare_nonlinearity (coeff1_name, coeff2_name):
             ratio_3 = []
             for cx in range (0,8):
                 for cy in range (0,8):
-                    ratio_2.append (coeff1[cx,cy][0] /coeff2[cx,cy][0])
-                    ratio_3.append (coeff1[cx,cy][1] /coeff2[cx,cy][1])
+                    ratio_2.append (coeff1[cx,cy][0] / coeff2[cx,cy][0])
+                    ratio_3.append (coeff1[cx,cy][1] / coeff2[cx,cy][1])
+
             #print ratio_3
-            ax.plot (ratio_2, 'ro')
-            ax.plot (ratio_3, 'go')
-            ax.set_ylim ([0,2])
+            ax.plot (ratio_2, 'ro', label = '^2')
+            ax.plot (ratio_3, 'go', label = '^3')
+
+            all = numpy.concatenate ( (ratio_2,ratio_3),0)
+            ax.set_ylim ([numpy.nanpercentile (all,1), numpy.nanpercentile (all,99)])
             ax.set_title ("Coeff ratio for OTA %s" % (ota))
             ax.set_xlabel ("cell xy")
             ax.set_ylabel ("ratio of coeff ^2, ^3")
 
 
+
+
+
     matplotlib.pyplot.savefig ("nonlinearitycomparison.png")
+
+
+def plot_rawdata (datafiles):
+
+    for infile in datafiles:
+        data = numpy.loadtxt (infile)
+
+        matplotlib.pyplot.plot (data [:,5], data[:,7],  "." , label = infile)
+
+    matplotlib.pyplot.legend ()
+    matplotlib.pyplot.savefig ("rawdata.png")
 
 if __name__ == "__main__":
 
@@ -1187,6 +1204,9 @@ Creating all fits
         filename = find_nonlinearity_coefficient_file(target_mjd, options)
         print filename
 
+    elif (cmdline_arg_isset("-plotdata")):
+        datafiles = get_clean_cmdline()[1:]
+        plot_rawdata (datafiles)
     else:
 
         # Read the input directory that contains the individual OTA files
