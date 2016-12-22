@@ -1006,6 +1006,35 @@ def find_nonlinearity_coefficient_file(target_mjd, options):
     return os.path.abspath(full_filename)
 
 
+def compare_nonlinearity (coeff1_name, coeff2_name):
+
+    f,axes = matplotlib.pyplot.subplots (6,5,figsize=(20,20), sharex='col', sharey='row')
+
+    for xx in range (1,6):
+        for yy in range (1,7):
+            ota = yy  + xx*10
+            coeff1 = load_nonlinearity_correction_table(coeff1_name, ota)['coeffs']
+            coeff2 = load_nonlinearity_correction_table(coeff2_name, ota)['coeffs']
+            ax = axes[5-(yy-1),xx-1]
+
+
+            ratio_2 = []
+            ratio_3 = []
+            for cx in range (0,8):
+                for cy in range (0,8):
+                    ratio_2.append (coeff1[cx,cy][0] /coeff2[cx,cy][0])
+                    ratio_3.append (coeff1[cx,cy][1] /coeff2[cx,cy][1])
+            #print ratio_3
+            ax.plot (ratio_2, 'ro')
+            ax.plot (ratio_3, 'go')
+            ax.set_ylim ([0,2])
+            ax.set_title ("Coeff ratio for OTA %s" % (ota))
+            ax.set_xlabel ("cell xy")
+            ax.set_ylabel ("ratio of coeff ^2, ^3")
+
+
+    matplotlib.pyplot.savefig ("nonlinearitycomparison.png")
+
 if __name__ == "__main__":
 
     options = read_options_from_commandline(None)
@@ -1051,6 +1080,12 @@ Creating all fits
         ota = int(get_clean_cmdline()[2])
         coeffs = load_nonlinearity_correction_table(fitsfile, ota)
         print coeffs
+
+
+    elif (cmdline_arg_isset("-compare")):
+        coeff1 = get_clean_cmdline()[1]
+        coeff2 = get_clean_cmdline()[2]
+        compare_nonlinearity (coeff1, coeff2)
 
     elif (cmdline_arg_isset("-correctraw")):
         infile = get_clean_cmdline()[1]
