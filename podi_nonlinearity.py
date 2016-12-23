@@ -217,8 +217,9 @@ def fit_nonlinearity_sequence(pinit, args):
     fit = scipy.optimize.leastsq(err_fct, pinit, args=args, full_output=1)
 
     pfit = fit[0]
-    uncert = numpy.sqrt(numpy.diag(fit[1]))
 
+    uncert = numpy.sqrt(numpy.diag(fit[1]))
+    print pfit, uncert
     return pfit, uncert
 
 
@@ -241,7 +242,10 @@ def correct_measurements_forlampvariations (data, reference_exptime):
     timed_median = []
 
     for jd in jd_baseline:
-        allcells = data[data[:,10 ]== jd, 7]
+        # We only use the measurements from OTA 11, which seems to be most resilient to residual
+        # charge after saturation.
+
+        allcells = data[(data[:,10 ]== jd) & (data[:,0] == 11 ), 7]
         timed_median.append (numpy.nanmedian (allcells))
 
     timed_median /= numpy.mean (timed_median)
@@ -352,7 +356,7 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
                 idx_half_max = numpy.argmax(half_max_exptime)
                 t_half_max = exptime[idx_half_max] #numpy.max(exptime[medlevel <= half_max])
                 linear_slope = medlevel[idx_half_max] / t_half_max
-                logger.debug("linear slope: %f" % (linear_slope))
+                logger.info("linear slope: %f" % (linear_slope))
 
                 #
                 # Now go backwards from the largest exposure time, and check if 
@@ -696,11 +700,11 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
         return y
 
     colors = ('red', 'green', 'blue', 'grey')
-    poly_fits = [None] * 3 #len(colors)
+    poly_fits = [None] * 2 #len(colors)
 
 #    error_range = [-0.4, 0.4]
     error_range = [-0.25, 0.25]
-
+    error_range = [0.98, 1.02]
     # Draw zero line
     hline_x = numpy.linspace(0,70,700)
     hline_y = numpy.zeros_like(hline_x)
@@ -728,7 +732,7 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
         label = "fit-order: %d" % (i+1)
         ax1.plot(fit_x/fluxscaling, evaluate_poly(fit_x, fit), label=label, c=colors[i])
         
-        timediff = exptimes - evaluate_poly(medlevel, fit)
+        timediff = exptimes / evaluate_poly(medlevel, fit)
         within_errors = (timediff < error_range[1]) & (timediff > error_range[0])
 
 #        ax2.scatter(medlevel[within_errors]/fluxscaling, timediff[within_errors], c=colors[i])
@@ -761,10 +765,10 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
     ax1.get_xaxis().set_ticklabels([]) #set_visible(False)
     ax1.set_ylabel("exposure time t_exp (~ true flux)")
     
-    ax2.set_ylabel("delta t_exp")
+    ax2.set_ylabel("ratio t_exp")
     ax2.set_xlabel("observed flux level (x1000 cts)")
 #    ax2.set_ylim([-0.27,0.27])
-    ax2.set_ylim([1.1*error_range[0], 1.1*error_range[1]])
+    ax2.set_ylim([error_range[0], error_range[1]])
     fig.savefig(outputfile)
 
     return
@@ -976,6 +980,56 @@ def plot_cellbycell_map(fitfile, outputfile, minmax, labels=True, fontsize=2):
     return
 
 
+
+
+
+def compare_nonlinearity (coeff1_name, coeff2_name):
+
+    f,axes = matplotlib.pyplot.subplots (6,5,figsize=(20,20), sharex='col', sharey='row')
+
+    for xx in range (1,6):
+        for yy in range (1,7):
+            ota = yy  + xx*10
+            coeff1 = load_nonlinearity_correction_table(coeff1_name, ota)['coeffs']
+            coeff2 = load_nonlinearity_correction_table(coeff2_name, ota)['coeffs']
+            ax = axes[5-(yy-1),xx-1]
+
+
+            ratio_2 = []
+            ratio_3 = []
+            for cx in range (0,8):
+                for cy in range (0,8):
+                    ratio_2.append (coeff1[cx,cy][0] / coeff2[cx,cy][0])
+         #           ratio_3.append (coeff1[cx,cy][1] / coeff2[cx,cy][1])
+
+            #print ratio_3
+            ax.plot (ratio_2, 'ro', label = '^2')
+        #    ax.plot (ratio_3, 'go', label = '^3')
+
+            all = numpy.concatenate ( (ratio_2,ratio_3),0)
+            ax.set_ylim ([numpy.nanpercentile (all,5), numpy.nanpercentile (all,95)])
+            ax.set_title ("Coeff ratio for OTA %s" % (ota))
+            ax.set_xlabel ("cell xy")
+            ax.set_ylabel ("ratio of coeff ^2, ^3")
+
+
+
+
+
+    matplotlib.pyplot.savefig ("nonlinearitycomparison.png")
+
+
+def plot_rawdata (datafiles):
+
+    for infile in datafiles:
+        data = numpy.loadtxt (infile)
+
+        matplotlib.pyplot.plot (data [:,5], data[:,7],  "." , label = infile)
+
+    matplotlib.pyplot.legend ()
+    matplotlib.pyplot.savefig ("rawdata.png")
+
+
 if __name__ == "__main__":
 
     options = read_options_from_commandline(None)
@@ -1021,6 +1075,12 @@ Creating all fits
         ota = int(get_clean_cmdline()[2])
         coeffs = load_nonlinearity_correction_table(fitsfile, ota)
         print coeffs
+
+
+    elif (cmdline_arg_isset("-compare")):
+        coeff1 = get_clean_cmdline()[1]
+        coeff2 = get_clean_cmdline()[2]
+        compare_nonlinearity (coeff1, coeff2)
 
     elif (cmdline_arg_isset("-correctraw")):
         infile = get_clean_cmdline()[1]
@@ -1122,6 +1182,9 @@ Creating all fits
     #     filename = find_nonlinearity_coefficient_file(target_mjd, options)
     #     print filename
 
+    elif (cmdline_arg_isset("-plotdata")):
+        datafiles = get_clean_cmdline()[1:]
+        plot_rawdata (datafiles)
     else:
 
         # Read the input directory that contains the individual OTA files
