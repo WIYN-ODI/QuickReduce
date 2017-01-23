@@ -21,7 +21,6 @@
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
-#
 
 """
 Usage:
@@ -44,16 +43,32 @@ import os
 import os.path
 import math
 
+sys.path.append(os.path.dirname(__file__)+"/../")
 from podi_definitions import *
 import pyfits
 
 import podi_photcalib
 import urllib2
-import concurrent.futures
+# import concurrent.futures
+
+import multiprocessing
 
 
+def parallel_handler(queue, maxobj=1000000, mindet=5, id=-1):
 
-def run_query_ps1dr1(minra,maxra,mindec,maxdec,  outfile, maxobj=1000000, mindet=5):
+    while (True):
+        cmd = queue.get()
+        if (cmd is None):
+            return
+
+        (minra,maxra,mindec,maxdec,  outfile)  = cmd
+
+        run_query_ps1dr1(minra,maxra,mindec,maxdec,  outfile, maxobj=maxobj,
+                         mindet=mindet, id=id)
+
+
+def run_query_ps1dr1(minra,maxra,mindec,maxdec,  outfile, maxobj=1000000,
+                     mindet=5, id=None):
     """
     Query STSCI for PS1 DR1 data and write to file if defined.
 
@@ -67,22 +82,28 @@ def run_query_ps1dr1(minra,maxra,mindec,maxdec,  outfile, maxobj=1000000, mindet
     :return:
     """
 
+    worker_id = ""
+    if (id is not None):
+        worker_id = "Worker %3d: " % (id)
 
     # Do not duplicate efforts
     if os.path.isfile(cat_csvfile):
-        print ("\t %s  already exists. skipping")
+        #print ("\t %s  already exists. skipping" % (cat_csvfile))
+        return None
+
+    if (numpy.random.random() < 0.9):
         return None
 
     # But tell what we are up to
-    stdout_write("\nNext: %s ---> RA=%.3f...%.3f, DEC=%.3f...%.3f\n" % (
-        outfile, minra, maxra, mindec, maxdec ))
+    # stdout_write("\nNext: %s ---> RA=%.3f...%.3f, DEC=%.3f...%.3f\n" % (
+    #     outfile, minra, maxra, mindec, maxdec ))
 
     # Define the url to query catalog
     urltemplate = "http://gsss.stsci.edu/webservices/vo/CatalogSearch.aspx?BBOX=%.1f,%.1f,%.1f,%.1f&FORMAT=csv&CAT=PS1V3OBJECTS&MINDET=%s&MAXOBJ=%s"
 
 
     query = urltemplate % (minra,mindec,maxra,maxdec,mindet,maxobj)
-    print "\tqueryurl is: %s" % (query)
+    #print "\tqueryurl is: %s" % (query)
 
     # Get ready and query the url
     answer = []
@@ -91,8 +112,9 @@ def run_query_ps1dr1(minra,maxra,mindec,maxdec,  outfile, maxobj=1000000, mindet
 
         for line in psdr1:
             answer.append(line)
-            if (((len(answer)-1)%100) == 0):
-                stdout_write("\r\tFound %d stars so far ..." % (len(answer)-1))
+            #if (((len(answer)-1)%100) == 0):
+            #    stdout_write("\r\tFound %d stars so far ..." % (len(
+            # answer)-1))
 
         psdr1.close()
 
@@ -101,18 +123,21 @@ def run_query_ps1dr1(minra,maxra,mindec,maxdec,  outfile, maxobj=1000000, mindet
 
     # We do not want errors. If we hae some, tell about it.
     if "Error" in answer[0]:
-        print "\tError while querying catalog: %s" % (answer[0])
+        print("\tError while querying catalog: %s" % (answer[0]))
         return None
     else:
-        stdout_write("\r\tFound a total of %d stars in PanSTARRS catalog\n" % (len(answer)-2))
+        print("%sRA=%5.1f ... %5.1f, DEC= %+5.1f ... %+5.1f ==> %5d stars" % (
+            worker_id, minra, maxra, mindec, maxdec, len(answer)-2))
 
     # Now we are ready to write the output file. Note that on identified query error conditions, we will not write a file.
-    if (outfile != None) and (len (answer) > 1):
+    if (outfile is not None) and (len (answer) > 0):
         try:
-            thefile = open (outfile, 'w')
-            for line in answer:
-                thefile.write (line)
-            thefile.close()
+            with  open (outfile, 'w') as thefile:
+                thefile.write(os.linesep.join(answer))
+            # thefile =
+            # for line in answer:
+            #     thefile.write (line)
+            # thefile.close()
         except Exception as e:
             print ("Error opening file: %s:\n %s" % (outfile, e) )
 
@@ -133,21 +158,62 @@ if __name__ == "__main__":
         # Increase this to make new friends at STSCI
         nsimuquery = 25
 
+        try:
+            thres = float(sys.argv[3])
+        except:
+            thres = 0.9
 
         if  not os.path.isdir(rawDirectory):
-           print  "creating missing  %s " % (rawDirectory)
+           print ("creating missing  %s " % (rawDirectory))
            os.makedirs (rawDirectory)
+
+        queue = multiprocessing.JoinableQueue()
+        increment = 0.1
+        print("Filling up work queue")
+        for RA in numpy.arange (0,360, increment):
+            sys.stdout.write("\rRA: %6.1f" % (RA))
+            sys.stdout.flush()
+            for DEC in numpy.arange (-30,90, increment):
+
+                cat_csvfile = rawDirectory + "/" + "ps1dr%05d_%05d.csv" % (RA*10,DEC*10)
+
+                if (numpy.random.random() < thres):
+                    continue
+                if (os.path.isfile(cat_csvfile)):
+                    continue
+
+
+                queue.put( (RA, RA+increment, DEC, DEC+increment, cat_csvfile))
+
+                #futures.append ( pool.submit (run_query_ps1dr1, RA,
+                # RA+increment, DEC, DEC+increment, cat_csvfile) )
+
+                #break
+
+        print("Starting workers")
+        processes = []
+        for i in range(nsimuquery):
+            kwargs = dict(
+                queue=queue,
+                maxobj=1000000,
+                mindet=5,
+                id=i+1
+            )
+            p = multiprocessing.Process(
+                target=parallel_handler,
+                kwargs=kwargs,
+            )
+            p.start()
+            processes.append(p)
+            queue.put(None)
+
+
+        for p in processes:
+            p.join()
 
         pool = concurrent.futures.ThreadPoolExecutor (max_workers=nsimuquery)
         futures=[]
-        increment = 0.1
-        for RA in numpy.arange (0,360, increment):
-            for DEC in numpy.arange (-30,90, increment):
-                cat_csvfile = rawDirectory + "/" + "ps1dr%05d_%05d.csv" % (RA*10,DEC*10)
-
-                futures.append ( pool.submit (run_query_ps1dr1, RA,RA+increment, DEC, DEC+increment, cat_csvfile) )
-                #break
-            break
+            #break
         print ("Now let's wait for the plan to unfold")
         concurrent.futures.wait(futures)
         print ("Download done.")
