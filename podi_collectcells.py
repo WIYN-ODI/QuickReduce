@@ -115,7 +115,6 @@ Available flags
   the RA-ZPX solution is changed into a simple RA-TAN system without any 
   distortion factors. Mostly for debugging and testing.
 
-* **-pointing**
 
 * **-dither**
 
@@ -1103,10 +1102,10 @@ def collect_reduce_ota(filename,
                         if (options['verbose']): print "Working on fringe scaling for",extname
                         fringe_scaling = podi_fringing.get_fringe_scaling(merged, ext.data, fringe_vector_file)
                         data_products['fringe-template'] = ext.data
-                        if (not type(fringe_scaling) == type(None)):
+                        if (fringe_scaling is not None):
                             good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])
-                            fringe_scaling_median = numpy.median(good_scalings)
-                            fringe_scaling_std    = numpy.std(good_scalings)
+                            fringe_scaling_median = numpy.nanmedian(good_scalings)
+                            fringe_scaling_std    = numpy.nanstd(good_scalings)
                         break
                 hdu.header.add_history("fringe map: %s" % fringe_filename)
                 hdu.header.add_history("fringe vector: %s" % fringe_vector_file)
@@ -1115,9 +1114,13 @@ def collect_reduce_ota(filename,
                 reduction_log.no_data('fringe')
             #print "FRNG_SCL", fringe_scaling_median
             #print "FRNG_STD", fringe_scaling_std
-            hdu.header["FRNG_SCL"] = fringe_scaling_median
-            hdu.header["FRNG_STD"] = fringe_scaling_std
-            hdu.header["FRNG_OK"] = (type(fringe_scaling) != type(None))
+            if (numpy.isfinite(fringe_scaling_median) and numpy.isfinite(fringe_scaling_std)):
+                hdu.header["FRNG_SCL"] = fringe_scaling_median
+                hdu.header["FRNG_STD"] = fringe_scaling_std
+                hdu.header["FRNG_OK"] = (fringe_scaling is not None)
+            else:
+                logger.error("Unable to determine fringe scaling (encountered too many NaN values")
+                reduction_log.fail('fringe')
 
         # Insert the DETSEC header so IRAF understands where to put the extensions
         start_x = ota_c_x * size_x #4096
