@@ -389,6 +389,8 @@ def apply_wcs_distortion(filename, hdu, binning, reduction_log=None):
         elif (hdu.header['CRVAL1'] > 360.):
             hdu.header['CRVAL1'] = math.fmod(hdu.header['CRVAL1'], 360.0)
 
+        if ('RADESYS' in hdu.header):
+            hdu.header['RADESYS'] = 'ICRS'
     except:
         logger.critical("something went wrong while applying the WCS model")
         reduction_log.partial_fail('wcs_dist')
@@ -517,6 +519,8 @@ def collect_reduce_ota(filename,
         # Add default headers here
         #
         hdu.header['SOFTBIN'] = 0
+        if ('RADESYS' in hdu.header):
+            del hdu.header['RADESYS']
         add_fits_header_title(hdu.header, "Pipeline added/modified metadata", 'SOFTBIN')
 
         # Also read the MJD for this frame. This will be needed later for the correction
