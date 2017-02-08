@@ -15,7 +15,7 @@ setup(
                            "cython_src/lacosmics.c",
                        ],
                   include_dirs=["cython_src", numpy.get_include()],
-                  libraries=['gslcblas', "gsl", "m"]
+                  libraries=['gsl', 'gslcblas',  "m"]
                   )
     ]
 )

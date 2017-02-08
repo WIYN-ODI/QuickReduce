@@ -301,8 +301,8 @@ def draw_guidestarplot(filelist, title=None, plot_filename=None):
 
     # sex_cmd = """
 
-    # %(sex)s -c %(qr_base)s/.config/wcsfix.sex 
-    # -PARAMETERS_NAME %(qr_base)s/.config/wcsfix.sexparam
+    # %(sex)s -c %(qr_base)s/config/wcsfix.sex
+    # -PARAMETERS_NAME %(qr_base)s/config/wcsfix.sexparam
     # -CATALOG_NAME %(catfile)s
     # %(infile)s """ % {
     #     'sex': sitesetup.sextractor,

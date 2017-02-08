@@ -1134,7 +1134,11 @@ def optimize_wcs_solution(ota_cat, hdr, optimize_header_keywords):
 
     p_init = [0] * len(optimize_header_keywords)
     for i in range(len(optimize_header_keywords)):
-        p_init[i] = hdr[optimize_header_keywords[i]]
+        key = optimize_header_keywords[i]
+        if (key in hdr):
+            p_init[i] = hdr[key]
+        else:
+            p_init[i] = 0.
 
     fit_args = (src_xy, ref_radec, astwcs, optimize_header_keywords)
     fit = scipy.optimize.leastsq(minimize_wcs_error,

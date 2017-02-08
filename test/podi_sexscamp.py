@@ -53,7 +53,7 @@ scamp_params = {
 if __name__ == "__main__":
 
     dir, exe = os.path.split(sys.argv[0])
-    param_file = "%s/.config/sex4scamp.param" % (dir)
+    param_file = "%s/config/sex4scamp.param" % (dir)
 
     for filename in sys.argv[1:]:
         

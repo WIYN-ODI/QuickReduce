@@ -1354,7 +1354,7 @@ podi_makecalibrations.py input.list calib-directory
                         logger.info("PG-dir: %s" % (pupilghost_dir))
                         flat_hdus[0].header['PG_CORR'] = (False, "PG correction applied")
                         add_fits_header_title(flat_hdus[0].header, "Pupilghost correction", 'PG_CORR')
-                        if (not pupilghost_dir == None): #options['pupilghost_dir'] != None):
+                        if (pupilghost_dir != False and pupilghost_dir is not None): #options['pupilghost_dir'] != None):
                             # Reset the pupil ghost option to enable it here
                             options['pupilghost_dir'] = pupilghost_dir
 

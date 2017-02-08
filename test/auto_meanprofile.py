@@ -113,8 +113,8 @@ def create_psf_profiles(infilename, outdir_base, width):
         logger.info("This is not a ODI frame, running source extractor")
         fitsfile = infilename 
         catfile = infilename[:-5]+".cat" 
-        sex_config_file = "%s/.config/wcsfix.sex" % (sitesetup.exec_dir)
-        parameters_file = "%s/.config/wcsfix.sexparam" % (sitesetup.exec_dir)
+        sex_config_file = "%s/config/wcsfix.sex" % (sitesetup.exec_dir)
+        parameters_file = "%s/config/wcsfix.sexparam" % (sitesetup.exec_dir)
         sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s" % (
             sitesetup.sextractor, sex_config_file, parameters_file, catfile, 
             fitsfile)

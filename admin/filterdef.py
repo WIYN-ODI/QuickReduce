@@ -26,12 +26,19 @@ if __name__ == "__main__":
 
     convolve_file = []
     convolve_data = []
-    for x in sys.argv[1:]:
+    input_filelist = []
+    for x in get_clean_cmdline():
         if (x.startswith("+")):
             filename = x[1:]
             if (os.path.isfile(filename)):
                 convolve_file.append(filename)
                 convolve_data.append(numpy.loadtxt(filename))
+        elif (os.path.isfile(x)):
+            input_filelist.append(x)
+
+    cutoff = float(cmdline_arg_set_or_default("-cutoff", 0))
+    wlmin = float(cmdline_arg_set_or_default("-min", -1e9))
+    wlmax = float(cmdline_arg_set_or_default("-max", 1e9))
 
     fig = matplotlib.pyplot.figure()
     ax = fig.add_subplot(111)
@@ -41,9 +48,7 @@ if __name__ == "__main__":
     
     pycode = []
     pycode.append("# filter-name: mean_pos, centerpos, fwhm, left_fwhm, right_fwhm, max_amplitude, mean_throughput, total_area, left-5%, right-5%")
-    for filterfile in sys.argv[1:]:
-        if (filterfile.startswith("+")):
-            continue
+    for filterfile in input_filelist:
 
         logger.info("Working on file %s" % (filterfile))
 
@@ -55,8 +60,22 @@ if __name__ == "__main__":
 
         #print data
 
-        # Now find, for each data point, the width of this datapoint
+        # Apply response cutoff to keep noise in the transmission curve from affecting the filter definition
+        response = data[:,1]
+        data[:,1][response < cutoff] = 0.
+        numpy.savetxt(filterfile+".trunc1", data)
 
+        # select only the range with response > 0 and within valid wavelength range
+        good_data = (response > 0) & (data[:,0]>wlmin) & (data[:,0] < wlmax)
+        index = numpy.arange(data.shape[0])
+        left_edge = numpy.max([0, numpy.min(index[good_data])-1])
+        right_edge = numpy.min([data.shape[0], numpy.max(index[good_data])+1])
+        print left_edge, right_edge
+        data = data[left_edge:right_edge+1]
+        numpy.savetxt(filterfile+".trunc", data)
+
+
+        # Now find, for each data point, the width of this datapoint
         width = numpy.zeros(shape=(data.shape[0]))
 
         #print data.shape[0]
@@ -135,7 +154,7 @@ if __name__ == "__main__":
         )
         
         # Save the corrected filter curve
-        numpy.savetxt("all_components/%s.final" % (fn), data)
+        numpy.savetxt("%s.final" % (fn), data)
 
     print "\n\n\n"
     print "\n".join(pycode)+"\n"

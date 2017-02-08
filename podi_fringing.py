@@ -167,7 +167,7 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False,
         -DETECT_THRESH 3
         -BACK_SIZE"""
 
-    conf_file = "%s/.config/fringing.conf" % (sitesetup.exec_dir)
+    conf_file = "%s/config/fringing.conf" % (sitesetup.exec_dir)
     processes = []
     for i in range(sitesetup.number_cpus):
         logger.debug("Starting process #%d" % (i+1))

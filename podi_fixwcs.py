@@ -422,7 +422,7 @@ def get_overall_best_guess(frame_shift):
 def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref"):
 
     tmp, dummy = os.path.split(sys.argv[0])
-    dot_config_dir = tmp + "/.config/"
+    dot_config_dir = tmp + "/config/"
     print dot_config_dir
     
     hdulist = pyfits.open(fitsfile)

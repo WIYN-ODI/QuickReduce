@@ -46,8 +46,9 @@ def check_package(name):
     try:
         import_cmd = "import %s as pkg" % (name)
         exec(import_cmd)
-    except ImportError:
-        print "\nProblem importing %s" % (name)
+
+    except ImportError as e:
+        print "\nProblem importing %s :\n %s" % (name, str(e))
     except:
         print "\nSome error occured while trying to import %s" % (name)
     else:
@@ -258,6 +259,10 @@ def update_sitesetup(change_setup=True, change_catalogs=True, grab_only=False):
                    "Emergency timeout to prevent a stalled program when a child-process dies", 
                    300, False, config_array, grab_only=grab_only)
     
+    changes = changes | ask_for_option('mastercal_cache',
+                   "Directory to hold local, WIYN-delivered mastercal products",
+                   "/tmp", True, config_array)
+
     config_array.append("")
 
     # print config_array
