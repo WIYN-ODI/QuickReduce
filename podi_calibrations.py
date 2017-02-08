@@ -87,6 +87,7 @@ class ODICalibrations(object):
     # general class utility functions
     #
     def verify_fn(self, fn):
+        self.logger.debug("Checking if file exists: %s" % (fn))
         if (fn is None):
             return None
         if (os.path.isfile(fn)):
