@@ -2531,7 +2531,7 @@ def compute_wcs_quality(odi_2mass_matched, hdr=None):
     d_combined = numpy.hypot(d_dec, d_ra)
     valid = numpy.isfinite(d_combined)
     if (numpy.sum(valid) <= 1):
-        clip_rms_dra, cli_rms_ddec, cli_rms_comb = -1, -1, -1
+        clip_rms_dra, clip_rms_ddec, clip_rms_comb = -1, -1, -1
         logger.error("Unable to compute some WCS quality parameters")
     else:
         for iteration in range(3):
