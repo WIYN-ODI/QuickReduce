@@ -74,6 +74,7 @@ class ODICalibrations(object):
         self.fpl = None
         self.detector_glow = "yes"
         self.binning = 1
+        self.logger = logging.getLogger("Calibrations")
 
         if (hdulist is not None):
             self.filtername = hdulist[0].header['FILTER']
