@@ -1819,6 +1819,12 @@ def swarpstack(outputfile,
         hdustack[0].header['REUSESGL'] = ("yes" if swarp_params['reuse_singles'] else "no",
                                           "reuse singles?")
 
+        # Set RA/DEC keywords to make WCS work in IRAF
+        pos = ephem.Equatorial(numpy.radians(hdustack[0].header['CRVAL1']),
+                               numpy.radians(hdustack[0].header['CRVAL2']))
+        hdustack[0].header['RA'] = (str(pos.ra), "pointing RA")
+        hdustack[0].header['DEC'] = (str(pos.dec), "pointing DEC")
+
         #
         #
         # Add all photometry-relevant derived keywords in the output stack
