@@ -4389,14 +4389,6 @@ def collectcells(input, outputfile,
                                                    also_plot_singleOTAs=options['otalevelplots'],
                                                    title_info=title_info)
 
-    # Loop over all extensions and set RA/DEC keywords to make WCS work in IRAF
-    for ext in ota_list:
-        if ("CRVAL1" in ext.header and "CRVAL2" in ext.header):
-            pos = ephem.Equatorial(numpy.radians(ext.header['CRVAL1']),
-                                   numpy.radians(ext.header['CRVAL2']))
-            ext.header['RA'] = (str(pos.ra), "pointing RA")
-            ext.header['DEC'] = (str(pos.dec), "pointing DEC")
-
     podi_logging.ppa_update_progress(70, "Astrometric calibration complete")
 
     #
