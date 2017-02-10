@@ -260,7 +260,8 @@ def apply_crosstalk_correction(hdulist, xtalk_file, fpl, extname2id, options, re
 
             # Allocate some more memory to hold the output of the cross-talk 
             # correction of this frame
-            xtalk_corr[column] = numpy.zeros(hdulist[1].data.shape)
+            xtalk_corr[column] = numpy.zeros(hdulist[1].data.shape,
+                                             dtype=numpy.float)
 
             for xtalk_column in range(8):
                 # Construct the name of each cell that's causing the crosstalk
