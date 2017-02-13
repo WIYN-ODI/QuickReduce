@@ -391,6 +391,12 @@ def apply_wcs_distortion(filename, hdu, binning, reduction_log=None):
 
         if ('RADESYS' in hdu.header):
             hdu.header['RADESYS'] = 'ICRS'
+
+        # Rewrite TAN to TPV to make IRAF happy :-(
+        for hdr_name in ['CTYPE1', 'CTYPE2']:
+            if (hdr_name in hdu.header):
+                hdu.header[hdr_name] = hdu.header[hdr_name].replace("TAN", "TPV")
+
     except:
         logger.critical("something went wrong while applying the WCS model")
         reduction_log.partial_fail('wcs_dist')
