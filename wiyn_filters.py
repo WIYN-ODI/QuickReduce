@@ -73,7 +73,7 @@ filter_bandpass = {
     #
     # for now, most numbers for the new narrow-band filter are made up to get things going
 #               "odi_NB695": (       "odi_NB695.txt", 6950.00, 6950.00,   100.0,  6900.0,  7000.0, 1.0000, 1.0000,  100.00, 6900.00, 7000.00),
-            "odi_NB695.txt": (       "odi_NB695.txt", 6955.41, 6956.60,    89.8,  6910.2,  7000.0, 0.3869, 0.1746,   34.96, 6890.26, 7022.40),
+                "odi_NB695": (       "odi_NB695.txt", 6955.41, 6956.60,    89.8,  6910.2,  7000.0, 0.3869, 0.1746,   34.96, 6890.26, 7022.40),
     #
     # mosaic filters - some may need to be renamed to match the name in the ODI filter system
     #
