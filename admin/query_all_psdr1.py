@@ -92,7 +92,7 @@ def wait_for_free_space(dirname, min_free, sleep=5):
             break
 
         if (first_time):
-            logger.warning("Waiting for more free diskspace (has %d, needs %d bytes)" % (
+            logger.warning("Waiting for more free diskspace (has %d, needs %d kilobytes)" % (
                 free_space, min_free)
             )
             first_time = False
