@@ -184,7 +184,7 @@ def run_query_ps1dr1(minra,maxra,mindec,maxdec,  outfile, maxobj=1000000,
     return answer
 
 
-def convert_ascii_to_fits(raw_dir, out_dir, indexfile):
+def convert_ascii_to_fits(raw_dir, out_dir, indexfile, start_at, end_at):
 
     indexhdu = pyfits.open(indexfile)
     table = indexhdu['SKY_REGION'].data
@@ -200,7 +200,7 @@ def convert_ascii_to_fits(raw_dir, out_dir, indexfile):
 
     boxsize = 0.1
     error_log = open("%s/conversion.errors" % (out_dir), "a")
-    for field in range(data['NAME'].shape[0]):
+    for field in range(start_at, end_at): #data['NAME'].shape[0]):
 
         print
         name = data['NAME'][field].strip()
@@ -219,6 +219,9 @@ def convert_ascii_to_fits(raw_dir, out_dir, indexfile):
         r_max = data['R_MAX'][field]
         d_min = data['D_MIN'][field]
         d_max = data['D_MAX'][field]
+
+        # if (d_max > -26 or r_max < 265 or r_min > 275):
+        #     continue
 
         d_lower = math.floor(d_min / boxsize) * boxsize
         d_upper = math.ceil(d_max / boxsize) * boxsize
@@ -366,6 +369,26 @@ def convert_ascii_to_fits(raw_dir, out_dir, indexfile):
         #    break
 
 
+def parallel_tofits(raw_dir, fits_dir,
+                    index_filename,
+                    jobqueue):
+
+
+    while (True):
+
+        task = jobqueue.get()
+        if (task is None):
+            jobqueue.task_done()
+            break
+
+        start, end = task
+        convert_ascii_to_fits(
+            raw_dir=raw_dir,
+            out_dir=fits_dir,
+            indexfile=index_filename,
+            start_at=start,
+            end_at=end)
+
 
 if __name__ == "__main__":
 
@@ -464,7 +487,48 @@ if __name__ == "__main__":
         fits_dir = sys.argv[3]
         index_filename = "%s/SkyTable.fits" % (fits_dir)
 
-        convert_ascii_to_fits(raw_dir, fits_dir, index_filename)
+        hdu = pyfits.open(index_filename)
+        start_at = 0
+        end_at = hdu['SKY_REGION'].header['NAXIS2']
+        convert_ascii_to_fits(raw_dir, fits_dir, index_filename,
+                              start_at, end_at)
+
+
+    elif sys.argv[1] == 'parallelprocess':
+
+        raw_dir = sys.argv[2]
+
+        fits_dir = sys.argv[3]
+        index_filename = "%s/SkyTable.fits" % (fits_dir)
+
+        hdu = pyfits.open(index_filename)
+        start_at = 0
+        end_at = hdu['SKY_REGION'].header['NAXIS2']
+
+        jobqueue = multiprocessing.JoinableQueue()
+        for idx in range(start_at, end_at):
+            jobqueue.put((idx, idx+1))
+        n_workers = multiprocessing.cpu_count()
+        for i in range(n_workers):
+            jobqueue.put(None)
+        processes = []
+        for i in range(n_workers):
+            p = multiprocessing.Process(
+                target=parallel_tofits,
+                kwargs=dict(
+                    raw_dir=raw_dir, fits_dir=fits_dir,
+                    index_filename=index_filename,
+                    jobqueue=jobqueue,
+                )
+            )
+            p.start()
+            processes.append(p)
+        for p in processes:
+            p.join()
+
+        convert_ascii_to_fits(raw_dir, fits_dir, index_filename,
+                              start_at, end_at)
+
 
     else:
         print ("No suitable action indicated on command line.")
