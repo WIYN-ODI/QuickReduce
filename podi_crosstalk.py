@@ -199,7 +199,7 @@ def apply_old_crosstalk_correction(hdulist, fpl, extname2id):
 
             # Allocate some more memory to hold the output of the cross-talk 
             # correction of this frame
-            xtalk_corr[column] = numpy.zeros(hdulist[1].data.shape)
+            xtalk_corr[column] = numpy.zeros(hdulist[1].data.shape, dtype=numpy.float)
 
             for xtalk_column in range(8):
                 # Construct the name of each cell that's causing the crosstalk
@@ -260,7 +260,7 @@ def apply_crosstalk_correction(hdulist, xtalk_file, fpl, extname2id, options, re
 
             # Allocate some more memory to hold the output of the cross-talk 
             # correction of this frame
-            xtalk_corr[column] = numpy.zeros(hdulist[1].data.shape)
+            xtalk_corr[column] = numpy.zeros(hdulist[1].data.shape, dtype=numpy.float)
 
             for xtalk_column in range(8):
                 # Construct the name of each cell that's causing the crosstalk
@@ -270,12 +270,12 @@ def apply_crosstalk_correction(hdulist, xtalk_file, fpl, extname2id, options, re
                 # the corrected cell content output
                 #print "Adding ",xy_name,"to ",extname, column, row, "(scaling",podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column],")"
 
-                correction = hdulist[extname2id[xy_name]].data * xtalk_inv[row, xtalk_column, column] #xtalk_matrix[row][xtalk_column][column]
+                correction = hdulist[extname2id[xy_name]].data.astype(numpy.float) * xtalk_inv[row, xtalk_column, column] #xtalk_matrix[row][xtalk_column][column]
                 #if (column != xtalk_column):
                 #    saturated = hdulist[extname2id[xy_name]].data >= fpl.crosstalk_saturation_limit(extname)
                 #        correction[saturated] = -1 * fpl.crosstalk_saturation_correction(extname)
 
-                xtalk_corr[column] += correction #hdulist[xy_name].data * podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column]
+                xtalk_corr[column] += correction.astype(numpy.float) #hdulist[xy_name].data * podi_crosstalk.xtalk_matrix[extname][row][xtalk_column][column]
                     #print xtalk_corr[column][100,100]
 
         for column in range(8):
