@@ -4,3 +4,4 @@ collections:
    tutorials:
       output: true
 
+theme: jekyll-theme-slate
