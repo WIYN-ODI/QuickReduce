@@ -1,0 +1,19 @@
+---
+layout: default
+title: Quickreduce Tutorials
+---
+
+# quickreduce tutorials
+
+Tutorials are available for the following topics.
+
+<ul>
+{% for tutorial in site.tutorials %}
+ <li><a href="{{ tutorial.url | prepend: site.baseurl}}">{{ tutorial.title }}</a><br>
+      {{ page.description }}
+ </li> 
+
+
+
+{% endfor %}
+</ul>
