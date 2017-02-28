@@ -11,7 +11,8 @@ ssh.
 
 try:
 #    import sampy
-    import xsampy as sampy
+#    import xsampy as sampy
+     import astropy.vo.samp as sampy
 except ImportError:
     print "For this to work you need the SAMPy package installed"
     raise
@@ -255,9 +256,9 @@ def worker_slave(queue):
                 try:
                     cli1 = sampy.SAMPIntegratedClient(metadata = metadata)
                     cli1.connect()
-                    cli1.enotifyAll(mtype='ds9.set', cmd='frame 2')
-                    cli1.enotifyAll(mtype='ds9.set', cmd='scale scope global')
-                    cli1.enotifyAll(mtype='ds9.set', cmd=cmd)
+                    cli1.enotify_all(mtype='ds9.set', cmd='frame 2')
+                    cli1.enotify_all(mtype='ds9.set', cmd='scale scope global')
+                    cli1.enotify_all(mtype='ds9.set', cmd=cmd)
                     cli1.disconnect()
                 except:
                     logger.error("Problems sending message to ds9")
@@ -920,16 +921,16 @@ def create_client(metadata, wait=0):
 
     try:
         # Listen to all odi.image.file messages
-        cli1.bindReceiveMessage(setup.message_queue, receive_msg)
+        cli1.bind_receive_message(setup.message_queue, receive_msg)
 
         # Also define a new listener to listen to incoming qr.stack commands
-        cli1.bindReceiveMessage("qr.stack", handle_qr_stack_request)
+        cli1.bind_receive_message("qr.stack", handle_qr_stack_request)
 
         # Also define a new listener to listen to incoming qr.stack commands
-        cli1.bindReceiveMessage("qr.mastercal", handle_qr_mastercals_request)
+        cli1.bind_receive_message("qr.mastercal", handle_qr_mastercals_request)
 
-    except:
-        logger.error("Problem with bindReceiveMessage")
+    except Exception as err:
+        logger.error("Problem with bindReceiveMessage: %s" %err)
 
     return cli1
 
@@ -1010,7 +1011,7 @@ def SAMPListener():
 
             # Ping the Hub
             try:
-                ret = cli1.ecallAndWait("hub", "samp.app.ping", "5")
+                ret = cli1.ecall_and_wait("hub", "samp.app.ping", "5")
                 # if successful, wait a little and check again
                 time.sleep(1)
             except KeyboardInterrupt, SystemExit:
@@ -1027,7 +1028,7 @@ def SAMPListener():
 
                 # This means that most likely there's no Hub (anymore)
                 # Try to connect
-                logger.info("Lost connection to hub, trying to re-establish it ...")
+                logger.info("Lost connection to hub, trying to re-establish it ...\n Cause: %s" % e)
                 while (True):
                     cli1 = create_client(metadata)
                     if (cli1 == None):
@@ -1083,12 +1084,12 @@ if __name__ == "__main__":
         try:
             cli1 = sampy.SAMPIntegratedClient()
             cli1.connect()
-            cli1.bindReceiveMessage(setup.message_queue, receive_msg)
+            cli1.bind_receive_message(setup.message_queue, receive_msg)
             cli1.disconnect()
 
             print "\nConnection successful!\n"
-        except:
-            print "\nProblem connecting\n"
+        except Exception as err:
+            print "\nProblem connecting {0}\n ".format (err)
             pass
         
         sys.exit(0)
