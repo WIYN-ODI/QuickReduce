@@ -42,7 +42,8 @@ gain_correct_frames = False
 from podi_definitions import *
 
 def scamp_header_to_minifits(filename, minifits_outputname, reference_fits, 
-                             reference_extension="OTA33.SCI", distortion_level=4):
+                             reference_extension="OTA33.SCI", distortion_level=4,
+                             recenter_odi=True):
 
     if (not os.path.isfile(filename)):
         return None
@@ -142,28 +143,33 @@ def scamp_header_to_minifits(filename, minifits_outputname, reference_fits,
     # take the center between the 33/34/43/44 OTAs as optical center
     #
     tmp_hdulist = pyfits.HDUList(extlist)
-    center_pos = {
-        'OTA33.SCI': [4096, 4096],
-        'OTA34.SCI': [4096,    0],
-        'OTA43.SCI': [   0, 4096],
-        'OTA44.SCI': [   0,    0],
-    }
-    centers = []
-    for ota in center_pos:
-        xy = center_pos[ota]
-        ext = tmp_hdulist[ota]
-        print xy, ext.header
 
-        wcs = astWCS.WCS(ext.header, mode='pyfits')
-        ra_dec = wcs.pix2wcs(xy[0], xy[1])
-        print ra_dec
-        centers.append(ra_dec)
-    centers = numpy.array(centers)
-    numpy.savetxt(sys.stdout, centers)
-    optical_center = numpy.mean(centers, axis=0)
-    print optical_center
-    print numpy.std(centers, axis=0)
-    print numpy.std(centers, axis=0)*3600.
+    if (recenter_odi):
+        center_pos = {
+            'OTA33.SCI': [4096, 4096],
+            'OTA34.SCI': [4096,    0],
+            'OTA43.SCI': [   0, 4096],
+            'OTA44.SCI': [   0,    0],
+        }
+        centers = []
+        for ota in center_pos:
+            xy = center_pos[ota]
+            ext = tmp_hdulist[ota]
+            print xy, ext.header
+
+            wcs = astWCS.WCS(ext.header, mode='pyfits')
+            ra_dec = wcs.pix2wcs(xy[0], xy[1])
+            print ra_dec
+            centers.append(ra_dec)
+        centers = numpy.array(centers)
+        numpy.savetxt(sys.stdout, centers)
+        optical_center = numpy.mean(centers, axis=0)
+        print optical_center
+        print numpy.std(centers, axis=0)
+        print numpy.std(centers, axis=0)*3600.
+    else:
+        wcs = astWCS.WCS(refhdu[reference_extension].header, mode='pyfits')
+        optical_center = numpy.array(wcs.getCentreWCSCoords())
 
     #
     # Now modify and re-fit the WCS with the correct reference point
@@ -253,6 +259,9 @@ def scamp_header_to_minifits(filename, minifits_outputname, reference_fits,
         # Finally, delete the CRVAL header keywords and prepare the new ImageHDU
         for key in ['CRVAL1', 'CRVAL2']:
             new_hdu.header[key] = 0.
+
+        # fix the RADESYS header
+        new_hdu.header['RADESYS'] = 'ICRS'
 
         output_hdulist.append(new_hdu)
 
