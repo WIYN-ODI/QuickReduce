@@ -204,33 +204,43 @@ def ps2sdss (catalogdata, tonry=False):
 
 
     print "---- WARNING - This method is not included in workflow yet ----"
-
+    print catalogdata
     # Tonry 2012
     ps1colorterms = {}
 
     if tonry:
         print "converting PS1 to sdss system via tonry"
-        ps1colorterms['REF_G'] = [0.019, 0.145, 0.013]
-        ps1colorterms['REF_R'] = [0.007, 0.004, -0.001]
-        ps1colorterms['REF_I'] = [0.010, 0.011,-0.005]
-        ps1colorterms['REF_Z'] = [-0.012, -0.039, 0.013]
-        psgr = catalogdata['REF_G'] - catalogdata['REF_R']
+        ps1colorterms['g'] = [0.019, 0.145, 0.013]
+        ps1colorterms['r'] = [0.007, 0.004, -0.001]
+        ps1colorterms['i'] = [0.010, 0.011,-0.005]
+        ps1colorterms['z'] = [-0.012, -0.039, 0.013]
+	gidx = sitesetup.catalog_mags['panstarrs'].index('g')
+	ridx = sitesetup.catalog_mags['panstarrs'].index('r')
+        _g = catalogdata[:,gidx]
+        _r = catalogdata[:,ridx]
+        psgr = _g - _r
     # Finkenbein 2016
     # http://iopscience.iop.org/article/10.3847/0004-637X/822/2/66/meta#apj522061s2-4 Table 2
     else:
         print "converting PS1 to sdss system via finkenbeiner"
-        ps1colorterms['REF_G'] = [-0.01808,-0.13595, 0.01941,-0.00183][::-1]
-        ps1colorterms['REF_R'] = [-0.01836,-0.03577, 0.02612,-0.00558][::-1]
-        ps1colorterms['REF_I'] = [ 0.01170,-0.00400, 0.00066,-0.00058][::-1]
-        ps1colorterms['REF_Z'] = [-0.01062, 0.07529,-0.03592, 0.00890][::-1]
-        psgr = catalogdata['REF_G'] - catalogdata['REF_I']
+        ps1colorterms['g'] = [-0.01808,-0.13595, 0.01941,-0.00183][::-1]
+        ps1colorterms['r'] = [-0.01836,-0.03577, 0.02612,-0.00558][::-1]
+        ps1colorterms['i'] = [ 0.01170,-0.00400, 0.00066,-0.00058][::-1]
+        ps1colorterms['z'] = [-0.01062, 0.07529,-0.03592, 0.00890][::-1]
+	gidx = sitesetup.catalog_mags['panstarrs'].index('g')
+	iidx = sitesetup.catalog_mags['panstarrs'].index('i')
+        _g = catalogdata[:,gidx]
+        _i = catalogdata[:,iidx]
+        psgr = _g - _i
+
 
     for filter in ps1colorterms:
         colorcorrection = numpy.polyval (ps1colorterms[filter], psgr)
+	magidx = sitesetup.catalog_mags['panstarrs'].index(filter)
         if tonry:
-            catalogdata[filter] += colorcorrection
+            catalogdata[:,magidx] += colorcorrection
         else:
-            catalogdata[filter] -= colorcorrection
+            catalogdata[:,magidx] -= colorcorrection
 
     
 def photcalib_old(fitsfile, output_filename, calib_directory, overwrite_cat=None):
@@ -933,8 +943,9 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             )
             if (_std_stars is not None and _std_stars.shape[0] > 0):
                 detailed_return['catalog'] = catname
-                if catname.equals ("panstarrs"):
+                if catname is 'panstarrs':
                     # TODO: do conversion from panstarrs into SDSS system.
+                    ps2sdss (_std_stars)
                     pass
 
                 std_stars = _std_stars
