@@ -1901,7 +1901,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     # Exclude all stars with nearby neighbors to limit confusion
     #
-    only_isolated_stars = False #RK True
+    only_isolated_stars = True #RK True
     if (only_isolated_stars):
         logger.debug("Selecting isolated stars - ODI source catalog")
         if (create_debug_files): numpy.savetxt("ccmatch.odi_full", full_src_cat)
@@ -2000,7 +2000,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             logger.debug("Lots of stars (%d) in the reference catalog" % (ref_close.shape[0]))
 
         ref_cat = ref_close.copy()
-        min_distance = 50
+        min_distance = 20
         logger.debug("Selecting isolated stars - reference catalog")
         if (create_debug_files): numpy.savetxt("ccmatch.2mass_full.%d" % (pointing_error), ref_cat)
         while ((ref_cat.shape[0] > n_max_ref or min_distance < 10) and use_only_isolated_reference_stars):
