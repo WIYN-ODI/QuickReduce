@@ -1950,7 +1950,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     # Find 1st order best guess
     #
-    use_only_isolated_reference_stars = False
+    use_only_isolated_reference_stars = True
 
     # Estimate what fraction of 2mass stars are expected to be matched to 
     # ODI sources
