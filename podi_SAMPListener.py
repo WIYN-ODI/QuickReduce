@@ -260,8 +260,8 @@ def worker_slave(queue):
                     cli1.enotify_all(mtype='ds9.set', cmd='scale scope global')
                     cli1.enotify_all(mtype='ds9.set', cmd=cmd)
                     cli1.disconnect()
-                except:
-                    logger.error("Problems sending message to ds9")
+                except Exception as err:
+                    logger.error("Problems sending message to ds9: %s" % err)
                     podi_logging.log_exception()
                     pass
 
@@ -1013,7 +1013,7 @@ def SAMPListener():
             try:
                 ret = cli1.ecall_and_wait("hub", "samp.app.ping", "5")
                 # if successful, wait a little and check again
-                time.sleep(1)
+                time.sleep(5)
             except KeyboardInterrupt, SystemExit:
                 #print "Received abort command, forwarding exception"
                 raise
