@@ -347,12 +347,14 @@ def apply_wcs_distortion(filename, hdu, binning, reduction_log=None):
 
     logger = logging.getLogger("ApplyWCSmodel")
 
-    reduction_log.attempt('wcs_dist')
+    if (reduction_log is not None):
+        reduction_log.attempt('wcs_dist')
 
     try:
         wcs = pyfits.open(filename)
     except:
-        reduction_log.fail('wcs_dist')
+        if (reduction_log is not None):
+            reduction_log.fail('wcs_dist')
         logger.error("Could not open WCS distortion model (%s)" % (filename))
         return False
 
@@ -361,7 +363,8 @@ def apply_wcs_distortion(filename, hdu, binning, reduction_log=None):
     try:
         wcs_header = wcs[extname].header
     except:
-        reduction_log.fail('wcs_dist')
+        if (reduction_log is not None):
+            reduction_log.fail('wcs_dist')
         logger.warning("Could not find distortion model for %s" % (extname))
         return False
 
@@ -399,10 +402,12 @@ def apply_wcs_distortion(filename, hdu, binning, reduction_log=None):
 
     except:
         logger.critical("something went wrong while applying the WCS model")
-        reduction_log.partial_fail('wcs_dist')
+        if (reduction_log is not None):
+            reduction_log.partial_fail('wcs_dist')
         podi_logging.log_exception()
 
-    reduction_log.success('wcs_dist')
+    if (reduction_log is not None):
+        reduction_log.success('wcs_dist')
     return True
 
 
