@@ -35,6 +35,7 @@ class ReductionLog:
         self.steps['bias']        = (None, '_BIAS'   , 'bias subtraction')
         self.steps['dark']        = (None, '_DARK'   , 'dark correction')
         self.steps['flat']        = (None, '_FLAT'   , 'flatfielding')
+        self.steps['photflat']    = (None, '_FOTFLAT', 'photometric flatfield')
         self.steps['illumcorr']   = (None, '_ILLUMCR', 'illumination correction')
         self.steps['badpixels']   = (None, '_BADPXLS', 'bad pixel masks applied')
         self.steps['exptime_norm']= (None, '_EXTNORM', 'normalize to counts per sec')
