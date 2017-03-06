@@ -224,9 +224,9 @@ def ps2sdss (catalogdata, tonry=False):
         psgr = _g - _r
 
     else:
-        # Finkenbein 2016
+        # Finkbeiner 2016
         # http://iopscience.iop.org/article/10.3847/0004-637X/822/2/66/meta#apj522061s2-4 Table 2
-        print "converting PS1 to sdss system via finkenbeiner"
+        print "converting PS1 to sdss system via finkbeiner"
         ps1colorterms['g'] = [-0.01808,-0.13595, 0.01941,-0.00183][::-1]
         ps1colorterms['r'] = [-0.01836,-0.03577, 0.02612,-0.00558][::-1]
         ps1colorterms['i'] = [ 0.01170,-0.00400, 0.00066,-0.00058][::-1]
