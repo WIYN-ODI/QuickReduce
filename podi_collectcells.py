@@ -4199,7 +4199,8 @@ def collectcells(input, outputfile,
                                         max_pointing_error=sitesetup.max_pointing_error,
                                         max_rotator_error=sitesetup.max_rotator_error,
                                         min_contrast=sitesetup.min_wcs_quality,
-                                        catalog_order=sitesetup.wcscalib_order)
+                                        catalog_order=sitesetup.wcscalib_order,
+                                        crowded=options['crowded_field'])
 
         # Use the fixed HDUList
         ota_list = ccmatched['hdulist']

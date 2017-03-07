@@ -1678,7 +1678,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             fov=0.8,
             estimate_fmatch=True,
             use_ota_coord_grid=True,
-            catalog_order=None):
+            catalog_order=None,
+            crowded=False,):
 
     """
 
@@ -1922,7 +1923,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # Cut down the catalog size to the brightest n stars
     #
     n_max = 1500 #750
-    truncate_to_bright_stars = False #True #RK
+    truncate_to_bright_stars = crowded #False #True #RK
     if (isolated_stars.shape[0] > n_max and truncate_to_bright_stars):
         logger.debug("truncating src_cat:"+str(isolated_stars.shape)+"--> "+str(n_max))
         # That's more than we need, limited the catalog to the brightest n stars
@@ -1950,7 +1951,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #
     # Find 1st order best guess
     #
-    use_only_isolated_reference_stars = False
+    use_only_isolated_reference_stars = crowded #False
 
     # Estimate what fraction of 2mass stars are expected to be matched to 
     # ODI sources
