@@ -2530,15 +2530,19 @@ def compute_wcs_quality(odi_2mass_matched, hdr=None):
 
     d_combined = numpy.hypot(d_dec, d_ra)
     valid = numpy.isfinite(d_combined)
-    for iteration in range(3):
-        d_stats = numpy.percentile(d_combined[valid], [16,50,84])
-        d_median = d_stats[1]
-        d_sigma = 0.5*(d_stats[2] - d_stats[0])
-        bad = (d_combined > d_median + 3*d_sigma) | (d_combined < d_median - 3*d_sigma)
-        valid[bad] = False
-    clip_rms_dra = numpy.sqrt(numpy.mean(d_ra[valid]**2)) * 3600.
-    clip_rms_ddec = numpy.sqrt(numpy.mean(d_dec[valid]**2)) * 3600.
-    clip_rms_comb = numpy.sqrt(numpy.mean(d_dec[valid]**2+d_ra[valid]**2)) * 3600.
+    if (numpy.sum(valid) <= 1):
+        clip_rms_dra, clip_rms_ddec, clip_rms_comb = -1, -1, -1
+        logger.error("Unable to compute some WCS quality parameters")
+    else:
+        for iteration in range(3):
+            d_stats = numpy.percentile(d_combined[valid], [16,50,84])
+            d_median = d_stats[1]
+            d_sigma = 0.5*(d_stats[2] - d_stats[0])
+            bad = (d_combined > d_median + 3*d_sigma) | (d_combined < d_median - 3*d_sigma)
+            valid[bad] = False
+        clip_rms_dra = numpy.sqrt(numpy.mean(d_ra[valid]**2)) * 3600.
+        clip_rms_ddec = numpy.sqrt(numpy.mean(d_dec[valid]**2)) * 3600.
+        clip_rms_comb = numpy.sqrt(numpy.mean(d_dec[valid]**2+d_ra[valid]**2)) * 3600.
 
 
     try:

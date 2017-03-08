@@ -74,6 +74,7 @@ class ODICalibrations(object):
         self.fpl = None
         self.detector_glow = "yes"
         self.binning = 1
+        self.logger = logging.getLogger("Calibrations")
 
         if (hdulist is not None):
             self.filtername = hdulist[0].header['FILTER']
@@ -87,6 +88,7 @@ class ODICalibrations(object):
     # general class utility functions
     #
     def verify_fn(self, fn):
+        self.logger.debug("Checking if file exists: %s" % (fn))
         if (fn is None):
             return None
         if (os.path.isfile(fn)):
@@ -446,10 +448,19 @@ class CalibrationHistory(object):
 def download(url, local_fn):
 
     logger = logging.getLogger("Download")
-    wget_cmd = "wget --quiet --progress=bar --show-progress -O %s %s" % (local_fn, url)
-    logger.debug(wget_cmd)
-    os.system(wget_cmd)
 
+    progress = ["--quiet --progress=bar --show-progress",
+                "--quiet --progress=bar",
+                ""]
+    for p in progress:
+        wget_cmd = "wget %s -O %s %s" % (p, local_fn, url)
+        logger.debug(wget_cmd)
+        ret = os.system(wget_cmd)
+        if (ret == 0):
+            break
+
+    if (ret != 0):
+        logger.error("Unable to run wget")
 
 
 def update_local_mastercals(local_cache_dir=None):

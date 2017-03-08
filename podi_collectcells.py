@@ -115,7 +115,6 @@ Available flags
   the RA-ZPX solution is changed into a simple RA-TAN system without any 
   distortion factors. Mostly for debugging and testing.
 
-* **-pointing**
 
 * **-dither**
 
@@ -348,12 +347,14 @@ def apply_wcs_distortion(filename, hdu, binning, reduction_log=None):
 
     logger = logging.getLogger("ApplyWCSmodel")
 
-    reduction_log.attempt('wcs_dist')
+    if (reduction_log is not None):
+        reduction_log.attempt('wcs_dist')
 
     try:
         wcs = pyfits.open(filename)
     except:
-        reduction_log.fail('wcs_dist')
+        if (reduction_log is not None):
+            reduction_log.fail('wcs_dist')
         logger.error("Could not open WCS distortion model (%s)" % (filename))
         return False
 
@@ -362,7 +363,8 @@ def apply_wcs_distortion(filename, hdu, binning, reduction_log=None):
     try:
         wcs_header = wcs[extname].header
     except:
-        reduction_log.fail('wcs_dist')
+        if (reduction_log is not None):
+            reduction_log.fail('wcs_dist')
         logger.warning("Could not find distortion model for %s" % (extname))
         return False
 
@@ -390,12 +392,22 @@ def apply_wcs_distortion(filename, hdu, binning, reduction_log=None):
         elif (hdu.header['CRVAL1'] > 360.):
             hdu.header['CRVAL1'] = math.fmod(hdu.header['CRVAL1'], 360.0)
 
+        if ('RADESYS' in hdu.header):
+            hdu.header['RADESYS'] = 'ICRS'
+
+        # Rewrite TAN to TPV to make IRAF happy :-(
+        for hdr_name in ['CTYPE1', 'CTYPE2']:
+            if (hdr_name in hdu.header):
+                hdu.header[hdr_name] = hdu.header[hdr_name].replace("TAN", "TPV")
+
     except:
         logger.critical("something went wrong while applying the WCS model")
-        reduction_log.partial_fail('wcs_dist')
+        if (reduction_log is not None):
+            reduction_log.partial_fail('wcs_dist')
         podi_logging.log_exception()
 
-    reduction_log.success('wcs_dist')
+    if (reduction_log is not None):
+        reduction_log.success('wcs_dist')
     return True
 
 
@@ -518,6 +530,8 @@ def collect_reduce_ota(filename,
         # Add default headers here
         #
         hdu.header['SOFTBIN'] = 0
+        if ('RADESYS' in hdu.header):
+            del hdu.header['RADESYS']
         add_fits_header_title(hdu.header, "Pipeline added/modified metadata", 'SOFTBIN')
 
         # Also read the MJD for this frame. This will be needed later for the correction
@@ -1225,10 +1239,10 @@ def collect_reduce_ota(filename,
                         if (options['verbose']): print "Working on fringe scaling for",extname
                         fringe_scaling = podi_fringing.get_fringe_scaling(merged, ext.data, fringe_vector_file)
                         data_products['fringe-template'] = ext.data
-                        if (not type(fringe_scaling) == type(None)):
+                        if (fringe_scaling is not None):
                             good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])
-                            fringe_scaling_median = numpy.median(good_scalings)
-                            fringe_scaling_std    = numpy.std(good_scalings)
+                            fringe_scaling_median = numpy.nanmedian(good_scalings)
+                            fringe_scaling_std    = numpy.nanstd(good_scalings)
                         break
                 hdu.header.add_history("fringe map: %s" % fringe_filename)
                 hdu.header.add_history("fringe vector: %s" % fringe_vector_file)
@@ -1237,9 +1251,13 @@ def collect_reduce_ota(filename,
                 reduction_log.no_data('fringe')
             #print "FRNG_SCL", fringe_scaling_median
             #print "FRNG_STD", fringe_scaling_std
-            hdu.header["FRNG_SCL"] = fringe_scaling_median
-            hdu.header["FRNG_STD"] = fringe_scaling_std
-            hdu.header["FRNG_OK"] = (fringe_scaling is not None)
+            if (numpy.isfinite(fringe_scaling_median) and numpy.isfinite(fringe_scaling_std)):
+                hdu.header["FRNG_SCL"] = fringe_scaling_median
+                hdu.header["FRNG_STD"] = fringe_scaling_std
+                hdu.header["FRNG_OK"] = (fringe_scaling is not None)
+            else:
+                logger.error("Unable to determine fringe scaling (encountered too many NaN values")
+                reduction_log.fail('fringe')
 
         # Insert the DETSEC header so IRAF understands where to put the extensions
         start_x = ota_c_x * size_x #4096

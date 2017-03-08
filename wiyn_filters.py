@@ -63,7 +63,7 @@ filter_bandpass = {
     # ===
     # TO DO: VERIFY U-BAND DATA ONCE FILTER CURVES ARE ACCESSIBLE
 #                   "odi_u": (  		 "odi_u.txt", 3400.00, 3400.00,   600.0,  3280.0,  3880.0, 0.9600, 0.9000,  550.00, 3250.00, 3900.00),
-                "odi_u.dat": (           "odi_u.dat", 3606.77, 3590.00,   579.6,  3302.1,  3881.7, 0.3012, 0.2305,  159.09, 3262.63, 3906.09),
+                    "odi_u": (           "odi_u.dat", 3606.77, 3590.00,   579.6,  3302.1,  3881.7, 0.3012, 0.2305,  159.09, 3262.63, 3906.09),
     #
     # ===
                     "odi_g": (  		 "odi_g.txt", 4816.17, 4739.85,  1516.4,  4032.6,  5549.0, 0.3199, 0.2209,  412.56, 3989.12, 5596.64),
@@ -73,7 +73,7 @@ filter_bandpass = {
     #
     # for now, most numbers for the new narrow-band filter are made up to get things going
 #               "odi_NB695": (       "odi_NB695.txt", 6950.00, 6950.00,   100.0,  6900.0,  7000.0, 1.0000, 1.0000,  100.00, 6900.00, 7000.00),
-            "odi_NB695.txt": (       "odi_NB695.txt", 6955.41, 6956.60,    89.8,  6910.2,  7000.0, 0.3869, 0.1746,   34.96, 6890.26, 7022.40),
+                "odi_NB695": (       "odi_NB695.txt", 6955.41, 6956.60,    89.8,  6910.2,  7000.0, 0.3869, 0.1746,   34.96, 6890.26, 7022.40),
     #
     # mosaic filters - some may need to be renamed to match the name in the ODI filter system
     #
