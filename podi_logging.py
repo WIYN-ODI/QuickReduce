@@ -328,7 +328,7 @@ def log_master(queue, options):
                 record = None
             except Queue.Empty:
                 pass
-                print >>debugfile, "LogHandler: still running, but no message during the last second!"
+                # print >>debugfile, "LogHandler: still running, but no message during the last second!"
                 # print "."
                 continue
             except:
