@@ -384,6 +384,24 @@ class ODICalibrations(object):
         return self.verify_fn(full_filename)
 
 
+    #
+    # PHOTOMETRIC FLAT #######################
+    #
+    def apply_photflat(self):
+        return (self.options['photflat'] is not None)
+
+    def photflat(self):
+        photflat_filename = check_filename_directory(
+                self.options['photflat'],
+                "photflat_%s_bin%d.fits" % (self.filtername, self.binning)
+        )
+        if (os.path.isfile(photflat_filename)):
+            return self.verify_fn(photflat_filename)
+        return None
+
+
+
+
 
 class CalibrationHistory(object):
 
