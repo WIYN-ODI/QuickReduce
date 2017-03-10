@@ -935,7 +935,8 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                 # this catalog does not have the right photometric data
                 logger.error("Chosen catalog for photometric calibration (%s) does not contain photometry in this filter band (%s)" % (
                     catname, sdss_filter))
-                return error_return_value
+                # return error_return_value
+                continue
             logger.info("Using %s for photometric calibration" % (catname))
             catalog_basedir, cat_mag = sitesetup.catalog_directory[catname]
             _std_stars, ref_filenames = podi_search_ipprefcat.get_reference_catalog(
@@ -1079,9 +1080,9 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         sdss_mag = odi_sdss_matched[:,(source_cat.shape[1]+pc)]
         sdss_magerr = odi_sdss_matched[:,(source_cat.shape[1]+pc+1)]
 
-        if (filtername in photzp_colorterms):
+        if (filtername in photzp_colorterms['sdss']):
             logger.debug("Found color-term definition for this filter (%s)" % (filtername))
-            colorterm, filter1, filter2 = photzp_colorterms[filtername]
+            colorterm, filter1, filter2 = photzp_colorterms['sdss'][filtername]
 
             col1 = sdss_photometric_column[filter1]
             col2 = sdss_photometric_column[filter2]
@@ -1157,35 +1158,38 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         #sdss_magerr = odi_sdss_matched[:, (source_cat.shape[1] + err_col)]
 
         # print filtername, photzp_colorterms
-        if (filtername in photzp_colorterms):
-            logger.info("Found color-term definition for this filter (%s)" % (filtername))
-            colorterm, filter1, filter2 = photzp_colorterms[filtername]
+        if (catname in photzp_colorterms):
+            if (filtername in photzp_colorterms):
+                logger.info("Found color-term definition for this filter (%s)" % (filtername))
+                colorterm, filter1, filter2 = photzp_colorterms[filtername]
 
-            try:
-                colterm_mag1 = sitesetup.catalog_mags[catname].index(filter1)
-                colterm_mag2 = sitesetup.catalog_mags[catname].index(filter2)
+                try:
+                    colterm_mag1 = sitesetup.catalog_mags[catname].index(filter1)
+                    colterm_mag2 = sitesetup.catalog_mags[catname].index(filter2)
 
-                sdss_color = odi_sdss_matched[:, (source_cat.shape[1] + colterm_mag1)] - \
-                             odi_sdss_matched[:, (source_cat.shape[1] + colterm_mag2)]
+                    sdss_color = odi_sdss_matched[:, (source_cat.shape[1] + colterm_mag1)] - \
+                                 odi_sdss_matched[:, (source_cat.shape[1] + colterm_mag2)]
 
-                color_correction = colorterm * sdss_color
+                    color_correction = colorterm * sdss_color
 
-                odi_sdss_matched[:, (source_cat.shape[1] + mag_col)] -= color_correction
+                    odi_sdss_matched[:, (source_cat.shape[1] + mag_col)] -= color_correction
 
-                detailed_return['colorterm'] = colorterm
+                    detailed_return['colorterm'] = colorterm
 
-                detailed_return['colorcorrection'] = "sdss_%s - sdss_%s" % (filter1, filter2)
-            except ValueError:
-                # one of the color-term filters wasn't found
+                    detailed_return['colorcorrection'] = "sdss_%s - sdss_%s" % (filter1, filter2)
+                except ValueError:
+                    # one of the color-term filters wasn't found
+                    detailed_return['colorterm'] = None
+                    logger.debug("Insufficient reference photometry to compensate color-term")
+
+                    # col1 = sdss_photometric_column[filter1]
+                # col2 = sdss_photometric_column[filter2]
+            else:
                 detailed_return['colorterm'] = None
-                logger.debug("Insufficient reference photometry to compensate color-term")
-
-                # col1 = sdss_photometric_column[filter1]
-            # col2 = sdss_photometric_column[filter2]
+                logger.debug("No color-term definition for this filter (%s)" % (filtername))
         else:
             detailed_return['colorterm'] = None
-            logger.debug("No color-term definition for this filter (%s)" % (filtername))
-
+            logger.debug("No color-term definition for this catalog (%s)" % (catname))
     else:
         return error_return_value
 
