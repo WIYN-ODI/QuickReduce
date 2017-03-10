@@ -1395,6 +1395,40 @@ def collect_reduce_ota(filename,
         hdu.data = merged
 
 
+        if (not mastercals.apply_photflat()):
+            reduction_log.not_selected('photflat')
+        elif (mastercals.photflat() is None):
+            reduction_log.fail('photflat')
+        else:
+            photflat_filename = mastercals.photflat()
+            photflat = pyfits.open(photflat_filename)
+            reduction_files_used['photflat'] = photflat_filename
+
+            # ADD HERE
+            # subtract the background before the photflat correction and re-add afterwards to avoid
+            # intruducing too much structure into the sky background
+
+            # Search for the flatfield data for the current OTA
+            all_success = True
+            try:
+                photflat_ext = photflat[extname]
+
+                try:
+                    merged /= photflat_ext.data
+                    logger.info("Applying photometric flatfield from %s to %s" % (photflat_filename, extname))
+                except:
+                    logger.warning("Unable to apply flat-field, dimensions don't match (data: %s, flat: %s)" % (
+                        str(merged.shape), str(ff_ext.data.shape)))
+                    reduction_log.partial_fail('photflat')
+                    all_success = False
+            except KeyError:
+                logger.warning("Unable to find photometric flatfield data for %s in %s" % (ota_name, photflat_filename))
+                reduction_log.partial_fail('photflat')
+                all_success = False
+                pass
+            if (all_success):
+                reduction_log.success('photflat')
+
         # #
         # # Return data as shared memory
         # #
