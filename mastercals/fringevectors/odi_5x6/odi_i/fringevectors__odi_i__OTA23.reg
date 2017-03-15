@@ -1,0 +1,21 @@
+# Region file format: DS9 version 4.1
+# Filename: /Users/wliu/ODI_data/templates/fringes_i_feb17/fringe__odi_i_5x6_bin1_feb17.fits[OTA23.SCI]
+global color=green dashlist=8 3 width=1 font="helvetica 10 normal" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1
+physical
+# vector(10528.691,14361.173,176.54066,93.503532) vector=1
+# vector(10140.308,13713.868,459.47599,112.55088) vector=1
+# vector(10561.056,13544.85,425.16621,8.2671733) vector=1
+# vector(9964.0975,14609.306,126.6841,186.5198) vector=1
+# vector(10388.442,14584.133,410.41676,204.31931) vector=1
+# vector(11017.766,14501.422,180.84672,162.64598) vector=1
+# vector(10640.171,14954.536,521.58864,13.557193) vector=1
+# vector(10604.21,13839.733,343.91556,111.46765) vector=1
+# vector(10388.442,13940.425,333.18165,302.66091) vector=1
+# vector(10424.403,13512.485,424.48128,358.54364) vector=1
+# vector(10546.672,14940.151,365.76443,263.22434) vector=1
+# vector(11294.668,14630.883,407.50754,113.39776) vector=1
+# vector(10003.655,13728.253,74.136263,194.03624) vector=1
+# vector(10147.5,14120.232,351.50284,131.68222) vector=1
+# vector(11298.264,14030.328,220.42296,61.762554) vector=1
+# vector(9982.0781,13645.542,402.33364,352.81146) vector=1
+# vector(10999.785,13735.445,357.08753,71.200115) vector=1
