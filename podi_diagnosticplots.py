@@ -731,9 +731,12 @@ def photocalib_zeropoint(output_filename,
 
     #
     # Draw a grey-shaded region outlining the 1-sigma range
+    # Plot it as a horizontal bar histogram with a single bin.
     #
-    ax.barh(zp_median-zp_std, (sdss_maxint-sdss_minint), height=2*zp_std, 
-            left=sdss_minint, label=u"1$\sigma$ range", 
+    #ax.barh(zp_median-zp_std, (sdss_maxint-sdss_minint), height=2*zp_std,
+    ax.barh(bottom=zp_median, height=2*zp_std,
+            left=sdss_minint, width=(sdss_maxint - sdss_minint),
+            label=u"1$\sigma$ range",
             color="#a0a0a0", edgecolor='#a0a0a0')
 
 
