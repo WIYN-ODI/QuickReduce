@@ -522,7 +522,7 @@ def collect_reduce_ota(filename,
         firstkey = None
         cards = hdulist[0].header.cards
         for (keyword, value, comment) in cards:
-            firstkey = keyword if firstkey == None else firstkey
+            firstkey = keyword if firstkey is None else firstkey
             hdu.header[keyword] = (value, comment)
         add_fits_header_title(hdu.header, "Instrument telemetry from raw data", firstkey)
 
@@ -655,11 +655,11 @@ def collect_reduce_ota(filename,
         #
         techdata = None
         techhdulist = None
-        if (not options['techdata'] == None):
+        if (options['techdata'] is not None):
             techfile = None
 
             # Set the filename for the TECHDATA extension based on the user-option
-            if (options['techdata'] == "from_flat" and not options['flat_dir'] == None):
+            if (options['techdata'] == "from_flat" and options['flat_dir'] is not None):
 
                 for ft in sitesetup.flat_order:
                     techfile = check_filename_directory(options['flat_dir'], 
@@ -667,7 +667,7 @@ def collect_reduce_ota(filename,
                     if (os.path.isfile(techfile)):
                         break
                 
-            elif (options['techdata'] == "from_bias" and not options['bias_dir'] == None):
+            elif (options['techdata'] == "from_bias" and options['bias_dir'] is not None):
                 techfile = check_filename_directory(options['bias_dir'], "bias_bin%s.fits" % (binning))
 
             else:
@@ -699,7 +699,7 @@ def collect_reduce_ota(filename,
         # Handle the trimcell option
         #
         hdu.header['TRIMCELL'] = (-1, "trim cell edges (-1: no)")
-        if (options['trimcell'] == None):
+        if (options['trimcell'] is None):
             reduction_log.not_selected('trimcell')
         else:
             reduction_log.success('trimcell')
@@ -781,22 +781,22 @@ def collect_reduce_ota(filename,
             # the tech-header by copying the information from the input techdata 
             # to the output techdata
             #
-            if (not techhdulist == None):
+            if (techhdulist is not None):
                 gain, readnoise, readnoise_e = read_techdata(
                     techhdulist, ota_c_x, ota_c_y, wm_cellx, wm_celly)
-                if (not gain == None and not readnoise == None):
+                if (gain is not None and readnoise is not None):
                     logger.debug("Using tech-data for gain & readnoise: %f %f" % (gain, readnoise))
                 else:
                     logger.debug("No gain/readnoise data available")
 
                 # Also set the gain and readnoise values to be used later for the gain correction
                 all_gains[wm_cellx, wm_celly] = \
-                    gain if not gain == None else \
+                    gain if gain is not None else \
                     hdulist[cell].header['GAIN'] if 'GAIN' in hdulist[cell].header else backup_gain
                 all_readnoise[wm_cellx, wm_celly] = \
-                    readnoise if not gain == None else backup_readnoise 
+                    readnoise if gain is not None else backup_readnoise 
                 all_readnoise_electrons[wm_cellx, wm_celly] = \
-                    readnoise_e if not readnoise_e == None else backup_readnoise_electrons
+                    readnoise_e if readnoise_e is not None else backup_readnoise_electrons
             else:
                 all_gains[wm_cellx, wm_celly] = \
                     hdulist[cell].header['GAIN'] if 'GAIN' in hdulist[cell].header else backup_gain
@@ -974,7 +974,7 @@ def collect_reduce_ota(filename,
         #
         # Apply illumination correction, if requested
         #
-        if (options['illumcorr_dir'] == None):
+        if (options['illumcorr_dir'] is None):
             reduction_log.not_selected('illumcorr')
         else:
             illumcorr_filename = podi_illumcorr.get_illumination_filename(
@@ -1018,7 +1018,7 @@ def collect_reduce_ota(filename,
             reduction_log.fail('badpixels')
         else:
             bpm_region_file = mastercals.bpm(ota=fppos)
-        # if (bpm_region_file == None):
+        # if (bpm_region_file is None):
         #     reduction_log.not_selected('badpixels')
         # else:
             # Apply the bad pixel regions to file, marking all bad pixels as NaNs
@@ -1038,7 +1038,7 @@ def collect_reduce_ota(filename,
         else:
             # Correct for the gain variations in each cell
             logger.debug("Applying gain correction (OTA %02d) - method: %s" % (ota, 
-                options['gain_method'] if not options['gain_method'] == None else "default:techdata"))
+                options['gain_method'] if options['gain_method'] is not None else "default:techdata"))
 
             if (mastercals.apply_relative_gain()):
                 relative_gains_file = mastercals.nonlinearity(mjd=mjd)
@@ -1073,7 +1073,7 @@ def collect_reduce_ota(filename,
                 hdu.header['GAINMTHD'] = "raw_header"
 
             else:
-                if (not techdata == None):
+                if (techdata is not None):
                     logger.debug("Using GAINs from tech-data file %s" % (techfile))
                     reduction_files_used['gain'] = techfile
                     for cx, cy in itertools.product(range(8), repeat=2):
@@ -1113,7 +1113,7 @@ def collect_reduce_ota(filename,
         hdu.header['RDNOISEE'] = (rone_avg, 'readnoise in e- averaged over all cells')
         hdu.header['NRDNOSEE'] = (numpy.sum(valid_rone), 'number cells contrib. to avg. readnoise in e-')
 
-        if (not gain_from_flatfield == None):
+        if (gain_from_flatfield is not None):
             hdu.header['GAIN'] = gain_from_flatfield
             logger.debug("Overwriting GAIN keyword: %f" % (ff_gain))
         else:
@@ -1163,7 +1163,7 @@ def collect_reduce_ota(filename,
         #
         # If persistency correction is requested, perform it now
         #
-        if (options['persistency_dir'] == None):
+        if (options['persistency_dir'] is None):
             reduction_log.not_selected('persistency')
             reduction_log.not_selected('saturation')
         else:
@@ -1183,7 +1183,7 @@ def collect_reduce_ota(filename,
             reduction_files_used['saturation'] = saturated_thisframe
             #print "this frame=",saturated_thisframe,mjd
 
-            if (not saturated_thisframe == None):
+            if (saturated_thisframe is not None):
                 logger.debug("Using the following saturation frames: %s" % (str(saturated_thisframe)))
                 merged = podi_persistency.mask_saturation_defects(saturated_thisframe, ota, merged)
             hdu.header["SATMASK"] = saturated_thisframe
@@ -1297,7 +1297,7 @@ def collect_reduce_ota(filename,
 
         logger.debug("Converting coordinates to J2000")
         coord_j2000 = ephem.Equatorial(hdu.header['RA'], hdu.header['DEC'], epoch=ephem.J2000)
-        if (not options['target_coords'] == None):
+        if (options['target_coords'] is not None):
             if (options['verbose']): print "Overwriting target positions",options['target_coords']
             ra, dec = options['target_coords']
             coord_j2000 = ephem.Equatorial(ra, dec, epoch=ephem.J2000)
@@ -1457,8 +1457,8 @@ def collect_reduce_ota(filename,
                             try:
                                 ps_status = ps.status()
                                 if (ps_status in [psutil.STATUS_ZOMBIE,
-                                                  psutil.STATUS_DEAD] and not
-                                    ret.poll() == None):
+                                                  psutil.STATUS_DEAD] and
+                                    ret.poll() is not None):
                                     logger.critical("Sextractor died unexpectedly (%s - this is try #%d / pid=%d)" % (
                                         str(ps_status), sex_restarts+1, sextractor_pid))
                                     sextractor_error = True
@@ -1466,7 +1466,7 @@ def collect_reduce_ota(filename,
                             except psutil.NoSuchProcess:
                                 pass
 
-                            if (ret.poll() == None):
+                            if (ret.poll() is None):
                                 # sextractor completed
                                 logger.debug("SourceExtractor completed successfully!")
                                 break
@@ -1613,7 +1613,7 @@ def collect_reduce_ota(filename,
             data_products['pupilghost-scaling'] = pupilghost_scaling
             logger.debug("PG scaling:\n%s" % (str(pupilghost_scaling)))
             reduction_log.attempt('pupilghost')
-            if (pupilghost_scaling == None):
+            if (pupilghost_scaling is None):
                 logger.info("No PG samples found for OTA %s" % (extname))
             else:
                 logger.info("Found %d PG scaling samples" % (pupilghost_scaling.shape[0]))
@@ -1786,7 +1786,7 @@ def parallel_collect_reduce_ota(queue,
 
         return_hdu = data_products['hdu']
         # print data_products
-        if (return_hdu == None):
+        if (return_hdu is None):
             # queue.task_done()
             # continue
             if (not os.path.isfile(filename)):
@@ -1805,8 +1805,8 @@ def parallel_collect_reduce_ota(queue,
             return
 
 
-        extname = return_hdu.header['FPPOS'] if (not return_hdu == None and 'FPPOS' in return_hdu.header) else "???"
-        ota = return_hdu.header['OTA'] if (not return_hdu == None and 'OTA' in return_hdu.header) else -1
+        extname = return_hdu.header['FPPOS'] if (return_hdu is not None and 'FPPOS' in return_hdu.header) else "???"
+        ota = return_hdu.header['OTA'] if (return_hdu is not None and 'OTA' in return_hdu.header) else -1
         logger.debug("Received OTA pre-processed data for OTA %s" % (extname))
 
         logger = logging.getLogger("PostProc.OTA%02d" % (ota))
@@ -2002,7 +2002,7 @@ def parallel_collect_reduce_ota(queue,
 
         #cmd_queue.task_done()
         #queue.task_done()
-        if (not complete == None):
+        if (complete is not None):
             complete.value = True
             pass
         logger.debug("Done with work, shutting down!")
@@ -2414,7 +2414,7 @@ class reduce_collect_otas (object):
         # report the status of all processes/jobs
         status = "\n".join(["%2d - %s (%5d, #%2d): %5s %5s %5s %10d %5s" % (
                 job['ota_id'], job['filename'], 
-                -1 if job['process'] == None else job['process'].pid,
+                -1 if job['process'] is None else job['process'].pid,
                 job['attempt'],
                 job['intermediate_results_received'], 
                 job['intermediate_data_sent'], 
@@ -2453,11 +2453,11 @@ class reduce_collect_otas (object):
                     continue
 
                 process = job['process']
-                if (process == None):
+                if (process is None):
                     continue
 
                 pid = process.pid
-                if (pid == None):
+                if (pid is None):
                     # not started yet
                     continue
 
@@ -2520,7 +2520,7 @@ class reduce_collect_otas (object):
                 started_new_process = False
                 # for fn in self.files_to_reduce: #self.info:
                 for job in self.info:
-                    if (job['process'] == None):
+                    if (job['process'] is None):
                         
                         job['attempt'] += 1
 
@@ -2540,7 +2540,7 @@ class reduce_collect_otas (object):
                         self.job_status_lock.release()
 
                         job['intermediate_data_sent'] = 0
-                        # if (not job['intermediate_queue_msg'] == None):
+                        # if (job['intermediate_queue_msg'] is not None):
                         #     # this process is being started after intermediate data
                         #     # has already been sent
                         #     # --> re-queue one more intermediate to allow completion
@@ -2774,8 +2774,8 @@ class reduce_collect_otas (object):
             for job in self.info:
                 if (not job['intermediate_results_received'] or
                     job['intermediate_data_ackd'] or
-                    job['intermediate_data'] == None or
-                    job['intermediate_queue_msg'] == None):
+                    job['intermediate_data'] is None or
+                    job['intermediate_queue_msg'] is None):
                     # nothing to do for this one
                     continue
 
@@ -2996,7 +2996,7 @@ def collectcells(input, outputfile,
 
     """
 
-    if (options == None): options = set_default_options()
+    if (options is None): options = set_default_options()
 
     logger = logging.getLogger('CollectCells')
     logger.debug("Starting --collectcells--")
@@ -3049,7 +3049,7 @@ def collectcells(input, outputfile,
 
         # Split the input filename to extract the directory part
         directory, dummy = os.path.split(input)
-        if (directory == None or directory == ''):
+        if (directory is None or directory == ''):
             directory = "."
 
     elif (os.path.isdir(input)):
@@ -3078,7 +3078,7 @@ def collectcells(input, outputfile,
         unstage_data(options, staged_data, input)
         return
 
-    if (outputfile == None):
+    if (outputfile is None):
         outputfile = "%s/%s.fits" % (directory, filebase)
 
     hdulist = None
@@ -3094,7 +3094,7 @@ def collectcells(input, outputfile,
             pass
             continue
 
-    if (hdulist == None):
+    if (hdulist is None):
         stdout_write("Something is wrong here, can't find/open any of the files...")
         unstage_data(options, staged_data, input)
         return -1
@@ -3225,7 +3225,7 @@ def collectcells(input, outputfile,
     ota_list[0].header['BINNING'] = (binning, "binning factor")
 
     # Creates the persistency index.cat file
-    if (not options['persistency_dir'] == None):
+    if (options['persistency_dir'] is not None):
         podi_persistency.get_list_of_saturation_tables(options['persistency_dir'])
 
     #
@@ -3595,7 +3595,7 @@ def collectcells(input, outputfile,
 
     for i, intermed_results in enumerate(worker.get_intermediate_results()):
 
-        if (intermed_results == None):
+        if (intermed_results is None):
             logger.error("Illegal results")
             
         ota_id, data_products, shmem_id = intermed_results
@@ -3624,7 +3624,7 @@ def collectcells(input, outputfile,
 
         header = data_products['header']
         
-        if (header == None):
+        if (header is None):
             logger.warning("OTA %d reporting empty header, ignoring" %(ota_id))
             ota_missing_empty.append(ota_id)
             continue
@@ -3762,7 +3762,7 @@ def collectcells(input, outputfile,
     # Compute the global fringe scaling 
     # 
     fringe_scaling_median = fringe_scaling_std = 0
-    if (not options['fringe_dir'] == None and not type(fringe_scaling) == type(None)): #.shape[0] > 0):
+    if (options['fringe_dir'] is not None and not type(fringe_scaling) == type(None)): #.shape[0] > 0):
         logger.debug("Computing average fringe scaling amplitude")
         # Determine the global scaling factor
         good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])
@@ -3988,7 +3988,7 @@ def collectcells(input, outputfile,
         logger.debug("Working on final results from %d" % (ota_id))
 
         hdu = data_products['hdu']
-        if (hdu == None):
+        if (hdu is None):
             logger.warning("Empty HDU received!")
             continue
 
@@ -4103,7 +4103,7 @@ def collectcells(input, outputfile,
     for extension in range(1, len(ota_list)):
         ota = ota_list[extension]
 
-        if (ota == None):
+        if (ota is None):
             continue
 
         if (cmdline_arg_isset("-prep4sex")):
@@ -4120,7 +4120,7 @@ def collectcells(input, outputfile,
             if (not header in ota_list[0].header):
                 (keyword, value, comment) = ota.header.cards[header]
                 ota_list[0].header[keyword] = (value, comment)
-                first_inherited_header = keyword if first_inherited_header == None \
+                first_inherited_header = keyword if first_inherited_header is None \
                                          else first_inherited_header
 
             # By now the value should exist in the primary header, 
@@ -4547,14 +4547,14 @@ def collectcells(input, outputfile,
         ota_list[0].header['MAG0_MAG'] = (photcalib_details['aperture_mag'], "id string for magnitude")
         ota_list[0].header['MAG0_ERR'] = (photcalib_details['aperture_magerr'], "is string for mag error")
 
-        if (not photcalib_details['radialZPfit'] == None):
+        if (photcalib_details['radialZPfit'] is not None):
             ota_list[0].header['RADZPFIT'] = True
             ota_list[0].header['RADZP_P0'] = photcalib_details['radialZPfit'][0]
             ota_list[0].header['RADZP_P1'] = photcalib_details['radialZPfit'][1]
             ota_list[0].header['RADZP_E0'] = photcalib_details['radialZPfit_error'][0]
             ota_list[0].header['RADZP_E1'] = photcalib_details['radialZPfit_error'][1]
 
-        if (not photcalib_details['zp_restricted'] == None):
+        if (photcalib_details['zp_restricted'] is not None):
             (sel_median, sel_std, sel_psigma, sel_msigma, sel_n, sel_medodimag, sel_maxodimag, sel_minodimag) = photcalib_details['zp_restricted']
             ota_list[0].header['ZPRESMED'] = sel_median
             ota_list[0].header['ZPRESSTD'] = sel_std
@@ -4565,7 +4565,7 @@ def collectcells(input, outputfile,
             ota_list[0].header['ZPRES_MX'] = sel_maxodimag
             ota_list[0].header['ZPRES_MN'] = sel_minodimag
             
-        if (not photcalib_details['zp_magnitude_slope'] == None):
+        if (photcalib_details['zp_magnitude_slope'] is not None):
             fit, uncert = photcalib_details['zp_magnitude_slope']
             ota_list[0].header['ZPSLP_P0'] = fit[0]
             ota_list[0].header['ZPSLP_P1'] = fit[1]
@@ -4582,7 +4582,7 @@ def collectcells(input, outputfile,
         ota_list[0].header['MAGZ_AM1'] = (zp_airmass1, "phot Zeropoint corrected for airmass")
             
         # Add some information whether or not we performed a color-term correction
-        colorterm_correction = (not photcalib_details['colorterm'] == None)
+        colorterm_correction = (photcalib_details['colorterm'] is not None)
         ota_list[0].header['MAGZ_CT'] = colorterm_correction
         ota_list[0].header['MAGZ_COL'] = photcalib_details['colorcorrection'] if colorterm_correction else ""
         ota_list[0].header['MAGZ_CTC'] = photcalib_details['colorterm'] if colorterm_correction else 0.0
@@ -4749,7 +4749,7 @@ def collectcells(input, outputfile,
         # numpy.savetxt("skyfinal", sky_samples_final)
 
     logger.debug("Saving reduction log for non-sidereal corrections")
-    if (options['nonsidereal'] == None):
+    if (options['nonsidereal'] is None):
         global_reduction_log.not_selected('nonsidereal')
     else:
         logger.info("Starting non-sidereal WCS modification")
@@ -4875,7 +4875,7 @@ def collectcells(input, outputfile,
 
     podi_logging.ppa_update_progress(80, "Reduction and calibration complete")
 
-    if (not outputfile == None):
+    if (outputfile is not None):
         logger.debug("Complete, writing output file %s" % (outputfile))
         start_time = time.time()
         clobberfile(outputfile)
@@ -4912,10 +4912,10 @@ def apply_nonsidereal_correction(ota_list, options, logger=None, reduction_log=N
     # Tracking rates are given in arcseconds per hour
     # Note that d_ra is given as dRA*cos(dec)
 
-    if (logger == None):
+    if (logger is None):
         logger = logging.getLogger("NonsiderealCorr")
 
-    if (options['nonsidereal'] == None):
+    if (options['nonsidereal'] is None):
         logger.debug("No nonsidereal option set, skipping non-sidereal correction")
         return
     if (not ('dra' in options['nonsidereal'] and
@@ -4923,7 +4923,7 @@ def apply_nonsidereal_correction(ota_list, options, logger=None, reduction_log=N
              'ref_mjd' in options['nonsidereal'])):
         logger.debug("One of the nonsidereal option missing, skipping non-sidereal correction")
         logger.debug("Available options are:"+str(options['nonsidereal']))
-        if (not reduction_log == None):
+        if (reduction_log is not None):
             reduction_log.fail('nonsidereal')
         return
              
@@ -4961,7 +4961,7 @@ def apply_nonsidereal_correction(ota_list, options, logger=None, reduction_log=N
             dra_corrected*3600., ddec_t*3600, ota_list[ext].header['EXTNAME'])
         )
 
-    if (not reduction_log == None):
+    if (reduction_log is not None):
         reduction_log.success('nonsidereal')
     return [dra_t, ddec_t]
 
