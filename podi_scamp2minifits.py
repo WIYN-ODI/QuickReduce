@@ -327,6 +327,15 @@ if __name__ == "__main__":
         ref_ext = sys.argv[4]
     except:
         ref_ext = "OTA33.SCI"
-    
-    scamp_header_to_minifits(scampfile, outputfile, reference, ref_ext)
+
+    recenter = True
+    try:
+        if (sys.argv[5] == "simple"):
+            recenter = False
+    except:
+        pass
+
+    print recenter
+
+    scamp_header_to_minifits(scampfile, outputfile, reference, ref_ext, recenter_odi=recenter)
     
