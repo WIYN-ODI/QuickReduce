@@ -3260,7 +3260,9 @@ def collectcells(input, outputfile,
 
     # Creates the persistency index.cat file
     if (not options['persistency_dir'] == None):
+        logger.info("Gathering persistency data...")
         podi_persistency.get_list_of_saturation_tables(options['persistency_dir'])
+        logger.debug("Done gathering persistency data!")
 
     #
     # Set up the parallel processing environment
@@ -3298,8 +3300,8 @@ def collectcells(input, outputfile,
     ota_from_otaid = {}
     mp_params = {}
 
+    logger.debug("Setting up parallel workers to collect & reduce OTAs")
     worker = reduce_collect_otas(options, number_cpus)
-
     for ota_id in range(len(list_of_otas_to_collect)):
         ota_c_x, ota_c_y = list_of_otas_to_collect[ota_id]        
         ota = ota_c_x * 10 + ota_c_y
