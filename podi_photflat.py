@@ -32,16 +32,21 @@ class PhotFlatFrame(object):
         hdulist = pyfits.open(self.filename)
 
         # load and store all WCS structures
+        self.is_valid = False
         self.wcs = {}
         self.ref_header = None
         self.ota_list = []
+        self.extname_list = []
         for ext in hdulist:
             if (not is_image_extension(ext)):
                 continue
+            ota = ext.header['OTA']
             self.logger.debug("reading wcs for %s in %s" % (ext.name, self.filename))
-            self.wcs[ext.name] = astWCS.WCS(ext.header, mode='pyfits')
+            #self.wcs[ext.name] = astWCS.WCS(ext.header, mode='pyfits')
+            self.wcs[ota] = astWCS.WCS(ext.header, mode='pyfits')
             if (self.ref_header is None):
                 self.ref_header = ext.header
+            print "Reading:", self.filename, ext.header['OTA'], ext.name
             self.ota_list.append(ext.header['OTA'])
             self.extname_list.append(ext.name)
 
@@ -75,11 +80,18 @@ class PhotFlatFrame(object):
             catalog.shape[0], self.filename))
 
         _, bn = os.path.split(self.filename)
-        numpy.savetxt("cat_%s.cat" % (bn[:-5]), self.catalog)
+        dbg_catfile = "cat_%s.cat" % (bn[:-5])
+        logger.debug("Saving debug catalog to %s" % (dbg_catfile))
+        numpy.savetxt(dbg_catfile, self.catalog)
 
         # now compute all zeropoints
         mag0size = hdulist[0].header['MAG0SIZE']
         photfilt = hdulist[0].header['PHOTFILT'].upper()
+        self.logger.debug("PHOTOMETRIC FILTER: %s" % (photfilt))
+        if (photfilt.lower() not in ['u', 'g', 'r', 'i', 'z']):
+            self.logger.critical("Unable to identify PHOTFILT value: %s" % (photfilt))
+            return None
+
         odimag = self.catalog[:, self.field_names['ODI_MAG_D%d' % (int(mag0size*10))]]
         refmag = self.catalog[:, self.field_names['REF_%s' % (photfilt)]]
         odierr = self.catalog[:, self.field_names['ODI_ERR_D%d' % (int(mag0size*10))]]
@@ -97,8 +109,11 @@ class PhotFlatFrame(object):
         self.deprojected_coords = numpy.array(self.catalog[:, 0:2])
         self.deprojected_coords[:,0] *= self.cos_dec
         self.coord_tree = scipy.spatial.cKDTree(self.deprojected_coords)
-
+        self.is_valid = True
         #print self.field_names
+
+    def valid(self):
+        return self.is_valid
 
     def get_source_indices(self, ra, dec, radius=1, nmax=None, relative_coords=False):
         _ra = ra * self.cos_dec
@@ -145,6 +160,9 @@ class PhotFlatFrame(object):
     def get_ota_list(self):
         return self.ota_list
 
+    def get_extname_list(self):
+        return self.extname_list
+
 
     def get_ota_zeropoints(self, ota=None, x=2048, y=2048, radius=2048, strict_ota=False, return_error=True):
         if (ota is None):
@@ -168,7 +186,7 @@ class PhotFlatFrame(object):
 
         if (strict_ota):
             # only return sources from the selected ota
-            ota_num = int(ota[3:5])
+            ota_num = ota #int(ota[3:5])
             this_ota = (return_cat[:, self.field_names['OTA']] == ota_num)
             return_cat = return_cat[this_ota]
             zp = zp[this_ota]
@@ -417,6 +435,8 @@ class photflat(object):
 
         self.phot_frames = {}
 
+        self.ota_from_extname = {}
+        self.extname_from_ota = {}
         pass
 
     def read_catalogs(self):
@@ -428,7 +448,23 @@ class photflat(object):
                 self.logger.warning("File %s does not exist" % (fn))
                 continue
 
-            self.phot_frames[fn] = PhotFlatFrame(fn)
+            new_frame = PhotFlatFrame(fn)
+            if (new_frame.is_valid):
+                self.phot_frames[fn] = new_frame
+
+                for i in range(len(new_frame.get_ota_list())):#
+                    ota = new_frame.get_ota_list()[i]
+                    extname = new_frame.get_extname_list()[i]
+                    # ,extname in new_frame.get_ota_list(),new_frame.get_extname_list():
+                    self.ota_from_extname[extname] = ota
+                    self.extname_from_ota[ota] = extname
+
+    def extname2ota(self, extname):
+        return self.ota_from_extname[extname]
+
+    def ota2extname(self, ota):
+        return self.extname_from_ota[ota]
+
 
 
 
@@ -571,6 +607,7 @@ if __name__ == "__main__":
 
     reference_zp = {}
     list_of_otas = []
+    list_of_extnames = []
     for framename in pf.phot_frames:
         logger.info("Adding photometric data from file %s" % (framename))
         frame = pf.phot_frames[framename]
@@ -584,10 +621,15 @@ if __name__ == "__main__":
 
         # also collect a list of all available OTAs
         list_of_otas.extend(frame.get_ota_list())
+        list_of_extnames.extend(frame.get_extname_list())
+
     print reference_zp
 
     unique_otas = set(list_of_otas)
     print list_of_otas
+
+    unique_extnames = set(list_of_extnames)
+    print unique_extnames
 
     #
     # Now extract the relative ZP differences for each of the sectors in each ota
@@ -606,12 +648,14 @@ if __name__ == "__main__":
     running_sum = 0
     otalist = [pyfits.PrimaryHDU()]
 
-    for i, ota in enumerate(unique_otas):
-        logger.info("Computing photometric flat-field for %s (%2d of %2d)" % (ota, i+1, len(unique_otas)))
+    for i, extname in enumerate(unique_extnames):
+
+        logger.info("Computing photometric flat-field for OTA %s (%2d of %2d)" % (extname, i+1, len(unique_otas)))
+        ota = pf.extname2ota(extname)
 
         photflat = numpy.empty((n_samples,n_samples))
         photflat_err = numpy.empty((n_samples,n_samples))
-        dump = open("dump_%s" % (ota[:-4]), "w")
+        dump = open("dump_%d" % (ota), "w")
         for _x,_y in itertools.product(range(n_samples), repeat=2):
             #print x,y
 
@@ -662,16 +706,16 @@ if __name__ == "__main__":
         combined[:,0] = ix.ravel()
         combined[:,1] = iy.ravel()
         combined[:,2] = photflat.ravel()
-        numpy.savetxt("photflat.%s" % (ota), combined)
-        numpy.savetxt("photflat.%s" % (ota[:-4]), photflat)
+        numpy.savetxt("photflat.%02d.combined" % (ota), combined)
+        numpy.savetxt("photflat.%02d.photflat" % (ota), photflat)
 
         combined[:,2] = photflat_err.ravel()
-        numpy.savetxt("photflat.%s.err" % (ota[:-4]), combined)
+        numpy.savetxt("photflat.%02d.err" % (ota), combined)
 
         fullres = expand_to_fullres(photflat, blocksize=pixel_resolution)
-        imghdu = pyfits.ImageHDU(data=fullres, name=ota)
+        imghdu = pyfits.ImageHDU(data=fullres, name=extname)
         # add some headers to allow for mosaic viewing
-        otax, otay = int(ota[3]), int(ota[4])
+        otax, otay = int(math.floor(ota/10)), int(ota%10)
         s = 4096
         detsec = "[%d:%d,%d:%d]" % (otax * s, (otax + 1) * s, otay * s, (otay + 1) * s)
         imghdu.header["DETSEC"] = (detsec, "position of OTA in focal plane")
