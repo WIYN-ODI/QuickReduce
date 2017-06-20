@@ -42,7 +42,8 @@ class PhotFlatFrame(object):
             self.wcs[ext.name] = astWCS.WCS(ext.header, mode='pyfits')
             if (self.ref_header is None):
                 self.ref_header = ext.header
-            self.ota_list.append(ext.name)
+            self.ota_list.append(ext.header['OTA'])
+            self.extname_list.append(ext.name)
 
         #
         # now read the photcalib table
@@ -109,7 +110,11 @@ class PhotFlatFrame(object):
 
         self.logger.debug("Searching for %d sources within %f arcmin of %f, %f" % (k, radius, _ra, dec))
         # query which sources match
-        d, i = self.coord_tree.query([_ra,dec], distance_upper_bound=radius/60., k=k, p=2, n_jobs=-1)
+        d, i = self.coord_tree.query(
+            [_ra,dec],
+            distance_upper_bound=radius/60.,
+            k=k,
+            p=2) #, n_jobs=-1)
         valid_indices = numpy.isfinite(d)
         idx = i[valid_indices]
 
@@ -126,6 +131,7 @@ class PhotFlatFrame(object):
         """
 
         idx = self.get_source_indices(ra, dec, radius, nmax, relative_coords)
+        print idx
         zp = self.zeropoint[idx]
         zperr = self.zeropoint_error[idx]
 
@@ -160,7 +166,7 @@ class PhotFlatFrame(object):
         zp = self.zeropoint[indices]
         zperr = self.zeropoint_error[indices]
 
-        if (strict_ota and False):
+        if (strict_ota):
             # only return sources from the selected ota
             ota_num = int(ota[3:5])
             this_ota = (return_cat[:, self.field_names['OTA']] == ota_num)
@@ -549,8 +555,10 @@ if __name__ == "__main__":
 
     logger = logging.getLogger("PhotFlat")
 
-    filelist = get_clean_cmdline()[1:]
+    output_filename = sys.argv[1]
+    filelist = get_clean_cmdline()[2:]
     debug = cmdline_arg_isset("-debug")
+    strict_ota = cmdline_arg_isset("-ota")
     pf = photflat(filelist=filelist)
     logger.info("Input files:\n-- %s" % ("\n-- ".join(filelist)))
 
@@ -564,6 +572,7 @@ if __name__ == "__main__":
     reference_zp = {}
     list_of_otas = []
     for framename in pf.phot_frames:
+        logger.info("Adding photometric data from file %s" % (framename))
         frame = pf.phot_frames[framename]
 
         zps = frame.get_zeropoints(ra=reference_pos[0],
@@ -577,8 +586,8 @@ if __name__ == "__main__":
         list_of_otas.extend(frame.get_ota_list())
     print reference_zp
 
-    print list_of_otas
     unique_otas = set(list_of_otas)
+    print list_of_otas
 
     #
     # Now extract the relative ZP differences for each of the sectors in each ota
@@ -614,7 +623,10 @@ if __name__ == "__main__":
             for framename in pf.phot_frames:
                 frame = pf.phot_frames[framename]
                 #print framename, ota, x, y, frame
-                zp_list, zperr_list = frame.get_ota_zeropoints(ota=ota, x=x, y=y, radius=pixel_resolution*enlarge, return_error=True)
+                zp_list, zperr_list = frame.get_ota_zeropoints(
+                    ota=ota, x=x, y=y, radius=pixel_resolution*enlarge,
+                    strict_ota=strict_ota,
+                    return_error=True)
                 # correct zp for the specific offset
                 zp_list = zp_list - reference_zp[framename]
                 if (full_zp_list is None):
@@ -669,9 +681,8 @@ if __name__ == "__main__":
     # break
 
     hdulist = pyfits.HDUList(otalist)
-    out_fn = "photflat.fits"
-    clobberfile(out_fn)
-    hdulist.writeto(out_fn, clobber=True)
+    clobberfile(output_filename)
+    hdulist.writeto(output_filename, clobber=True)
 
     #
     # Put all frames on the same relative photometry grid, using the zeropoint
