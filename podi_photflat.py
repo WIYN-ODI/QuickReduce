@@ -27,9 +27,13 @@ class PhotFlatFrame(object):
         self.nmax = 250
 
         # load the FITS and extract the photcalib table
-        self.filename = filename
 
-        hdulist = pyfits.open(self.filename)
+        if (type(filename) == str):
+            self.filename = filename
+            hdulist = pyfits.open(self.filename)
+        else:
+            self.filename = "*in_memory*"
+            hdulist = filename
 
         # load and store all WCS structures
         self.is_valid = False
@@ -428,10 +432,11 @@ class PhotFlatFrame(object):
 
 class PhotFlatHandler(object):
 
-    def __init__(self, filelist):
+    def __init__(self, filelist=None, input_hdus=None):
         self.logger = logging.getLogger("PhotFlat")
 
         self.filelist = filelist
+        self.input_hdus = input_hdus
 
         self.phot_frames = {}
 
@@ -442,22 +447,41 @@ class PhotFlatHandler(object):
     def read_catalogs(self):
 
         self.logger.info("Reading PHOTCALIB catalogs")
-        for idx, fn in enumerate(self.filelist):
 
-            if (not os.path.isfile(fn)):
-                self.logger.warning("File %s does not exist" % (fn))
-                continue
+        #
+        # Read all files
+        #
+        if (self.filelist is not None):
+            for idx, fn in enumerate(self.filelist):
 
-            new_frame = PhotFlatFrame(fn)
-            if (new_frame.is_valid):
-                self.phot_frames[fn] = new_frame
+                if (not os.path.isfile(fn)):
+                    self.logger.warning("File %s does not exist" % (fn))
+                    continue
 
-                for i in range(len(new_frame.get_ota_list())):#
-                    ota = new_frame.get_ota_list()[i]
-                    extname = new_frame.get_extname_list()[i]
-                    # ,extname in new_frame.get_ota_list(),new_frame.get_extname_list():
-                    self.ota_from_extname[extname] = ota
-                    self.extname_from_ota[ota] = extname
+                new_frame = PhotFlatFrame(fn)
+                self.add_new_frame(new_frame, fn)
+
+        #
+        # Next read all catalogs from already open HDUList(s)
+        #
+        if (self.input_hdus is not None):
+            for idx, hdulist in enumerate(self.input_hdus):
+                fn = "hdu_%d" % (idx)
+                new_frame = PhotFlatFrame(hdulist)
+                self.add_new_frame(new_frame, fn)
+
+
+    def add_new_frame(self, new_frame, fn):
+
+        if (new_frame.is_valid):
+            self.phot_frames[fn] = new_frame
+
+            for i in range(len(new_frame.get_ota_list())):  #
+                ota = new_frame.get_ota_list()[i]
+                extname = new_frame.get_extname_list()[i]
+                # ,extname in new_frame.get_ota_list(),new_frame.get_extname_list():
+                self.ota_from_extname[extname] = ota
+                self.extname_from_ota[ota] = extname
 
     def extname2ota(self, extname):
         return self.ota_from_extname[extname]
@@ -584,7 +608,8 @@ def expand_to_fullres(photflat, blocksize, out_dimension=None):
 
 
 def create_photometric_flatfield(
-        filelist,
+        filelist=None,
+        input_hdus=None,
         strict_ota=False,
         resolution_arcsec=60.,
         debug=False,
@@ -592,8 +617,16 @@ def create_photometric_flatfield(
 
     logger = logging.getLogger("PhotFlat")
 
-    pf = PhotFlatHandler(filelist=filelist)
-    logger.info("Input files:\n-- %s" % ("\n-- ".join(filelist)))
+    pf = PhotFlatHandler(
+        filelist=filelist,
+        input_hdus=input_hdus
+    )
+    n_frames = len(filelist) if filelist is not None else 0
+    n_hdus = len(input_hdus) if input_hdus is not None else 0
+    logger.info("Computing photometric flatfield from %d disk-files and %d memory-files" % (
+        n_frames, n_hdus)
+    )
+    # logger.info("Input files:\n-- %s" % ("\n-- ".join(filelist)))
 
     pf.read_catalogs()
 
@@ -759,8 +792,13 @@ if __name__ == "__main__":
     strict_ota = cmdline_arg_isset("-ota")
     resolution = float(cmdline_arg_set_or_default("-resolution", 60.))
 
+    in_hdus = []
+    for fn in filelist:
+        in_hdus.append(pyfits.open(fn))
+
     hdulist = create_photometric_flatfield(
-        filelist=filelist,
+        filelist=None,
+        input_hdus=in_hdus,
         debug=debug,
         strict_ota=strict_ota,
         resolution_arcsec=resolution,
