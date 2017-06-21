@@ -426,7 +426,7 @@ class PhotFlatFrame(object):
 
 
 
-class photflat(object):
+class PhotFlatHandler(object):
 
     def __init__(self, filelist):
         self.logger = logging.getLogger("PhotFlat")
@@ -583,24 +583,19 @@ def expand_to_fullres(photflat, blocksize, out_dimension=None):
     return photflat_2d
 
 
-
-if __name__ == "__main__":
-
-    options = {}
-    podi_logging.setup_logging(options)
+def create_photometric_flatfield(
+        filelist,
+        strict_ota=False,
+        resolution_arcsec=60.,
+        debug=False,
+):
 
     logger = logging.getLogger("PhotFlat")
 
-    output_filename = sys.argv[1]
-    filelist = get_clean_cmdline()[2:]
-    debug = cmdline_arg_isset("-debug")
-    strict_ota = cmdline_arg_isset("-ota")
-    pf = photflat(filelist=filelist)
+    pf = PhotFlatHandler(filelist=filelist)
     logger.info("Input files:\n-- %s" % ("\n-- ".join(filelist)))
 
     pf.read_catalogs()
-
-    resolution = float(cmdline_arg_set_or_default("-resolution", 60.))
 
     reference_pos = [4., -4.]
     # that's in arc-min relative to reference point from CRVAL1/2
@@ -721,12 +716,12 @@ if __name__ == "__main__":
         imghdu.header["DETSEC"] = (detsec, "position of OTA in focal plane")
         otalist.append(imghdu)
 
-    print("Total sum of reference values:", running_sum)
+    logger.info("Total sum of reference values: %d" % (running_sum))
     # break
 
     hdulist = pyfits.HDUList(otalist)
-    clobberfile(output_filename)
-    hdulist.writeto(output_filename, clobber=True)
+    return hdulist
+
 
     #
     # Put all frames on the same relative photometry grid, using the zeropoint
@@ -748,6 +743,30 @@ if __name__ == "__main__":
     #
     # out_fn = "%s.corr" % (src_cat_fn)
     # numpy.savetxt(out_fn, correction)
+
+
+
+if __name__ == "__main__":
+
+    options = {}
+    podi_logging.setup_logging(options)
+
+    logger = logging.getLogger("PhotFlat")
+
+    output_filename = sys.argv[1]
+    filelist = get_clean_cmdline()[2:]
+    debug = cmdline_arg_isset("-debug")
+    strict_ota = cmdline_arg_isset("-ota")
+    resolution = float(cmdline_arg_set_or_default("-resolution", 60.))
+
+    hdulist = create_photometric_flatfield(
+        filelist=filelist,
+        debug=debug,
+        strict_ota=strict_ota,
+        resolution_arcsec=resolution,
+    )
+    clobberfile(output_filename)
+    hdulist.writeto(output_filename, clobber=True)
 
     podi_logging.shutdown_logging(options)
 
