@@ -607,6 +607,131 @@ def expand_to_fullres(photflat, blocksize, out_dimension=None):
     return photflat_2d
 
 
+def parallel_create_photometric_flatfields_worker(
+        input_queue,
+        result_queue,
+        pf,
+        reference_zp,
+        pixel_resolution = 512,
+        enlarge = 2,
+    ):
+
+    while (True):
+
+        cmd = input_queue.get()
+        if (cmd is None):
+            break
+
+        extname = cmd
+
+        imghdu = create_photometric_flatfield_single_ota(
+            extname=extname,
+            pf=pf,
+            reference_zp=reference_zp,
+            pixel_resolution=pixel_resolution,
+            enlarge=enlarge,
+        )
+
+        result_queue.put(imghdu)
+
+
+def create_photometric_flatfield_single_ota(
+        extname,
+        pf,
+        reference_zp,
+        pixel_resolution=512,
+        enlarge=2,
+):
+
+    n_samples = int(math.ceil(4096. / pixel_resolution))+1
+    sample_pixels = int(math.floor((4096. / (n_samples-1))))
+
+    logger.debug("Using pixel-grid of %d^2 samples every %d pixels" % (
+        n_samples, sample_pixels))
+    ref_points = numpy.arange(n_samples) * sample_pixels
+    # print n_samples, sample_pixels, n_samples*sample_pixels
+
+    iy,ix = numpy.indices((n_samples, n_samples)) * sample_pixels
+
+    running_sum = 0
+
+    ota = pf.extname2ota(extname)
+
+    photflat = numpy.empty((n_samples, n_samples))
+    photflat_err = numpy.empty((n_samples, n_samples))
+    dump = open("dump_%d" % (ota), "w")
+    for _x, _y in itertools.product(range(n_samples), repeat=2):
+        # print x,y
+
+        x = ref_points[_x]
+        y = ref_points[_y]
+
+        full_zp_list = None
+        full_zperr_list = None
+        for framename in pf.phot_frames:
+            frame = pf.phot_frames[framename]
+            # print framename, ota, x, y, frame
+            zp_list, zperr_list = frame.get_ota_zeropoints(
+                ota=ota, x=x, y=y, radius=pixel_resolution * enlarge,
+                strict_ota=strict_ota,
+                return_error=True)
+            # correct zp for the specific offset
+            zp_list = zp_list - reference_zp[framename]
+            if (full_zp_list is None):
+                full_zp_list = zp_list
+                full_zperr_list = zperr_list
+            else:
+                full_zp_list = numpy.append(full_zp_list, zp_list, axis=0)
+                full_zperr_list = numpy.append(full_zperr_list, zperr_list,
+                                               axis=0)
+
+        # print ota, ota[3:5], x, y, full_zp_list.shape[0]
+        running_sum += full_zp_list.shape[0]
+
+        # ideally, do some outlier rejection here
+        _, mask = three_sigma_clip(full_zp_list, return_mask=True)
+        full_zp_list = full_zp_list[mask]
+        full_zperr_list = full_zperr_list[mask]
+
+        # compute the weighted mean correction factor
+        small_error = full_zperr_list < 0.03
+        full_zperr_list = full_zperr_list[small_error]
+        full_zp_list = full_zp_list[small_error]
+        photflat[_x, _y] = numpy.sum(
+            full_zp_list / full_zperr_list) / numpy.sum(1. / full_zperr_list)
+        photflat_err[_x, _y] = numpy.std(full_zp_list)
+
+        numpy.savetxt(dump,
+                      numpy.array([full_zp_list, full_zperr_list,
+                                   numpy.ones((full_zp_list.shape[0])) *
+                                   photflat[_x, _y]]).T)
+        # numpy.append(full_zp_list.reshape((-1,1)), full_zperr_list.reshape((-1,1)), axis=1))
+        print >> dump, "\n" * 10
+
+        # photflat[_x,_y] = numpy.median(full_zp_list)
+
+    combined = numpy.empty((n_samples ** 2, 3))
+    combined[:, 0] = ix.ravel()
+    combined[:, 1] = iy.ravel()
+    combined[:, 2] = photflat.ravel()
+    numpy.savetxt("photflat.%02d.combined" % (ota), combined)
+    numpy.savetxt("photflat.%02d.photflat" % (ota), photflat)
+
+    combined[:, 2] = photflat_err.ravel()
+    numpy.savetxt("photflat.%02d.err" % (ota), combined)
+
+    fullres = expand_to_fullres(photflat, blocksize=pixel_resolution)
+    imghdu = pyfits.ImageHDU(data=fullres, name=extname)
+    # add some headers to allow for mosaic viewing
+    otax, otay = int(math.floor(ota / 10)), int(ota % 10)
+    s = 4096
+    detsec = "[%d:%d,%d:%d]" % (
+    otax * s, (otax + 1) * s, otay * s, (otay + 1) * s)
+    imghdu.header["DETSEC"] = (detsec, "position of OTA in focal plane")
+
+    return imghdu
+
+
 def create_photometric_flatfield(
         filelist=None,
         input_hdus=None,
@@ -664,89 +789,21 @@ def create_photometric_flatfield(
     #
     pixel_resolution = 512
     enlarge = 2.
-    n_samples = int(math.ceil(4096. / pixel_resolution))+1
-    sample_pixels = int(math.floor((4096. / (n_samples-1))))
 
-    logger.info("Using pixel-grid of %d^2 samples every %d pixels" % (n_samples, sample_pixels))
-    ref_points = numpy.arange(n_samples) * sample_pixels
-    print n_samples, sample_pixels, n_samples*sample_pixels
-
-    iy,ix = numpy.indices((n_samples, n_samples)) * sample_pixels
-
-    running_sum = 0
     otalist = [pyfits.PrimaryHDU()]
+    running_sum = 0
 
     for i, extname in enumerate(unique_extnames):
 
         logger.info("Computing photometric flat-field for OTA %s (%2d of %2d)" % (extname, i+1, len(unique_otas)))
-        ota = pf.extname2ota(extname)
 
-        photflat = numpy.empty((n_samples,n_samples))
-        photflat_err = numpy.empty((n_samples,n_samples))
-        dump = open("dump_%d" % (ota), "w")
-        for _x,_y in itertools.product(range(n_samples), repeat=2):
-            #print x,y
-
-            x = ref_points[_x]
-            y = ref_points[_y]
-
-            full_zp_list = None
-            full_zperr_list = None
-            for framename in pf.phot_frames:
-                frame = pf.phot_frames[framename]
-                #print framename, ota, x, y, frame
-                zp_list, zperr_list = frame.get_ota_zeropoints(
-                    ota=ota, x=x, y=y, radius=pixel_resolution*enlarge,
-                    strict_ota=strict_ota,
-                    return_error=True)
-                # correct zp for the specific offset
-                zp_list = zp_list - reference_zp[framename]
-                if (full_zp_list is None):
-                    full_zp_list = zp_list
-                    full_zperr_list = zperr_list
-                else:
-                    full_zp_list = numpy.append(full_zp_list, zp_list, axis=0)
-                    full_zperr_list = numpy.append(full_zperr_list, zperr_list, axis=0)
-
-            # print ota, ota[3:5], x, y, full_zp_list.shape[0]
-            running_sum += full_zp_list.shape[0]
-
-            # ideally, do some outlier rejection here
-            _, mask = three_sigma_clip(full_zp_list, return_mask=True)
-            full_zp_list = full_zp_list[mask]
-            full_zperr_list = full_zperr_list[mask]
-
-            # compute the weighted mean correction factor
-            small_error = full_zperr_list < 0.03
-            full_zperr_list = full_zperr_list[small_error]
-            full_zp_list = full_zp_list[small_error]
-            photflat[_x,_y] = numpy.sum(full_zp_list/full_zperr_list) / numpy.sum(1./full_zperr_list)
-            photflat_err[_x,_y] = numpy.std(full_zp_list)
-
-            numpy.savetxt(dump,
-                          numpy.array([full_zp_list, full_zperr_list, numpy.ones((full_zp_list.shape[0]))*photflat[_x,_y]]).T)
-                          #numpy.append(full_zp_list.reshape((-1,1)), full_zperr_list.reshape((-1,1)), axis=1))
-            print >>dump, "\n"*10
-
-            # photflat[_x,_y] = numpy.median(full_zp_list)
-
-        combined = numpy.empty((n_samples**2, 3))
-        combined[:,0] = ix.ravel()
-        combined[:,1] = iy.ravel()
-        combined[:,2] = photflat.ravel()
-        numpy.savetxt("photflat.%02d.combined" % (ota), combined)
-        numpy.savetxt("photflat.%02d.photflat" % (ota), photflat)
-
-        combined[:,2] = photflat_err.ravel()
-        numpy.savetxt("photflat.%02d.err" % (ota), combined)
-
-        fullres = expand_to_fullres(photflat, blocksize=pixel_resolution)
-        imghdu = pyfits.ImageHDU(data=fullres, name=extname)
-        # add some headers to allow for mosaic viewing
-        otax, otay = int(math.floor(ota/10)), int(ota%10)
-        s = 4096
-        detsec = "[%d:%d,%d:%d]" % (otax * s, (otax + 1) * s, otay * s, (otay + 1) * s)
-        imghdu.header["DETSEC"] = (detsec, "position of OTA in focal plane")
+        imghdu = create_photometric_flatfield_single_ota(
+            extname=extname,
+            pf=pf,
+            reference_zp=reference_zp,
+            pixel_resolution=pixel_resolution,
+            enlarge=enlarge,
+        )
         otalist.append(imghdu)
 
     logger.info("Total sum of reference values: %d" % (running_sum))
