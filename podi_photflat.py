@@ -490,6 +490,15 @@ class PhotFlatHandler(object):
         return self.extname_from_ota[ota]
 
 
+    def get_reference_zeropoint(self):
+        return
+
+    def get_ota_set(self):
+        return
+
+    def get_extname_set(self):
+        return
+
 
 
 
@@ -730,6 +739,11 @@ def create_photometric_flatfield_single_ota(
     imghdu.header["DETSEC"] = (detsec, "position of OTA in focal plane")
 
     return imghdu
+
+
+
+def calculate_reference_zeropoint(pf):
+
 
 
 def create_photometric_flatfield(
