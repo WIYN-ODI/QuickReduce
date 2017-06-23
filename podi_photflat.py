@@ -490,14 +490,42 @@ class PhotFlatHandler(object):
         return self.extname_from_ota[ota]
 
 
-    def get_reference_zeropoint(self):
-        return
+    def get_reference_zeropoint(self,
+                                ra, dec, radius,
+                                relative_coords=True,
+                                max_error=0.05):
+
+        reference_zp = {}
+        for framename in self.phot_frames:
+            self.logger.info("Adding photometric data from file %s" % (framename))
+            frame = self.phot_frames[framename]
+
+            zps = frame.get_zeropoints(ra=ra, dec=dec, radius=radius,
+                                       relative_coords=relative_coords,
+                                       max_error=max_error)
+
+            #print zps
+            reference_zp[framename] = numpy.median(zps)
+
+        return reference_zp
+
 
     def get_ota_set(self):
-        return
+        list_of_otas = []
+        for framename in self.phot_frames:
+            frame = self.phot_frames[framename]
+            list_of_otas.extend(frame.get_ota_list())
+
+        return set(list_of_otas)
+
 
     def get_extname_set(self):
-        return
+        list_of_extnames = []
+        for framename in self.phot_frames:
+            frame = self.phot_frames[framename]
+            list_of_extnames.extend(frame.get_extname_list())
+
+        return set(list_of_extnames)
 
 
 
@@ -742,9 +770,6 @@ def create_photometric_flatfield_single_ota(
 
 
 
-def calculate_reference_zeropoint(pf):
-
-
 
 def create_photometric_flatfield(
         filelist=None,
@@ -772,31 +797,42 @@ def create_photometric_flatfield(
     reference_pos = [4., -4.]
     # that's in arc-min relative to reference point from CRVAL1/2
 
-    reference_zp = {}
-    list_of_otas = []
-    list_of_extnames = []
-    for framename in pf.phot_frames:
-        logger.info("Adding photometric data from file %s" % (framename))
-        frame = pf.phot_frames[framename]
+    reference_zp = pf.get_reference_zeropoint(
+        ra=reference_pos[0],
+        dec=reference_pos[1],
+        radius=3,
+        relative_coords=True,
+        max_error=0.05)
 
-        zps = frame.get_zeropoints(ra=reference_pos[0],
-                                   dec=reference_pos[1],
-                                   radius=3,
-                                   relative_coords=True, max_error=0.05)
-        print zps
-        reference_zp[framename] = numpy.median(zps)
 
-        # also collect a list of all available OTAs
-        list_of_otas.extend(frame.get_ota_list())
-        list_of_extnames.extend(frame.get_extname_list())
+    # reference_zp = {}
+    # list_of_otas = []
+    # list_of_extnames = []
+    # for framename in pf.phot_frames:
+    #     logger.info("Adding photometric data from file %s" % (framename))
+    #     frame = pf.phot_frames[framename]
+    #
+    #     zps = frame.get_zeropoints(ra=reference_pos[0],
+    #                                dec=reference_pos[1],
+    #                                radius=3,
+    #                                relative_coords=True, max_error=0.05)
+    #     print zps
+    #     reference_zp[framename] = numpy.median(zps)
+    #
+    #     # also collect a list of all available OTAs
+    #     list_of_otas.extend(frame.get_ota_list())
+    #     list_of_extnames.extend(frame.get_extname_list())
+    #
+    # print reference_zp
 
-    print reference_zp
+    unique_otas = pf.get_ota_set()
+    unique_extnames = pf.get_extname_set()
 
-    unique_otas = set(list_of_otas)
-    print list_of_otas
-
-    unique_extnames = set(list_of_extnames)
-    print unique_extnames
+        # set(list_of_otas)
+    # print list_of_otas
+    #
+    # unique_extnames = set(list_of_extnames)
+    # print unique_extnames
 
     #
     # Now extract the relative ZP differences for each of the sectors in each ota
