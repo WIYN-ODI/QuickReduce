@@ -685,7 +685,11 @@ def photocalib_zeropoint(output_filename,
     fig = matplotlib.pyplot.figure()
     ax = fig.add_subplot(111)
 
-    small_errors = details['odi_sdss_matched_smallerrors']
+    #small_errors = details['odi_sdss_matched_smallerrors']
+
+    use_for_calibration = details['use_for_calibration_mask']
+    small_errors = details['odi_sdss_matched'][use_for_calibration]
+
     sdss_mag = small_errors[:, details['photref_col_mag']]
     sdss_magerr = small_errors[:, details['photref_col_err']]
 
@@ -766,7 +770,7 @@ def photocalib_zeropoint(output_filename,
     #
     # Count the number of sources in each of the categories
     #
-    n_ref = details['odi_sdss_matched_ref'].shape[0]
+    n_ref = numpy.sum(use_for_calibration) # details['odi_sdss_matched_ref'].shape[0]
     n_outlier = details['odi_sdss_matched_outlier'].shape[0]
     n_all = details['odi_sdss_matched'].shape[0]
     n_ignored = n_all-(n_ref+n_outlier)

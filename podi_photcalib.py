@@ -708,6 +708,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
               verbose=False,
               eliminate_flags=True,
               matching_radius=3,
+              error_cutoff=0.02,
               detailed_return={}):
 
     """
@@ -1338,9 +1339,21 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         # Now select only sources with reference uncertainties <~ 0.02 mag
         # The detailed cutoff can be configured via the sitesetup.py configuration
         #
-        error_cutoff = 0.02
         if (detailed_return['catalog'] in sitesetup.photcalib_error_cutoff):
             error_cutoff = sitesetup.photcalib_error_cutoff[detailed_return['catalog']]
+
+        total_errors = numpy.hypot(
+            odi_sdss_matched[:, photref_col_err],
+            odi_sdss_matched[:, SXcolumn[col_mag]+2]
+        )
+        small_error_mask = total_errors < error_cutoff
+        if (numpy.sum(small_error_mask) < 5):
+            # we do not have enough stars with small errors, so fall back
+            # to using all stars for the photometric calibration
+            use_for_calibration = numpy.ones((odi_sdss_matched.shape[0]), dtype=numpy.bool)
+        else:
+            use_for_calibration = small_error_mask
+
         small_reference_errors = odi_sdss_matched[:, photref_col_err] < error_cutoff
         if (numpy.sum(small_reference_errors) > 5):
             small_errors = odi_sdss_matched[small_reference_errors].copy()
@@ -1352,25 +1365,61 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         detailed_return['odi_sdss_matched_smallerrors'] = small_errors
         detailed_return['odi_sdss_matched_largeerrors'] = large_errors
 
+        # #
+        # # From the optimized catalog, re-extract magnitudes and erors for ODI
+        # # and the photometric reference catalog
+        # #
+        # sdss_mag = small_errors[:, photref_col_mag]
+        # sdss_magerr = small_errors[:, photref_col_err]
+        # odi_mag = small_errors[:, SXcolumn[col_mag]+2]
+        # odi_magerr = small_errors[:, SXcolumn[col_magerr]+2]
+        # zp = small_errors[:, photref_col_mag] - small_errors[:, SXcolumn[col_mag]+2]
+        # zp_err = numpy.hypot(small_errors[:, photref_col_err], small_errors[:, SXcolumn[col_magerr]+2])
         #
-        # From the optimized catalog, re-extract magnitudes and erors for ODI 
+        # #
+        # # Reject outliers by iterative sigma-clipping
+        # #
+        # detailed_return['odi_sdss_matched_clipped'] = small_errors
+        # if (zp.shape[0] <=5):
+        #     clipping_mask = numpy.ones((zp.shape), dtype=numpy.bool)
+        # else:
+        #     _dum, clipping_mask = three_sigma_clip(zp, return_mask=True)
+        #
+        # zp_clipped = zp[clipping_mask]
+        # zperr_clipped = zp_err[clipping_mask]
+        # sdss_mag_clipped = sdss_mag[clipping_mask]
+        #
+        # detailed_return['odi_sdss_matched_clipped'] = small_errors[clipping_mask].copy()
+        # detailed_return['odi_sdss_matched_ref'] = small_errors[clipping_mask].copy()
+        # detailed_return['odi_sdss_matched_outlier'] = small_errors[~clipping_mask].copy()
+        #
+        # zp_upper1sigma = scipy.stats.scoreatpercentile(zp_clipped, 84)
+        # zp_lower1sigma = scipy.stats.scoreatpercentile(zp_clipped, 16)
+        # # print zp_lower1sigma, zp_upper1sigma, 0.5*(zp_upper1sigma-zp_lower1sigma)
+
+        #
+        # From the optimized catalog, re-extract magnitudes and erors for ODI
         # and the photometric reference catalog
         #
-        sdss_mag = small_errors[:, photref_col_mag]
-        sdss_magerr = small_errors[:, photref_col_err]
-        odi_mag = small_errors[:, SXcolumn[col_mag]+2]
-        odi_magerr = small_errors[:, SXcolumn[col_magerr]+2]
-        zp = small_errors[:, photref_col_mag] - small_errors[:, SXcolumn[col_mag]+2]
-        zp_err = numpy.hypot(small_errors[:, photref_col_err], small_errors[:, SXcolumn[col_magerr]+2])
+        sdss_mag = odi_sdss_matched[use_for_calibration, photref_col_mag]
+        sdss_magerr = odi_sdss_matched[use_for_calibration, photref_col_err]
+        odi_mag = odi_sdss_matched[use_for_calibration, SXcolumn[col_mag]+2]
+        odi_magerr = odi_sdss_matched[use_for_calibration, SXcolumn[col_magerr]+2]
+
+        zp = sdss_mag - odi_mag #small_errors[:, photref_col_mag] - small_errors[:, SXcolumn[col_mag]+2]
+        zp_err = total_errors[use_for_calibration]
 
         #
         # Reject outliers by iterative sigma-clipping
         #
-        detailed_return['odi_sdss_matched_clipped'] = small_errors
-        if (zp.shape[0] <=5):
-            clipping_mask = numpy.ones((zp.shape), dtype=numpy.bool)
-        else:
-            _dum, clipping_mask = three_sigma_clip(zp, return_mask=True)
+        detailed_return['odi_sdss_matched_clipped'] = odi_sdss_matched[use_for_calibration]
+        # by previous selection, we have at least 5 stars to use here
+        # if (zp.shape[0] <=5):
+        #     clipping_mask = numpy.ones((zp.shape), dtype=numpy.bool)
+        # else:
+        #     _dum, clipping_mask = three_sigma_clip(zp, return_mask=True)
+        _, clipping_mask = three_sigma_clip(zp, return_mask=True)
+        use_for_calibration[use_for_calibration] = clipping_mask
 
         zp_clipped = zp[clipping_mask]
         zperr_clipped = zp_err[clipping_mask]
@@ -1383,6 +1432,8 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         zp_upper1sigma = scipy.stats.scoreatpercentile(zp_clipped, 84)
         zp_lower1sigma = scipy.stats.scoreatpercentile(zp_clipped, 16)
         # print zp_lower1sigma, zp_upper1sigma, 0.5*(zp_upper1sigma-zp_lower1sigma)
+
+        detailed_return['use_for_calibration_mask'] = use_for_calibration
 
         zp_median = numpy.median(zp_clipped)
         zp_std = numpy.std(zp_clipped)
@@ -1398,7 +1449,8 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             zp_median_, zp_std_, zp_exptime))
 
         # compute the r.m.s. value of the distribution as well
-        final_cat = small_errors[clipping_mask]
+        # final_cat = small_errors[clipping_mask]
+        # final_cat = small_errors[clipping_mask]
         zp_uncert = numpy.hypot(zp_err, 0.001)
         rms2 = numpy.sum((zp - zp_median)**2/zp_uncert) / numpy.sum(1./zp_uncert)
         detailed_return['rms'] = numpy.sqrt(rms2)
