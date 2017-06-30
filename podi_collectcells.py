@@ -4534,6 +4534,33 @@ def collectcells(input, outputfile,
             )
         filter_name = get_valid_filter_name(ota_list[0].header)
 
+        if (options['auto_photflat']):
+            photcalib_details = {}
+            zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = \
+                podi_photcalib.photcalib(global_source_cat, outputfile,
+                                         filter_name,
+                                         exptime=exptime,
+                                         diagplots=False, #options['create_qaplots'],
+                                         plottitle=titlestring,
+                                         otalist=ota_list,
+                                         options=options,
+                                         detailed_return=photcalib_details)
+
+            #
+            # Calculate a photometric flat-field from the initial photometric
+            # calibration data
+            #
+
+            #
+            # Correct the photometry catalog using the information from the
+            # photometric flatfield
+            #
+
+            #
+            # Finally, run the photometric calibration again, using the
+            # corrected, photometrically flat-fielded data
+            #
+
         photcalib_details = {}
         zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = \
             podi_photcalib.photcalib(global_source_cat, outputfile, filter_name, 
