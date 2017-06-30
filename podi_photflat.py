@@ -678,6 +678,7 @@ def create_photometric_flatfield_single_ota(
         reference_zp,
         pixel_resolution=512,
         enlarge=2,
+        min_error=0.005
 ):
 
     n_samples = int(math.ceil(4096. / pixel_resolution))+1
@@ -733,6 +734,8 @@ def create_photometric_flatfield_single_ota(
         # compute the weighted mean correction factor
         small_error = full_zperr_list < 0.03
         full_zperr_list = full_zperr_list[small_error]
+        full_zperr_list[full_zperr_list < min_error] = min_error
+
         full_zp_list = full_zp_list[small_error]
         photflat[_x, _y] = numpy.sum(
             full_zp_list / full_zperr_list) / numpy.sum(1. / full_zperr_list)
