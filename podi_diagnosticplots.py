@@ -793,19 +793,19 @@ def photocalib_zeropoint(output_filename,
     # Plot sources with large (i.e.exceeding the limit specified
     # in the sitesetup configuration) errors
     #
-    largeerr_cat = details['odi_sdss_matched_largeerrors']
-    largeerr_sdss_mag = largeerr_cat[:, details['photref_col_mag']]
-    largeerr_odi_mag = largeerr_cat[:, details['odi_col_mag']]
-    largeerr_sdss_err = largeerr_cat[:, details['photref_col_err']]
-    largeerr_odi_err = largeerr_cat[:, details['odi_col_err']]
-    largeerr_zp = largeerr_sdss_mag - largeerr_odi_mag
-    ax.errorbar(largeerr_sdss_mag,
-                largeerr_zp,
-                xerr=largeerr_sdss_err,
-                yerr=numpy.hypot(largeerr_sdss_err, largeerr_odi_err),
-                capsize=0,
-                fmt='.', ms=0, color='#606060',
-                label='ignored (#: %d)' % n_ignored)
+    # largeerr_cat = details['odi_sdss_matched_largeerrors']
+    # largeerr_sdss_mag = largeerr_cat[:, details['photref_col_mag']]
+    # largeerr_odi_mag = largeerr_cat[:, details['odi_col_mag']]
+    # largeerr_sdss_err = largeerr_cat[:, details['photref_col_err']]
+    # largeerr_odi_err = largeerr_cat[:, details['odi_col_err']]
+    # largeerr_zp = largeerr_sdss_mag - largeerr_odi_mag
+    # ax.errorbar(largeerr_sdss_mag,
+    #             largeerr_zp,
+    #             xerr=largeerr_sdss_err,
+    #             yerr=numpy.hypot(largeerr_sdss_err, largeerr_odi_err),
+    #             capsize=0,
+    #             fmt='.', ms=0, color='#606060',
+    #             label='ignored (#: %d)' % n_ignored)
 
 
     # smallerr_cat = details['odi_sdss_matched_smallerrors']
@@ -814,19 +814,6 @@ def photocalib_zeropoint(output_filename,
     # smallerr_sdss_err = smallerr_cat[:, details['photref_col_err']]
     # smallerr_odi_err = smallerr_cat[:, details['odi_col_err']]
     # smallerr_zp = smallerr_sdss_mag - smallerr_odi_mag
-
-    #
-    # Plot all valid calibrator sources
-    #
-    ref_cat = details['odi_sdss_matched_ref']
-    ax.errorbar(ref_cat[:, details['photref_col_mag']],
-                ref_cat[:, details['photref_col_mag']]-ref_cat[:, details['odi_col_mag']],
-                xerr=ref_cat[:, details['photref_col_err']],
-                yerr=numpy.hypot(ref_cat[:, details['photref_col_err']],
-                                 ref_cat[:, details['odi_col_err']]),
-                capsize=0,
-                fmt="+", ms=5, color='blue', linewidth=1,
-                label='valid calibrator (#: %d)' % n_ref)
 
     #
     # And for completeness, also plot sources deemed outliers
@@ -840,6 +827,19 @@ def photocalib_zeropoint(output_filename,
                 capsize=0,
                 fmt="+", ms=5, color='red', linewidth=1,
                 label='outlier (#: %d)' % n_outlier)
+
+    #
+    # Plot all valid calibrator sources
+    #
+    ref_cat = details['odi_sdss_matched_ref']
+    ax.errorbar(ref_cat[:, details['photref_col_mag']],
+                ref_cat[:, details['photref_col_mag']]-ref_cat[:, details['odi_col_mag']],
+                xerr=ref_cat[:, details['photref_col_err']],
+                yerr=numpy.hypot(ref_cat[:, details['photref_col_err']],
+                                 ref_cat[:, details['odi_col_err']]),
+                capsize=0,
+                fmt="+", ms=5, color='blue', linewidth=1,
+                label='valid calibrator (#: %d)' % n_ref)
 
     #
     # Overplot a white line to illustrate the median value
