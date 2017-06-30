@@ -205,14 +205,14 @@ def ps2sdss (catalogdata, tonry=False):
     # TODO: check for existance of sitesetup.catalog_mags['panstarrs'] entries
     # TODO: verify the array indices do exist, i.e., are not null
 
-
-    print catalogdata
+    logger = logging.getLogger("PS>SDSS")
+    # print catalogdata
 
     ps1colorterms = {}
 
     if tonry:
         # Tonry 2012
-        print "converting PS1 to sdss system via tonry"
+        logger.info("converting PS1 to sdss system via tonry")
         ps1colorterms['g'] = [0.019, 0.145, 0.013]
         ps1colorterms['r'] = [0.007, 0.004, -0.001]
         ps1colorterms['i'] = [0.010, 0.011,-0.005]
@@ -226,7 +226,7 @@ def ps2sdss (catalogdata, tonry=False):
     else:
         # Finkbeiner 2016
         # http://iopscience.iop.org/article/10.3847/0004-637X/822/2/66/meta#apj522061s2-4 Table 2
-        print "converting PS1 to sdss system via finkbeiner"
+        logger.info("converting PS1 to sdss system via finkbeiner")
         ps1colorterms['g'] = [-0.01808,-0.13595, 0.01941,-0.00183][::-1]
         ps1colorterms['r'] = [-0.01836,-0.03577, 0.02612,-0.00558][::-1]
         ps1colorterms['i'] = [ 0.01170,-0.00400, 0.00066,-0.00058][::-1]
@@ -245,7 +245,9 @@ def ps2sdss (catalogdata, tonry=False):
         else:
             catalogdata[:,magidx] -= colorcorrection
 
-    
+    return
+
+
 def photcalib_old(fitsfile, output_filename, calib_directory, overwrite_cat=None):
     """
     Deprecated, do not use.
