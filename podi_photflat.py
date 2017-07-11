@@ -85,7 +85,7 @@ class PhotFlatFrame(object):
 
         _, bn = os.path.split(self.filename)
         dbg_catfile = "cat_%s.cat" % (bn[:-5])
-        logger.debug("Saving debug catalog to %s" % (dbg_catfile))
+        self.logger.debug("Saving debug catalog to %s" % (dbg_catfile))
         numpy.savetxt(dbg_catfile, self.catalog)
 
         # now compute all zeropoints
@@ -678,12 +678,14 @@ def create_photometric_flatfield_single_ota(
         reference_zp,
         pixel_resolution=512,
         enlarge=2,
-        min_error=0.005
+        min_error=0.005,
+        strict_ota=False,
 ):
 
     n_samples = int(math.ceil(4096. / pixel_resolution))+1
     sample_pixels = int(math.floor((4096. / (n_samples-1))))
 
+    logger = logging.getLogger("PhotFlatSingleOTA")
     logger.debug("Using pixel-grid of %d^2 samples every %d pixels" % (
         n_samples, sample_pixels))
     ref_points = numpy.arange(n_samples) * sample_pixels
@@ -780,6 +782,7 @@ def create_photometric_flatfield(
         strict_ota=False,
         resolution_arcsec=60.,
         debug=False,
+        return_interpolator=False,
 ):
 
     logger = logging.getLogger("PhotFlat")
@@ -863,6 +866,10 @@ def create_photometric_flatfield(
     # break
 
     hdulist = pyfits.HDUList(otalist)
+
+    if (return_interpolator):
+        return hdulist, None
+
     return hdulist
 
 

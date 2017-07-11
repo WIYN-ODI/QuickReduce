@@ -117,6 +117,7 @@ import podi_logging
 import logging
 import time
 import subprocess
+from podi_definitions import reference_zeropoint
 
 arcsec = 1./3600.
 number_bright_stars = 100
@@ -1593,7 +1594,85 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
 
 
-    
+def write_photcalib_headers(hdr,
+                            zeropoint_median,
+                            zeropoint_std,
+                            filter_name,
+                            zeropoint_exptime,
+                            photcalib_details):
+
+
+    hdr['PHOTMCAT'] = (photcalib_details['catalog'])
+    hdr['PHOTFILT'] = (photcalib_details['reference_filter'])
+
+    hdr["PHOTZP"] = (zeropoint_median, "phot. zeropoint corr for exptime")
+    hdr["PHOTZPSD"] = (zeropoint_std, "zeropoint std.dev.")
+    hdr["PHOTZP_X"] = (zeropoint_exptime, "phot zeropoint for this frame")
+    hdr["PHOTZPSP"] = (photcalib_details['zp_upper1sigma'], "phot ZP upper 1sigma limit")
+    hdr["PHOTZPSM"] = (photcalib_details['zp_lower1sigma'], "phot ZP lower 1sigma limit")
+    hdr["PHOTZPER"] = (photcalib_details['stderrofmean'], "phot ZP std.err of the mean")
+    hdr["PHOTZP_N"] = (photcalib_details['n_clipped'], "number stars in clipped distrib.")
+    hdr["PHOTZPN0"] = (photcalib_details['n_raw'], "total number of matched ref stars")
+
+    hdr["MAGZERO"] = (photcalib_details['median'], "phot. zeropoint corr for exptime")
+    hdr["MAGZSIG"] = (photcalib_details['std'], "phot ZP dispersion")
+    hdr["MAGZERR"] = (photcalib_details['stderrofmean'], "phot ZP uncertainty")
+
+    # Add some information on what apertures were used for the photometric calibration
+    hdr['MAG0MODE'] = (photcalib_details['aperture_mode'], "how was aperture determined")
+    hdr['MAG0SIZE'] = (photcalib_details['aperture_size'], "what aperture size was used")
+    hdr['MAG0_MAG'] = (photcalib_details['aperture_mag'], "id string for magnitude")
+    hdr['MAG0_ERR'] = (photcalib_details['aperture_magerr'], "is string for mag error")
+
+    if (not photcalib_details['radialZPfit'] is None):
+        hdr['RADZPFIT'] = True
+        hdr['RADZP_P0'] = photcalib_details['radialZPfit'][0]
+        hdr['RADZP_P1'] = photcalib_details['radialZPfit'][1]
+        hdr['RADZP_E0'] = photcalib_details['radialZPfit_error'][0]
+        hdr['RADZP_E1'] = photcalib_details['radialZPfit_error'][1]
+
+    if (not photcalib_details['zp_restricted'] == None):
+        (sel_median, sel_std, sel_psigma, sel_msigma, sel_n, sel_medodimag,
+         sel_maxodimag, sel_minodimag) = photcalib_details['zp_restricted']
+        hdr['ZPRESMED'] = sel_median
+        hdr['ZPRESSTD'] = sel_std
+        hdr['ZPRES_SP'] = sel_psigma
+        hdr['ZPRES_SM'] = sel_msigma
+        hdr['ZPRES__N'] = sel_n
+        hdr['ZPRES_MD'] = sel_medodimag
+        hdr['ZPRES_MX'] = sel_maxodimag
+        hdr['ZPRES_MN'] = sel_minodimag
+
+    if (not photcalib_details['zp_magnitude_slope'] == None):
+        fit, uncert = photcalib_details['zp_magnitude_slope']
+        hdr['ZPSLP_P0'] = fit[0]
+        hdr['ZPSLP_P1'] = fit[1]
+        hdr['ZPSLP_E0'] = uncert[0]
+        hdr['ZPSLP_E1'] = uncert[1]
+
+    ref_ZP = -99. if not filter_name in reference_zeropoint else \
+    reference_zeropoint[filter_name][0]
+    hdr['MAGZREF'] = (ref_ZP, "reference photometric zeropoint")
+
+    # Also compute the zeropoint after correction for airmass
+    zp_airmass1 = -99.
+    if (filter_name in atm_extinction):
+        zp_airmass1 = zeropoint_median + (hdr['AIRMASS'] - 1) * \
+                                         atm_extinction[filter_name]
+    hdr['MAGZ_AM1'] = (
+    zp_airmass1, "phot Zeropoint corrected for airmass")
+
+    # Add some information whether or not we performed a color-term correction
+    colorterm_correction = (not photcalib_details['colorterm'] == None)
+    hdr['MAGZ_CT'] = colorterm_correction
+    hdr['MAGZ_COL'] = photcalib_details[
+        'colorcorrection'] if colorterm_correction else ""
+    hdr['MAGZ_CTC'] = photcalib_details[
+        'colorterm'] if colorterm_correction else 0.0
+
+    return
+
+
 if __name__ == "__main__":
 
     if (cmdline_arg_isset("-multi")):

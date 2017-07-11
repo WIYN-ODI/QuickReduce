@@ -293,6 +293,7 @@ import podi_almanac
 import podi_focalplanelayout
 import podi_guidestars
 import podi_shifthistory
+import podi_photflat
 
 import podi_associations
 import podi_calibrations
@@ -4523,7 +4524,6 @@ def collectcells(input, outputfile,
         and options['fixwcs']
         and enough_stars_for_fixwcs):
         zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = 99., 99., None, 99.
-        logger.info("Starting photometric calibration")
 
         exptime = ota_list[0].header['EXPTIME']
         titlestring = "%s\n(obsid: %s - filter: %s- exptime: %ds)" % (
@@ -4535,6 +4535,7 @@ def collectcells(input, outputfile,
         filter_name = get_valid_filter_name(ota_list[0].header)
 
         if (options['auto_photflat']):
+            logger.info("Starting initial photometric calibration")
             photcalib_details = {}
             zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = \
                 podi_photcalib.photcalib(global_source_cat, outputfile,
@@ -4545,11 +4546,42 @@ def collectcells(input, outputfile,
                                          otalist=ota_list,
                                          options=options,
                                          detailed_return=photcalib_details)
+            podi_photcalib.write_photcalib_headers(
+                hdr=ota_list[0].header,
+                zeropoint_median=zeropoint_median,
+                zeropoint_std=zeropoint_std,
+                zeropoint_exptime=zeropoint_exptime,
+                filter_name=filter_name,
+                photcalib_details=photcalib_details,
+            )
 
             #
             # Calculate a photometric flat-field from the initial photometric
             # calibration data
             #
+            logger.info("Calculating (auto-)photometric flatfield from data")
+            raw_tbhdu = create_odi_sdss_matched_tablehdu(
+                odi_sdss_matched,
+                photcalib_details=photcalib_details,
+            )
+            ota_list.append(raw_tbhdu)
+            pf_hdu, pf_interpol = podi_photflat.create_photometric_flatfield(
+                input_hdus=[pyfits.HDUList(ota_list)],
+                strict_ota=False,
+                return_interpolator=True,
+            )
+
+            photflat_allsuccess = True
+            for ext in ota_list:
+                if (not is_image_extension(ext)):
+                    continue
+                if (ext.name in pf_hdu):
+                    logger.info("Applying photometric flat-field to OTA %s" % (ext.name))
+                    ext.data /= pf_hdu[ext.name].data
+                else:
+                    logger.warning("No auto-photflat data for OTA %s" % (ext.name))
+                    photflat_allsuccess = False
+
 
             #
             # Correct the photometry catalog using the information from the
@@ -4560,6 +4592,11 @@ def collectcells(input, outputfile,
             # Finally, run the photometric calibration again, using the
             # corrected, photometrically flat-fielded data
             #
+            logger.info("Starting final photometric calibration")
+
+
+        if (not options['auto_photflat']):
+            logger.info("Starting photometric calibration")
 
         photcalib_details = {}
         zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = \
@@ -4571,21 +4608,29 @@ def collectcells(input, outputfile,
                                      options=options,
                                      detailed_return=photcalib_details)
 
-        ota_list[0].header['PHOTMCAT'] = (photcalib_details['catalog'])
-        ota_list[0].header['PHOTFILT'] = (photcalib_details['reference_filter'])
-
-        ota_list[0].header["PHOTZP"] = (zeropoint_median, "phot. zeropoint corr for exptime")
-        ota_list[0].header["PHOTZPSD"] = (zeropoint_std, "zeropoint std.dev.")
-        ota_list[0].header["PHOTZP_X"] = (zeropoint_exptime, "phot zeropoint for this frame")
-        ota_list[0].header["PHOTZPSP"] = (photcalib_details['zp_upper1sigma'], "phot ZP upper 1sigma limit")
-        ota_list[0].header["PHOTZPSM"] = (photcalib_details['zp_lower1sigma'], "phot ZP lower 1sigma limit")
-        ota_list[0].header["PHOTZPER"] = (photcalib_details['stderrofmean'], "phot ZP std.err of the mean")
-        ota_list[0].header["PHOTZP_N"] = (photcalib_details['n_clipped'], "number stars in clipped distrib.")
-        ota_list[0].header["PHOTZPN0"] = (photcalib_details['n_raw'], "total number of matched ref stars")
-
-        ota_list[0].header["MAGZERO"] = (photcalib_details['median'], "phot. zeropoint corr for exptime")
-        ota_list[0].header["MAGZSIG"] = (photcalib_details['std'], "phot ZP dispersion")
-        ota_list[0].header["MAGZERR"] = (photcalib_details['stderrofmean'], "phot ZP uncertainty")
+        podi_photcalib.write_photcalib_headers(
+            hdr=ota_list[0].header,
+            zeropoint_median=zeropoint_median,
+            zeropoint_std=zeropoint_std,
+            zeropoint_exptime=zeropoint_exptime,
+            filter_name=filter_name,
+            photcalib_details=photcalib_details,
+        )
+        # ota_list[0].header['PHOTMCAT'] = (photcalib_details['catalog'])
+        # ota_list[0].header['PHOTFILT'] = (photcalib_details['reference_filter'])
+        #
+        # ota_list[0].header["PHOTZP"] = (zeropoint_median, "phot. zeropoint corr for exptime")
+        # ota_list[0].header["PHOTZPSD"] = (zeropoint_std, "zeropoint std.dev.")
+        # ota_list[0].header["PHOTZP_X"] = (zeropoint_exptime, "phot zeropoint for this frame")
+        # ota_list[0].header["PHOTZPSP"] = (photcalib_details['zp_upper1sigma'], "phot ZP upper 1sigma limit")
+        # ota_list[0].header["PHOTZPSM"] = (photcalib_details['zp_lower1sigma'], "phot ZP lower 1sigma limit")
+        # ota_list[0].header["PHOTZPER"] = (photcalib_details['stderrofmean'], "phot ZP std.err of the mean")
+        # ota_list[0].header["PHOTZP_N"] = (photcalib_details['n_clipped'], "number stars in clipped distrib.")
+        # ota_list[0].header["PHOTZPN0"] = (photcalib_details['n_raw'], "total number of matched ref stars")
+        #
+        # ota_list[0].header["MAGZERO"] = (photcalib_details['median'], "phot. zeropoint corr for exptime")
+        # ota_list[0].header["MAGZSIG"] = (photcalib_details['std'], "phot ZP dispersion")
+        # ota_list[0].header["MAGZERR"] = (photcalib_details['stderrofmean'], "phot ZP uncertainty")
 
         if (photcalib_details['median'] > 0 and
             photcalib_details['median'] < 50):
@@ -4604,51 +4649,51 @@ def collectcells(input, outputfile,
             if (is_image_extension(ota_list[i])):
                 ota_list[i].header["FLXSCALE"] = flux_scaling
 
-        # Add some information on what apertures were used for the photometric calibration
-        ota_list[0].header['MAG0MODE'] = (photcalib_details['aperture_mode'], "how was aperture determined")
-        ota_list[0].header['MAG0SIZE'] = (photcalib_details['aperture_size'], "what aperture size was used")
-        ota_list[0].header['MAG0_MAG'] = (photcalib_details['aperture_mag'], "id string for magnitude")
-        ota_list[0].header['MAG0_ERR'] = (photcalib_details['aperture_magerr'], "is string for mag error")
-
-        if (not photcalib_details['radialZPfit'] == None):
-            ota_list[0].header['RADZPFIT'] = True
-            ota_list[0].header['RADZP_P0'] = photcalib_details['radialZPfit'][0]
-            ota_list[0].header['RADZP_P1'] = photcalib_details['radialZPfit'][1]
-            ota_list[0].header['RADZP_E0'] = photcalib_details['radialZPfit_error'][0]
-            ota_list[0].header['RADZP_E1'] = photcalib_details['radialZPfit_error'][1]
-
-        if (not photcalib_details['zp_restricted'] == None):
-            (sel_median, sel_std, sel_psigma, sel_msigma, sel_n, sel_medodimag, sel_maxodimag, sel_minodimag) = photcalib_details['zp_restricted']
-            ota_list[0].header['ZPRESMED'] = sel_median
-            ota_list[0].header['ZPRESSTD'] = sel_std
-            ota_list[0].header['ZPRES_SP'] = sel_psigma
-            ota_list[0].header['ZPRES_SM'] = sel_msigma
-            ota_list[0].header['ZPRES__N'] = sel_n
-            ota_list[0].header['ZPRES_MD'] = sel_medodimag
-            ota_list[0].header['ZPRES_MX'] = sel_maxodimag
-            ota_list[0].header['ZPRES_MN'] = sel_minodimag
-            
-        if (not photcalib_details['zp_magnitude_slope'] == None):
-            fit, uncert = photcalib_details['zp_magnitude_slope']
-            ota_list[0].header['ZPSLP_P0'] = fit[0]
-            ota_list[0].header['ZPSLP_P1'] = fit[1]
-            ota_list[0].header['ZPSLP_E0'] = uncert[0]
-            ota_list[0].header['ZPSLP_E1'] = uncert[1]
-
-        ref_ZP = -99. if not filter_name in reference_zeropoint else reference_zeropoint[filter_name][0]
-        ota_list[0].header['MAGZREF'] = (ref_ZP, "reference photometric zeropoint")
-
-        # Also compute the zeropoint after correction for airmass
-        zp_airmass1 = -99.
-        if (filter_name in atm_extinction):
-            zp_airmass1 = zeropoint_median + (ota_list[0].header['AIRMASS']-1) * atm_extinction[filter_name]
-        ota_list[0].header['MAGZ_AM1'] = (zp_airmass1, "phot Zeropoint corrected for airmass")
-            
-        # Add some information whether or not we performed a color-term correction
-        colorterm_correction = (not photcalib_details['colorterm'] == None)
-        ota_list[0].header['MAGZ_CT'] = colorterm_correction
-        ota_list[0].header['MAGZ_COL'] = photcalib_details['colorcorrection'] if colorterm_correction else ""
-        ota_list[0].header['MAGZ_CTC'] = photcalib_details['colorterm'] if colorterm_correction else 0.0
+        # # Add some information on what apertures were used for the photometric calibration
+        # ota_list[0].header['MAG0MODE'] = (photcalib_details['aperture_mode'], "how was aperture determined")
+        # ota_list[0].header['MAG0SIZE'] = (photcalib_details['aperture_size'], "what aperture size was used")
+        # ota_list[0].header['MAG0_MAG'] = (photcalib_details['aperture_mag'], "id string for magnitude")
+        # ota_list[0].header['MAG0_ERR'] = (photcalib_details['aperture_magerr'], "is string for mag error")
+        #
+        # if (not photcalib_details['radialZPfit'] == None):
+        #     ota_list[0].header['RADZPFIT'] = True
+        #     ota_list[0].header['RADZP_P0'] = photcalib_details['radialZPfit'][0]
+        #     ota_list[0].header['RADZP_P1'] = photcalib_details['radialZPfit'][1]
+        #     ota_list[0].header['RADZP_E0'] = photcalib_details['radialZPfit_error'][0]
+        #     ota_list[0].header['RADZP_E1'] = photcalib_details['radialZPfit_error'][1]
+        #
+        # if (not photcalib_details['zp_restricted'] == None):
+        #     (sel_median, sel_std, sel_psigma, sel_msigma, sel_n, sel_medodimag, sel_maxodimag, sel_minodimag) = photcalib_details['zp_restricted']
+        #     ota_list[0].header['ZPRESMED'] = sel_median
+        #     ota_list[0].header['ZPRESSTD'] = sel_std
+        #     ota_list[0].header['ZPRES_SP'] = sel_psigma
+        #     ota_list[0].header['ZPRES_SM'] = sel_msigma
+        #     ota_list[0].header['ZPRES__N'] = sel_n
+        #     ota_list[0].header['ZPRES_MD'] = sel_medodimag
+        #     ota_list[0].header['ZPRES_MX'] = sel_maxodimag
+        #     ota_list[0].header['ZPRES_MN'] = sel_minodimag
+        #
+        # if (not photcalib_details['zp_magnitude_slope'] == None):
+        #     fit, uncert = photcalib_details['zp_magnitude_slope']
+        #     ota_list[0].header['ZPSLP_P0'] = fit[0]
+        #     ota_list[0].header['ZPSLP_P1'] = fit[1]
+        #     ota_list[0].header['ZPSLP_E0'] = uncert[0]
+        #     ota_list[0].header['ZPSLP_E1'] = uncert[1]
+        #
+        # ref_ZP = -99. if not filter_name in reference_zeropoint else reference_zeropoint[filter_name][0]
+        # ota_list[0].header['MAGZREF'] = (ref_ZP, "reference photometric zeropoint")
+        #
+        # # Also compute the zeropoint after correction for airmass
+        # zp_airmass1 = -99.
+        # if (filter_name in atm_extinction):
+        #     zp_airmass1 = zeropoint_median + (ota_list[0].header['AIRMASS']-1) * atm_extinction[filter_name]
+        # ota_list[0].header['MAGZ_AM1'] = (zp_airmass1, "phot Zeropoint corrected for airmass")
+        #
+        # # Add some information whether or not we performed a color-term correction
+        # colorterm_correction = (not photcalib_details['colorterm'] == None)
+        # ota_list[0].header['MAGZ_CT'] = colorterm_correction
+        # ota_list[0].header['MAGZ_COL'] = photcalib_details['colorcorrection'] if colorterm_correction else ""
+        # ota_list[0].header['MAGZ_CTC'] = photcalib_details['colorterm'] if colorterm_correction else 0.0
 
         # Compute the sky-brightness 
         sky_arcsec = sky_global_median / (0.11**2) # convert counts/pixel to counts/arcsec*2
