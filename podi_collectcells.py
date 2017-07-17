@@ -4561,10 +4561,12 @@ def collectcells(input, outputfile,
             #
             logger.info("Calculating (auto-)photometric flatfield from data")
             raw_tbhdu = create_odi_sdss_matched_tablehdu(
-                odi_sdss_matched,
+                photcalib_details['odi_sdss_matched_raw'],
                 photcalib_details=photcalib_details,
             )
             ota_list.append(raw_tbhdu)
+
+
             pf_hdu, pf_interpol = podi_photflat.create_photometric_flatfield(
                 input_hdus=[pyfits.HDUList(ota_list)],
                 strict_ota=False,
@@ -4616,6 +4618,14 @@ def collectcells(input, outputfile,
             filter_name=filter_name,
             photcalib_details=photcalib_details,
         )
+
+        raw_tbhdu = create_odi_sdss_matched_tablehdu(
+            photcalib_details['odi_sdss_matched_raw'],
+            photcalib_details=photcalib_details,
+            extname="CAT.PHOTREF",
+        )
+        ota_list.append(raw_tbhdu)
+
         # ota_list[0].header['PHOTMCAT'] = (photcalib_details['catalog'])
         # ota_list[0].header['PHOTFILT'] = (photcalib_details['reference_filter'])
         #
@@ -5075,7 +5085,8 @@ def apply_nonsidereal_correction(ota_list, options, logger=None, reduction_log=N
 
 
     
-def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
+def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None,
+                                     extname=None):
 
     # Note:
     # The +2 in the collumn indices accounts for the fact that the Ra/Dec 
@@ -5329,7 +5340,11 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None):
 
     coldefs = pyfits.ColDefs(columns)
     tbhdu = pyfits.BinTableHDU.from_columns(coldefs)
-    tbhdu.name = "CAT.PHOTCALIB"
+
+    if (extname is None):
+        tbhdu.name = "CAT.PHOTCALIB"
+    else:
+        tbhdu.name = extname
 
     return tbhdu
 
