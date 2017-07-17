@@ -690,7 +690,7 @@ def collect_reduce_ota(filename,
                     techhdulist = pyfits.open(techfile)
                     reduction_files_used['techdata'] = techfile
                 else:
-                    logger.warning("Was looking for techfile %s but couldn't find it" % (techfile))
+                    logger.debug("Was looking for techfile %s but couldn't find it" % (techfile))
 
         all_gains = numpy.ones(shape=(8,8)) * -99
         all_readnoise = numpy.ones(shape=(8,8)) * -99
