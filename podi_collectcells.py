@@ -4541,11 +4541,12 @@ def collectcells(input, outputfile,
                 podi_photcalib.photcalib(global_source_cat, outputfile,
                                          filter_name,
                                          exptime=exptime,
-                                         diagplots=False, #options['create_qaplots'],
+                                         diagplots=options['create_qaplots'],
                                          plottitle=titlestring,
                                          otalist=ota_list,
                                          options=options,
-                                         detailed_return=photcalib_details)
+                                         detailed_return=photcalib_details,
+                                         plot_suffix="init")
             podi_photcalib.write_photcalib_headers(
                 hdr=ota_list[0].header,
                 zeropoint_median=zeropoint_median,
@@ -4589,6 +4590,22 @@ def collectcells(input, outputfile,
             # Correct the photometry catalog using the information from the
             # photometric flatfield
             #
+            logger.info("Correcting existing photometry for photometric flatfielding")
+            # raw_cat = photcalib_details['odi_sdss_matched_raw']
+            photflat_correction = podi_photflat.lookup_corrections(
+                ota=global_source_cat[:, SXcolumn['ota']],
+                x=global_source_cat[:, SXcolumn['x']],
+                y=global_source_cat[:, SXcolumn['y']],
+                photflat=pf_hdu,
+            )
+            # Now correct all photometry in the ODI source catalog
+            # the next run of photcalib will then create the new matched
+            # ODI+REF catalog using the newly corrected photometry
+            for col in ['mag_aper_2.0','mag_aper_3.0','mag_aper_4.0',
+                'mag_aper_5.0','mag_aper_6.0','mag_aper_8.0',
+                'mag_aper_10.0','mag_aper_12.0','mag_auto']:
+                global_source_cat[:,SXcolumn[col]] -= photflat_correction
+            print "Phtoflat corrections:\n", photflat_correction.shape, "\n", photflat_correction
 
             #
             # Finally, run the photometric calibration again, using the

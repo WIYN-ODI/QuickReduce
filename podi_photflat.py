@@ -50,7 +50,8 @@ class PhotFlatFrame(object):
             self.wcs[ota] = astWCS.WCS(ext.header, mode='pyfits')
             if (self.ref_header is None):
                 self.ref_header = ext.header
-            print "Reading:", self.filename, ext.header['OTA'], ext.name
+            self.logger.info("Reading: fn=%s, OTA=%02d, extname=%s" % (
+                self.filename, ext.header['OTA'], ext.name))
             self.ota_list.append(ext.header['OTA'])
             self.extname_list.append(ext.name)
 
@@ -91,8 +92,9 @@ class PhotFlatFrame(object):
         # now compute all zeropoints
         mag0size = hdulist[0].header['MAG0SIZE']
         photfilt = hdulist[0].header['PHOTFILT'].upper()
-        self.logger.debug("PHOTOMETRIC FILTER: %s" % (photfilt))
-        if (photfilt.lower() not in ['u', 'g', 'r', 'i', 'z']):
+        print hdulist[0].header['MAG0SIZE'], hdulist[0].header['PHOTFILT']
+        self.logger.info("PHOTOMETRIC FILTER: %s" % (photfilt))
+        if (photfilt not in ['U', 'G', 'R', 'I', 'Z']):
             self.logger.critical("Unable to identify PHOTFILT value: %s" % (photfilt))
             return None
 
@@ -809,7 +811,7 @@ def create_photometric_flatfield(
         radius=3,
         relative_coords=True,
         max_error=0.05)
-
+    logger.info("Using reference ZP: %s" % (reference_zp))
 
     # reference_zp = {}
     # list_of_otas = []
@@ -894,6 +896,38 @@ def create_photometric_flatfield(
     # out_fn = "%s.corr" % (src_cat_fn)
     # numpy.savetxt(out_fn, correction)
 
+
+def lookup_corrections(ota, x, y, photflat):
+
+    corrections = numpy.zeros(ota.shape)
+
+    unique_otas = set(ota)
+    print unique_otas
+
+    for _ota in unique_otas:
+        extname = "OTA%02d.SCI" % (_ota)
+        if (extname not in photflat):
+            continue
+
+        this_ota = (ota == _ota)
+        pf_data = photflat[extname].data
+        _x = numpy.clip(numpy.round(x[this_ota], 0).astype(numpy.int), 0, pf_data.shape[1]-1)
+        _y = numpy.clip(numpy.round(y[this_ota], 0).astype(numpy.int), 0, pf_data.shape[0]-1)
+
+
+        #print extname, _y.shape, _x.shape, _y, _x
+
+        flux_corrections = photflat[extname].data[_y,_x].copy()
+        # print flux_corrections.shape
+        # print corrections[this_ota].shape
+        mag_corrections = -2.5 * numpy.log10(flux_corrections)
+
+
+        #
+        corrections[this_ota] = mag_corrections
+        print extname, corrections[this_ota].shape, flux_corrections.shape, mag_corrections.shape
+
+    return corrections
 
 
 if __name__ == "__main__":
