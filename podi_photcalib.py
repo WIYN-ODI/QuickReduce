@@ -238,13 +238,13 @@ def ps2sdss (catalogdata, tonry=False):
         _i = catalogdata[:,iidx]
         psgr = _g - _i
 
-    for filter in ps1colorterms:
-        colorcorrection = numpy.polyval (ps1colorterms[filter], psgr)
-        magidx = sitesetup.catalog_mags['panstarrs'].index(filter)
-        if tonry:
-            catalogdata[:,magidx] += colorcorrection
-        else:
-            catalogdata[:,magidx] -= colorcorrection
+    # for filter in ps1colorterms:
+    #     colorcorrection = numpy.polyval (ps1colorterms[filter], psgr)
+    #     magidx = sitesetup.catalog_mags['panstarrs'].index(filter)
+    #     if tonry:
+    #         catalogdata[:,magidx] += colorcorrection
+    #     else:
+    #         catalogdata[:,magidx] -= colorcorrection
 
     return
 
@@ -712,7 +712,8 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
               eliminate_flags=True,
               matching_radius=3,
               error_cutoff=0.02,
-              detailed_return={}):
+              detailed_return={},
+              plot_suffix=None):
 
     """
     Perform the photometric calibration, create the diagnostic plots and return
@@ -1548,7 +1549,9 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
         # zp_calib_plot = output_filename[:-5]+".photZP"
         logger.debug("Preparing the photZP plots")
-        zp_calib_plot = create_qa_filename(output_filename, "photZP", options)
+        plotname = "photZP" if plot_suffix is None else "photZP_%s" % (plot_suffix)
+        zp_calib_plot = create_qa_filename(output_filename, plotname, options)
+        logger.info("output plotname is %s" % (plotname))
         try:
             podi_diagnosticplots.photocalib_zeropoint(output_filename=zp_calib_plot,
                                                       sdss_filtername=sdss_filter, 
@@ -1567,7 +1570,8 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         ra = odi_sdss_matched[:,0]
         dec = odi_sdss_matched[:,1]
         # plotfilename = output_filename[:-5]+".photZP_map"
-        plotfilename = create_qa_filename(output_filename, "photZP_map", options)
+        plotname = "photZP_map" if plot_suffix is None else "photZP_map_%s" % (plot_suffix)
+        plotfilename = create_qa_filename(output_filename, plotname, options)
 
         ota_outlines = None
         if (otalist != None):
