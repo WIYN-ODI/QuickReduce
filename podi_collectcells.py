@@ -1534,8 +1534,19 @@ def collect_reduce_ota(filename,
                         if (source_cat.shape[0] == 0 or source_cat.ndim < 2):
                             source_cat = None
                         else:
-                            source_cat[:,8] = ota
-                            flags = source_cat[:,7]
+                            source_cat[:,SXcolumn['ota']] = ota
+
+                            valid_coords = \
+                                (source_cat[:, SXcolumn['x']] > 0) & \
+                                (source_cat[:, SXcolumn['x']] < merged.shape[1]) & \
+                                (source_cat[:, SXcolumn['y']] > 0) & \
+                                (source_cat[:, SXcolumn['y']] < merged.shape[0])
+                            source_cat = source_cat[valid_coords]
+                            n_bad = numpy.sum(~valid_coords)
+                            if (n_bad > 0):
+                                logger.debug("Excluded %d sources with invalid center positions" % (n_bad))
+
+                            flags = source_cat[:,SXcolumn['flags']]
                             no_flags = (flags == 0)
                             logger.debug("Found %d sources, %d with no flags" % (source_cat.shape[0], numpy.sum(no_flags)))
                 except:
@@ -4247,7 +4258,7 @@ def collectcells(input, outputfile,
                                           "maximum pointing offset searched for success")
         ota_list[0].header['WCSEXPOS'] = (ccmatched['max_pointing_error'],
                                           "maximum pointing offset allowed by config")
-        ota_list[0].header['WCSMXROT'] = (str(sitesetup.max_rotator_error).replace(' ',''), 
+        ota_list[0].header['WCSMXROT'] = (str(sitesetup.max_rotator_error).replace(' ',''),
                                           "maximum pointing offset compensated")
         ota_list[0].header['WCSPLIST'] = (str(sitesetup.max_pointing_error).replace(' ',''),
                                           "maximum pointing error allowed")
