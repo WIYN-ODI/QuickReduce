@@ -50,7 +50,7 @@ class PhotFlatFrame(object):
             self.wcs[ota] = astWCS.WCS(ext.header, mode='pyfits')
             if (self.ref_header is None):
                 self.ref_header = ext.header
-            self.logger.info("Reading: fn=%s, OTA=%02d, extname=%s" % (
+            self.logger.debug("Reading: fn=%s, OTA=%02d, extname=%s" % (
                 self.filename, ext.header['OTA'], ext.name))
             self.ota_list.append(ext.header['OTA'])
             self.extname_list.append(ext.name)
@@ -92,8 +92,8 @@ class PhotFlatFrame(object):
         # now compute all zeropoints
         mag0size = hdulist[0].header['MAG0SIZE']
         photfilt = hdulist[0].header['PHOTFILT'].upper()
-        print hdulist[0].header['MAG0SIZE'], hdulist[0].header['PHOTFILT']
-        self.logger.info("PHOTOMETRIC FILTER: %s" % (photfilt))
+        self.logger.debug("Mag0size=%s, photfilt=%s" % (hdulist[0].header['MAG0SIZE'], hdulist[0].header['PHOTFILT']))
+        # self.logger.info("PHOTOMETRIC FILTER: %s" % (photfilt))
         if (photfilt not in ['U', 'G', 'R', 'I', 'Z']):
             self.logger.critical("Unable to identify PHOTFILT value: %s" % (photfilt))
             return None
@@ -110,7 +110,7 @@ class PhotFlatFrame(object):
         self.ref_ra = self.ref_header['CRVAL1']
         self.ref_dec = self.ref_header['CRVAL2']
         self.cos_dec = numpy.cos(numpy.radians(self.ref_dec))
-        print("cos-dec=", self.cos_dec)
+        # print("cos-dec=", self.cos_dec)
 
         self.deprojected_coords = numpy.array(self.catalog[:, 0:2])
         self.deprojected_coords[:,0] *= self.cos_dec
@@ -152,7 +152,7 @@ class PhotFlatFrame(object):
         """
 
         idx = self.get_source_indices(ra, dec, radius, nmax, relative_coords)
-        print idx
+        # print idx
         zp = self.zeropoint[idx]
         zperr = self.zeropoint_error[idx]
 
@@ -534,6 +534,7 @@ class PhotFlatHandler(object):
 
 def expand_to_fullres_worker(job_queue, photflat, blocksize, shmem_out, shmem_shape, memlock):
 
+    logger = logging.getLogger("PF_expand2fullres")
     # Prepare the relative coordinates
     x, y = numpy.indices((blocksize, blocksize), dtype=numpy.float)
     y /= blocksize
@@ -581,11 +582,11 @@ def expand_to_fullres_worker(job_queue, photflat, blocksize, shmem_out, shmem_sh
             # f_10 = photflat[iy + 1, ix]
             # f_11 = photflat[iy + 1, ix + 1]
         except IndexError:
-            print "Index error accessing", ix, iy
+            logger.warning("Index error accessing %d,%d" % (ix, iy))
             continue
 
-        if (ix>=15 or iy>=15):
-            print ix,iy, f_00, f_01, f_10, f_11
+        #if (ix>=15 or iy>=15):
+        #    print ix,iy, f_00, f_01, f_10, f_11
 
         out = f_00 * omx_omy + f_10 * omx_y + f_01 * x_omy + f_11 * x_y
         # out = f_00 * omx_omy + f_10 * x_omy + f_01 * omx_y + f_11 * x_y
@@ -655,14 +656,18 @@ def parallel_create_photometric_flatfields_worker(
         enlarge = 2,
     ):
 
+    logger = logging.getLogger("ParPhotflat")
+
     while (True):
 
         cmd = input_queue.get()
         if (cmd is None):
+            logger.debug("Received NOne as shutdown command")
             break
 
         extname = cmd
 
+        logger.debug("Creating photflat for ext %s in parallel" % (extname))
         imghdu = create_photometric_flatfield_single_ota(
             extname=extname,
             pf=pf,
@@ -672,6 +677,11 @@ def parallel_create_photometric_flatfields_worker(
         )
 
         result_queue.put(imghdu)
+        input_queue.task_done()
+
+        logger.debug("done with extension %s" % (extname))
+
+    logger.debug("Shutting down parallel photflat worker")
 
 
 def create_photometric_flatfield_single_ota(
@@ -701,7 +711,7 @@ def create_photometric_flatfield_single_ota(
 
     photflat = numpy.empty((n_samples, n_samples))
     photflat_err = numpy.empty((n_samples, n_samples))
-    dump = open("dump_%d" % (ota), "w")
+    # dump = open("dump_%d" % (ota), "w")
     for _x, _y in itertools.product(range(n_samples), repeat=2):
         # print x,y
 
@@ -745,12 +755,12 @@ def create_photometric_flatfield_single_ota(
             full_zp_list / full_zperr_list) / numpy.sum(1. / full_zperr_list)
         photflat_err[_x, _y] = numpy.std(full_zp_list)
 
-        numpy.savetxt(dump,
-                      numpy.array([full_zp_list, full_zperr_list,
-                                   numpy.ones((full_zp_list.shape[0])) *
-                                   photflat[_x, _y]]).T)
+        # numpy.savetxt(dump,
+        #               numpy.array([full_zp_list, full_zperr_list,
+        #                            numpy.ones((full_zp_list.shape[0])) *
+        #                            photflat[_x, _y]]).T)
         # numpy.append(full_zp_list.reshape((-1,1)), full_zperr_list.reshape((-1,1)), axis=1))
-        print >> dump, "\n" * 10
+        # print >> dump, "\n" * 10
 
         # photflat[_x,_y] = numpy.median(full_zp_list)
 
@@ -785,6 +795,7 @@ def create_photometric_flatfield(
         resolution_arcsec=60.,
         debug=False,
         return_interpolator=False,
+        parallel=True,
 ):
 
     logger = logging.getLogger("PhotFlat")
@@ -851,18 +862,58 @@ def create_photometric_flatfield(
     otalist = [pyfits.PrimaryHDU()]
     running_sum = 0
 
-    for i, extname in enumerate(unique_extnames):
+    if (parallel):
 
-        logger.info("Computing photometric flat-field for OTA %s (%2d of %2d)" % (extname, i+1, len(unique_otas)))
+        logger.info("Calculating photometric flatfield in parallel")
+        # prepare jobs
+        extname_queue = multiprocessing.JoinableQueue()
+        for i, extname in enumerate(unique_extnames):
+            extname_queue.put(extname)
+        result_queue = multiprocessing.Queue()
 
-        imghdu = create_photometric_flatfield_single_ota(
-            extname=extname,
-            pf=pf,
-            reference_zp=reference_zp,
-            pixel_resolution=pixel_resolution,
-            enlarge=enlarge,
-        )
-        otalist.append(imghdu)
+        # start parallel execution in separate processes
+        processes = []
+        for i in range(sitesetup.number_cpus):
+
+            # start the process
+            p = multiprocessing.Process(
+                target=parallel_create_photometric_flatfields_worker,
+                kwargs=dict(
+                    input_queue=extname_queue,
+                    result_queue=result_queue,
+                    pf=pf,
+                    reference_zp=reference_zp,
+                    pixel_resolution=pixel_resolution,
+                    enlarge=enlarge,
+                )
+            )
+            # p.daemon = True
+            p.start()
+            processes.append(p)
+
+            # also add a termination command to the job queue
+            extname_queue.put(None)
+
+        # Gather all results
+        for _ in unique_extnames:
+            imghdu = result_queue.get()
+            otalist.append(imghdu)
+
+        logger.info("Received %d phot-flat extensions from parallel workers" % (len(otalist)-1))
+
+    else:
+        for i, extname in enumerate(unique_extnames):
+
+            logger.info("Computing photometric flat-field for OTA %s (%2d of %2d)" % (extname, i+1, len(unique_otas)))
+
+            imghdu = create_photometric_flatfield_single_ota(
+                extname=extname,
+                pf=pf,
+                reference_zp=reference_zp,
+                pixel_resolution=pixel_resolution,
+                enlarge=enlarge,
+            )
+            otalist.append(imghdu)
 
     logger.info("Total sum of reference values: %d" % (running_sum))
     # break
@@ -901,12 +952,16 @@ def lookup_corrections(ota, x, y, photflat):
 
     corrections = numpy.zeros(ota.shape)
 
+    logger = logging.getLogger("PhotflatLookup")
+
     unique_otas = set(ota)
-    print unique_otas
+    # print unique_otas
+    logger.debug("Calculating corrections for %s" % (",".join(["%02d" % d for d in unique_otas])))
 
     for _ota in unique_otas:
         extname = "OTA%02d.SCI" % (_ota)
         if (extname not in photflat):
+            logger.warning("No photflat correction for OTA %02d, extname %s" % (_ota, extname))
             continue
 
         this_ota = (ota == _ota)
@@ -925,7 +980,8 @@ def lookup_corrections(ota, x, y, photflat):
 
         #
         corrections[this_ota] = mag_corrections
-        print extname, corrections[this_ota].shape, flux_corrections.shape, mag_corrections.shape
+        logger.debug("calculated %d corrections for %s" % (mag_corrections.shape[0], extname))
+        # print extname, corrections[this_ota].shape, flux_corrections.shape, mag_corrections.shape
 
     return corrections
 
