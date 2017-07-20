@@ -4590,7 +4590,7 @@ def collectcells(input, outputfile,
                 if (not is_image_extension(ext)):
                     continue
                 if (ext.name in pf_hdu):
-                    logger.info("Applying photometric flat-field to OTA %s" % (ext.name))
+                    logger.debug("Applying photometric flat-field to OTA %s" % (ext.name))
                     ext.data /= pf_hdu[ext.name].data
                 else:
                     logger.warning("No auto-photflat data for OTA %s" % (ext.name))
@@ -4616,7 +4616,9 @@ def collectcells(input, outputfile,
                 'mag_aper_5.0','mag_aper_6.0','mag_aper_8.0',
                 'mag_aper_10.0','mag_aper_12.0','mag_auto']:
                 global_source_cat[:,SXcolumn[col]] -= photflat_correction
-            print "Phtoflat corrections:\n", photflat_correction.shape, "\n", photflat_correction
+            # print "Phtoflat corrections:\n", photflat_correction.shape, "\n", photflat_correction
+            logger.debug("computed %d photometry corrections from photometric flatfield" % (
+                photflat_correction.shape[0]))
 
             #
             # Finally, run the photometric calibration again, using the
