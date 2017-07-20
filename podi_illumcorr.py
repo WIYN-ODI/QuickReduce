@@ -104,7 +104,8 @@ def get_illumination_filename(calibdir, filtername, binning):
     return calibdir
     
 
-def apply_illumination_correction(input_hdu, illumcorr_hdu, output_file=None):
+def apply_illumination_correction(input_hdu, illumcorr_hdu, output_file=None,
+                                  invert=False):
 
     logger = logging.getLogger("ApplyIllumCorr")
 
@@ -140,7 +141,10 @@ def apply_illumination_correction(input_hdu, illumcorr_hdu, output_file=None):
         # Now search for the right illumination frame
         for il in illumcorr_hdu:
             if (ext.name == il.name):
-                ext.data /= il.data
+                if (not invert):
+                    ext.data /= il.data
+                else:
+                    ext.data *= il.data
                 break
     
     if (not illum_is_hdu):
