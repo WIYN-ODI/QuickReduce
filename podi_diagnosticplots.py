@@ -845,6 +845,7 @@ def photocalib_zeropoint(output_filename,
     # Overplot a white line to illustrate the median value
     #
     matplotlib.pyplot.plot(x_values+1, y_values*zp_median, linewidth=1, ls='-', color='white')
+    # ax.hline(y=zp_median, color='white', zorder=99)
 
     #
     # Add some additional data about the restricted fitting range and
