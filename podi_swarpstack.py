@@ -484,6 +484,12 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                         except (KeyError, ValueError, TypeError):
                             continue
 
+            # XXX
+            if (options['illumcorr_dir'] is not None):
+                logger.debug("Un-doing illumination correction (%s)" % (illum_file))
+                master_reduction_files_used = podi_associations.collect_reduction_files_used(
+                    master_reduction_files_used, {"un_illumination": illum_file})
+                podi_illumcorr.apply_illumination_correction(hdulist, illum_file)
 
             if (not numpy.isnan(fluxscale_value)):
                 logger.debug("Applying flux-scaling (%.10e)" % (fluxscale_value))
@@ -2204,6 +2210,8 @@ def read_swarp_params(filelist):
 
     params['illumcorr'] = cmdline_arg_set_or_default("-illumcorr", None)
     params['illumcorrfiles'] = cmdline_arg_set_or_default("-illumcorrfiles", None)
+    params['un_illumcorr'] = cmdline_arg_isset("-unic")
+
 
     params['normalize_sky'] = cmdline_arg_isset("-normsky")
 
