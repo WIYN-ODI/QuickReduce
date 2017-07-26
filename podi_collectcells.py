@@ -4578,12 +4578,16 @@ def collectcells(input, outputfile,
             )
             ota_list.append(raw_tbhdu)
 
-
             pf_hdu, pf_interpol = podi_photflat.create_photometric_flatfield(
                 input_hdus=[pyfits.HDUList(ota_list)],
                 strict_ota=False,
                 return_interpolator=True,
             )
+
+            # change the extension name of the initial CAT.PHOTCALIB table to
+            # avoid duplicates with the final CAT.PHOTCALIB table created below.
+            raw_tbhdu.name = "CAT.PHOTCALIB.RAW"
+            logger.info("#sources in catalog: %d" % (photcalib_details['odi_sdss_matched_raw'].shape[0]))
 
             photflat_allsuccess = True
             for ext in ota_list:
@@ -4649,12 +4653,14 @@ def collectcells(input, outputfile,
             photcalib_details=photcalib_details,
         )
 
-        raw_tbhdu = create_odi_sdss_matched_tablehdu(
+        ref_tbhdu = create_odi_sdss_matched_tablehdu(
             photcalib_details['odi_sdss_matched_raw'],
             photcalib_details=photcalib_details,
             extname="CAT.PHOTREF",
         )
-        ota_list.append(raw_tbhdu)
+        logger.info("#sources in catalog: %d" % (
+            photcalib_details['odi_sdss_matched_raw'].shape[0]))
+        ota_list.append(ref_tbhdu)
 
         # ota_list[0].header['PHOTMCAT'] = (photcalib_details['catalog'])
         # ota_list[0].header['PHOTFILT'] = (photcalib_details['reference_filter'])
@@ -4751,6 +4757,7 @@ def collectcells(input, outputfile,
         if (odi_sdss_matched is not None and odi_sdss_matched.shape[0] > 0):
             logger.debug("Adding matched SDSS=ODI source catalog to output as FITS extension")
             match_tablehdu = create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details)
+            logger.info("final photcalib cat: %d" % (odi_sdss_matched.shape[0]))
             # Copy a bunch of headers so we can makes heads and tails of the catalog
             # even if it's separated from the rest of the file.
             for hdrname in ['AIRMASS',
