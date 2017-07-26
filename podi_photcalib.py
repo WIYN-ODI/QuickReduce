@@ -711,7 +711,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
               verbose=False,
               eliminate_flags=True,
               matching_radius=3,
-              error_cutoff=0.02,
+              error_cutoff=None,
               detailed_return={},
               plot_suffix=None):
 
@@ -972,6 +972,12 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         # No sources found, report a photometric calibration failure.
         return error_return_value
 
+    if (error_cutoff is None):
+        if (detailed_return['catalog'] in sitesetup.photcalib_error_cutoff):
+            error_cutoff = sitesetup.photcalib_error_cutoff[detailed_return['catalog']]
+        else:
+            error_cutoff = 0.05
+
     detailed_return['reference_catalog_files'] = ref_filenames
 
     #
@@ -1091,8 +1097,8 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
             col1 = sdss_photometric_column[filter1]
             col2 = sdss_photometric_column[filter2]
-            sdss_color = odi_sdss_matched[:,(source_cat.shape[1]+col1)] - odi_sdss_matched[:,(source_cat.shape[1]+col2)]
-            color_correction = colorterm * sdss_color
+            ref_color = odi_sdss_matched[:,(source_cat.shape[1]+col1)] - odi_sdss_matched[:,(source_cat.shape[1]+col2)]
+            color_correction = numpy.polyval(colorterm[::-1], ref_color)
 
             odi_sdss_matched[:,(source_cat.shape[1]+pc)] -= color_correction
             
@@ -1172,16 +1178,16 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                     colterm_mag1 = sitesetup.catalog_mags[catname].index(filter1)
                     colterm_mag2 = sitesetup.catalog_mags[catname].index(filter2)
 
-                    sdss_color = odi_sdss_matched[:, (source_cat.shape[1] + colterm_mag1)] - \
-                                 odi_sdss_matched[:, (source_cat.shape[1] + colterm_mag2)]
+                    ref_color = odi_sdss_matched[:, (source_cat.shape[1] + colterm_mag1)] - \
+                                odi_sdss_matched[:, (source_cat.shape[1] + colterm_mag2)]
 
-                    color_correction = colorterm * sdss_color
+                    color_correction = numpy.polyval(colorterm[::-1], ref_color)
 
                     odi_sdss_matched[:, (source_cat.shape[1] + mag_col)] -= color_correction
 
                     detailed_return['colorterm'] = colorterm
 
-                    detailed_return['colorcorrection'] = "sdss_%s - sdss_%s" % (filter1, filter2)
+                    detailed_return['colorcorrection'] = "ref_%s - ref_%s" % (filter1, filter2)
                 except ValueError:
                     # one of the color-term filters wasn't found
                     detailed_return['colorterm'] = None
