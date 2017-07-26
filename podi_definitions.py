@@ -213,13 +213,20 @@ atm_extinction = {
 }
 photzp_colorterms = {
     'sdss_dr13': {
-        "odi_g": [ 0.1600, 'g', 'r'],
-        "odi_z": [-0.1277, 'i', 'z'],
+        "odi_g": [ [0.0000,  0.1600], 'g', 'r'],
+        "odi_z": [ [0.0000, -0.1277], 'i', 'z'],
     },
     'sdss': {
-        "odi_g": [ 0.1600, 'g', 'r'],
-        "odi_z": [-0.1277, 'i', 'z'],
+        "odi_g": [ [0.0000,  0.1600], 'g', 'r'],
+        "odi_z": [ [0.0000, -0.1277], 'i', 'z'],
     },
+    'panstarrs': {
+        # "odi_u": not available in PanSTARRS
+        "odi_g": [ [0.0336, -0.0359], 'g', 'r'],
+        # "odi_r":
+        # "odi_i": No color term (|slope| < 0.01 ([ 0.00435847 -0.00343126])
+        "odi_z": [ [0.0113, -0.0424], 'i', 'z'],
+    }
 }
 
 #   "odi_r": [ 0.0047, 'g', 'i'],
