@@ -448,7 +448,7 @@ class PhotFlatHandler(object):
 
     def read_catalogs(self):
 
-        self.logger.info("Reading PHOTCALIB catalogs")
+        self.logger.debug("Reading PHOTCALIB catalogs")
 
         #
         # Read all files
@@ -668,7 +668,7 @@ def parallel_create_photometric_flatfields_worker(
         extname = cmd
 
         logger.debug("Creating photflat for ext %s in parallel" % (extname))
-        imghdu = create_photometric_flatfield_single_ota(
+        imghdu, photflat, photflat_err = create_photometric_flatfield_single_ota(
             extname=extname,
             pf=pf,
             reference_zp=reference_zp,
@@ -676,7 +676,7 @@ def parallel_create_photometric_flatfields_worker(
             enlarge=enlarge,
         )
 
-        result_queue.put(imghdu)
+        result_queue.put((imghdu, photflat, photflat_err))
         input_queue.task_done()
 
         logger.debug("done with extension %s" % (extname))
@@ -691,6 +691,7 @@ def create_photometric_flatfield_single_ota(
         pixel_resolution=512,
         enlarge=2,
         min_error=0.005,
+        small_error_limit=0.03,
         strict_ota=False,
 ):
 
@@ -745,12 +746,17 @@ def create_photometric_flatfield_single_ota(
         full_zp_list = full_zp_list[mask]
         full_zperr_list = full_zperr_list[mask]
 
-        # compute the weighted mean correction factor
-        small_error = full_zperr_list < 0.03
-        full_zperr_list = full_zperr_list[small_error]
+        # ensure minimum error to avoid having a few points dominate the solution
         full_zperr_list[full_zperr_list < min_error] = min_error
 
-        full_zp_list = full_zp_list[small_error]
+        # select good datapoints
+        good_data = (full_zperr_list < small_error_limit) & \
+            numpy.isfinite(full_zp_list) & numpy.isfinite(full_zperr_list)
+
+        full_zp_list = full_zp_list[good_data]
+        full_zperr_list = full_zperr_list[good_data]
+
+        # compute the weighted mean correction factor
         photflat[_x, _y] = numpy.sum(
             full_zp_list / full_zperr_list) / numpy.sum(1. / full_zperr_list)
         photflat_err[_x, _y] = numpy.std(full_zp_list)
@@ -764,14 +770,14 @@ def create_photometric_flatfield_single_ota(
 
         # photflat[_x,_y] = numpy.median(full_zp_list)
 
-    combined = numpy.empty((n_samples ** 2, 3))
+    combined = numpy.empty((n_samples ** 2, 4))
     combined[:, 0] = ix.ravel()
     combined[:, 1] = iy.ravel()
     combined[:, 2] = photflat.ravel()
     numpy.savetxt("photflat.%02d.combined" % (ota), combined)
     numpy.savetxt("photflat.%02d.photflat" % (ota), photflat)
 
-    combined[:, 2] = photflat_err.ravel()
+    combined[:, 3] = photflat_err.ravel()
     numpy.savetxt("photflat.%02d.err" % (ota), combined)
 
     fullres = expand_to_fullres(photflat, blocksize=pixel_resolution)
@@ -783,7 +789,7 @@ def create_photometric_flatfield_single_ota(
     otax * s, (otax + 1) * s, otay * s, (otay + 1) * s)
     imghdu.header["DETSEC"] = (detsec, "position of OTA in focal plane")
 
-    return imghdu
+    return imghdu, photflat, photflat_err
 
 
 
@@ -822,7 +828,7 @@ def create_photometric_flatfield(
         radius=3,
         relative_coords=True,
         max_error=0.05)
-    logger.info("Using reference ZP: %s" % (reference_zp))
+    logger.debug("Using reference ZP: %s" % (reference_zp))
 
     # reference_zp = {}
     # list_of_otas = []
@@ -862,9 +868,11 @@ def create_photometric_flatfield(
     otalist = [pyfits.PrimaryHDU()]
     running_sum = 0
 
+    all_photflat = []
+    all_photflat_err = []
     if (parallel):
 
-        logger.info("Calculating photometric flatfield in parallel")
+        logger.debug("Calculating photometric flatfield in parallel")
         # prepare jobs
         extname_queue = multiprocessing.JoinableQueue()
         for i, extname in enumerate(unique_extnames):
@@ -896,17 +904,21 @@ def create_photometric_flatfield(
 
         # Gather all results
         for _ in unique_extnames:
-            imghdu = result_queue.get()
+            (imghdu, photflat, photflat_err) = result_queue.get()
             otalist.append(imghdu)
+            all_photflat.append(photflat)
+            all_photflat_err.append(photflat_err)
 
         logger.info("Received %d phot-flat extensions from parallel workers" % (len(otalist)-1))
 
     else:
+
+        logger.debug("Using the serial approach towards the photometric flatfield")
         for i, extname in enumerate(unique_extnames):
 
             logger.info("Computing photometric flat-field for OTA %s (%2d of %2d)" % (extname, i+1, len(unique_otas)))
 
-            imghdu = create_photometric_flatfield_single_ota(
+            imghdu, photflat, photflat_err = create_photometric_flatfield_single_ota(
                 extname=extname,
                 pf=pf,
                 reference_zp=reference_zp,
@@ -914,9 +926,28 @@ def create_photometric_flatfield(
                 enlarge=enlarge,
             )
             otalist.append(imghdu)
+            all_photflat.append(photflat)
+            all_photflat_err.append(photflat_err)
 
-    logger.info("Total sum of reference values: %d" % (running_sum))
+    logger.debug("Total sum of reference values: %d" % (running_sum))
     # break
+
+    #
+    # Calculate the mean and/or median level of the photflat across
+    # the mean level
+    #
+    all_photflat = numpy.array(all_photflat)
+    fluxcorr = numpy.power(10., -0.4*all_photflat)
+    numpy.savetxt("photcorr", all_photflat.ravel())
+    numpy.savetxt("flatcorr", fluxcorr.ravel())
+    mean_level = numpy.mean(fluxcorr)
+    mean_mag = numpy.mean(all_photflat)
+    logger.info("Mean photometric flatfield level: %8.5f (delta-mag=%7.4f)" % (mean_level, mean_mag))
+
+    logger.debug("Correcting photometric flatfield mean level")
+    for ota in otalist[1:]:
+        ota.data *= mean_level
+    logger.debug("Done correcting photometric flatfield mean level")
 
     hdulist = pyfits.HDUList(otalist)
 
