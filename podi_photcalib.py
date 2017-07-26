@@ -238,13 +238,13 @@ def ps2sdss (catalogdata, tonry=False):
         _i = catalogdata[:,iidx]
         psgr = _g - _i
 
-    # for filter in ps1colorterms:
-    #     colorcorrection = numpy.polyval (ps1colorterms[filter], psgr)
-    #     magidx = sitesetup.catalog_mags['panstarrs'].index(filter)
-    #     if tonry:
-    #         catalogdata[:,magidx] += colorcorrection
-    #     else:
-    #         catalogdata[:,magidx] -= colorcorrection
+    for filter in ps1colorterms:
+        colorcorrection = numpy.polyval (ps1colorterms[filter], psgr)
+        magidx = sitesetup.catalog_mags['panstarrs'].index(filter)
+        if tonry:
+            catalogdata[:,magidx] += colorcorrection
+        else:
+            catalogdata[:,magidx] -= colorcorrection
 
     return
 
@@ -952,10 +952,6 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             )
             if (_std_stars is not None and _std_stars.shape[0] > 0):
                 detailed_return['catalog'] = catname
-                if catname is 'panstarrs':
-
-                    ps2sdss (_std_stars)
-                    pass
 
                 std_stars = _std_stars
                 logger.info("Found %d reference sources in %s catalog" % (std_stars.shape[0], catname))
