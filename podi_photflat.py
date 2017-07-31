@@ -870,6 +870,7 @@ def create_photometric_flatfield(
 
     all_photflat = []
     all_photflat_err = []
+    all_extnames = []
     if (parallel):
 
         logger.debug("Calculating photometric flatfield in parallel")
@@ -908,6 +909,7 @@ def create_photometric_flatfield(
             otalist.append(imghdu)
             all_photflat.append(photflat)
             all_photflat_err.append(photflat_err)
+            all_extnames.append(imghdu.name)
 
         logger.info("Received %d phot-flat extensions from parallel workers" % (len(otalist)-1))
 
@@ -928,6 +930,7 @@ def create_photometric_flatfield(
             otalist.append(imghdu)
             all_photflat.append(photflat)
             all_photflat_err.append(photflat_err)
+            all_extnames.append(imghdu.name)
 
     logger.debug("Total sum of reference values: %d" % (running_sum))
     # break
@@ -937,16 +940,24 @@ def create_photometric_flatfield(
     # the mean level
     #
     all_photflat = numpy.array(all_photflat)
-    fluxcorr = numpy.power(10., -0.4*all_photflat)
+    fluxcorr = numpy.power(10., 0.4*all_photflat)
     numpy.savetxt("photcorr", all_photflat.ravel())
     numpy.savetxt("flatcorr", fluxcorr.ravel())
+    numpy.save("photcorr_npy", all_photflat)
+
     mean_level = numpy.mean(fluxcorr)
     mean_mag = numpy.mean(all_photflat)
     logger.info("Mean photometric flatfield level: %8.5f (delta-mag=%7.4f)" % (mean_level, mean_mag))
 
+
+    import pickle
+    fluxcorr /= mean_level
+    pickle.dump((fluxcorr, all_extnames), open("photflat.pickle", "wb"))
+
+
     logger.debug("Correcting photometric flatfield mean level")
     for ota in otalist[1:]:
-        ota.data *= mean_level
+        ota.data /= mean_level
     logger.debug("Done correcting photometric flatfield mean level")
 
     hdulist = pyfits.HDUList(otalist)
