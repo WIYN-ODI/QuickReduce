@@ -5369,11 +5369,12 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None,
                                      disp='I2.2'
                                  )
     )
-    columns.append(pyfits.Column(name='USED4CALIB',
-                                     format='L', unit='',
-                                     array=photcalib_details['use_for_calibration_mask'],
-                                 )
-    )
+    if (photcalib_details['use_for_calibration_mask'] is not None):
+        columns.append(pyfits.Column(name='USED4CALIB',
+                                         format='L', unit='',
+                                         array=photcalib_details['use_for_calibration_mask'],
+                                     )
+        )
 
     coldefs = pyfits.ColDefs(columns)
     tbhdu = pyfits.BinTableHDU.from_columns(coldefs)

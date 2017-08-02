@@ -824,6 +824,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     detailed_return['catalog'] = "none"
     detailed_return['reference_filter'] = "none"
     detailed_return['reference_catalog_files'] = None
+    detailed_return['use_for_calibration_mask'] = None
 
     # Eliminate all stars with flags
     if (eliminate_flags):
@@ -1339,6 +1340,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
     # print "\n"*10,detailed_return,"\n"*5
 
+    use_for_calibration = numpy.ones((odi_sdss_matched.shape[0]), dtype=numpy.bool)
     if (odi_sdss_matched.shape[0] > 0):
 
         #
@@ -1452,8 +1454,6 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         zp_lower1sigma = scipy.stats.scoreatpercentile(zp_clipped, 16)
         # print zp_lower1sigma, zp_upper1sigma, 0.5*(zp_upper1sigma-zp_lower1sigma)
 
-        detailed_return['use_for_calibration_mask'] = use_for_calibration
-
         # print "XXXXXX\n"*10
 
         zp_median = numpy.median(zp_clipped)
@@ -1543,6 +1543,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     detailed_return['zp_lower1sigma'] = zp_lower1sigma
     detailed_return['n_clipped'] = n_clipped
     detailed_return['n_raw'] = zp.shape[0]
+    detailed_return['use_for_calibration_mask'] = use_for_calibration
 
     # Make plots
     logger.debug("Creating phot-ZP diagnostic plots? %s" % (str(diagplots)))
