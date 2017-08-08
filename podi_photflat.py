@@ -945,8 +945,8 @@ def create_photometric_flatfield(
     numpy.savetxt("flatcorr", fluxcorr.ravel())
     numpy.save("photcorr_npy", all_photflat)
 
-    mean_level = numpy.mean(fluxcorr)
-    mean_mag = numpy.mean(all_photflat)
+    mean_level = numpy.nanmean(fluxcorr)
+    mean_mag = numpy.nanmean(all_photflat)
     logger.info("Mean photometric flatfield level: %8.5f (delta-mag=%7.4f)" % (mean_level, mean_mag))
 
 
