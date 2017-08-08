@@ -531,7 +531,7 @@ if __name__ == "__main__":
         wipe_cells = read_wipecells_list()
         ocdclean = cmdline_arg_isset("-ocdclean")
 
-        if (not mask_regions == None):
+        if (mask_regions is not None):
             print "Loading ds9 regions to mask from %s" % (mask_regions)
             mask_regions = read_sky_regions_file(mask_regions)
             print mask_regions
