@@ -713,6 +713,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
               matching_radius=3,
               error_cutoff=None,
               detailed_return={},
+              saturation_limit=sitesetup.photcalib_saturation,
               plot_suffix=None):
 
     """
@@ -1219,7 +1220,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     #
     # If requested, remove radial ZP trend
     # 
-    if (not otalist == None
+    if (otalist is not None
         and options['fitradialZP']):
 
         logger.debug("Starting to fit the radial ZP gradient")
@@ -1366,6 +1367,14 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             use_for_calibration = numpy.ones((odi_sdss_matched.shape[0]), dtype=numpy.bool)
         else:
             use_for_calibration = small_error_mask
+
+        # exclude saturated stars from artifically increasing scatter
+        if (saturation_limit is not None):
+            saturated = odi_sdss_matched[:, SXcolumn['flux_max']+2] >= saturation_limit
+            use_for_calibration &= ~saturated
+            logger.info("Excluding %d saturated sources during photometric calibration (peak > %.1f cts)" % (
+                numpy.sum(saturated), saturation_limit
+            ))
 
         # numpy.savetxt("use_for_calib.1", use_for_calibration.astype(numpy.int))
 
@@ -1737,13 +1746,13 @@ if __name__ == "__main__":
 
         print """\
 
-   ************************************************
-   * photcalib for - Swarp'ed QR data             *
-   *               - single 
-   * part of the QuickReduce pipeline package     *
-   * (c) 2014, Ralf Kotulla and WIYN Observatory  *
-   ************************************************
-"""
+           ************************************************
+           * photcalib for - Swarp'ed QR data             *
+           *               - single 
+           * part of the QuickReduce pipeline package     *
+           * (c) 2014, Ralf Kotulla and WIYN Observatory  *
+           ************************************************
+        """
         import podi_collectcells
         options = podi_collectcells.read_options_from_commandline()
         # Setup everything we need for logging
