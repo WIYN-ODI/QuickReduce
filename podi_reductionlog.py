@@ -49,6 +49,7 @@ class ReductionLog:
         self.steps['wcscal']      = (None, '_WCSCAL' , 'astrometric calibration')
         self.steps['nonsidereal'] = (None, '_NONSDRL', 'non-sidereal correction')
         self.steps['photcal']     = (None, '_PHOTCAL', 'photometric ZP calibration')
+        self.steps['autophotflat']= (None, '_AUTOFOT', 'auto-photometric flatfielding')
         self.steps['softwarebin'] = (None, '_SOFTBIN', 'software binning')
 
         

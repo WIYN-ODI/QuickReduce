@@ -4546,6 +4546,8 @@ def collectcells(input, outputfile,
         filter_name = get_valid_filter_name(ota_list[0].header)
 
         if (options['auto_photflat']):
+            global_reduction_log.attempt('autophotflat')
+
             logger.info("Starting initial photometric calibration")
             photcalib_details = {}
             zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = \
@@ -4599,7 +4601,10 @@ def collectcells(input, outputfile,
                 else:
                     logger.warning("No auto-photflat data for OTA %s" % (ext.name))
                     photflat_allsuccess = False
-
+            if (photflat_allsuccess):
+                global_reduction_log.success('autophotflat')
+            else:
+                global_reduction_log.partial_fail('autophotflat')
 
             #
             # Correct the photometry catalog using the information from the
