@@ -1558,7 +1558,7 @@ def diagplot_photflat(extnames, data, one_sigma=None,
         user_sigma_minus = 100. - user_sigma_plus
         print user_sigma_plus, user_sigma_minus
 
-        stats = numpy.percentile(fluxfac, [16,84,50,5,95, user_sigma_minus, user_sigma_plus])
+        stats = numpy.nanpercentile(fluxfac, [16,84,50,5,95, user_sigma_minus, user_sigma_plus])
         print stats
         one_sigma = 0.5*(stats[1]-stats[0])
         print one_sigma, 0.25*(stats[4]-stats[3])
