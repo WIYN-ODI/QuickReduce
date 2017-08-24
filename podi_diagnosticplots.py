@@ -1532,6 +1532,99 @@ def  diagplot_psfshape_map(ra, dec, elongation, angle, fwhm, ota,
     return
 
 
+def diagplot_photflat(extnames, data, one_sigma=None,
+                      title=None,
+                      output_filename="photflat",
+                      options=None,
+                      n_sigma=3,
+                      force_symmetric=False,
+                      ):
+
+    logger = logging.getLogger("DiagPlot_PhotFlat")
+
+    fig = matplotlib.pyplot.figure()
+    ax = fig.add_subplot(111)
+
+    px_y, px_x = numpy.indices((9,9), dtype=numpy.float)
+    px_x *= 512.
+    px_y *= 512.
+    ota_px_size = 1
+    rel_ota_size = 0.95
+
+    fluxfac = data[:, :-1, :-1] #numpy.power(10., 0.4*data[:, :-1, :-1])
+
+    if (one_sigma is None or not force_symmetric):
+        user_sigma_plus = 50. + 50.*scipy.special.erf(float(n_sigma)/numpy.sqrt(2))
+        user_sigma_minus = 100. - user_sigma_plus
+        print user_sigma_plus, user_sigma_minus
+
+        stats = numpy.percentile(fluxfac, [16,84,50,5,95, user_sigma_minus, user_sigma_plus])
+        print stats
+        one_sigma = 0.5*(stats[1]-stats[0])
+        print one_sigma, 0.25*(stats[4]-stats[3])
+        median = stats[2]
+        print median
+        one_sigma += numpy.fabs(median-1.)
+        logger.info("Using automatic intensity scaling")
+    if (force_symmetric):
+        logger.info("Photflat-scaling: 1.0 +/- %.3f" % (one_sigma))
+        vmin = 1. - n_sigma*one_sigma
+        vmax = 1. + n_sigma*one_sigma
+    else:
+        vmin = stats[-2]
+        vmax = stats[-1]
+        logger.info("photflat-scaling: %f .. %f" % (vmin, vmax))
+
+
+    for ota, extname in enumerate(extnames): #range(data.shape[0]):
+        #ox = ota_x[ota]
+        #oy = ota_y[ota]
+        ox,oy = int(extname[3]), int(extname[4])
+        # print ox, oy, data[ota]
+        # fluxdata = numpy.power(10., 0.4*data[ota,:-1,:-1])
+        fluxdata = fluxfac[ota, :, :] #numpy.power(10., 0.4*data[ota,:-1,:-1])
+
+        this_x = px_x + ox*ota_px_size
+        this_y = px_y + oy*ota_px_size
+
+        # print this_x
+
+        data_prepped = numpy.flip(numpy.ndarray.transpose(fluxdata), 0)
+
+        ims = ax.imshow(data_prepped,
+            #aspect='equal',
+            interpolation='bilinear',
+            extent=((ox-0.5*rel_ota_size)*ota_px_size, (ox+0.5*rel_ota_size)*ota_px_size,
+                    (oy-0.5*rel_ota_size)*ota_px_size, (oy+0.5*rel_ota_size)*ota_px_size),
+            cmap=matplotlib.pyplot.cm.get_cmap('spectral'), #matplotlib.cm.gray,
+            vmin=vmin, vmax=vmax,
+        )
+
+    cbar = fig.colorbar(ims, orientation='vertical')
+    print "intensity range: %.3f ... %.3f" % (vmin, vmax)
+
+    if (title is None):
+        title = "Photometric flatfield"
+    ax.set_title(title)
+
+    ax.set_xlim((0.8-0.5*rel_ota_size,5.2+0.5*rel_ota_size))
+    ax.set_ylim((0.8-0.5*rel_ota_size,6.2+0.5*rel_ota_size))
+
+    if (output_filename is None):
+        matplotlib.pyplot.show()
+        fig.show()
+    else:
+        fig.set_size_inches(8,6)
+        if (options is not None):
+            for ext in options['plotformat']:
+                if (ext != ''):
+                    fig.savefig(output_filename+"."+ext, dpi=100,bbox_inches='tight')
+                    logger.debug("saving plot to %s.%s" % (output_filename, ext))
+        else:
+            fig.savefig(output_filename+".png", dpi=100,bbox_inches='tight')
+
+
+
 def crossout(x, y, size):
     # [
     #     [ota_x, ota_y],

@@ -963,7 +963,7 @@ def create_photometric_flatfield(
     hdulist = pyfits.HDUList(otalist)
 
     if (return_interpolator):
-        return hdulist, None
+        return hdulist, (fluxcorr, all_extnames)
 
     return hdulist
 

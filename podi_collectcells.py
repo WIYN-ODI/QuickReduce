@@ -4586,6 +4586,22 @@ def collectcells(input, outputfile,
                 return_interpolator=True,
             )
 
+            # create the photflat diagnostic plot
+            (fluxcorr, all_extnames) = pf_interpol
+            photflat_diagplot_fn = create_qa_filename(outputfile, "autophotflat", options)
+            photflat_diagplot_title = \
+                "%(OBJECT)s: auto phot.flat.\n" \
+                "%(OBSID)s -- %(FILTER)s -- %(EXPMEAS).1f" % ota_list[0].header
+            # self-generated photometric flatfield
+            podi_diagnosticplots.diagplot_photflat(
+                extnames=all_extnames,
+                data=fluxcorr,
+                title=photflat_diagplot_title,
+                output_filename=photflat_diagplot_fn,
+                options=options,
+                n_sigma=3, force_symmetric=False,
+            )
+
             # change the extension name of the initial CAT.PHOTCALIB table to
             # avoid duplicates with the final CAT.PHOTCALIB table created below.
             raw_tbhdu.name = "CAT.PHOTCALIB.RAW"
