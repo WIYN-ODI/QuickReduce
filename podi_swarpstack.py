@@ -2242,11 +2242,35 @@ def read_swarp_params(filelist):
         params['cutout_list'] = cutout
 
     params['autophotflat'] = None
+    params['apf_timeframe'] = None
+    params['apf_nframes'] = None
+    params['apf_noauto'] = False
+
     if(cmdline_arg_isset('-autophotflat')):
         opt = cmdline_arg_set_or_default2("-autophotflat", None)
         if (opt is not None):
             print opt
-            os._exit(-1)
+
+            apf_options = opt.split(":")
+            for o in apf_options:
+                _o = o.split("=")
+                opt_name = _o[0]
+                opt_value = _o[1]
+                if (opt_name == "dt"): #o.startswith("dt=")):
+                    interval = opt_value[-1]
+                    if (interval == 'd'):
+                        time = float(opt_value[:-1])
+                    elif (interval == "h"):
+                        time = float(opt_value[:-1])/24.
+                    else:
+                        time = float(opt_value)
+                    params['apf_timeframe'] = time
+
+                elif (opt_name == "n"):
+                    params['apf_nframes'] = int(opt_value)
+
+                elif (opt_name == "no_auto"):
+                    params['apf_noauto'] = True
 
 
     return params
