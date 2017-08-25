@@ -2241,6 +2241,14 @@ def read_swarp_params(filelist):
             }
         params['cutout_list'] = cutout
 
+    params['autophotflat'] = None
+    if(cmdline_arg_isset('-autophotflat')):
+        opt = cmdline_arg_set_or_default2("-autophotflat", None)
+        if (opt is not None):
+            print opt
+            os._exit(-1)
+
+
     return params
 
 if __name__ == "__main__":
@@ -2254,12 +2262,13 @@ if __name__ == "__main__":
     podi_logging.setup_logging(options)
 
     logger = logging.getLogger("SwarpStack-Startup")
-    if (cmdline_arg_isset("-fromfile")):
+    while (cmdline_arg_isset("-fromfile")):
         configfile = get_cmdline_arg("-fromfile")
         if (os.path.isfile(configfile)):
             logger.info("Reading additional command line parameters from file (%s)" % (configfile))
             conf = open(configfile, "r")
             lines = conf.readlines()
+            all_items = []
             for line in lines:
                 line = line.strip()
                 if (len(line) <= 0):
@@ -2267,11 +2276,16 @@ if __name__ == "__main__":
                 elif (line.startswith("#")):
                     continue
                 elif (line.startswith("-")):
-                    sys.argv.append(line)
+                    all_items.append(line)
                 else:
                     items = line.split()
-                    sys.argv.append(items[0])
+                    all_items.append(items[0])
             conf.close()
+            for i in range(len(sys.argv)):
+                if (sys.argv[i].startswith("-fromfile")):
+                    del sys.argv[i]
+                    for to_add in all_items[::-1]:
+                        sys.argv.insert(i, to_add)
         else:
             logger.error("Can't open the configfile (%s)" % (configfile))
 
