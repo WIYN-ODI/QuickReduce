@@ -120,6 +120,7 @@ import podi_illumcorr
 import multiprocessing
 from podi_fitskybackground import sample_background_using_ds9_regions
 import podi_associations
+import podi_photflat
 
 import podi_logging
 import logging
@@ -143,7 +144,7 @@ except:
 
 
 
-def mp_prepareinput(input_queue, output_queue, swarp_params, options):
+def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=None):
 
     while (True):
 
@@ -484,7 +485,51 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
                         except (KeyError, ValueError, TypeError):
                             continue
 
-            # XXX
+            if (swarp_params['autophotflat'] and apf_data is not None):
+                # determine which frames to use for the auto-photflat
+                this_mjd = hdulist[0].header['MJD-OBS']
+                use_apf_data = apf_data.copy()
+                use_apf_mjds = numpy.array([float(f) for f in use_apf_data[:,0]])
+                logger.info("MJD for %s is %f" % (input_file, this_mjd))
+                this_index = numpy.arange(use_apf_data.shape[0])[(use_apf_data[:,1] == input_file)]
+                print this_index
+                print "timeframe:", swarp_params['apf_timeframe']
+                print "nframes:", swarp_params['apf_nframes']
+
+                if (swarp_params['apf_timeframe'] is not None):
+                    _mjd = use_apf_mjds
+                    print _mjd
+                    select = numpy.fabs(_mjd-this_mjd) <= swarp_params['apf_timeframe']
+                    print select
+                elif (swarp_params['apf_nframes'] is not None):
+                    idx = numpy.arange(use_apf_data.shape[0])
+                    select = numpy.fabs(idx-this_index) <= swarp_params['apf_nframes']
+                else:
+                    select = numpy.ones((use_apf_data.shape[0]), dtype=numpy.bool)
+                if (swarp_params['apf_noauto']):
+                    select[this_index] = False
+                files_for_apf = [str(f) for f in use_apf_data[select, 1]]
+                logger.info("%s:\n%s" % (input_file, "\n".join(list(files_for_apf))))
+
+                # Now that we have a list of files, create the photometric
+                # flatfield
+                custom_photflat, apf_extras = podi_photflat.create_photometric_flatfield(
+                    filelist = files_for_apf,
+                    resolution_arcsec=swarp_params['apf_resolution'],
+                    strict_ota=False,
+                    return_interpolator=True,
+                    parallel=True,
+                    n_processes=1,
+                )
+                # save the photflat
+                output_bn = os.path.splitext(outputfile)[0]
+                custom_photflat.writeto(
+                    "custom_apf_for_%s_in_%s.fits" % (hdulist[0].header['OBSID'], output_bn),
+                    clobber=True
+                )
+
+
+                        # XXX
             if (options['illumcorr_dir'] is not None):
                 logger.debug("Un-doing illumination correction (%s)" % (illum_file))
                 master_reduction_files_used = podi_associations.collect_reduction_files_used(
@@ -563,7 +608,8 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
 
 
 
-def prepare_input(inputlist, swarp_params, options):
+def prepare_input(inputlist, swarp_params, options,
+                  apf_data=None):
 
     logger = logging.getLogger("PrepFiles")
 
@@ -641,7 +687,7 @@ def prepare_input(inputlist, swarp_params, options):
     #
     # Start worker processes
     #
-    worker_args = (in_queue, out_queue, swarp_params, options)
+    worker_args = (in_queue, out_queue, swarp_params, options, apf_data)
     processes = []
     for i in range(sitesetup.number_cpus):
         p = multiprocessing.Process(target=mp_prepareinput, args=worker_args)
@@ -1088,6 +1134,31 @@ def swarpstack(outputfile,
     logger.info("Removing some OTAs from input: %s" % (str(options['skip_otas'])))
 
     ############################################################################
+    # Prepare the meta-data we need for the auto-phot.-flatfielding
+    ############################################################################
+    apf_data = None
+    if (swarp_params['autophotflat']):
+        # User asked for it, read all required data, including photometric
+        # calibration data and time-stamps
+        print("gathering all data for auto-phot.flat")
+        apf_data = []
+        for fn in inputlist:
+            if (not os.path.isfile(fn)):
+                continue
+            print fn
+            hdulist = pyfits.open(fn)
+            mjd_obs = hdulist[0].header['MJD-OBS']
+            apf_data.append([mjd_obs, fn])
+        apf_data = numpy.array(apf_data)
+
+        mjd_sort = numpy.argsort(apf_data[:,0])
+        apf_data = apf_data[mjd_sort]
+
+        print apf_data
+        logger.debug("done with data gathering")
+        pass
+
+    ############################################################################
     #
     # Generate the illumination correction file if this is requested
     #
@@ -1179,7 +1250,8 @@ def swarpstack(outputfile,
     modified_files, stack_total_exptime, stack_framecount, \
         stack_start_time, stack_end_time, master_reduction_files_used, \
         nonsidereal_offsets, photom_lists = \
-        prepare_input(inputlist, swarp_params, options)
+        prepare_input(inputlist, swarp_params, options,
+                      apf_data)
 
     # print modified_files
     inputlist = modified_files
@@ -2241,12 +2313,14 @@ def read_swarp_params(filelist):
             }
         params['cutout_list'] = cutout
 
-    params['autophotflat'] = None
+    params['autophotflat'] = False
     params['apf_timeframe'] = None
     params['apf_nframes'] = None
     params['apf_noauto'] = False
+    params['apf_resolution'] = None
 
     if(cmdline_arg_isset('-autophotflat')):
+        params['autophotflat'] = True
         opt = cmdline_arg_set_or_default2("-autophotflat", None)
         if (opt is not None):
             print opt
@@ -2271,6 +2345,10 @@ def read_swarp_params(filelist):
 
                 elif (opt_name == "no_auto"):
                     params['apf_noauto'] = True
+
+                elif (opt_name == "res"):
+                    params['apf_resolution'] = float(opt_value)
+
 
 
     return params
