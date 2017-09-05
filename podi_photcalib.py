@@ -1370,7 +1370,9 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
         # exclude saturated stars from artifically increasing scatter
         if (saturation_limit is not None):
-            saturated = odi_sdss_matched[:, SXcolumn['flux_max']+2] >= saturation_limit
+            peak_flux = odi_sdss_matched[:, SXcolumn['flux_max']+2] + \
+                        odi_sdss_matched[:, SXcolumn['background']+2]
+            saturated = peak_flux >= saturation_limit
             use_for_calibration &= ~saturated
             logger.info("Excluding %d saturated sources during photometric calibration (peak > %.1f cts)" % (
                 numpy.sum(saturated), saturation_limit
@@ -1530,7 +1532,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
             # enlarge the error bars a bit to prevent single points with 
             # unrealistically small uncertainties to dominate teh fit
-            zperr_larger = numpy.hypot(zperr_clipped, 0.05)
+            zperr_larger = numpy.hypot(zperr_clipped, 0.005)
 
             args = (sdss_mag_clipped, zp_clipped, zperr_larger)
             fit = scipy.optimize.leastsq(linear_fit_err, p_init, args=args, full_output=1)
