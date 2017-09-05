@@ -28,6 +28,7 @@ class PhotFlatFrame(object):
 
         # load the FITS and extract the photcalib table
 
+        self.logger.debug("Initializing %s (type: %s)" % (filename, type(filename)))
         if (type(filename) == str):
             self.filename = filename
             hdulist = pyfits.open(self.filename)
@@ -64,7 +65,8 @@ class PhotFlatFrame(object):
         except:
             self.logger.warning("No PHOTCALIB table found in %s" % (self.filename))
             photcalib_tbhu = None
-            raise Exception("no PHOTCALIB extension")
+            msg = "no PHOTCALIB extension in %s" % (self.filename)
+            raise Exception(msg)
 
         #
         # Now extract all sources for each OTA
@@ -499,7 +501,7 @@ class PhotFlatHandler(object):
 
         reference_zp = {}
         for framename in self.phot_frames:
-            self.logger.info("Adding photometric data from file %s" % (framename))
+            self.logger.debug("Adding photometric data from file %s" % (framename))
             frame = self.phot_frames[framename]
 
             zps = frame.get_zeropoints(ra=ra, dec=dec, radius=radius,
@@ -798,13 +800,22 @@ def create_photometric_flatfield(
         filelist=None,
         input_hdus=None,
         strict_ota=False,
-        resolution_arcsec=60.,
+        resolution_arcsec=None,
         debug=False,
         return_interpolator=False,
         parallel=True,
+        n_processes=-1,
 ):
 
     logger = logging.getLogger("PhotFlat")
+
+    if (n_processes == 0):
+        n_processes = multiprocessing.cpu_count()
+    elif (n_processes < 0):
+        n_processes = sitesetup.number_cpus
+
+    if (resolution_arcsec is None):
+        resolution_arcsec = 60.
 
     pf = PhotFlatHandler(
         filelist=filelist,
@@ -882,7 +893,7 @@ def create_photometric_flatfield(
 
         # start parallel execution in separate processes
         processes = []
-        for i in range(sitesetup.number_cpus):
+        for i in range(n_processes):
 
             # start the process
             p = multiprocessing.Process(
