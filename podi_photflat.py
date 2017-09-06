@@ -816,7 +816,7 @@ def create_photometric_flatfield(
         n_processes = sitesetup.number_cpus
 
     if (smoothing is None):
-        smoothing = 250.
+        smoothing = 120.
     smoothing_pixels = smoothing / 0.11
 
     logger.info("Using PF smoothing length of %.1f arcsec" % (smoothing))
