@@ -654,8 +654,9 @@ def parallel_create_photometric_flatfields_worker(
         result_queue,
         pf,
         reference_zp,
-        pixel_resolution = 512,
-        enlarge = 2,
+        sampling = 512,
+        smoothing=1024,
+        resolution=60.
     ):
 
     logger = logging.getLogger("ParPhotflat")
@@ -674,8 +675,8 @@ def parallel_create_photometric_flatfields_worker(
             extname=extname,
             pf=pf,
             reference_zp=reference_zp,
-            pixel_resolution=pixel_resolution,
-            enlarge=enlarge,
+            sampling=sampling,
+            smoothing=smoothing,
         )
 
         result_queue.put((imghdu, photflat, photflat_err))
@@ -690,14 +691,14 @@ def create_photometric_flatfield_single_ota(
         extname,
         pf,
         reference_zp,
-        pixel_resolution=512,
-        enlarge=2,
+        sampling=512,
+        smoothing=1024,
         min_error=0.005,
         small_error_limit=0.03,
         strict_ota=False,
 ):
 
-    n_samples = int(math.ceil(4096. / pixel_resolution))+1
+    n_samples = int(math.ceil(4096. / sampling)) + 1
     sample_pixels = int(math.floor((4096. / (n_samples-1))))
 
     logger = logging.getLogger("PhotFlatSingleOTA")
@@ -727,7 +728,7 @@ def create_photometric_flatfield_single_ota(
             frame = pf.phot_frames[framename]
             # print framename, ota, x, y, frame
             zp_list, zperr_list = frame.get_ota_zeropoints(
-                ota=ota, x=x, y=y, radius=pixel_resolution * enlarge,
+                ota=ota, x=x, y=y, radius=smoothing,
                 strict_ota=strict_ota,
                 return_error=True)
             # correct zp for the specific offset
@@ -782,7 +783,7 @@ def create_photometric_flatfield_single_ota(
     combined[:, 3] = photflat_err.ravel()
     numpy.savetxt("photflat.%02d.err" % (ota), combined)
 
-    fullres = expand_to_fullres(photflat, blocksize=pixel_resolution)
+    fullres = expand_to_fullres(photflat, blocksize=sampling)
     imghdu = pyfits.ImageHDU(data=fullres, name=extname)
     # add some headers to allow for mosaic viewing
     otax, otay = int(math.floor(ota / 10)), int(ota % 10)
@@ -800,7 +801,7 @@ def create_photometric_flatfield(
         filelist=None,
         input_hdus=None,
         strict_ota=False,
-        resolution_arcsec=None,
+        smoothing=None,
         debug=False,
         return_interpolator=False,
         parallel=True,
@@ -814,8 +815,11 @@ def create_photometric_flatfield(
     elif (n_processes < 0):
         n_processes = sitesetup.number_cpus
 
-    if (resolution_arcsec is None):
-        resolution_arcsec = 60.
+    if (smoothing is None):
+        smoothing = 250.
+    smoothing_pixels = smoothing / 0.11
+
+    logger.info("Using PF smoothing length of %.1f arcsec" % (smoothing))
 
     pf = PhotFlatHandler(
         filelist=filelist,
@@ -873,9 +877,7 @@ def create_photometric_flatfield(
     #
     # Now extract the relative ZP differences for each of the sectors in each ota
     #
-    pixel_resolution = 512
-    enlarge = 2.
-
+    sampling = 512
     otalist = [pyfits.PrimaryHDU()]
     running_sum = 0
 
@@ -903,8 +905,8 @@ def create_photometric_flatfield(
                     result_queue=result_queue,
                     pf=pf,
                     reference_zp=reference_zp,
-                    pixel_resolution=pixel_resolution,
-                    enlarge=enlarge,
+                    sampling=sampling,
+                    smoothing=smoothing_pixels,
                 )
             )
             # p.daemon = True
@@ -935,7 +937,7 @@ def create_photometric_flatfield(
                 extname=extname,
                 pf=pf,
                 reference_zp=reference_zp,
-                pixel_resolution=pixel_resolution,
+                sampling=sampling,
                 enlarge=enlarge,
             )
             otalist.append(imghdu)
@@ -1050,7 +1052,7 @@ if __name__ == "__main__":
     filelist = get_clean_cmdline()[2:]
     debug = cmdline_arg_isset("-debug")
     strict_ota = cmdline_arg_isset("-ota")
-    resolution = float(cmdline_arg_set_or_default("-resolution", 60.))
+    resolution = float(cmdline_arg_set_or_default("-resolution", 120.))
 
     in_hdus = []
     for fn in filelist:
@@ -1061,7 +1063,7 @@ if __name__ == "__main__":
         input_hdus=in_hdus,
         debug=debug,
         strict_ota=strict_ota,
-        resolution_arcsec=resolution,
+        smoothing=resolution,
     )
     clobberfile(output_filename)
     hdulist.writeto(output_filename, clobber=True)
