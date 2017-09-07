@@ -1240,7 +1240,7 @@ podi_makecalibrations.py input.list calib-directory
                         continue
 
                     # Overwrite the pupil ghost correction so we don't do it twice
-                    options['pupilghost_dir'] = None
+                    options['pupilghost_dir'] = False
                     logger.debug("overwriting (for now) pupilghost dir=%s" % (pupilghost_dir))
 
                     flats_to_stack = []
