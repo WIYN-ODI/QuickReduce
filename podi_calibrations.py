@@ -386,6 +386,34 @@ class ODICalibrations(object):
         return self.verify_fn(full_filename)
 
 
+    def _info(self, step, apply_fct, filename_fct):
+
+        try:
+            apply = apply_fct()
+        except:
+            apply = "ERROR"
+            pass
+
+        try:
+            filename = filename_fct()
+        except:
+            filename = "ERROR"
+            pass
+
+        if (filename is None):
+            filename = "--undefined--"
+        self.logger.info("%s: %5s (%s)" % (step, apply, filename))
+
+    def info(self):
+        self._info("BIAS", self.apply_bias, self.bias)
+        self._info("DARK", self.apply_dark, self.dark)
+        self._info("FLAT", self.apply_flat, self.flat)
+        self._info("FRINGE", self.apply_fringe, self.fringe)
+        self._info("PUPILGHOST", self.apply_pupilghost, self.pupilghost)
+        self._info("BPM", self.apply_bpm(), self.bpm)
+        self._info("NONLINEARITY", self.apply_nonlinearity, self.nonlinearity)
+        self._info("WCS", self.apply_wcs, self.wcs)
+        #self._info("CROSSTALK", self.apply_crosstalk, self.crosstalk)
 
 class CalibrationHistory(object):
 
