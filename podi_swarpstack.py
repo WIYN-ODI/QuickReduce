@@ -492,15 +492,18 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
                 use_apf_mjds = numpy.array([float(f) for f in use_apf_data[:,0]])
                 logger.info("MJD for %s is %f" % (input_file, this_mjd))
                 this_index = numpy.arange(use_apf_data.shape[0])[(use_apf_data[:,1] == input_file)]
-                print this_index
-                print "timeframe:", swarp_params['apf_timeframe']
-                print "nframes:", swarp_params['apf_nframes']
+                # print this_index
+                # print "timeframe:", swarp_params['apf_timeframe']
+                # print "nframes:", swarp_params['apf_nframes']
 
                 if (swarp_params['apf_timeframe'] is not None):
                     _mjd = use_apf_mjds
-                    print _mjd
+                    # print _mjd
                     select = numpy.fabs(_mjd-this_mjd) <= swarp_params['apf_timeframe']
-                    print select
+                    # print select
+                    logger.info("Found %d frames within %.2f days of mjd=%.6f" % (
+                        numpy.sum(select), swarp_params['apf_timeframe'], this_mjd
+                    ))
                 elif (swarp_params['apf_nframes'] is not None):
                     idx = numpy.arange(use_apf_data.shape[0])
                     select = numpy.fabs(idx-this_index) <= swarp_params['apf_nframes']
@@ -509,13 +512,13 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
                 if (swarp_params['apf_noauto']):
                     select[this_index] = False
                 files_for_apf = [str(f) for f in use_apf_data[select, 1]]
-                logger.info("%s:\n%s" % (input_file, "\n".join(list(files_for_apf))))
+                logger.info("Using these files to compute phot.flat for %s:\n%s" % (input_file, "\n".join(list(files_for_apf))))
 
                 # Now that we have a list of files, create the photometric
                 # flatfield
                 custom_photflat, apf_extras = podi_photflat.create_photometric_flatfield(
                     filelist = files_for_apf,
-                    resolution_arcsec=swarp_params['apf_resolution'],
+                    smoothing=swarp_params['apf_resolution'],
                     strict_ota=False,
                     return_interpolator=True,
                     parallel=True,
@@ -1193,18 +1196,20 @@ def swarpstack(outputfile,
     # -best or median options
     #
     ###########################################################################
+    logger.info("Checking flux-scaling factors")
+    all_zp = numpy.empty((len(inputlist)))
+    all_zp[:] = numpy.NaN
+    for idx, fn in enumerate(inputlist):
+        if (os.path.isfile(fn)):
+            _hdu = pyfits.open(fn)
+            magzero = _hdu[0].header['PHOTZP_X'] if 'PHOTZP_X' in _hdu[0].header else numpy.NaN
+            logger.debug("ZP (%s) = %.4f" % (fn, magzero))
+            all_zp[idx] = magzero
+    logger.debug(str(all_zp))
+    all_zp = all_zp[numpy.isfinite(all_zp)]
+
     if (swarp_params['target_magzero'] in ['best', 'median']):
         # Load all frames, and get a list of all available magzero headers
-        all_zp = numpy.empty((len(inputlist)))
-        all_zp[:] = numpy.NaN
-        for idx, fn in enumerate(inputlist):
-            if (os.path.isfile(fn)):
-                _hdu = pyfits.open(fn)
-                magzero = _hdu[0].header['PHOTZP_X'] if 'PHOTZP_X' in _hdu[0].header else numpy.NaN
-                logger.debug("ZP (%s) = %.4f" % (fn, magzero))
-                all_zp[idx] = magzero
-        logger.info(str(all_zp))
-        all_zp = all_zp[numpy.isfinite(all_zp)]
         if (all_zp.shape[0] == 0):
             final_magzero = 25.
             logger.warning("Didn't find any valid zeropoints")
