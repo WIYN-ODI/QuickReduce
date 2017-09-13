@@ -533,11 +533,12 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
 
 
                         # XXX
-            if (options['illumcorr_dir'] is not None):
-                logger.debug("Un-doing illumination correction (%s)" % (illum_file))
+            if (options['illumcorr_dir'] is not None and
+                swarp_params['un_illumcorr']):
+                logger.info("Un-doing illumination correction (%s)" % (illum_file))
                 master_reduction_files_used = podi_associations.collect_reduction_files_used(
                     master_reduction_files_used, {"un_illumination": illum_file})
-                podi_illumcorr.apply_illumination_correction(hdulist, illum_file)
+                podi_illumcorr.apply_illumination_correction(hdulist, illum_file, invert=False)
 
             if (not numpy.isnan(fluxscale_value)):
                 logger.debug("Applying flux-scaling (%.10e)" % (fluxscale_value))
@@ -1199,14 +1200,22 @@ def swarpstack(outputfile,
     logger.info("Checking flux-scaling factors")
     all_zp = numpy.empty((len(inputlist)))
     all_zp[:] = numpy.NaN
+    all_saturation = numpy.zeros_like(all_zp)
     for idx, fn in enumerate(inputlist):
         if (os.path.isfile(fn)):
             _hdu = pyfits.open(fn)
             magzero = _hdu[0].header['PHOTZP_X'] if 'PHOTZP_X' in _hdu[0].header else numpy.NaN
             logger.debug("ZP (%s) = %.4f" % (fn, magzero))
             all_zp[idx] = magzero
+
+            # read saturation level from file, or default to 58K
+            all_saturation[idx] = \
+                _hdu[0].header['SATURATE'] if 'SATURATE' in _hdu[0].header \
+                    else 58000.
+
     logger.debug(str(all_zp))
     all_zp = all_zp[numpy.isfinite(all_zp)]
+    all_saturation = all_saturation[numpy.isfinite(all_zp)]
 
     if (swarp_params['target_magzero'] in ['best', 'median']):
         # Load all frames, and get a list of all available magzero headers
@@ -1237,6 +1246,10 @@ def swarpstack(outputfile,
             swarp_params['target_magzero'] = 25.0
     logger.info("Scaling all frames to common phot. ZP of %.4f" % (swarp_params['target_magzero']))
 
+    # re-calculate the flux-scaled saturation levels
+    flux_scaling = numpy.power(10, 0.4*(swarp_params['target_magzero']-all_zp))
+    all_saturation *= flux_scaling
+    logger.info("Final saturation levels: %s" % (str(all_saturation)))
 
     ############################################################################
     #
@@ -1908,6 +1921,17 @@ def swarpstack(outputfile,
         hdustack[0].header['MJD-STRT'] = (stack_start_time, "MJD at start of earliest exposure")
         hdustack[0].header['MJD-END'] = (stack_end_time, "MJD at end of last exposure")
         hdustack[0].header['NCOMBINE'] = (stack_framecount, "number of exposures in stack")
+
+        min_saturation_level = numpy.min(all_saturation)
+        hdustack[0].header['SATURATE'] = (min_saturation_level,
+                                          "min saturation level")
+        hdustack[0].header['SATR8AVG'] = (numpy.mean(all_saturation),
+                                          "mean saturation level")
+        hdustack[0].header['SATR8MAX'] = (numpy.max(all_saturation),
+                                          "max saturation level")
+        hdustack[0].header['SATR8MED'] = (numpy.median(all_saturation),
+                                          "median saturation level")
+
         add_fits_header_title(hdustack[0].header, "Computed timing information", 'EXPTIME')
 
         # Add some additional headers
