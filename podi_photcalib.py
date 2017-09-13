@@ -1817,7 +1817,7 @@ if __name__ == "__main__":
                 logger.info("Found %d stars in frame" % (src_catalog.shape[0]))
 
                 # Now eliminate all frames with magnitude 99
-                good_photometry = src_catalog[:,SXcolumn['mag_aper_3.0']] < 0
+                good_photometry = src_catalog[:,SXcolumn['mag_aper_3.0']] < 50
                 src_catalog = src_catalog[good_photometry]
                 logger.info("%s stars have good photometry (no flags)" % (src_catalog.shape[0]))
 
@@ -1849,6 +1849,11 @@ if __name__ == "__main__":
                 except:
                     plottitle = "raw file"
 
+                # Check if there's a know saturation level
+                saturation_level = \
+                    hdulist[0].header['SATURATE'] if 'SATURATE' in hdulist[0].header \
+                    else 58000.
+
                 hdulist.close()
 
                 pc =  photcalib(src_catalog, 
@@ -1860,6 +1865,7 @@ if __name__ == "__main__":
                                 otalist=None,
                                 options=options,
                                 verbose=False,
+                                saturation_limit=saturation_level,
                                 eliminate_flags=True)
                 zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = pc
                 logger.info("Zeropoint: %.4f +/- %f (#stars: %d)\n" % (
