@@ -185,6 +185,9 @@ Calibration data:
     options['gain_correct'] = cmdline_arg_isset("-gain")
     options['gain_method'] = cmdline_arg_set_or_default("-gain", None)
 
+    options['photflat'] = cmdline_arg_set_or_default('-photflat', None)
+    options['auto_photflat'] = cmdline_arg_isset("-autophotflat")
+
     options['persistency_dir'] = cmdline_arg_set_or_default('-persistency', None)
 
     options["update_persistency_only"] = cmdline_arg_isset("-update_persistency_only")
@@ -463,6 +466,9 @@ def set_default_options(options_in=None):
     options['flat_dir'] = None
     options['bpm_dir']  = None
 
+    options['photflat'] = False
+    options['auto_photflat'] = False
+
     options['gain_correct'] = False
     options['gain_method'] = None
 
@@ -528,6 +534,7 @@ def set_default_options(options_in=None):
     options['trimcell'] = None
 
     options['keep_all_cells'] = False
+
 
     return options
 

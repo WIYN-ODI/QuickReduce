@@ -35,6 +35,7 @@ class ReductionLog:
         self.steps['bias']        = (None, '_BIAS'   , 'bias subtraction')
         self.steps['dark']        = (None, '_DARK'   , 'dark correction')
         self.steps['flat']        = (None, '_FLAT'   , 'flatfielding')
+        self.steps['photflat']    = (None, '_FOTFLAT', 'photometric flatfield')
         self.steps['illumcorr']   = (None, '_ILLUMCR', 'illumination correction')
         self.steps['badpixels']   = (None, '_BADPXLS', 'bad pixel masks applied')
         self.steps['exptime_norm']= (None, '_EXTNORM', 'normalize to counts per sec')
@@ -48,6 +49,7 @@ class ReductionLog:
         self.steps['wcscal']      = (None, '_WCSCAL' , 'astrometric calibration')
         self.steps['nonsidereal'] = (None, '_NONSDRL', 'non-sidereal correction')
         self.steps['photcal']     = (None, '_PHOTCAL', 'photometric ZP calibration')
+        self.steps['autophotflat']= (None, '_AUTOFOT', 'auto-photometric flatfielding')
         self.steps['softwarebin'] = (None, '_SOFTBIN', 'software binning')
 
         

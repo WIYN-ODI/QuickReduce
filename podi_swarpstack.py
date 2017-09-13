@@ -120,6 +120,7 @@ import podi_illumcorr
 import multiprocessing
 from podi_fitskybackground import sample_background_using_ds9_regions
 import podi_associations
+import podi_photflat
 
 import podi_logging
 import logging
@@ -143,7 +144,7 @@ except:
 
 
 
-def mp_prepareinput(input_queue, output_queue, swarp_params, options):
+def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=None):
 
     while (True):
 
@@ -231,6 +232,8 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
             suffix = "bpmfixed"
         if (suffix == None and not swarp_params['subtract_back'] == 'swarp'):
             suffix = "skysub"
+        if (suffix is None and options['photflat'] is not None):
+            suffix = "photflat"
 
         if (not suffix == None):
             corrected_filename = "%(single_dir)s/%(obsid)s.%(suffix)s.%(fileid)d.fits" % {
@@ -467,6 +470,76 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
             else:
                 skylevel = hdulist[0].header['SKYLEVEL']
 
+            if (options['photflat'] is not None):
+                photflat_filename = options['photflat']
+                if (os.path.isfile(photflat_filename)):
+                    # apply correction
+                    photflat_hdu = pyfits.open(photflat_filename)
+                    master_reduction_files_used = podi_associations.collect_reduction_files_used(
+                        master_reduction_files_used, {"photflat": photflat_filename})
+                    for ext in hdulist:
+                        try:
+                            photflat_ext = photflat_hdu[ext.name]
+                            ext.data /= photflat_ext.data
+                            logger.debug("Successfully applied photometric flatfield for %s" % (ext.name))
+                        except (KeyError, ValueError, TypeError):
+                            continue
+
+            if (swarp_params['autophotflat'] and apf_data is not None):
+                # determine which frames to use for the auto-photflat
+                this_mjd = hdulist[0].header['MJD-OBS']
+                use_apf_data = apf_data.copy()
+                use_apf_mjds = numpy.array([float(f) for f in use_apf_data[:,0]])
+                logger.info("MJD for %s is %f" % (input_file, this_mjd))
+                this_index = numpy.arange(use_apf_data.shape[0])[(use_apf_data[:,1] == input_file)]
+                # print this_index
+                # print "timeframe:", swarp_params['apf_timeframe']
+                # print "nframes:", swarp_params['apf_nframes']
+
+                if (swarp_params['apf_timeframe'] is not None):
+                    _mjd = use_apf_mjds
+                    # print _mjd
+                    select = numpy.fabs(_mjd-this_mjd) <= swarp_params['apf_timeframe']
+                    # print select
+                    logger.info("Found %d frames within %.2f days of mjd=%.6f" % (
+                        numpy.sum(select), swarp_params['apf_timeframe'], this_mjd
+                    ))
+                elif (swarp_params['apf_nframes'] is not None):
+                    idx = numpy.arange(use_apf_data.shape[0])
+                    select = numpy.fabs(idx-this_index) <= swarp_params['apf_nframes']
+                else:
+                    select = numpy.ones((use_apf_data.shape[0]), dtype=numpy.bool)
+                if (swarp_params['apf_noauto']):
+                    select[this_index] = False
+                files_for_apf = [str(f) for f in use_apf_data[select, 1]]
+                logger.info("Using these files to compute phot.flat for %s:\n%s" % (input_file, "\n".join(list(files_for_apf))))
+
+                # Now that we have a list of files, create the photometric
+                # flatfield
+                custom_photflat, apf_extras = podi_photflat.create_photometric_flatfield(
+                    filelist = files_for_apf,
+                    smoothing=swarp_params['apf_resolution'],
+                    strict_ota=False,
+                    return_interpolator=True,
+                    parallel=True,
+                    n_processes=1,
+                )
+                # save the photflat
+                output_bn = os.path.splitext(outputfile)[0]
+                custom_photflat.writeto(
+                    "custom_apf_for_%s_in_%s.fits" % (hdulist[0].header['OBSID'], output_bn),
+                    clobber=True
+                )
+
+
+                        # XXX
+            if (options['illumcorr_dir'] is not None and
+                swarp_params['un_illumcorr']):
+                logger.info("Un-doing illumination correction (%s)" % (illum_file))
+                master_reduction_files_used = podi_associations.collect_reduction_files_used(
+                    master_reduction_files_used, {"un_illumination": illum_file})
+                podi_illumcorr.apply_illumination_correction(hdulist, illum_file, invert=False)
+
             if (not numpy.isnan(fluxscale_value)):
                 logger.debug("Applying flux-scaling (%.10e)" % (fluxscale_value))
                 for ext in hdulist:
@@ -539,7 +612,8 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options):
 
 
 
-def prepare_input(inputlist, swarp_params, options):
+def prepare_input(inputlist, swarp_params, options,
+                  apf_data=None):
 
     logger = logging.getLogger("PrepFiles")
 
@@ -617,7 +691,7 @@ def prepare_input(inputlist, swarp_params, options):
     #
     # Start worker processes
     #
-    worker_args = (in_queue, out_queue, swarp_params, options)
+    worker_args = (in_queue, out_queue, swarp_params, options, apf_data)
     processes = []
     for i in range(sitesetup.number_cpus):
         p = multiprocessing.Process(target=mp_prepareinput, args=worker_args)
@@ -1064,6 +1138,31 @@ def swarpstack(outputfile,
     logger.info("Removing some OTAs from input: %s" % (str(options['skip_otas'])))
 
     ############################################################################
+    # Prepare the meta-data we need for the auto-phot.-flatfielding
+    ############################################################################
+    apf_data = None
+    if (swarp_params['autophotflat']):
+        # User asked for it, read all required data, including photometric
+        # calibration data and time-stamps
+        print("gathering all data for auto-phot.flat")
+        apf_data = []
+        for fn in inputlist:
+            if (not os.path.isfile(fn)):
+                continue
+            print fn
+            hdulist = pyfits.open(fn)
+            mjd_obs = hdulist[0].header['MJD-OBS']
+            apf_data.append([mjd_obs, fn])
+        apf_data = numpy.array(apf_data)
+
+        mjd_sort = numpy.argsort(apf_data[:,0])
+        apf_data = apf_data[mjd_sort]
+
+        print apf_data
+        logger.debug("done with data gathering")
+        pass
+
+    ############################################################################
     #
     # Generate the illumination correction file if this is requested
     #
@@ -1098,18 +1197,28 @@ def swarpstack(outputfile,
     # -best or median options
     #
     ###########################################################################
+    logger.info("Checking flux-scaling factors")
+    all_zp = numpy.empty((len(inputlist)))
+    all_zp[:] = numpy.NaN
+    all_saturation = numpy.zeros_like(all_zp)
+    for idx, fn in enumerate(inputlist):
+        if (os.path.isfile(fn)):
+            _hdu = pyfits.open(fn)
+            magzero = _hdu[0].header['PHOTZP_X'] if 'PHOTZP_X' in _hdu[0].header else numpy.NaN
+            logger.debug("ZP (%s) = %.4f" % (fn, magzero))
+            all_zp[idx] = magzero
+
+            # read saturation level from file, or default to 58K
+            all_saturation[idx] = \
+                _hdu[0].header['SATURATE'] if 'SATURATE' in _hdu[0].header \
+                    else 58000.
+
+    logger.debug(str(all_zp))
+    all_zp = all_zp[numpy.isfinite(all_zp)]
+    all_saturation = all_saturation[numpy.isfinite(all_zp)]
+
     if (swarp_params['target_magzero'] in ['best', 'median']):
         # Load all frames, and get a list of all available magzero headers
-        all_zp = numpy.empty((len(inputlist)))
-        all_zp[:] = numpy.NaN
-        for idx, fn in enumerate(inputlist):
-            if (os.path.isfile(fn)):
-                _hdu = pyfits.open(fn)
-                magzero = _hdu[0].header['PHOTZP_X'] if 'PHOTZP_X' in _hdu[0].header else numpy.NaN
-                logger.debug("ZP (%s) = %.4f" % (fn, magzero))
-                all_zp[idx] = magzero
-        logger.info(str(all_zp))
-        all_zp = all_zp[numpy.isfinite(all_zp)]
         if (all_zp.shape[0] == 0):
             final_magzero = 25.
             logger.warning("Didn't find any valid zeropoints")
@@ -1137,6 +1246,10 @@ def swarpstack(outputfile,
             swarp_params['target_magzero'] = 25.0
     logger.info("Scaling all frames to common phot. ZP of %.4f" % (swarp_params['target_magzero']))
 
+    # re-calculate the flux-scaled saturation levels
+    flux_scaling = numpy.power(10, 0.4*(swarp_params['target_magzero']-all_zp))
+    all_saturation *= flux_scaling
+    logger.info("Final saturation levels: %s" % (str(all_saturation)))
 
     ############################################################################
     #
@@ -1155,7 +1268,8 @@ def swarpstack(outputfile,
     modified_files, stack_total_exptime, stack_framecount, \
         stack_start_time, stack_end_time, master_reduction_files_used, \
         nonsidereal_offsets, photom_lists = \
-        prepare_input(inputlist, swarp_params, options)
+        prepare_input(inputlist, swarp_params, options,
+                      apf_data)
 
     # print modified_files
     inputlist = modified_files
@@ -1807,6 +1921,17 @@ def swarpstack(outputfile,
         hdustack[0].header['MJD-STRT'] = (stack_start_time, "MJD at start of earliest exposure")
         hdustack[0].header['MJD-END'] = (stack_end_time, "MJD at end of last exposure")
         hdustack[0].header['NCOMBINE'] = (stack_framecount, "number of exposures in stack")
+
+        min_saturation_level = numpy.min(all_saturation)
+        hdustack[0].header['SATURATE'] = (min_saturation_level,
+                                          "min saturation level")
+        hdustack[0].header['SATR8AVG'] = (numpy.mean(all_saturation),
+                                          "mean saturation level")
+        hdustack[0].header['SATR8MAX'] = (numpy.max(all_saturation),
+                                          "max saturation level")
+        hdustack[0].header['SATR8MED'] = (numpy.median(all_saturation),
+                                          "median saturation level")
+
         add_fits_header_title(hdustack[0].header, "Computed timing information", 'EXPTIME')
 
         # Add some additional headers
@@ -2186,6 +2311,8 @@ def read_swarp_params(filelist):
 
     params['illumcorr'] = cmdline_arg_set_or_default("-illumcorr", None)
     params['illumcorrfiles'] = cmdline_arg_set_or_default("-illumcorrfiles", None)
+    params['un_illumcorr'] = cmdline_arg_isset("-unic")
+
 
     params['normalize_sky'] = cmdline_arg_isset("-normsky")
 
@@ -2215,6 +2342,44 @@ def read_swarp_params(filelist):
             }
         params['cutout_list'] = cutout
 
+    params['autophotflat'] = False
+    params['apf_timeframe'] = None
+    params['apf_nframes'] = None
+    params['apf_noauto'] = False
+    params['apf_resolution'] = None
+
+    if(cmdline_arg_isset('-autophotflat')):
+        params['autophotflat'] = True
+        opt = cmdline_arg_set_or_default2("-autophotflat", None)
+        if (opt is not None):
+            print opt
+
+            apf_options = opt.split(":")
+            for o in apf_options:
+                _o = o.split("=")
+                opt_name = _o[0]
+                opt_value = _o[1]
+                if (opt_name == "dt"): #o.startswith("dt=")):
+                    interval = opt_value[-1]
+                    if (interval == 'd'):
+                        time = float(opt_value[:-1])
+                    elif (interval == "h"):
+                        time = float(opt_value[:-1])/24.
+                    else:
+                        time = float(opt_value)
+                    params['apf_timeframe'] = time
+
+                elif (opt_name == "n"):
+                    params['apf_nframes'] = int(opt_value)
+
+                elif (opt_name == "no_auto"):
+                    params['apf_noauto'] = True
+
+                elif (opt_name == "res"):
+                    params['apf_resolution'] = float(opt_value)
+
+
+
     return params
 
 if __name__ == "__main__":
@@ -2228,12 +2393,13 @@ if __name__ == "__main__":
     podi_logging.setup_logging(options)
 
     logger = logging.getLogger("SwarpStack-Startup")
-    if (cmdline_arg_isset("-fromfile")):
+    while (cmdline_arg_isset("-fromfile")):
         configfile = get_cmdline_arg("-fromfile")
         if (os.path.isfile(configfile)):
             logger.info("Reading additional command line parameters from file (%s)" % (configfile))
             conf = open(configfile, "r")
             lines = conf.readlines()
+            all_items = []
             for line in lines:
                 line = line.strip()
                 if (len(line) <= 0):
@@ -2241,11 +2407,16 @@ if __name__ == "__main__":
                 elif (line.startswith("#")):
                     continue
                 elif (line.startswith("-")):
-                    sys.argv.append(line)
+                    all_items.append(line)
                 else:
                     items = line.split()
-                    sys.argv.append(items[0])
+                    all_items.append(items[0])
             conf.close()
+            for i in range(len(sys.argv)):
+                if (sys.argv[i].startswith("-fromfile")):
+                    del sys.argv[i]
+                    for to_add in all_items[::-1]:
+                        sys.argv.insert(i, to_add)
         else:
             logger.error("Can't open the configfile (%s)" % (configfile))
 

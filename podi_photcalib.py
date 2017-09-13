@@ -117,6 +117,7 @@ import podi_logging
 import logging
 import time
 import subprocess
+from podi_definitions import reference_zeropoint
 
 arcsec = 1./3600.
 number_bright_stars = 100
@@ -185,8 +186,69 @@ def load_catalog_from_stripe82cat(ra, dec, calib_directory, sdss_filter):
     return std_stars
 
 
-    
-    
+
+def ps2sdss (catalogdata, tonry=False):
+    '''
+    PS1 to SDSS conversion following Tonry et al 2012
+    https://www.google.com/url?q=https%3A%2F%2Farxiv.org%2Fpdf%2F1203.0297.pdf&sa=D&sntz=1&usg=AFQjCNFZ3T88aqAPI32uYeygq7tNybjUHQ
+    The field names of the PS1 magnitude colums are hardwired in here.
+    The input catalog is overwritten, so make sure you do not need the original values any more!
+    Correction only for griz filters!
+
+    Parameters
+    ----------
+    catalogdata -- narray Catalog containing the reference magnitudes in panstarrs AB system
+    tonry -- boolean  If true, use Tonry 2012 conversion from PS1 to SDSS. If false (default), use Finkenbeiner 2016 covnersion.
+
+    '''
+
+
+    # TODO: check for existance of sitesetup.catalog_mags['panstarrs'] entries
+    # TODO: verify the array indices do exist, i.e., are not null
+
+    logger = logging.getLogger("PS>SDSS")
+    # print catalogdata
+
+    ps1colorterms = {}
+
+    if tonry:
+        # Tonry 2012
+        logger.info("converting PS1 to sdss system via tonry")
+        ps1colorterms['g'] = [0.019, 0.145, 0.013]
+        ps1colorterms['r'] = [0.007, 0.004, -0.001]
+        ps1colorterms['i'] = [0.010, 0.011,-0.005]
+        ps1colorterms['z'] = [-0.012, -0.039, 0.013]
+        gidx = sitesetup.catalog_mags['panstarrs'].index('g')
+        ridx = sitesetup.catalog_mags['panstarrs'].index('r')
+        _g = catalogdata[:,gidx]
+        _r = catalogdata[:,ridx]
+        psgr = _g - _r
+
+    else:
+        # Finkbeiner 2016
+        # http://iopscience.iop.org/article/10.3847/0004-637X/822/2/66/meta#apj522061s2-4 Table 2
+        logger.info("converting PS1 to sdss system via finkbeiner")
+        ps1colorterms['g'] = [-0.01808,-0.13595, 0.01941,-0.00183][::-1]
+        ps1colorterms['r'] = [-0.01836,-0.03577, 0.02612,-0.00558][::-1]
+        ps1colorterms['i'] = [ 0.01170,-0.00400, 0.00066,-0.00058][::-1]
+        ps1colorterms['z'] = [-0.01062, 0.07529,-0.03592, 0.00890][::-1]
+        gidx = sitesetup.catalog_mags['panstarrs'].index('g')
+        iidx = sitesetup.catalog_mags['panstarrs'].index('i')
+        _g = catalogdata[:,gidx]
+        _i = catalogdata[:,iidx]
+        psgr = _g - _i
+
+    for filter in ps1colorterms:
+        colorcorrection = numpy.polyval (ps1colorterms[filter], psgr)
+        magidx = sitesetup.catalog_mags['panstarrs'].index(filter)
+        if tonry:
+            catalogdata[:,magidx] += colorcorrection
+        else:
+            catalogdata[:,magidx] -= colorcorrection
+
+    return
+
+
 def photcalib_old(fitsfile, output_filename, calib_directory, overwrite_cat=None):
     """
     Deprecated, do not use.
@@ -649,7 +711,10 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
               verbose=False,
               eliminate_flags=True,
               matching_radius=3,
-              detailed_return={}):
+              error_cutoff=None,
+              detailed_return={},
+              saturation_limit=sitesetup.photcalib_saturation,
+              plot_suffix=None):
 
     """
     Perform the photometric calibration, create the diagnostic plots and return
@@ -760,6 +825,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     detailed_return['catalog'] = "none"
     detailed_return['reference_filter'] = "none"
     detailed_return['reference_catalog_files'] = None
+    detailed_return['use_for_calibration_mask'] = None
 
     # Eliminate all stars with flags
     if (eliminate_flags):
@@ -876,7 +942,8 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                 # this catalog does not have the right photometric data
                 logger.error("Chosen catalog for photometric calibration (%s) does not contain photometry in this filter band (%s)" % (
                     catname, sdss_filter))
-                return error_return_value
+                # return error_return_value
+                continue
             logger.info("Using %s for photometric calibration" % (catname))
             catalog_basedir, cat_mag = sitesetup.catalog_directory[catname]
             _std_stars, ref_filenames = podi_search_ipprefcat.get_reference_catalog(
@@ -887,6 +954,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             )
             if (_std_stars is not None and _std_stars.shape[0] > 0):
                 detailed_return['catalog'] = catname
+
                 std_stars = _std_stars
                 logger.info("Found %d reference sources in %s catalog" % (std_stars.shape[0], catname))
                 break
@@ -901,6 +969,12 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         type(std_stars) == numpy.ndarray and std_stars.shape[0] <= 0):
         # No sources found, report a photometric calibration failure.
         return error_return_value
+
+    if (error_cutoff is None):
+        if (detailed_return['catalog'] in sitesetup.photcalib_error_cutoff):
+            error_cutoff = sitesetup.photcalib_error_cutoff[detailed_return['catalog']]
+        else:
+            error_cutoff = 0.05
 
     detailed_return['reference_catalog_files'] = ref_filenames
 
@@ -1015,14 +1089,14 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         sdss_mag = odi_sdss_matched[:,(source_cat.shape[1]+pc)]
         sdss_magerr = odi_sdss_matched[:,(source_cat.shape[1]+pc+1)]
 
-        if (filtername in photzp_colorterms):
+        if (filtername in photzp_colorterms['sdss']):
             logger.debug("Found color-term definition for this filter (%s)" % (filtername))
-            colorterm, filter1, filter2 = photzp_colorterms[filtername]
+            colorterm, filter1, filter2 = photzp_colorterms['sdss'][filtername]
 
             col1 = sdss_photometric_column[filter1]
             col2 = sdss_photometric_column[filter2]
-            sdss_color = odi_sdss_matched[:,(source_cat.shape[1]+col1)] - odi_sdss_matched[:,(source_cat.shape[1]+col2)]
-            color_correction = colorterm * sdss_color
+            ref_color = odi_sdss_matched[:,(source_cat.shape[1]+col1)] - odi_sdss_matched[:,(source_cat.shape[1]+col2)]
+            color_correction = numpy.polyval(colorterm[::-1], ref_color)
 
             odi_sdss_matched[:,(source_cat.shape[1]+pc)] -= color_correction
             
@@ -1093,35 +1167,38 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         #sdss_magerr = odi_sdss_matched[:, (source_cat.shape[1] + err_col)]
 
         # print filtername, photzp_colorterms
-        if (filtername in photzp_colorterms):
-            logger.info("Found color-term definition for this filter (%s)" % (filtername))
-            colorterm, filter1, filter2 = photzp_colorterms[filtername]
+        if (catname in photzp_colorterms):
+            if (filtername in photzp_colorterms):
+                logger.info("Found color-term definition for this filter (%s)" % (filtername))
+                colorterm, filter1, filter2 = photzp_colorterms[filtername]
 
-            try:
-                colterm_mag1 = sitesetup.catalog_mags[catname].index(filter1)
-                colterm_mag2 = sitesetup.catalog_mags[catname].index(filter2)
+                try:
+                    colterm_mag1 = sitesetup.catalog_mags[catname].index(filter1)
+                    colterm_mag2 = sitesetup.catalog_mags[catname].index(filter2)
 
-                sdss_color = odi_sdss_matched[:, (source_cat.shape[1] + colterm_mag1)] - \
-                             odi_sdss_matched[:, (source_cat.shape[1] + colterm_mag2)]
+                    ref_color = odi_sdss_matched[:, (source_cat.shape[1] + colterm_mag1)] - \
+                                odi_sdss_matched[:, (source_cat.shape[1] + colterm_mag2)]
 
-                color_correction = colorterm * sdss_color
+                    color_correction = numpy.polyval(colorterm[::-1], ref_color)
 
-                odi_sdss_matched[:, (source_cat.shape[1] + mag_col)] -= color_correction
+                    odi_sdss_matched[:, (source_cat.shape[1] + mag_col)] -= color_correction
 
-                detailed_return['colorterm'] = colorterm
+                    detailed_return['colorterm'] = colorterm
 
-                detailed_return['colorcorrection'] = "sdss_%s - sdss_%s" % (filter1, filter2)
-            except ValueError:
-                # one of the color-term filters wasn't found
+                    detailed_return['colorcorrection'] = "ref_%s - ref_%s" % (filter1, filter2)
+                except ValueError:
+                    # one of the color-term filters wasn't found
+                    detailed_return['colorterm'] = None
+                    logger.debug("Insufficient reference photometry to compensate color-term")
+
+                    # col1 = sdss_photometric_column[filter1]
+                # col2 = sdss_photometric_column[filter2]
+            else:
                 detailed_return['colorterm'] = None
-                logger.debug("Insufficient reference photometry to compensate color-term")
-
-                # col1 = sdss_photometric_column[filter1]
-            # col2 = sdss_photometric_column[filter2]
+                logger.debug("No color-term definition for this filter (%s)" % (filtername))
         else:
             detailed_return['colorterm'] = None
-            logger.debug("No color-term definition for this filter (%s)" % (filtername))
-
+            logger.debug("No color-term definition for this catalog (%s)" % (catname))
     else:
         return error_return_value
 
@@ -1143,7 +1220,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     #
     # If requested, remove radial ZP trend
     # 
-    if (not otalist == None
+    if (otalist is not None
         and options['fitradialZP']):
 
         logger.debug("Starting to fit the radial ZP gradient")
@@ -1264,15 +1341,45 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
     # print "\n"*10,detailed_return,"\n"*5
 
+    use_for_calibration = numpy.ones((odi_sdss_matched.shape[0]), dtype=numpy.bool)
     if (odi_sdss_matched.shape[0] > 0):
 
         #
         # Now select only sources with reference uncertainties <~ 0.02 mag
         # The detailed cutoff can be configured via the sitesetup.py configuration
         #
-        error_cutoff = 0.02
         if (detailed_return['catalog'] in sitesetup.photcalib_error_cutoff):
             error_cutoff = sitesetup.photcalib_error_cutoff[detailed_return['catalog']]
+
+        # print "phot-ref-errors:", odi_sdss_matched[:20, photref_col_err]
+        # print "odi-errors:", odi_sdss_matched[:20, SXcolumn[col_magerr]+2]
+        total_errors = numpy.hypot(
+            odi_sdss_matched[:, photref_col_err],
+            odi_sdss_matched[:, SXcolumn[col_magerr]+2]
+        )
+        # print "total errors:", total_errors[:20]
+        small_error_mask = total_errors < error_cutoff
+        # print "small errors:", numpy.sum(small_error_mask), total_errors.shape
+
+        if (numpy.sum(small_error_mask) < 5):
+            # we do not have enough stars with small errors, so fall back
+            # to using all stars for the photometric calibration
+            use_for_calibration = numpy.ones((odi_sdss_matched.shape[0]), dtype=numpy.bool)
+        else:
+            use_for_calibration = small_error_mask
+
+        # exclude saturated stars from artifically increasing scatter
+        if (saturation_limit is not None):
+            peak_flux = odi_sdss_matched[:, SXcolumn['flux_max']+2] + \
+                        odi_sdss_matched[:, SXcolumn['background']+2]
+            saturated = peak_flux >= saturation_limit
+            use_for_calibration &= ~saturated
+            logger.info("Excluding %d saturated sources during photometric calibration (peak > %.1f cts)" % (
+                numpy.sum(saturated), saturation_limit
+            ))
+
+        # numpy.savetxt("use_for_calib.1", use_for_calibration.astype(numpy.int))
+
         small_reference_errors = odi_sdss_matched[:, photref_col_err] < error_cutoff
         if (numpy.sum(small_reference_errors) > 5):
             small_errors = odi_sdss_matched[small_reference_errors].copy()
@@ -1284,37 +1391,81 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         detailed_return['odi_sdss_matched_smallerrors'] = small_errors
         detailed_return['odi_sdss_matched_largeerrors'] = large_errors
 
+        # #
+        # # From the optimized catalog, re-extract magnitudes and erors for ODI
+        # # and the photometric reference catalog
+        # #
+        # sdss_mag = small_errors[:, photref_col_mag]
+        # sdss_magerr = small_errors[:, photref_col_err]
+        # odi_mag = small_errors[:, SXcolumn[col_mag]+2]
+        # odi_magerr = small_errors[:, SXcolumn[col_magerr]+2]
+        # zp = small_errors[:, photref_col_mag] - small_errors[:, SXcolumn[col_mag]+2]
+        # zp_err = numpy.hypot(small_errors[:, photref_col_err], small_errors[:, SXcolumn[col_magerr]+2])
         #
-        # From the optimized catalog, re-extract magnitudes and erors for ODI 
+        # #
+        # # Reject outliers by iterative sigma-clipping
+        # #
+        # detailed_return['odi_sdss_matched_clipped'] = small_errors
+        # if (zp.shape[0] <=5):
+        #     clipping_mask = numpy.ones((zp.shape), dtype=numpy.bool)
+        # else:
+        #     _dum, clipping_mask = three_sigma_clip(zp, return_mask=True)
+        #
+        # zp_clipped = zp[clipping_mask]
+        # zperr_clipped = zp_err[clipping_mask]
+        # sdss_mag_clipped = sdss_mag[clipping_mask]
+        #
+        # detailed_return['odi_sdss_matched_clipped'] = small_errors[clipping_mask].copy()
+        # detailed_return['odi_sdss_matched_ref'] = small_errors[clipping_mask].copy()
+        # detailed_return['odi_sdss_matched_outlier'] = small_errors[~clipping_mask].copy()
+        #
+        # zp_upper1sigma = scipy.stats.scoreatpercentile(zp_clipped, 84)
+        # zp_lower1sigma = scipy.stats.scoreatpercentile(zp_clipped, 16)
+        # # print zp_lower1sigma, zp_upper1sigma, 0.5*(zp_upper1sigma-zp_lower1sigma)
+
+        #
+        # From the optimized catalog, re-extract magnitudes and erors for ODI
         # and the photometric reference catalog
         #
-        sdss_mag = small_errors[:, photref_col_mag]
-        sdss_magerr = small_errors[:, photref_col_err]
-        odi_mag = small_errors[:, SXcolumn[col_mag]+2]
-        odi_magerr = small_errors[:, SXcolumn[col_magerr]+2]
-        zp = small_errors[:, photref_col_mag] - small_errors[:, SXcolumn[col_mag]+2]
-        zp_err = numpy.hypot(small_errors[:, photref_col_err], small_errors[:, SXcolumn[col_magerr]+2])
+        sdss_mag = odi_sdss_matched[use_for_calibration, photref_col_mag]
+        sdss_magerr = odi_sdss_matched[use_for_calibration, photref_col_err]
+        odi_mag = odi_sdss_matched[use_for_calibration, SXcolumn[col_mag]+2]
+        odi_magerr = odi_sdss_matched[use_for_calibration, SXcolumn[col_magerr]+2]
+
+        zp = sdss_mag - odi_mag #small_errors[:, photref_col_mag] - small_errors[:, SXcolumn[col_mag]+2]
+        zp_err = total_errors[use_for_calibration]
 
         #
         # Reject outliers by iterative sigma-clipping
         #
-        detailed_return['odi_sdss_matched_clipped'] = small_errors
-        if (zp.shape[0] <=5):
-            clipping_mask = numpy.ones((zp.shape), dtype=numpy.bool)
-        else:
-            _dum, clipping_mask = three_sigma_clip(zp, return_mask=True)
+        detailed_return['odi_sdss_matched_clipped'] = odi_sdss_matched[use_for_calibration]
+        # by previous selection, we have at least 5 stars to use here
+        # if (zp.shape[0] <=5):
+        #     clipping_mask = numpy.ones((zp.shape), dtype=numpy.bool)
+        # else:
+        #     _dum, clipping_mask = three_sigma_clip(zp, return_mask=True)
+        _, clipping_mask = three_sigma_clip(zp, return_mask=True)
+        use_for_calibration[use_for_calibration] &= clipping_mask
+
+        # numpy.savetxt("use_for_calib.2", use_for_calibration.astype(numpy.int))
 
         zp_clipped = zp[clipping_mask]
         zperr_clipped = zp_err[clipping_mask]
         sdss_mag_clipped = sdss_mag[clipping_mask]
 
-        detailed_return['odi_sdss_matched_clipped'] = small_errors[clipping_mask].copy()
-        detailed_return['odi_sdss_matched_ref'] = small_errors[clipping_mask].copy()
-        detailed_return['odi_sdss_matched_outlier'] = small_errors[~clipping_mask].copy()
+        # detailed_return['odi_sdss_matched_clipped'] = small_errors[clipping_mask].copy()
+        # detailed_return['odi_sdss_matched_ref'] = small_errors[clipping_mask].copy()
+        # detailed_return['odi_sdss_matched_outlier'] = small_errors[~clipping_mask].copy()
+
+        detailed_return['odi_sdss_matched_clipped'] = odi_sdss_matched[use_for_calibration]
+        detailed_return['odi_sdss_matched_ref'] = odi_sdss_matched[use_for_calibration]
+        detailed_return['odi_sdss_matched_outlier'] = odi_sdss_matched[~use_for_calibration]
 
         zp_upper1sigma = scipy.stats.scoreatpercentile(zp_clipped, 84)
         zp_lower1sigma = scipy.stats.scoreatpercentile(zp_clipped, 16)
         # print zp_lower1sigma, zp_upper1sigma, 0.5*(zp_upper1sigma-zp_lower1sigma)
+
+        # print "XXXXXX\n"*10
 
         zp_median = numpy.median(zp_clipped)
         zp_std = numpy.std(zp_clipped)
@@ -1330,7 +1481,8 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             zp_median_, zp_std_, zp_exptime))
 
         # compute the r.m.s. value of the distribution as well
-        final_cat = small_errors[clipping_mask]
+        # final_cat = small_errors[clipping_mask]
+        # final_cat = small_errors[clipping_mask]
         zp_uncert = numpy.hypot(zp_err, 0.001)
         rms2 = numpy.sum((zp - zp_median)**2/zp_uncert) / numpy.sum(1./zp_uncert)
         detailed_return['rms'] = numpy.sqrt(rms2)
@@ -1380,7 +1532,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
             # enlarge the error bars a bit to prevent single points with 
             # unrealistically small uncertainties to dominate teh fit
-            zperr_larger = numpy.hypot(zperr_clipped, 0.05)
+            zperr_larger = numpy.hypot(zperr_clipped, 0.005)
 
             args = (sdss_mag_clipped, zp_clipped, zperr_larger)
             fit = scipy.optimize.leastsq(linear_fit_err, p_init, args=args, full_output=1)
@@ -1402,6 +1554,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     detailed_return['zp_lower1sigma'] = zp_lower1sigma
     detailed_return['n_clipped'] = n_clipped
     detailed_return['n_raw'] = zp.shape[0]
+    detailed_return['use_for_calibration_mask'] = use_for_calibration
 
     # Make plots
     logger.debug("Creating phot-ZP diagnostic plots? %s" % (str(diagplots)))
@@ -1410,7 +1563,9 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
         # zp_calib_plot = output_filename[:-5]+".photZP"
         logger.debug("Preparing the photZP plots")
-        zp_calib_plot = create_qa_filename(output_filename, "photZP", options)
+        plotname = "photZP" if plot_suffix is None else "photZP_%s" % (plot_suffix)
+        zp_calib_plot = create_qa_filename(output_filename, plotname, options)
+        logger.info("output plotname is %s" % (plotname))
         try:
             podi_diagnosticplots.photocalib_zeropoint(output_filename=zp_calib_plot,
                                                       sdss_filtername=sdss_filter, 
@@ -1429,7 +1584,8 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         ra = odi_sdss_matched[:,0]
         dec = odi_sdss_matched[:,1]
         # plotfilename = output_filename[:-5]+".photZP_map"
-        plotfilename = create_qa_filename(output_filename, "photZP_map", options)
+        plotname = "photZP_map" if plot_suffix is None else "photZP_map_%s" % (plot_suffix)
+        plotfilename = create_qa_filename(output_filename, plotname, options)
 
         ota_outlines = None
         if (otalist != None):
@@ -1456,7 +1612,85 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
 
 
 
-    
+def write_photcalib_headers(hdr,
+                            zeropoint_median,
+                            zeropoint_std,
+                            filter_name,
+                            zeropoint_exptime,
+                            photcalib_details):
+
+
+    hdr['PHOTMCAT'] = (photcalib_details['catalog'])
+    hdr['PHOTFILT'] = (photcalib_details['reference_filter'])
+
+    hdr["PHOTZP"] = (zeropoint_median, "phot. zeropoint corr for exptime")
+    hdr["PHOTZPSD"] = (zeropoint_std, "zeropoint std.dev.")
+    hdr["PHOTZP_X"] = (zeropoint_exptime, "phot zeropoint for this frame")
+    hdr["PHOTZPSP"] = (photcalib_details['zp_upper1sigma'], "phot ZP upper 1sigma limit")
+    hdr["PHOTZPSM"] = (photcalib_details['zp_lower1sigma'], "phot ZP lower 1sigma limit")
+    hdr["PHOTZPER"] = (photcalib_details['stderrofmean'], "phot ZP std.err of the mean")
+    hdr["PHOTZP_N"] = (photcalib_details['n_clipped'], "number stars in clipped distrib.")
+    hdr["PHOTZPN0"] = (photcalib_details['n_raw'], "total number of matched ref stars")
+
+    hdr["MAGZERO"] = (photcalib_details['median'], "phot. zeropoint corr for exptime")
+    hdr["MAGZSIG"] = (photcalib_details['std'], "phot ZP dispersion")
+    hdr["MAGZERR"] = (photcalib_details['stderrofmean'], "phot ZP uncertainty")
+
+    # Add some information on what apertures were used for the photometric calibration
+    hdr['MAG0MODE'] = (photcalib_details['aperture_mode'], "how was aperture determined")
+    hdr['MAG0SIZE'] = (photcalib_details['aperture_size'], "what aperture size was used")
+    hdr['MAG0_MAG'] = (photcalib_details['aperture_mag'], "id string for magnitude")
+    hdr['MAG0_ERR'] = (photcalib_details['aperture_magerr'], "is string for mag error")
+
+    if (not photcalib_details['radialZPfit'] is None):
+        hdr['RADZPFIT'] = True
+        hdr['RADZP_P0'] = photcalib_details['radialZPfit'][0]
+        hdr['RADZP_P1'] = photcalib_details['radialZPfit'][1]
+        hdr['RADZP_E0'] = photcalib_details['radialZPfit_error'][0]
+        hdr['RADZP_E1'] = photcalib_details['radialZPfit_error'][1]
+
+    if (not photcalib_details['zp_restricted'] == None):
+        (sel_median, sel_std, sel_psigma, sel_msigma, sel_n, sel_medodimag,
+         sel_maxodimag, sel_minodimag) = photcalib_details['zp_restricted']
+        hdr['ZPRESMED'] = sel_median
+        hdr['ZPRESSTD'] = sel_std
+        hdr['ZPRES_SP'] = sel_psigma
+        hdr['ZPRES_SM'] = sel_msigma
+        hdr['ZPRES__N'] = sel_n
+        hdr['ZPRES_MD'] = sel_medodimag
+        hdr['ZPRES_MX'] = sel_maxodimag
+        hdr['ZPRES_MN'] = sel_minodimag
+
+    if (not photcalib_details['zp_magnitude_slope'] == None):
+        fit, uncert = photcalib_details['zp_magnitude_slope']
+        hdr['ZPSLP_P0'] = fit[0]
+        hdr['ZPSLP_P1'] = fit[1]
+        hdr['ZPSLP_E0'] = uncert[0]
+        hdr['ZPSLP_E1'] = uncert[1]
+
+    ref_ZP = -99. if not filter_name in reference_zeropoint else \
+    reference_zeropoint[filter_name][0]
+    hdr['MAGZREF'] = (ref_ZP, "reference photometric zeropoint")
+
+    # Also compute the zeropoint after correction for airmass
+    zp_airmass1 = -99.
+    if (filter_name in atm_extinction):
+        zp_airmass1 = zeropoint_median + (hdr['AIRMASS'] - 1) * \
+                                         atm_extinction[filter_name]
+    hdr['MAGZ_AM1'] = (
+    zp_airmass1, "phot Zeropoint corrected for airmass")
+
+    # Add some information whether or not we performed a color-term correction
+    colorterm_correction = (not photcalib_details['colorterm'] == None)
+    hdr['MAGZ_CT'] = colorterm_correction
+    hdr['MAGZ_COL'] = photcalib_details[
+        'colorcorrection'] if colorterm_correction else ""
+    hdr['MAGZ_CTC'] = photcalib_details[
+        'colorterm'] if colorterm_correction else 0.0
+
+    return
+
+
 if __name__ == "__main__":
 
     if (cmdline_arg_isset("-multi")):
@@ -1514,13 +1748,13 @@ if __name__ == "__main__":
 
         print """\
 
-   ************************************************
-   * photcalib for - Swarp'ed QR data             *
-   *               - single 
-   * part of the QuickReduce pipeline package     *
-   * (c) 2014, Ralf Kotulla and WIYN Observatory  *
-   ************************************************
-"""
+           ************************************************
+           * photcalib for - Swarp'ed QR data             *
+           *               - single 
+           * part of the QuickReduce pipeline package     *
+           * (c) 2014, Ralf Kotulla and WIYN Observatory  *
+           ************************************************
+        """
         import podi_collectcells
         options = podi_collectcells.read_options_from_commandline()
         # Setup everything we need for logging
@@ -1583,7 +1817,7 @@ if __name__ == "__main__":
                 logger.info("Found %d stars in frame" % (src_catalog.shape[0]))
 
                 # Now eliminate all frames with magnitude 99
-                good_photometry = src_catalog[:,SXcolumn['mag_aper_3.0']] < 0
+                good_photometry = src_catalog[:,SXcolumn['mag_aper_3.0']] < 50
                 src_catalog = src_catalog[good_photometry]
                 logger.info("%s stars have good photometry (no flags)" % (src_catalog.shape[0]))
 
@@ -1615,6 +1849,11 @@ if __name__ == "__main__":
                 except:
                     plottitle = "raw file"
 
+                # Check if there's a know saturation level
+                saturation_level = \
+                    hdulist[0].header['SATURATE'] if 'SATURATE' in hdulist[0].header \
+                    else 58000.
+
                 hdulist.close()
 
                 pc =  photcalib(src_catalog, 
@@ -1626,6 +1865,7 @@ if __name__ == "__main__":
                                 otalist=None,
                                 options=options,
                                 verbose=False,
+                                saturation_limit=saturation_level,
                                 eliminate_flags=True)
                 zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = pc
                 logger.info("Zeropoint: %.4f +/- %f (#stars: %d)\n" % (

@@ -104,7 +104,8 @@ def get_illumination_filename(calibdir, filtername, binning):
     return calibdir
     
 
-def apply_illumination_correction(input_hdu, illumcorr_hdu, output_file=None):
+def apply_illumination_correction(input_hdu, illumcorr_hdu, output_file=None,
+                                  invert=False):
 
     logger = logging.getLogger("ApplyIllumCorr")
 
@@ -140,7 +141,10 @@ def apply_illumination_correction(input_hdu, illumcorr_hdu, output_file=None):
         # Now search for the right illumination frame
         for il in illumcorr_hdu:
             if (ext.name == il.name):
-                ext.data /= il.data
+                if (not invert):
+                    ext.data /= il.data
+                else:
+                    ext.data *= il.data
                 break
     
     if (not illum_is_hdu):
@@ -515,6 +519,7 @@ if __name__ == "__main__":
     # Setup everything we need for logging
     options = read_options_from_commandline(None)
     podi_logging.setup_logging(options)
+    logger = logging.getLogger("IllumCorr")
 
     if (cmdline_arg_isset("-create")):
 
@@ -527,12 +532,25 @@ if __name__ == "__main__":
         wipe_cells = read_wipecells_list()
         ocdclean = cmdline_arg_isset("-ocdclean")
 
-        if (not mask_regions == None):
-            print "Loading ds9 regions to mask from %s" % (mask_regions)
+        if (mask_regions is not None):
+            logger.info("Loading ds9 regions to mask from %s" % (mask_regions))
             mask_regions = read_sky_regions_file(mask_regions)
-            print mask_regions
+            # print mask_regions
 
-        print outfile, "\n"*5
+        logger.info("Writing final illum.corr file to %s" % (outfile))
+
+        # for all input files starting with @, load the content IRAF-style
+        for i_fn, fn in enumerate(filelist):
+            if (fn.startswith("@")):
+                with open(fn[1:], "r") as cat:
+                    lines = cat.readlines()
+                    files_to_add = [f.split()[0] for f in lines]
+                del filelist[i_fn]
+                for f in files_to_add[::-1]:
+                    filelist.insert(i_fn, f)
+
+        logger.info("Creating illum.corr from these files:\n - %s" % (
+            "\n - ".join(filelist)))
 
         prepare_illumination_correction(filelist, outfile, tmpdir, redo,
                                         mask_guide_otas=True,

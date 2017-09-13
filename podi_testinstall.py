@@ -240,6 +240,10 @@ def update_sitesetup(change_setup=True, change_catalogs=True, grab_only=False):
                    "Maximum timescale that persistency affects the data in seconds", 
                    600, False, config_array, grab_only=grab_only)
 
+    changes = changes | ask_for_option('photcalib_saturation',
+                   "Max peak flux for stars used for photometric calibration",
+                   53000, False, config_array, grab_only=grab_only)
+
     changes = changes | ask_for_option('log_shell_output', 
                    "Log output from external programs (e.g. SourceExtrator, SWarp) in debug log [True/False]?", 
                    False, False, config_array, grab_only=grab_only)
