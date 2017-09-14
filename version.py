@@ -4,9 +4,9 @@ from __future__ import print_function
 #
 # Update this variable below when changing versions
 #
-pipeline_plver = "QuickReduce 2.4beta"
+pipeline_plver = "QuickReduce 2.4"
 pipeline_name = "QuickReduce"
-pipeline_version = "2.4beta"
+pipeline_version = "2.4"
 
 odi_help_email = "odi-ppa-help@googlegroups.com"
 
