@@ -4,6 +4,10 @@ from __future__ import print_function
 #
 # Update this variable below when changing versions
 #
+
+#
+# this is release version 2.4 !!!
+#
 pipeline_plver = "QuickReduce 2.4"
 pipeline_name = "QuickReduce"
 pipeline_version = "2.4"
