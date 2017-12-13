@@ -52,14 +52,17 @@ import datetime
 import ephem
 import numpy
 
-wiyn_lat = '43.05' #'31.9575'   # N is positive
-wiyn_lon = '-88.0' #'-111.6008' # E is positive
+wiyn_lat = '31.9575'   # N is positive
+wiyn_lon = '-111.6008' # E is positive
 wiyn_elevation = 2096. # m
 
 
-def add_ephem_data_to_header(hdr, time_overwrite):
+def add_ephem_data_to_header(hdr, time_overwrite, debug=False):
 
     logger = logging.getLogger("SunMoonData")
+
+    logger_debug = logger.debug
+    if (debug): logger_debug = logger.info
 
     #
     # Read in the target coordinates
@@ -78,12 +81,16 @@ def add_ephem_data_to_header(hdr, time_overwrite):
     time_format = "%H:%M:%S.%f"
     expmeas = hdr['EXPMEAS'] if 'EXPMEAS' in hdr \
         else hdr['EXPTIME']
-    date_obs = datetime.datetime.strptime(hdr['DATE-OBS'], date_format)
+
+    date_string = hdr['DATE-OBS'] if time_overwrite is None else time_overwrite
+    date_obs = datetime.datetime.strptime(date_string, date_format)
+
+
     date_mid = date_obs + datetime.timedelta(seconds=(0.5*expmeas))
     date_end = date_obs + datetime.timedelta(seconds=expmeas)
     mjd = hdr['MJD-OBS']
 
-    time_difference = 5*ephem.hour
+    time_difference = 7*ephem.hour
 
     #
     # Create objects for sun, moon, and WIYN
@@ -97,11 +104,9 @@ def add_ephem_data_to_header(hdr, time_overwrite):
     wiyn.elevation = wiyn_elevation
     wiyn.date = datetime.datetime.strftime(date_mid, ephem_format)
 
-    if (not time_overwrite == None):
-        wiyn.date = time_overwrite
 
-    logger.debug("Current time (UTC): %s" % (wiyn.date))
-    logger.debug("Current coordinates: %s %s" % (target.ra, target.dec))
+    logger_debug("Current time (UTC): %s" % (wiyn.date))
+    logger_debug("Current coordinates: %s %s" % (target.ra, target.dec))
 
     # #
     # # Compute some stats for astronomical twilight
@@ -115,19 +120,34 @@ def add_ephem_data_to_header(hdr, time_overwrite):
     # sun_astrotwi = ephem.Sun()
     # sun_astrotwi.compute(wiyn_astrotwilight)
 
-    logger.debug("next sunrise: %s" % (ephem.localtime(wiyn.next_rising(ephem.Sun()))))
-    logger.debug("next sunset : %s" % (ephem.localtime(wiyn.next_setting(ephem.Sun()))))
-    logger.debug("last sunset : %s" % (ephem.localtime(wiyn.previous_setting(ephem.Sun()))))
-    logger.debug("next transit: %s" % (ephem.localtime(wiyn.next_transit(ephem.Sun()))))
+    # logger_debug("next sunrise: %s" % (ephem.localtime(wiyn.next_rising(ephem.Sun()))))
+    # logger_debug("next sunset : %s" % (ephem.localtime(wiyn.next_setting(ephem.Sun()))))
+    # logger_debug("last sunset : %s" % (ephem.localtime(wiyn.previous_setting(ephem.Sun()))))
+    # logger_debug("next transit: %s" % (ephem.localtime(wiyn.next_transit(ephem.Sun()))))
+
+    logger_debug("next sunrise (UT/WIYN): %19s  /  %19s" % (
+        wiyn.next_rising(ephem.Sun()), ephem.date(wiyn.next_rising(ephem.Sun())-time_difference)))
+    logger_debug("next sunset  (UT/WIYN): %19s  /  %19s" % (
+        wiyn.next_setting(ephem.Sun()), ephem.date(wiyn.next_setting(ephem.Sun())-time_difference)))
+    logger_debug("last sunset  (UT/WIYN): %19s  /  %19s" % (
+        wiyn.previous_setting(ephem.Sun()), ephem.date(wiyn.previous_setting(ephem.Sun())-time_difference)))
+    logger_debug("next transit (UT/WIYN): %19s  /  %19s" % (
+        wiyn.next_transit(ephem.Sun()), ephem.date(wiyn.next_transit(ephem.Sun())-time_difference)))
+
+    # logger_debug("next sunrise (WIYN): %s" % (ephem.date(wiyn.next_rising(ephem.Sun())-time_difference)))
+    # logger_debug("next sunset  (WIYN): %s" % (ephem.date(wiyn.next_setting(ephem.Sun())-time_difference)))
+    # logger_debug("last sunset  (WIYN): %s" % (ephem.date(wiyn.previous_setting(ephem.Sun())-time_difference)))
+    # logger_debug("next transit (WIYN): %s" % (ephem.date(wiyn.next_transit(ephem.Sun())-time_difference)))
+
 
     # Compute the sun's position at WIYN
     sun.compute(wiyn)
-    logger.debug("SUN:  alt=%-10s az=%-10s   RA=%-10s DEC=%-10s" % (
+    logger_debug("SUN:  alt=%-10s az=%-10s   RA=%-10s DEC=%-10s" % (
         sun.alt, sun.az, sun.ra, sun.dec)) #, " alt/az=", numpy.degrees(sun.alt)
 
     # and the Moon's position at WIYN
     moon.compute(wiyn)
-    logger.debug("MOON: alt=%-10s az=%-10s   RA=%-10s DEC=%-10s  PHASE:%s" % (
+    logger_debug("MOON: alt=%-10s az=%-10s   RA=%-10s DEC=%-10s  PHASE:%s" % (
         moon.alt, moon.az, moon.ra, moon.dec, moon.moon_phase)) 
 
     # Compute the position of the target on sky
@@ -142,7 +162,7 @@ def add_ephem_data_to_header(hdr, time_overwrite):
     # print "sun-sun", ephem.separation(sun, sun)
     # print "body-eq", ephem.separation(body, body2), hdr['DEC']
 
-    logger.debug("Writing data to FITS header")
+    logger_debug("Writing data to FITS header")
 
     #
     # Compute positions for sun and moon, and separation to the target 
@@ -150,36 +170,32 @@ def add_ephem_data_to_header(hdr, time_overwrite):
 
     # positions for the sun
     hdr['SUN__RA']  = (numpy.degrees(sun.ra),
-                       "R.A. of Sun during obs [deg]")
+                       "R.A. of Sun during obs         [deg]")
     hdr['SUN__DEC'] = (numpy.degrees(sun.dec),
-                       "declination of Sun during obs [deg]")
+                       "declination of Sun during obs  [deg]")
     hdr['SUN__ALT'] = (numpy.degrees(sun.alt),
-                       "altitude of Sun during obs [deg]")
+                       "altitude of Sun during obs     [deg]")
     hdr['SUN__AZ']  = (numpy.degrees(sun.az),
-                       "azimuth of Sun during obs [deg]")
+                       "azimuth of Sun during obs      [deg]")
 
     # Positions for the moon
     hdr['MOON_RA']  = (numpy.degrees(moon.ra),
-                       "R.A. of Moon during obs [deg]")
+                       "R.A. of Moon during obs        [deg]")
     hdr['MOON_DEC'] = (numpy.degrees(moon.dec),
                        "declination of Moon during obs [deg]")
     hdr['MOON_ALT'] = (numpy.degrees(moon.alt),
-                       "altitude of Moon during obs [deg]")
+                       "altitude of Moon during obs    [deg]")
     hdr['MOON_AZ']  = (numpy.degrees(moon.az),
-                       "azimuth of Moon during obs [deg]")
+                       "azimuth of Moon during obs     [deg]")
 
     # separation between sun/moon and target
     hdr['SUN__D']   = (numpy.degrees(ephem.separation(body, sun)),
-                       "angle between target and sun [deg]")
+                       "angle between target and sun   [deg]")
     hdr['MOON_D']   = (numpy.degrees(ephem.separation(body, moon)),
-                       "angle between target and moon [deg]")
-    logger.debug("Distance object-moon (sun): %7.3f (%7.3f)" % (
+                       "angle between target and moon  [deg]")
+    logger_debug("Distance object-moon (sun): %7.3f (%7.3f)" % (
         ephem.separation(body, moon), ephem.separation(body, sun)))
 
-
-    # Moon phase: fraction of moon that's illuminated by the sun
-    hdr['MOONPHSE'] = (moon.moon_phase,
-                       "Moon phase")
 
 
     # print
@@ -287,19 +303,40 @@ def add_ephem_data_to_header(hdr, time_overwrite):
         skybrite = "civil.twilight"
     else:
         skybrite = 'daytime'
-    hdr['SKYBRITE'] = (skybrite,
-                                     "sky brightness quality")
+    hdr['SKYBRITE'] = (skybrite, "sky brightness quality")
 
     #
     # Compute lunar age, i.e. days since/until new moon
     #
     lunar_age = wiyn.date - ephem.previous_new_moon(wiyn.date)
-    if (ephem.previous_full_moon(wiyn.date) > ephem.previous_new_moon(wiyn.date)):
-        lunar_age = wiyn.date - ephem.next_new_moon(wiyn.date)
-    hdr['LUNARAGE'] = (lunar_age,
-                                     "days since last new moon")
-    add_fits_header_title(hdr,
-                          "Almanach data", 'SUN__RA')
+    moon_phase = moon.moon_phase
+    moon_month = ephem.next_new_moon(wiyn.date) - ephem.previous_new_moon(wiyn.date)
+    if (moon_phase <= 0.02):
+        moon_phase_string = "new moon"
+    elif (moon_phase < 0.47 and lunar_age <  0.5 * moon_month):
+        moon_phase_string = "waxing crescent"
+    elif (moon_phase < 0.47 and lunar_age >= 0.5 * moon_month):
+        moon_phase_string = "waning crescent"
+    elif (moon_phase < 0.53 and lunar_age <  0.5 * moon_month):
+        moon_phase_string = "first quarter"
+    elif (moon_phase < 0.53 and lunar_age >= 0.5 * moon_month):
+        moon_phase_string = "last quarter"
+    elif (moon_phase < 0.98 and lunar_age <  0.5 * moon_month):
+        moon_phase_string = "waxing gibbous"
+    elif (moon_phase < 0.98 and lunar_age >= 0.5 * moon_month):
+        moon_phase_string = "waning gibbous"
+    elif (moon_phase >= 0.98):
+        moon_phase_string = "full moon"
+
+    #if (ephem.previous_full_moon(wiyn.date) > ephem.previous_new_moon(wiyn.date)):
+    #    lunar_age = wiyn.date - ephem.next_new_moon(wiyn.date)
+    hdr['LUNARAGE'] = (lunar_age, "days since last new moon")
+    add_fits_header_title(hdr, "Almanach data", 'SUN__RA')
+
+    # Moon phase: fraction of moon that's illuminated by the sun
+    lunar_age = wiyn.date - ephem.previous_new_moon(wiyn.date)
+    hdr['MOONILUM'] = (moon.moon_phase, "Fraction of moon illuminated")
+    hdr['MOONPHSE'] = (moon_phase_string, "Moon phase")
 
     #for key in hdr:
     #    print "%-8s" % (key), " --> ", hdr[key]
@@ -309,6 +346,8 @@ def add_ephem_data_to_header(hdr, time_overwrite):
     #print wiyn.date+0.
 
 if __name__ == "__main__":
+
+    import time
 
     time_overwrite = None
     if (cmdline_arg_isset("-time")):
@@ -325,11 +364,36 @@ if __name__ == "__main__":
         try:
             hdulist = pyfits.open(filename)
             hdr = hdulist[0].header
+            orig_hdr = pyfits.ImageHDU(header=hdr)
+            h2 = pyfits.Header(hdr)
         except:
             continue
 
-        add_ephem_data_to_header(hdr, time_overwrite)
+        add_ephem_data_to_header(hdr, time_overwrite, debug=True)
 
+        time.sleep(0.05)
+        for key in [
+            'SUN__RA',
+            'SUN__DEC',
+            'SUN__ALT',
+            'SUN__AZ',
+            'MOON_RA',
+            'MOON_DEC',
+            'MOON_ALT',
+            'MOON_AZ',
+            'SUN__D',
+            'MOON_D',
+            'MOONILUM',
+            'MOONPHSE',
+            'SUN_RISE',
+            'SUN_SET',
+            'MOON_RSE',
+            'MOON_SET',
+            'SKYBRITE',
+            'LUNARAGE',
+        ]:
+            print '% 8s = %s' % (key, hdr[key]) #, value, comment
 
+        print
 
     podi_logging.shutdown_logging(options)
