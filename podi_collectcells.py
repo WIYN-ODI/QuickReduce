@@ -4249,10 +4249,12 @@ def collectcells(input, outputfile,
                                         min_contrast=sitesetup.min_wcs_quality,
                                         catalog_order=sitesetup.wcscalib_order)
 
-        # Use the fixed HDUList
-        ota_list = ccmatched['hdulist']
+        ota_list[0].header['WCSFIXED'] = ccmatched['success']
 
-        ota_list[0].header['WCSFIXED'] = True
+        if (ccmatched['success']):
+            # Use the fixed HDUList
+            ota_list = ccmatched['hdulist']
+
         ota_list[0].header['ASTRMCAT'] = ccmatched['astrmcat'] #"2MASS"
         ota_list[0].header['WCSMXPOS'] = (ccmatched['max_pointing_error_searched'],
                                           "maximum pointing offset searched for success")
