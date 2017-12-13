@@ -1,0 +1,23 @@
+version: '2'
+services:
+  qr:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+
+    image: qr
+    volumes:
+     - /work/odi:/input:ro
+     - /work/odi:/output
+     - /work/odi/catalogs/:/catalogs:ro
+     - /work/odi/cals:/cals
+     - /work/odi/mastercals/:/mastercals
+     - /work/quickreduce/docker:/qr
+
+    tmpfs: /scratch
+#    links:
+#    - redis
+#  redis:
+#    image: redis
+#volumes:
+#  logvolume01: {}
