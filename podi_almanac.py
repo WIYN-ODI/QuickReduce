@@ -52,8 +52,8 @@ import datetime
 import ephem
 import numpy
 
-wiyn_lat = '31.9575'   # N is positive
-wiyn_lon = '-111.6008' # E is positive
+wiyn_lat = '31.95758046'   # N is positive
+wiyn_lon = '-111.600586' # E is positive
 wiyn_elevation = 2096. # m
 
 
