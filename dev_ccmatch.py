@@ -1726,6 +1726,12 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
 
     # Prepare the structure for the return values
     return_value = {}
+    return_value['success'] = False
+    return_value['catalog_filenames'] = None
+    return_value['astrmcat'] = None
+    return_value['max_pointing_error_searched'] = -1
+    return_value['valid_wcs_solution'] = False
+    return_value['matched_src+2mass'] = None
 
     if (catalog_order is None):
         catalog_order = ['2mass']
@@ -1774,7 +1780,6 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     return_value['max_pointing_error'] = max_pointing_error
     return_value['max_pointing_error_list'] = max_pointing_error_list
     return_value['contrasts'] = numpy.ones((max_pointing_error_list.shape[0])) * -1.
-    return_value['catalog_filenames'] = None
 
     if (type(source_catalog) == str):
         # Load the source catalog file
@@ -2136,6 +2141,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         return_value['transformation'] = initial_guess
         return_value['matched_src+2mass'] = guessed_match
         return_value['calibrated_src_cat'] = guessed_cat
+        return_value['success'] = True
 
         return return_value
         ##################################################################################
@@ -2214,6 +2220,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         return_value['transformation'] = best_shift_rotation_solution
         return_value['matched_src+2mass'] = matched
         return_value['calibrated_src_cat'] = src_rotated
+        return_value['success'] = True
 
         logger.debug("All done here, returning")
         return return_value 
@@ -2256,7 +2263,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         return_value['transformation'] = best_shift_rotation_solution
         return_value['matched_src+2mass'] = matched_global
         return_value['calibrated_src_cat'] = global_cat
-    
+        return_value['success'] = True
+
         logger.debug("All done here, returning")
         return return_value 
 
@@ -2286,7 +2294,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         return_value['transformation'] = best_shift_rotation_solution
         return_value['matched_src+2mass'] = matched_global
         return_value['calibrated_src_cat'] = global_cat
-    
+        return_value['success'] = True
+
         logger.debug("All done here, returning")
         return return_value 
 
