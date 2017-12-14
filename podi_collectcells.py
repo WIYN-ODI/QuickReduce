@@ -412,6 +412,70 @@ def apply_wcs_distortion(filename, hdu, binning, reduction_log=None):
     return True
 
 
+def read_fits_catalog(fn, extension):
+
+    logger = logging.getLogger("ReadFITScat")
+
+    logger.debug("Opening FITS catalog from %s" % (fn))
+    if (type(fn) is str):
+        hdulist = pyfits.open(fn)
+    else:
+        hdulist = fn
+
+    if (type(extension) is list):
+        ext_list = extension
+    else:
+        ext_list = [extension]
+
+
+    return_tables = []
+
+    for ext_id in ext_list:
+        
+        if (not ext_id in hdulist):
+            logger.warning("Extension %s not found" % (ext_id))
+            return_tables.append(None)
+            continue
+
+        ext = hdulist[ext_id]
+
+        n_fields = ext.header['TFIELDS']
+        n_rows = ext.header['NAXIS2']
+        #table = numpy.empty((n_rows, n_fields))
+        logger.debug("Reading data for %d fields" % (n_fields))
+        #print "Reading data for %d fields" % (n_fields)
+        table = []
+        for f in range(n_fields):
+            fd = ext.data.field(f)
+            if (fd.ndim > 1):
+                for c2 in range(fd.shape[1]):
+                    table.append(fd[:,c2])
+            else:
+                table.append(fd)
+
+
+        try:
+            table = numpy.array(table).T
+            #np_table = numpy.array(table)
+            #print table
+        except:
+            podi_logging.log_exception()
+            pass
+
+        #print table.shape
+
+        #print table[1:3]
+
+        #print ext.header
+        logger.debug("Table data: %s" % (str(table.shape)))
+        return_tables.append(table)
+
+    if (type(extension) is not list):
+        return return_tables[0]
+
+    return return_tables
+
+
 def collect_reduce_ota(filename,
                        verbose=False,
                        options=None):
@@ -1469,8 +1533,10 @@ def collect_reduce_ota(filename,
                 logger.debug("Wrote temp file to %s" % (fitsfile))
                 sex_config_file = "%s/config/wcsfix.sex" % (sitesetup.exec_dir)
                 parameters_file = "%s/config/wcsfix.sexparam" % (sitesetup.exec_dir)
-                sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s" % (
-                    sitesetup.sextractor, sex_config_file, parameters_file, catfile, 
+                catalog_format = "-CATALOG_TYPE %s" % ("FITS_1.0" if options['sextractor_write_fits'] else "ASCII_HEAD")
+                sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s %s" % (
+                    sitesetup.sextractor, sex_config_file, parameters_file,
+                    catfile, catalog_format,
                     fitsfile)
                 if (options['verbose']): print sexcmd
 
@@ -1520,13 +1586,21 @@ def collect_reduce_ota(filename,
                         print >>sys.stderr, "Execution failed:", e
                     end_time = time.time()
                     logger.debug("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
-
+                #
+                # By now we have run Sextractor, next up is loading the catalog
+                #
                 try:
                     source_cat = None
                     try:
-                        with warnings.catch_warnings():
-                            warnings.simplefilter("ignore")
-                            source_cat = numpy.loadtxt(catfile)
+                        if (options['sextractor_write_fits']):
+                            logger.debug("Reading Sextractor FITS catalog %s" % (catfile))
+                            source_cat = read_fits_catalog(catfile, 'OBJECTS')
+                            #logger.info("%s: Found %d sources" (extname, (-1 if source_cat is None else source_cat.shape[0]) ))
+                        else:
+                            with warnings.catch_warnings():
+                                warnings.simplefilter("ignore")
+                                logger.debug("Reading Sextractor ASCII catalog (%s)" % (catfile))
+                                source_cat = numpy.loadtxt(catfile)
                     except IOError:
                         logger.warning("The Sextractor catalog is empty, ignoring this OTA")
                         source_cat = None
