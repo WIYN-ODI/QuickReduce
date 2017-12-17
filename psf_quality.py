@@ -6,9 +6,9 @@ import sys
 import pyfits
 import scipy
 import scipy.optimize
-
 import numpy
 from matplotlib import pyplot
+import logging
 
 import podi_logging
 from podi_collectcells import read_fits_catalog
@@ -106,38 +106,101 @@ def moffat_error(p, data, r):
     diff = data - model
     return diff.ravel()
 
+
+def create_safe_cutout(
+        image_data, x, y, wx, wy
+):
+    x = int(numpy.round(x, 0)) - 1
+    y = int(numpy.round(y, 0)) - 1
+
+    corner_min = numpy.array([(y-wy), (x-wx)])
+    corner_max = numpy.array([(y+wy), (x+wx)])
+    dimension = corner_max - corner_min
+    cutout = numpy.zeros((dimension[0], dimension[1]))
+
+    # cutout[:,:] = numpy.NaN
+    # print "image dimension:", dimension
+
+    trunc_min = numpy.max([corner_min, [0, 0]], axis=0)
+    trunc_max = numpy.min([corner_max, image_data.shape], axis=0)
+    # print "limited to valid area:", trunc_min, trunc_max
+
+    # Now extract the data and insert it into the cutout
+    insert_min = trunc_min - corner_min
+    insert_max = insert_min + (trunc_max - trunc_min)
+
+    # print "truncated area:", trunc_max - trunc_min
+
+    # print "insert region:", insert_min, insert_max
+    cutout[insert_min[0]:insert_max[0], insert_min[1]:insert_max[1]] = \
+        image_data[trunc_min[0]:trunc_max[0], trunc_min[1]:trunc_max[1]]
+
+    return cutout
+
+
 class PSFdata ( object ):
 
-    def __init__(self, filename, pixelscale=None):
-        self.filename = filename
+    def __init__(self, catalog_filename, pixelscale=None,
+                 catalog=None,
+                 image_data = None, image_extension=None,
+                 use_vignets=True):
+
+        self.catalog_filename = catalog_filename
         self.data = None
         self.fwhm = 0
         self.pixelscale = 0.11 if pixelscale is None else pixelscale
 
+        self.use_vignets_from_catalog = use_vignets
 
-        self.calculate()
+        if (catalog is None):
+            if (self.use_vignets_from_catalog):
+                self.cat = read_fits_catalog(self.catalog_filename, 2, flatten=False)
+            else:
+                self.cat = read_fits_catalog(self.catalog_filename, 2, flatten=True)
+        else:
+            self.cat = catalog
+
+
+        if (image_data is not None and
+                type(image_data) is not numpy.ndarray):
+            hdulist = pyfits.open(image_data)
+            if (image_extension is None):
+                image_data = hdulist[0].data
+            else:
+                image_data = hdulist[image_extension].data
+
+        self.logger = logging.getLogger("compPSFmodel")
+
+        self.compute()
+
+    def compute(self):
+        self.calculate_composite_PSF()
         self.fit_gauss()
         self.fit_moffat()
 
+    def calculate_composite_PSF(self):
 
-    def calculate(self):
 
-        cat = read_fits_catalog(self.filename, 2, flatten=False)
+        cat = self.cat
         print len(cat)
 
+        #
+        # Read the relevant columns from the catalog
+        #
         # TODO: Change column numbers
         mag = cat[4]
         mag_err = cat[5]
-        vignets = cat[6]
         flags = cat[14]
         background = cat[15]
         fwhm = cat[18]
         elongation = cat[13]
 
-        vignets[vignets < -1e29] = numpy.NaN
-
+        #
+        # Select suitable stars that are not blended, not too compact, and
+        # that have good photometry
+        #
         flux = numpy.power(10., -0.4 * mag)
-        print mag.shape, mag_err.shape, vignets.shape
+        print mag.shape, mag_err.shape
 
         good = (mag < 0) & (mag_err < 0.1) & (flags == 0) & (fwhm >= 3)
 
@@ -169,10 +232,37 @@ class PSFdata ( object ):
         print numpy.sum(good)
 
         #
+        # Now we know what stars to include in the composite PSF
         # Prepare all vignet cutouts
         #
-        # psfs = ((vignets - background.reshape((-1,1,1))) / flux.reshape((-1,1,1)))[good]
-        psfs = (vignets / flux.reshape((-1, 1, 1)))[all_good]
+
+        if (self.use_vignets_from_catalog):
+            vignets = cat[6]
+            vignets[vignets < -1e29] = numpy.NaN
+
+            psfs = (vignets / flux.reshape((-1, 1, 1)))[all_good]
+
+        else:
+            self.logger.critical("The mode extracting cutouts from image is not implemented yet")
+            pos_x = cat[7][all_good]
+            pos_y = cat[8][all_good]
+            bg = background[all_good]
+
+            print pos_x.shape, pos_y.shape, flux.shape
+            n_vignets = pos_x.shape[0]
+            wx=wy=32
+            vignets = numpy.empty((n_vignets, 2*wy, 2*wx))
+            for i in range(n_vignets):
+                print pos_x, pos_y
+                x,y = pos_x[i], pos_y[i]
+                cutout = create_safe_cutout(
+                    image_data=image_data,
+                    x=x, y=y, wx=wx, wy=wy
+                )
+                print vignets.shape, cutout.shape
+                vignets[i, :, :] = cutout[:,:] - bg[i]
+
+            psfs = vignets / flux[all_good].reshape((-1,1,1))
 
         out_hdu = [pyfits.PrimaryHDU()]
         for _i, i in enumerate(psfs):
@@ -212,6 +302,7 @@ class PSFdata ( object ):
         self.x -= 0.5 * combined_psf.shape[1]
         self.y -= 0.5 * combined_psf.shape[0]
         self.r = numpy.hypot(self.x, self.y) * self.pixelscale
+
 
     def fit_gauss(self):
 
@@ -288,7 +379,19 @@ if __name__ == "__main__":
 
     cat_fn = sys.argv[1]
 
-    psf = PSFdata(cat_fn)
+    try:
+        image_fn = sys.argv[2]
+        image_hdu = pyfits.open(image_fn)
+        image_data = image_hdu[1].data
+        use_vignets = False
+    except:
+        use_vignets = True
+        image_data = None
+
+    psf = PSFdata(cat_fn, image_data=image_data,
+                  use_vignets=use_vignets)
+
+
     psf.save2fits("psfmodels.fits")
 
     #
