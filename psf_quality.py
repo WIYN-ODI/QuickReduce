@@ -14,6 +14,7 @@ import podi_logging
 from podi_collectcells import read_fits_catalog
 from podi_definitions import three_sigma_clip
 
+from podi_definitions import SXcolumn
 
 
 def make_psf_plot(ota_listing, title=None):
@@ -138,12 +139,14 @@ def create_safe_cutout(
     return cutout
 
 
-class PSFdata ( object ):
+class PSFquality (object):
 
     def __init__(self, catalog_filename, pixelscale=None,
                  catalog=None,
                  image_data = None, image_extension=None,
                  use_vignets=True):
+
+        self.logger = logging.getLogger("compPSFmodel")
 
         self.catalog_filename = catalog_filename
         self.data = None
@@ -152,13 +155,17 @@ class PSFdata ( object ):
 
         self.use_vignets_from_catalog = use_vignets
 
-        if (catalog is None):
-            if (self.use_vignets_from_catalog):
-                self.cat = read_fits_catalog(self.catalog_filename, 2, flatten=False)
-            else:
-                self.cat = read_fits_catalog(self.catalog_filename, 2, flatten=True)
-        else:
-            self.cat = catalog
+        self.catalog_in = catalog
+        self.cat = None
+        self.cat_mag = None
+        self.cat_magerr = None
+        self.cat_elongation = None
+        self.cat_fwhm = None
+        self.cat_x = None
+        self.cat_y = None
+        self.cat_flags = None
+        self.cat_background = None
+        self.read_catalog()
 
 
         if (image_data is not None and
@@ -169,9 +176,39 @@ class PSFdata ( object ):
             else:
                 image_data = hdulist[image_extension].data
 
-        self.logger = logging.getLogger("compPSFmodel")
 
         self.compute()
+
+    def read_catalog(self):
+
+        if (self.catalog_in is None):
+            self.logger.info("Reading catalog from %s" % (self.catalog_filename))
+            if (self.use_vignets_from_catalog):
+                self.cat = read_fits_catalog(self.catalog_filename, 2, flatten=False)
+            else:
+                self.cat = read_fits_catalog(self.catalog_filename, 2, flatten=True)
+        else:
+            self.logger.info("Using user-supplied catalog from memory")
+            self.cat = self.catalog_in
+
+        print self.cat
+
+        if (self.cat_x is None):
+            self.cat_x = self.cat[:, SXcolumn['x']]
+        if (self.cat_y is None):
+            self.cat_y = self.cat[:, SXcolumn['y']]
+        if (self.cat_mag is None):
+            self.cat_mag = self.cat[:, SXcolumn['mag_auto']]
+        if (self.cat_magerr is None):
+            self.cat_magerr = self.cat[:, SXcolumn['mag_err_auto']]
+        if (self.cat_elongation is None):
+            self.cat_elongation = self.cat[:, SXcolumn['elongation']]
+        if (self.cat_fwhm is None):
+            self.cat_fwhm = self.cat[:, SXcolumn['fwhm_image']]
+        if (self.cat_flags is None):
+            self.cat_flags = self.cat[:, SXcolumn['flags']]
+        if (self.cat_background is None):
+            self.cat_background = self.cat[:, SXcolumn['background']]
 
     def compute(self):
         self.calculate_composite_PSF()
@@ -188,12 +225,12 @@ class PSFdata ( object ):
         # Read the relevant columns from the catalog
         #
         # TODO: Change column numbers
-        mag = cat[4]
-        mag_err = cat[5]
-        flags = cat[14]
-        background = cat[15]
-        fwhm = cat[18]
-        elongation = cat[13]
+        mag = self.cat_mag #$cat[4]
+        mag_err = self.cat_magerr #cat[5]
+        flags = self.cat_flags #cat[14]
+        background = self.cat_background #cat[15]
+        fwhm = self.cat_fwhm #cat[18]
+        elongation = self.cat_elongation #cat[13]
 
         #
         # Select suitable stars that are not blended, not too compact, and
@@ -208,7 +245,7 @@ class PSFdata ( object ):
         numpy.savetxt("elongation", elongation[good])
         _, good_elongation = three_sigma_clip(elongation[good], return_mask=True)
 
-        numpy.savetxt("ellipticity", cat[20])
+        # numpy.savetxt("ellipticity", cat[20])
         print "median elongation", median_elongation
 
         valid_fwhm = fwhm[good]
@@ -243,9 +280,9 @@ class PSFdata ( object ):
             psfs = (vignets / flux.reshape((-1, 1, 1)))[all_good]
 
         else:
-            self.logger.critical("The mode extracting cutouts from image is not implemented yet")
-            pos_x = cat[7][all_good]
-            pos_y = cat[8][all_good]
+            # self.logger.critical("The mode extracting cutouts from image is not implemented yet")
+            pos_x = self.cat_x[all_good]  #cat[7][all_good]
+            pos_y = self.cat_y[all_good]  #cat[8][all_good]
             bg = background[all_good]
 
             print pos_x.shape, pos_y.shape, flux.shape
@@ -388,8 +425,8 @@ if __name__ == "__main__":
         use_vignets = True
         image_data = None
 
-    psf = PSFdata(cat_fn, image_data=image_data,
-                  use_vignets=use_vignets)
+    psf = PSFquality(cat_fn, image_data=image_data,
+                     use_vignets=use_vignets)
 
 
     psf.save2fits("psfmodels.fits")

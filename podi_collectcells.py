@@ -447,6 +447,10 @@ def read_fits_catalog(fn, extension, flatten=True):
         table = []
         for f in range(n_fields):
             fd = ext.data.field(f)
+            if (fd.ndim > 2 and flatten):
+                logger.warning("Unable to handle catalog field %s" % (
+                    ext.header['TTYPE%d' % (f+1)]))
+                continue
             if (fd.ndim > 1 and flatten):
                 for c2 in range(fd.shape[1]):
                     table.append(fd[:,c2])
