@@ -144,9 +144,11 @@ class PSFquality (object):
     def __init__(self, catalog_filename, pixelscale=None,
                  catalog=None,
                  image_data = None, image_extension=None,
-                 use_vignets=True):
+                 use_vignets=True,
+                 debug=False):
 
         self.logger = logging.getLogger("compPSFmodel")
+        self.write_debug = debug
 
         self.catalog_filename = catalog_filename
         self.data = None
@@ -192,10 +194,10 @@ class PSFquality (object):
             else:
                 self.cat = read_fits_catalog(self.catalog_filename, 2, flatten=True)
         else:
-            self.logger.info("Using user-supplied catalog from memory")
+            self.logger.debug("Using user-supplied catalog from memory")
             self.cat = self.catalog_in
 
-        print self.cat
+        # print self.cat
 
         if (self.cat_x is None):
             self.cat_x = self.cat[:, SXcolumn['x']]
@@ -223,7 +225,7 @@ class PSFquality (object):
 
 
         cat = self.cat
-        print len(cat)
+        # print len(cat)
 
         #
         # Read the relevant columns from the catalog
@@ -241,36 +243,37 @@ class PSFquality (object):
         # that have good photometry
         #
         flux = numpy.power(10., -0.4 * mag)
-        print mag.shape, mag_err.shape
+        # print mag.shape, mag_err.shape
 
         good = (mag < 0) & (mag_err < 0.1) & (flags == 0) & (fwhm >= 3)
 
         median_elongation = numpy.median(elongation)
-        numpy.savetxt("elongation", elongation[good])
+        if (self.write_debug): numpy.savetxt("elongation", elongation[good])
         _, good_elongation = three_sigma_clip(elongation[good], return_mask=True)
 
         # numpy.savetxt("ellipticity", cat[20])
-        print "median elongation", median_elongation
+        # print "median elongation", median_elongation
 
         valid_fwhm = fwhm[good]
         # print valid_fwhm
-        numpy.savetxt("fwhms", valid_fwhm)
+        if (self.write_debug): numpy.savetxt("fwhms", valid_fwhm)
 
         clipped, starlike = three_sigma_clip(input=valid_fwhm, return_mask=True)
         valid_fwhm[~starlike] = 0
-        numpy.savetxt("fwhms2", valid_fwhm)
+        if (self.write_debug): numpy.savetxt("fwhms2", valid_fwhm)
 
         all_good = good.copy()
         all_good[all_good] &= (starlike & good_elongation)
 
-        merged = numpy.array([
-            mag, mag_err, fwhm, elongation,
-        ]).T
-        numpy.savetxt("data_all", merged)
-        merged[~all_good, :] = numpy.NaN
-        numpy.savetxt("data_good", merged)
+        if (self.write_debug):
+            merged = numpy.array([
+                mag, mag_err, fwhm, elongation,
+            ]).T
+            numpy.savetxt("data_all", merged)
+            merged[~all_good, :] = numpy.NaN
+            numpy.savetxt("data_good", merged)
 
-        print numpy.sum(good)
+        # print numpy.sum(good)
 
         #
         # Now we know what stars to include in the composite PSF
@@ -289,33 +292,34 @@ class PSFquality (object):
             pos_y = self.cat_y[all_good]  #cat[8][all_good]
             bg = background[all_good]
 
-            print pos_x.shape, pos_y.shape, flux.shape
+            # print pos_x.shape, pos_y.shape, flux.shape
             n_vignets = pos_x.shape[0]
 
-            vignets = numpy.empty((n_vignets, 2*wy, 2*wx))
+            vignets = numpy.empty((n_vignets, 2*self.window_y, 2*self.window_x))
             for i in range(n_vignets):
-                print pos_x, pos_y
+                # print pos_x, pos_y
                 x,y = pos_x[i], pos_y[i]
                 cutout = create_safe_cutout(
                     image_data=self.image_data,
                     x=x, y=y,
                     wx=self.window_x, wy=self.window_y,
                 )
-                print vignets.shape, cutout.shape
+                # print vignets.shape, cutout.shape
                 vignets[i, :, :] = cutout[:,:] - bg[i]
 
             psfs = vignets / flux[all_good].reshape((-1,1,1))
 
-        out_hdu = [pyfits.PrimaryHDU()]
-        for _i, i in enumerate(psfs):
-            img = pyfits.ImageHDU(data=i)
-            img.header['OBJECT'] = "M=%.3f +/- %.3f / FWHM=%.1f / Elong=%.2f" % (
-                mag[all_good][_i], mag_err[all_good][_i],
-                fwhm[all_good][_i], elongation[all_good][_i]
-            )
-            out_hdu.append(img)
+        if (self.write_debug):
+            out_hdu = [pyfits.PrimaryHDU()]
+            for _i, i in enumerate(psfs):
+                img = pyfits.ImageHDU(data=i)
+                img.header['OBJECT'] = "M=%.3f +/- %.3f / FWHM=%.1f / Elong=%.2f" % (
+                    mag[all_good][_i], mag_err[all_good][_i],
+                    fwhm[all_good][_i], elongation[all_good][_i]
+                )
+                out_hdu.append(img)
 
-        pyfits.HDUList(out_hdu).writeto("psfs.fits", clobber=True)
+            pyfits.HDUList(out_hdu).writeto("psfs.fits", clobber=True)
 
         #
         # combine the remaining good PSFs
@@ -334,9 +338,10 @@ class PSFquality (object):
             weighted = numpy.nansum(psfs * psf_weights, axis=0) / \
                        numpy.sum(psf_weights, axis=0)
 
-        print combined_psf.shape
-        pyfits.PrimaryHDU(data=combined_psf).writeto("median_psf.fits", clobber=True)
-        pyfits.PrimaryHDU(data=weighted).writeto("weighted_psf.fits", clobber=True)
+        if (self.write_debug):
+            # print combined_psf.shape
+            pyfits.PrimaryHDU(data=combined_psf).writeto("median_psf.fits", clobber=True)
+            pyfits.PrimaryHDU(data=weighted).writeto("weighted_psf.fits", clobber=True)
 
         self.data = combined_psf
 
@@ -369,7 +374,7 @@ class PSFquality (object):
         self.gauss_sigma = best_fit[2]
 
         self.fwhm = self.gauss_sigma * 2.35482
-        print "GAUSS:", self.fwhm, self.gauss_sigma
+        # print "GAUSS:", self.fwhm, self.gauss_sigma
 
 
         return
