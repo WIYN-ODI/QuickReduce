@@ -295,6 +295,9 @@ import podi_guidestars
 import podi_shifthistory
 import podi_photflat
 
+import psf_quality
+import podi_readfitscat
+
 import podi_associations
 import podi_calibrations
 from podi_calibrations import check_filename_directory
@@ -411,76 +414,6 @@ def apply_wcs_distortion(filename, hdu, binning, reduction_log=None):
         reduction_log.success('wcs_dist')
     return True
 
-
-def read_fits_catalog(fn, extension, flatten=True):
-
-    logger = logging.getLogger("ReadFITScat")
-
-    logger.debug("Opening FITS catalog from %s" % (fn))
-    if (type(fn) is str):
-        hdulist = pyfits.open(fn)
-    else:
-        hdulist = fn
-
-    if (type(extension) is list):
-        ext_list = extension
-    else:
-        ext_list = [extension]
-
-
-    return_tables = []
-
-    for ext_id in ext_list:
-        
-        if (not ext_id in hdulist):
-            logger.warning("Extension %s not found" % (ext_id))
-            return_tables.append(None)
-            continue
-
-        ext = hdulist[ext_id]
-
-        n_fields = ext.header['TFIELDS']
-        n_rows = ext.header['NAXIS2']
-        #table = numpy.empty((n_rows, n_fields))
-        logger.debug("Reading data for %d fields" % (n_fields))
-        #print "Reading data for %d fields" % (n_fields)
-        table = []
-        for f in range(n_fields):
-            fd = ext.data.field(f)
-            if (fd.ndim > 2 and flatten):
-                logger.warning("Unable to handle catalog field %s" % (
-                    ext.header['TTYPE%d' % (f+1)]))
-                continue
-            if (fd.ndim > 1 and flatten):
-                for c2 in range(fd.shape[1]):
-                    table.append(fd[:,c2])
-            else:
-                table.append(fd)
-
-
-        try:
-            if (flatten):
-                table = numpy.array(table).T
-                logger.debug("Table data: %s" % (str(table.shape)))
-            else:
-                logger.debug("Table data: %d columns" % (len(table)))
-            #np_table = numpy.array(table)
-            #print table
-        except:
-            podi_logging.log_exception()
-            pass
-
-        #print table.shape
-
-        #print table[1:3]
-
-        #print ext.header
-        return_tables.append(table)
-
-    if (type(extension) is not list):
-        return return_tables[0]
-
-    return return_tables
 
 
 def collect_reduce_ota(filename,
@@ -1601,7 +1534,7 @@ def collect_reduce_ota(filename,
                     try:
                         if (options['sextractor_write_fits']):
                             logger.debug("Reading Sextractor FITS catalog %s" % (catfile))
-                            source_cat = read_fits_catalog(catfile, 'OBJECTS')
+                            source_cat = podi_readfitscat.read_fits_catalog(catfile, 'OBJECTS')
                             #logger.info("%s: Found %d sources" (extname, (-1 if source_cat is None else source_cat.shape[0]) ))
                         else:
                             with warnings.catch_warnings():
@@ -1641,11 +1574,25 @@ def collect_reduce_ota(filename,
             fixwcs_data = None
 
         #
+        # Create some PSF quality data
+        #
+        if (source_cat is not None):
+            psf = psf_quality.PSFquality(
+                catalog_filename=None,
+                pixelscale=0.11,
+                catalog=source_cat,
+                image_data=merged,
+                use_vignets=False,
+            )
+            psf.info(logger=logger)
+
+
+        #
         # Sample that background at random place so we can derive a median background level later on
         # This is necessary both for the pupil ghost correction AND the fringing correction
         #
         starcat = None
-        if (not type(source_cat) == type(None)):
+        if (source_cat is not None):
             ota_x, ota_y = source_cat[:,2], source_cat[:,3]
             starcat = (ota_x, ota_y)
         # Now sample the background, excluding regions close to known sources
