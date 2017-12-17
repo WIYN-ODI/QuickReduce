@@ -11,7 +11,7 @@ from matplotlib import pyplot
 import logging
 
 import podi_logging
-from podi_collectcells import read_fits_catalog
+from podi_readfitscat import read_fits_catalog
 from podi_definitions import three_sigma_clip
 
 from podi_definitions import SXcolumn
@@ -151,6 +151,10 @@ class PSFquality (object):
         self.catalog_filename = catalog_filename
         self.data = None
         self.fwhm = 0
+
+        self.window_x = 32
+        self.window_y = 32
+
         self.pixelscale = 0.11 if pixelscale is None else pixelscale
 
         self.use_vignets_from_catalog = use_vignets
@@ -175,7 +179,7 @@ class PSFquality (object):
                 image_data = hdulist[0].data
             else:
                 image_data = hdulist[image_extension].data
-
+        self.image_data = image_data
 
         self.compute()
 
@@ -287,14 +291,15 @@ class PSFquality (object):
 
             print pos_x.shape, pos_y.shape, flux.shape
             n_vignets = pos_x.shape[0]
-            wx=wy=32
+
             vignets = numpy.empty((n_vignets, 2*wy, 2*wx))
             for i in range(n_vignets):
                 print pos_x, pos_y
                 x,y = pos_x[i], pos_y[i]
                 cutout = create_safe_cutout(
-                    image_data=image_data,
-                    x=x, y=y, wx=wx, wy=wy
+                    image_data=self.image_data,
+                    x=x, y=y,
+                    wx=self.window_x, wy=self.window_y,
                 )
                 print vignets.shape, cutout.shape
                 vignets[i, :, :] = cutout[:,:] - bg[i]
@@ -393,6 +398,12 @@ class PSFquality (object):
     def moffat(self, r):
         return moffat_model(self.moffat_fit, r)
 
+    def info(self, logger=None):
+        if (logger is None):
+            logger = self.logger
+        logger.info("PSF-quality: size: %dx%d, #frames=%d, FWHM=%.2f" % (
+            self.window_x, self.window_y, -1, self.fwhm,
+        ))
 
     def save2fits(self, fn):
         gauss = self.gaussprofile(self.r)
