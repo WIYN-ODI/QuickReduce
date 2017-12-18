@@ -468,6 +468,7 @@ def collect_reduce_ota(filename,
         'pupilghost-template': None,
         'reduction_files_used': None,
         'reduction_log': reduction_log,
+        'psf': None,
         }
    
     if (not os.path.isfile(filename)):
@@ -1576,6 +1577,7 @@ def collect_reduce_ota(filename,
         #
         # Create some PSF quality data
         #
+        psf = None
         if (source_cat is not None):
             psf = psf_quality.PSFquality(
                 catalog_filename=None,
@@ -1583,6 +1585,7 @@ def collect_reduce_ota(filename,
                 catalog=source_cat,
                 image_data=merged,
                 use_vignets=False,
+                detector=ota,
             )
             psf.info(logger=logger)
 
@@ -1720,7 +1723,8 @@ def collect_reduce_ota(filename,
     data_products['sourcecat'] = source_cat
     data_products['tech-header'] = tech_header
     data_products['reduction_files_used'] = reduction_files_used
-    
+    data_products['psf'] = psf
+
     logger.debug("Done with collect_cells for this OTA")
     return data_products #hdu, fixwcs_data
     
@@ -3675,6 +3679,7 @@ def collectcells(input, outputfile,
             logger.error("Illegal results")
             
         ota_id, data_products, shmem_id = intermed_results
+        print data_products['psf']
 
         logger.debug("Received intermediate results from OTA-ID %02d" % (ota_id))
         podi_logging.ppa_update_progress(int(50.*(i+1)/len(list_of_otas_being_reduced)), "Reducing")
@@ -4058,6 +4063,8 @@ def collectcells(input, outputfile,
 
     worker.abort()
 
+    psf_quality_data = {}
+
     for final_result in worker.get_final_results():
 
         ota_id, data_products, shmem_id = final_result
@@ -4101,14 +4108,29 @@ def collectcells(input, outputfile,
             all_tech_headers.append(data_products['tech-header'])
             # print "techdata for ota",ota_id,"\n",data_products['tech-header']
 
-
         #
         # Collect all information for the global reduction log
         #
         ota_reduction_log = data_products['reduction_log']
         global_reduction_log.combine(ota_reduction_log)
 
+        #
+        # Collect the data for the PSF quality plot
+        #
+        psf = data_products['psf']
+        if (psf is not None):
+            logger.info("ADDING PSF for OTA %s" % (psf.detector))
+            psf_quality_data[psf.detector] = psf
+
     worker.free_shared_memory()
+
+    print psf_quality_data
+    if (options['create_qaplots'] and psf_quality_data is not None):
+        plotfilename = create_qa_filename(outputfile, "psf", options)
+        psf_quality.make_psf_plot(ota_listing=psf_quality_data,
+                                  title="some title here",
+                                  output_filename=plotfilename,
+                                  plotformat=options['plotformat'])  # TODO: fix title
 
     # recv_end = time.time()
     # logger.debug("RECEIVING: %f" % ((recv_end - recv_start)))
