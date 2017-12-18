@@ -46,7 +46,7 @@ def make_psf_plot(ota_listing, title=None,
 
         otax = int(numpy.floor(ota/10.))
         otay = int(numpy.fmod(ota,10))
-        print ota, otax, otay
+        # print ota, otax, otay
 
         ax = axes[ny-otay,otax-1]
         # ax.imshow(ota_listing[ota],
@@ -59,7 +59,7 @@ def make_psf_plot(ota_listing, title=None,
         data = ota_listing[ota].data
         fwhm = ota_listing[ota].fwhm
 
-        corrected_data = (data - psf.moffat_background) / psf.moffat_intensity
+        corrected_data = (data - psf.moffat_background) / psf.moffat_peak
 
         #ax.scatter(r, numpy.log10(ota_listing[ota]), s=1)
         ax.semilogy(psf.r, corrected_data, c='grey', marker=".",
@@ -69,7 +69,7 @@ def make_psf_plot(ota_listing, title=None,
 
         ax.grid(color = '#f4f4f4', linestyle = 'solid', linewidth = 1)
 
-        ax.semilogy(plot_x, psf.gaussprofile(plot_x)/psf.intensity)
+        ax.semilogy(plot_x, psf.gaussprofile(plot_x, subtract_background=True)/psf.intensity)
 
         ax.text(0.9*xmax, 1., "%.2f" % (psf.fwhm),
                 horizontalalignment='right',
@@ -78,7 +78,7 @@ def make_psf_plot(ota_listing, title=None,
                 )
 
         print psf.moffat_fit
-        ax.semilogy(plot_x, (psf.moffat(plot_x)-psf.moffat_background)/psf.moffat_intensity)
+        ax.semilogy(plot_x, (psf.moffat(plot_x, subtract_background=True))/psf.moffat_peak)
 
         #
         # matplotlib.pyplot.imshow(X, cmap=None, norm=None, aspect=None,
@@ -119,6 +119,17 @@ def moffat_model(p, r):
 
 def moffat_error(p, data, r):
     model = moffat_model(p, r)
+    diff = data - model
+    return diff.ravel()
+
+
+def gauss_model(p, r):
+    model = p[0] + p[1] * numpy.exp(-r ** 2 / (2 * p[2] ** 2))
+    return model
+
+
+def gauss_error(p, data, r):
+    model = gauss_model(p, r)
     diff = data - model
     return diff.ravel()
 
@@ -178,6 +189,8 @@ class PSFquality (object):
 
         self.use_vignets_from_catalog = use_vignets
 
+        self.n_sources = -1
+
         self.catalog_in = catalog
         self.cat = None
         self.cat_mag = None
@@ -210,9 +223,9 @@ class PSFquality (object):
         if (self.catalog_in is None):
             self.logger().info("Reading catalog from %s" % (self.catalog_filename))
             if (self.use_vignets_from_catalog):
-                self.cat = read_fits_catalog(self.catalog_filename, 2, flatten=False)
+                self.cat = read_fits_catalog(self.catalog_filename, 'LDAC_OBJECTS', flatten=False)
             else:
-                self.cat = read_fits_catalog(self.catalog_filename, 2, flatten=True)
+                self.cat = read_fits_catalog(self.catalog_filename, 'LDAC_OBJECTS', flatten=True)
         else:
             self.logger().debug("Using user-supplied catalog from memory")
             self.cat = self.catalog_in
@@ -328,6 +341,7 @@ class PSFquality (object):
                 vignets[i, :, :] = cutout[:,:] - bg[i]
 
             psfs = vignets / flux[all_good].reshape((-1,1,1))
+        self.n_sources = psfs.shape[0]
 
         if (self.write_debug):
             out_hdu = [pyfits.PrimaryHDU()]
@@ -373,15 +387,6 @@ class PSFquality (object):
 
     def fit_gauss(self):
 
-        def gauss_model(p, r):
-            model = p[0] + p[1]*numpy.exp(-r**2/(2*p[2]**2))
-            return model
-
-        def gauss_error(p, data, r):
-            model = gauss_model(p, r)
-            diff = data - model
-            return diff.ravel()
-
         p_init = [0., 0.02, 0.3]
         fit = scipy.optimize.leastsq(gauss_error, p_init,
                                      args=(self.data, self.r),
@@ -410,26 +415,34 @@ class PSFquality (object):
         #print fit
 
         best_fit = fit[0]
+        self.moffat_fit = best_fit
         self.moffat_background = best_fit[0]
         self.moffat_intensity = best_fit[1]
+        self.moffat_peak = self.moffat(0, subtract_background=True)
         self.moffat_alpha = best_fit[2]
         self.moffat_beta = best_fit[3]
-        self.moffat_fit = best_fit
-
         return
 
 
-    def gaussprofile(self, r):
-        return self.intensity * numpy.exp(-r**2/(2*self.gauss_sigma**2))
+    def gaussprofile(self, r, subtract_background=False):
+        # return self.intensity * numpy.exp(-r**2/(2*self.gauss_sigma**2))
+        model = gauss_model(self.gauss_fit, r)
+        if (subtract_background):
+            model -= self.background
+        return model
 
-    def moffat(self, r):
-        return moffat_model(self.moffat_fit, r)
+    def moffat(self, r, subtract_background=False):
+        model = moffat_model(self.moffat_fit, r)
+        if (subtract_background):
+            model -= self.moffat_background
+        return model
 
     def info(self, logger=None):
         if (logger is None):
             logger = self.logger()
-        logger.info("PSF-quality: size: %dx%d, #frames=%d, FWHM=%.2f" % (
-            self.window_x, self.window_y, -1, self.fwhm,
+        logger.info("PSF-quality: size: %dx%d, #frames=%d, FWHM=%.2f (Imax: G=%.3f/M=%.3f/D=%.3f)" % (
+            self.window_x, self.window_y, self.n_sources, self.fwhm,
+            self.intensity, self.moffat_peak, numpy.max(self.data)
         ))
 
     def save2fits(self, fn):
