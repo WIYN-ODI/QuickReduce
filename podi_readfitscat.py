@@ -21,12 +21,13 @@ def read_fits_catalog(fn, extension, flatten=True):
 
     for ext_id in ext_list:
 
-        if (not ext_id in hdulist):
-            logger.warning("Extension %s not found" % (ext_id))
+        try:
+            ext = hdulist[ext_id]
+        except KeyError:
+            logger.warning("Extension %s not found in %s" % (ext_id, fn))
+            hdulist.info()
             return_tables.append(None)
             continue
-
-        ext = hdulist[ext_id]
 
         n_fields = ext.header['TFIELDS']
         n_rows = ext.header['NAXIS2']
