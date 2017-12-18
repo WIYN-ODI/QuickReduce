@@ -1474,7 +1474,7 @@ def collect_reduce_ota(filename,
                 logger.debug("Wrote temp file to %s" % (fitsfile))
                 sex_config_file = "%s/config/wcsfix.sex" % (sitesetup.exec_dir)
                 parameters_file = "%s/config/wcsfix.sexparam" % (sitesetup.exec_dir)
-                catalog_format = "-CATALOG_TYPE %s" % ("FITS_1.0" if options['sextractor_write_fits'] else "ASCII_HEAD")
+                catalog_format = "-CATALOG_TYPE %s" % ("FITS_LDAC" if options['sextractor_write_fits'] else "ASCII_HEAD")
                 sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s %s" % (
                     sitesetup.sextractor, sex_config_file, parameters_file,
                     catfile, catalog_format,
@@ -1535,7 +1535,7 @@ def collect_reduce_ota(filename,
                     try:
                         if (options['sextractor_write_fits']):
                             logger.debug("Reading Sextractor FITS catalog %s" % (catfile))
-                            source_cat = podi_readfitscat.read_fits_catalog(catfile, 'OBJECTS')
+                            source_cat = podi_readfitscat.read_fits_catalog(catfile, 'LDAC_OBJECTS', flatten=True)
                             #logger.info("%s: Found %d sources" (extname, (-1 if source_cat is None else source_cat.shape[0]) ))
                         else:
                             with warnings.catch_warnings():
@@ -1570,6 +1570,7 @@ def collect_reduce_ota(filename,
                 if (sitesetup.sex_delete_tmps):
                     clobberfile(fitsfile)
                     clobberfile(catfile)
+                    pass
 
 
             fixwcs_data = None
@@ -1579,6 +1580,7 @@ def collect_reduce_ota(filename,
         #
         psf = None
         if (source_cat is not None):
+            start = time.time()
             psf = psf_quality.PSFquality(
                 catalog_filename=None,
                 pixelscale=0.11,
@@ -1588,7 +1590,9 @@ def collect_reduce_ota(filename,
                 detector=ota,
             )
             psf.info(logger=logger)
-
+            end = time.time()
+            # psf.save2fits(fn="psf_%02d.fits" % (psf.detector))
+            logger.debug("Spent %.3f seconds creating PSF model" % (end-start))
 
         #
         # Sample that background at random place so we can derive a median background level later on
