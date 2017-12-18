@@ -17,7 +17,12 @@ from podi_definitions import three_sigma_clip
 from podi_definitions import SXcolumn
 
 
-def make_psf_plot(ota_listing, title=None):
+def make_psf_plot(ota_listing, title=None,
+                  output_filename=None,
+                  plotformat=None,
+                  ):
+
+    logger = logging.getLogger("PSFplot")
 
     fig = pyplot.figure()
     pixelscale = 0.11
@@ -26,9 +31,10 @@ def make_psf_plot(ota_listing, title=None):
     ny = 6
     axes = fig.subplots(6,5,sharex=True,sharey=True)
 
-    _y,_x = numpy.indices(ota_listing[33].data.shape, dtype=numpy.float)
-    print _y.shape, _x.shape
-    r = numpy.hypot((_x-32.), (_y-32.)) * pixelscale
+
+    #_y,_x = numpy.indices(ota_listing[33].data.shape, dtype=numpy.float)
+    #print _y.shape, _x.shape
+    #r = numpy.hypot((_x-32.), (_y-32.)) * pixelscale
 
     xmin, xmax, ymin, ymax = 0, 3.5, 5e-4, 2 #-6, -1.5
     axes[0,0].set_xlim((0, xmax))
@@ -56,7 +62,7 @@ def make_psf_plot(ota_listing, title=None):
         corrected_data = (data - psf.moffat_background) / psf.moffat_intensity
 
         #ax.scatter(r, numpy.log10(ota_listing[ota]), s=1)
-        ax.semilogy(r, corrected_data, c='grey', marker=".",
+        ax.semilogy(psf.r, corrected_data, c='grey', marker=".",
                     markersize=3, alpha=0.3,
                     markeredgecolor='none', markerfacecolor='grey',
                     linestyle='None') #, size=1)
@@ -92,7 +98,16 @@ def make_psf_plot(ota_listing, title=None):
     # fig.set_tight_layout(True)
     fig.set_size_inches(6,7)
     fig.show()
-    fig.savefig("test.png", dpi=200, bbox_inches='tight')
+
+    if (plotformat is None):
+        plotformat = ['png']
+    if (output_filename is None):
+        output_filename = "psf_quality"
+
+    for format in plotformat:
+        fn = "%s.%s" % (output_filename, format)
+        logger.info("Writing PSF diagnostic plot to %s" % (fn))
+        fig.savefig(fn, dpi=200, bbox_inches='tight')
 
     return
 
@@ -145,10 +160,12 @@ class PSFquality (object):
                  catalog=None,
                  image_data = None, image_extension=None,
                  use_vignets=True,
-                 debug=False):
+                 detector=None,
+                 debug=False,):
 
-        self.logger = logging.getLogger("compPSFmodel")
+        #self.logger = logging.getLogger("compPSFmodel")
         self.write_debug = debug
+        self.detector = detector
 
         self.catalog_filename = catalog_filename
         self.data = None
@@ -185,16 +202,19 @@ class PSFquality (object):
 
         self.compute()
 
+    def logger(self):
+        return logging.getLogger("compPSFmodel")
+
     def read_catalog(self):
 
         if (self.catalog_in is None):
-            self.logger.info("Reading catalog from %s" % (self.catalog_filename))
+            self.logger().info("Reading catalog from %s" % (self.catalog_filename))
             if (self.use_vignets_from_catalog):
                 self.cat = read_fits_catalog(self.catalog_filename, 2, flatten=False)
             else:
                 self.cat = read_fits_catalog(self.catalog_filename, 2, flatten=True)
         else:
-            self.logger.debug("Using user-supplied catalog from memory")
+            self.logger().debug("Using user-supplied catalog from memory")
             self.cat = self.catalog_in
 
         # print self.cat
@@ -369,6 +389,8 @@ class PSFquality (object):
         #print fit
 
         best_fit = fit[0]
+        self.gauss_fit = best_fit
+
         self.background = best_fit[0]
         self.intensity = best_fit[1]
         self.gauss_sigma = best_fit[2]
@@ -405,21 +427,21 @@ class PSFquality (object):
 
     def info(self, logger=None):
         if (logger is None):
-            logger = self.logger
+            logger = self.logger()
         logger.info("PSF-quality: size: %dx%d, #frames=%d, FWHM=%.2f" % (
             self.window_x, self.window_y, -1, self.fwhm,
         ))
 
     def save2fits(self, fn):
         gauss = self.gaussprofile(self.r)
-        moffat = self.moffat(self.r)
+        moffat_model = self.moffat(self.r)
         out_list = [
             pyfits.PrimaryHDU(),
             pyfits.ImageHDU(data=self.data, name="DATA"),
             pyfits.ImageHDU(data=gauss, name="GAUSS"),
-            pyfits.ImageHDU(data=moffat, name="MOFFAT"),
+            pyfits.ImageHDU(data=moffat_model, name="MOFFAT"),
             pyfits.ImageHDU(data=(self.data-gauss), name="GAUSS_RESIDUALS"),
-            pyfits.ImageHDU(data=(self.data-moffat), name="MOFFAT_RESIDUALS"),
+            pyfits.ImageHDU(data=(self.data-moffat_model), name="MOFFAT_RESIDUALS"),
         ]
         hdulist = pyfits.HDUList(out_list)
         hdulist.writeto(fn, clobber=True)
@@ -444,6 +466,10 @@ if __name__ == "__main__":
     psf = PSFquality(cat_fn, image_data=image_data,
                      use_vignets=use_vignets)
 
+
+    import pickle
+    output = open('data.pkl', 'wb')
+    pickle.dump(psf, output)
 
     psf.save2fits("psfmodels.fits")
 
