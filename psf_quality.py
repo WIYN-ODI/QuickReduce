@@ -31,16 +31,28 @@ def make_psf_plot(ota_listing, title=None,
     ny = 6
     axes = fig.subplots(6,5,sharex=True,sharey=True)
 
-
     #_y,_x = numpy.indices(ota_listing[33].data.shape, dtype=numpy.float)
     #print _y.shape, _x.shape
     #r = numpy.hypot((_x-32.), (_y-32.)) * pixelscale
 
-    xmin, xmax, ymin, ymax = 0, 3.5, 5e-4, 2 #-6, -1.5
-    axes[0,0].set_xlim((0, xmax))
+    #
+    # Determine the max_x and min_y range
+    #
+    plot_x = numpy.linspace(0.01, 8., 100)
+    fwhms = []
+    moffats = []
+    for ota in ota_listing:
+        fwhms.append(ota_listing[ota].fwhm)
+        moffats.append(ota_listing[ota].moffat(plot_x, subtract_background=True))
+    fwhms = numpy.array(fwhms)
+    median_fwhm = numpy.median(fwhms)
+    xmax = numpy.max([3.5, numpy.min([3 * median_fwhm, 7])])
+
+    xmin, ymin, ymax = 0, 5e-4, 2 #-6, -1.5
+    axes[0,0].set_xlim((0.1, xmax))
     axes[0,0].set_ylim((ymin, ymax))
 
-    plot_x = numpy.linspace(xmin, xmax, 100)
+
 
     for ota in ota_listing:
 
@@ -62,24 +74,43 @@ def make_psf_plot(ota_listing, title=None,
         corrected_data = (data - psf.moffat_background) / psf.moffat_peak
 
         #ax.scatter(r, numpy.log10(ota_listing[ota]), s=1)
-        ax.semilogy(psf.r, corrected_data, c='grey', marker=".",
-                    markersize=3, alpha=0.3,
-                    markeredgecolor='none', markerfacecolor='grey',
-                    linestyle='None') #, size=1)
+        ax.set_xlim((0.1, xmax))
+        good = numpy.isfinite(psf.r) & numpy.isfinite(corrected_data) & (psf.r>=0.1)
+        ax.loglog(psf.r[good], numpy.corrected_data[good], c='grey', marker=".",
+                  markersize=3, alpha=0.3,
+                  markeredgecolor='none', markerfacecolor='grey',
+                  linestyle='None') #, size=1)
+
+        # ax.semilogy(psf.r, corrected_data, c='grey', marker=".",
+        #             markersize=3, alpha=0.3,
+        #             markeredgecolor='none', markerfacecolor='grey',
+        #             linestyle='None') #, size=1)
 
         ax.grid(color = '#f4f4f4', linestyle = 'solid', linewidth = 1)
 
-        ax.semilogy(plot_x, psf.gaussprofile(plot_x, subtract_background=True)/psf.intensity)
+        # ax.semilogy(plot_x, psf.gaussprofile(plot_x, subtract_background=True)/psf.intensity,
+        #             alpha=0.5)
+        ax.loglog(plot_x, psf.gaussprofile(plot_x, subtract_background=True)/psf.intensity,
+                    alpha=0.5)
 
         ax.text(0.9*xmax, 1., "%.2f" % (psf.fwhm),
-                horizontalalignment='right',
-                verticalalignment='top',
-                multialignment='center'
+                horizontalalignment='right', verticalalignment='top',
+#                multialignment='center',
+                fontsize=8,
+                )
+        ax.text(0.1*xmax, 1e-3, "%d" % (psf.n_sources),
+                horizontalalignment='left', verticalalignment='bottom',
+                fontsize=6,
                 )
 
-        print psf.moffat_fit
-        ax.semilogy(plot_x, (psf.moffat(plot_x, subtract_background=True))/psf.moffat_peak)
+        # print psf.moffat_fit
+        # ax.semilogy(plot_x, (psf.moffat(plot_x, subtract_background=True))/psf.moffat_peak,
+        #             alpha=0.8)
 
+        ax.loglog(plot_x, (psf.moffat(plot_x, subtract_background=True))/psf.moffat_peak,
+                  alpha=0.8)
+
+        #ax.set_xscale("log", nonposx='clip')
         #
         # matplotlib.pyplot.imshow(X, cmap=None, norm=None, aspect=None,
         #                          interpolation=None, alpha=None, vmin=None, vmax=None,
@@ -88,11 +119,28 @@ def make_psf_plot(ota_listing, title=None,
     # ax.set_xlim((0, 7.))
     # ax.set_ylim((0., 1.))
 
+
     ax.set_yticks([1e-3,1e-2,1e-1,1])
-    ax.set_xticks(numpy.arange(0,3.5,0.5))
+    ax.set_yticklabels(['0.001', '0.01', '0.1', '1'])
+    max_tick = int(numpy.floor(xmax-0.2))
+    # ax.set_xticks(numpy.arange(0,max_tick,1))
+    ax.set_xticks([0.1, 1.])
+    logger.info("Setting x-max to %d" % (max_tick))
+
+    # ax.set_xticks(numpy.arange(0,3.5,0.5))
 
     if (title is not None):
         axes[0,2].set_title(title)
+
+    axes[ny-1,2].set_xlabel("Radius [arcsec]")
+    axes[2, 0].set_ylabel("normalized flux")
+
+    for ix in range(nx):
+        for iy in range(ny):
+            axes[iy,ix].tick_params(axis='both', direction='in',
+                                    labelsize=6, #'small',
+                                    top=True, bottom=True,
+                                    left=True, right=True)
 
     fig.subplots_adjust(wspace=0, hspace=0)
     # fig.set_tight_layout(True)
@@ -107,7 +155,7 @@ def make_psf_plot(ota_listing, title=None,
     for format in plotformat:
         fn = "%s.%s" % (output_filename, format)
         logger.info("Writing PSF diagnostic plot to %s" % (fn))
-        fig.savefig(fn, dpi=200, bbox_inches='tight')
+        fig.savefig(fn, dpi=150, bbox_inches='tight')
 
     return
 
@@ -182,8 +230,8 @@ class PSFquality (object):
         self.data = None
         self.fwhm = 0
 
-        self.window_x = 32
-        self.window_y = 32
+        self.window_x = 64
+        self.window_y = 64
 
         self.pixelscale = 0.11 if pixelscale is None else pixelscale
 
