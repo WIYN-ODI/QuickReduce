@@ -7,6 +7,7 @@ import pyfits
 import scipy
 import scipy.optimize
 import numpy
+import matplotlib
 from matplotlib import pyplot
 import logging
 
@@ -71,44 +72,61 @@ def make_psf_plot(ota_listing, title=None,
         data = ota_listing[ota].data
         fwhm = ota_listing[ota].fwhm
 
-        corrected_data = (data - psf.moffat_background) / psf.moffat_peak
+        peak_flux = numpy.max(data)
+
+        corrected_data = (data - psf.moffat_background) / peak_flux #psf.moffat_peak
 
         #ax.scatter(r, numpy.log10(ota_listing[ota]), s=1)
-        ax.set_xlim((0.1, xmax))
+        def fy(y1):
+            return numpy.arcsinh(y1*3e2)
+        def fx(x1):
+            return numpy.arcsinh(x1*2)
+
+        #xscale = 2;
+        # yscale=1e3; ymax = numpy.arcsinh(yscale)
+        ax.set_xlim((0, fx(xmax))) #numpy.arcsinh(xmax*xscale)))
+        ax.set_ylim((-0.00*fy(1.), 1.07*fy(1.)))
         good = numpy.isfinite(psf.r) & numpy.isfinite(corrected_data) & (psf.r>=0.1)
-        ax.loglog(psf.r[good], numpy.corrected_data[good], c='grey', marker=".",
-                  markersize=3, alpha=0.3,
-                  markeredgecolor='none', markerfacecolor='grey',
-                  linestyle='None') #, size=1)
+
+        ax.scatter(fx(psf.r[good]), fy(corrected_data[good]), c='grey', marker=".",
+                  alpha=0.3,
+                  edgecolor='none') #, size=1)
 
         # ax.semilogy(psf.r, corrected_data, c='grey', marker=".",
         #             markersize=3, alpha=0.3,
         #             markeredgecolor='none', markerfacecolor='grey',
         #             linestyle='None') #, size=1)
 
-        ax.grid(color = '#f4f4f4', linestyle = 'solid', linewidth = 1)
+        #ax.grid(color = '#f4f4f4', linestyle = 'solid', linewidth = 1, zorder=0)
+
+        # Plot the gaussian fit
+        ax.plot(fx(plot_x), fy(psf.gaussprofile(plot_x, subtract_background=True)/peak_flux),
+                alpha=0.5)
+
+        # plot the moffat fit
+        ax.plot(fx(plot_x), fy((psf.moffat(plot_x, subtract_background=True))/peak_flux),
+                alpha=0.8)
 
         # ax.semilogy(plot_x, psf.gaussprofile(plot_x, subtract_background=True)/psf.intensity,
         #             alpha=0.5)
-        ax.loglog(plot_x, psf.gaussprofile(plot_x, subtract_background=True)/psf.intensity,
-                    alpha=0.5)
+        # ax.loglog(plot_x, psf.gaussprofile(plot_x, subtract_background=True)/psf.intensity,
+        #             alpha=0.5)
 
-        ax.text(0.9*xmax, 1., "%.2f" % (psf.fwhm),
-                horizontalalignment='right', verticalalignment='top',
-#                multialignment='center',
-                fontsize=8,
-                )
-        ax.text(0.1*xmax, 1e-3, "%d" % (psf.n_sources),
-                horizontalalignment='left', verticalalignment='bottom',
-                fontsize=6,
-                )
+        # ax.text(0.9*xmax, 1., "%.2f" % (psf.fwhm),
+        #         horizontalalignment='right', verticalalignment='top',
+        #         fontsize=8,
+        #         )
+        # ax.text(0.1*xmax, 1e-3, "%d" % (psf.n_sources),
+        #         horizontalalignment='left', verticalalignment='bottom',
+        #         fontsize=6,
+        #         )
 
         # print psf.moffat_fit
         # ax.semilogy(plot_x, (psf.moffat(plot_x, subtract_background=True))/psf.moffat_peak,
         #             alpha=0.8)
 
-        ax.loglog(plot_x, (psf.moffat(plot_x, subtract_background=True))/psf.moffat_peak,
-                  alpha=0.8)
+        # ax.loglog(plot_x, (psf.moffat(plot_x, subtract_background=True))/psf.moffat_peak,
+        #           alpha=0.8)
 
         #ax.set_xscale("log", nonposx='clip')
         #
@@ -119,9 +137,14 @@ def make_psf_plot(ota_listing, title=None,
     # ax.set_xlim((0, 7.))
     # ax.set_ylim((0., 1.))
 
+    # y_ticks = [0,.1,.2,.3,.4,.5,.6,.7,.8,.9,1.,
+    #            0.01, 0.001,]
+    #ax.set_yticks([fy(t) for t in y_ticks])
+    #ax.set_yticklabels(['0', '0.1', '' ,'' , '', '.5', '', '', '','', '1.0', '0.01', '0.001',
+    #                    ])
 
-    ax.set_yticks([1e-3,1e-2,1e-1,1])
-    ax.set_yticklabels(['0.001', '0.01', '0.1', '1'])
+    #ax.set_yticks([1e-3,1e-2,1e-1,1])
+    #ax.set_yticklabels(['0.001', '0.01', '0.1', '1'])
     max_tick = int(numpy.floor(xmax-0.2))
     # ax.set_xticks(numpy.arange(0,max_tick,1))
     ax.set_xticks([0.1, 1.])
@@ -141,6 +164,39 @@ def make_psf_plot(ota_listing, title=None,
                                     labelsize=6, #'small',
                                     top=True, bottom=True,
                                     left=True, right=True)
+            #
+            # set the y-ticks
+            #
+            _myticks = [0.2,0.3,.4,.6,.7,.8,.9,
+                        0.02, 0.04, 0.06, 0.08,
+                        0.002, 0.004, 0.006, 0.008]
+            myticks = matplotlib.ticker.FixedLocator([fy(t) for t in _myticks])
+            axes[iy, ix].yaxis.set_minor_locator(myticks)
+            _yticks = [0.1, .5, 1, 0.01, 0.001]
+            #yticks =  matplotlib.ticker.FixedLocator([fy(t) for t in _yticks])
+            #axes[iy, ix].yaxis.set_major_locator(yticks)
+            ax.set_yticks([fy(t) for t in _yticks])
+            ax.set_yticklabels('%s' % t for t in _yticks) #['0.001', '0.01', '0.1', '1'])
+
+            #
+            # set the x-ticks
+            #
+            _xticks = [0, 0.5, 1., 2]
+            _mxticks = [.1,.2,.3,.4,.6,.7,.8,.9,
+                        1.2,1.4,1.6,1.8]
+            mxticks = matplotlib.ticker.FixedLocator([fx(t) for t in _mxticks])
+            axes[iy, ix].xaxis.set_minor_locator(mxticks)
+            ax.set_xticks([fx(t) for t in _xticks])
+            ax.set_xticklabels('%s' % t for t in _xticks) #['0.001', '0.01', '0.1', '1'])
+
+            #
+            # general ticks stuff
+            #
+            axes[iy, ix].tick_params(which='major', width=1., length=4, direction='in')
+            axes[iy, ix].tick_params(which='minor', width=1., length=2, color='grey', direction='in')
+
+            #yticks = matplotlib.ticker.NullLocator()
+            #axes[iy, ix].yaxis.set_major_locator(yticks)
 
     fig.subplots_adjust(wspace=0, hspace=0)
     # fig.set_tight_layout(True)
