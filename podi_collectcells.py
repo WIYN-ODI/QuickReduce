@@ -4128,14 +4128,6 @@ def collectcells(input, outputfile,
 
     worker.free_shared_memory()
 
-    print psf_quality_data
-    if (options['create_qaplots'] and psf_quality_data is not None):
-        plotfilename = create_qa_filename(outputfile, "psf", options)
-        psf_quality.make_psf_plot(ota_listing=psf_quality_data,
-                                  title="some title here",
-                                  output_filename=plotfilename,
-                                  plotformat=options['plotformat'])  # TODO: fix title
-
     # recv_end = time.time()
     # logger.debug("RECEIVING: %f" % ((recv_end - recv_start)))
     
@@ -4256,6 +4248,14 @@ def collectcells(input, outputfile,
 
             # Correct the sky sampling positions and box sizes
                        
+    print psf_quality_data
+    if (options['create_qaplots'] and psf_quality_data is not None):
+        plotfilename = create_qa_filename(outputfile, "psf", options)
+        psf_quality.make_psf_plot(ota_listing=psf_quality_data,
+                                  title="%(OBSID)s (%(OBJECT)s - %(FILTER)s - %(EXPTIME)ds)" % ota_list[0].header,
+                                  output_filename=plotfilename,
+                                  plotformat=options['plotformat'])
+
 
     #
     # Fix the WCS if requested
