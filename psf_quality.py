@@ -62,15 +62,15 @@ def make_psf_plot(ota_listing, title=None,
         # print ota, otax, otay
 
         ax = axes[ny-otay,otax-1]
-        # ax.imshow(ota_listing[ota],
+
+        psf = ota_listing[ota]
+        data = ota_listing[ota].data
+
+        # ax.imshow(data,
         #           vmin=-0.001, vmax=0.01,
         #           extent=(xmin,xmax,ymin,ymax),
         #           alpha=0.2,
         #           )
-
-        psf = ota_listing[ota]
-        data = ota_listing[ota].data
-        fwhm = ota_listing[ota].fwhm
 
         peak_flux = numpy.max(data)
 
@@ -78,26 +78,19 @@ def make_psf_plot(ota_listing, title=None,
 
         #ax.scatter(r, numpy.log10(ota_listing[ota]), s=1)
         def fy(y1):
-            return numpy.arcsinh(y1*3e2)
+            return numpy.arcsinh(y1*300) #3e2)
         def fx(x1):
             return numpy.arcsinh(x1*2)
 
-        #xscale = 2;
-        # yscale=1e3; ymax = numpy.arcsinh(yscale)
         ax.set_xlim((0, fx(xmax))) #numpy.arcsinh(xmax*xscale)))
         ax.set_ylim((-0.00*fy(1.), 1.07*fy(1.)))
         good = numpy.isfinite(psf.r) & numpy.isfinite(corrected_data) & (psf.r>=0.1)
 
+        # plot the normalized pixel profile
         ax.scatter(fx(psf.r[good]), fy(corrected_data[good]), c='grey', marker=".",
                   alpha=0.3,
                   edgecolor='none') #, size=1)
 
-        # ax.semilogy(psf.r, corrected_data, c='grey', marker=".",
-        #             markersize=3, alpha=0.3,
-        #             markeredgecolor='none', markerfacecolor='grey',
-        #             linestyle='None') #, size=1)
-
-        #ax.grid(color = '#f4f4f4', linestyle = 'solid', linewidth = 1, zorder=0)
 
         # Plot the gaussian fit
         ax.plot(fx(plot_x), fy(psf.gaussprofile(plot_x, subtract_background=True)/peak_flux),
@@ -107,32 +100,15 @@ def make_psf_plot(ota_listing, title=None,
         ax.plot(fx(plot_x), fy((psf.moffat(plot_x, subtract_background=True))/peak_flux),
                 alpha=0.8)
 
-        # ax.semilogy(plot_x, psf.gaussprofile(plot_x, subtract_background=True)/psf.intensity,
-        #             alpha=0.5)
-        # ax.loglog(plot_x, psf.gaussprofile(plot_x, subtract_background=True)/psf.intensity,
-        #             alpha=0.5)
-
-        # ax.text(0.9*xmax, 1., "%.2f" % (psf.fwhm),
-        #         horizontalalignment='right', verticalalignment='top',
-        #         fontsize=8,
-        #         )
-        # ax.text(0.1*xmax, 1e-3, "%d" % (psf.n_sources),
-        #         horizontalalignment='left', verticalalignment='bottom',
-        #         fontsize=6,
-        #         )
-
-        # print psf.moffat_fit
-        # ax.semilogy(plot_x, (psf.moffat(plot_x, subtract_background=True))/psf.moffat_peak,
-        #             alpha=0.8)
-
-        # ax.loglog(plot_x, (psf.moffat(plot_x, subtract_background=True))/psf.moffat_peak,
-        #           alpha=0.8)
-
-        #ax.set_xscale("log", nonposx='clip')
-        #
-        # matplotlib.pyplot.imshow(X, cmap=None, norm=None, aspect=None,
-        #                          interpolation=None, alpha=None, vmin=None, vmax=None,
-        #                          origin=None, extent=None, shape=None, filternorm=1, filterrad=4.0, imlim=None, resample=None, url=None, hold=None, data=None, **kwargs)
+        # add labels for FWHM and number of frames
+        ax.text(0.1*fx(xmax), 0.1*fy(ymax), "%.2f" % (psf.fwhm),
+                horizontalalignment='left', verticalalignment='bottom',
+                fontsize=9,
+                )
+        ax.text(0.9*fx(xmax), 0.85*fy(ymax), "%d" % (psf.n_sources),
+                horizontalalignment='right', verticalalignment='top',
+                fontsize=6,
+                )
 
     # ax.set_xlim((0, 7.))
     # ax.set_ylim((0., 1.))
@@ -181,9 +157,11 @@ def make_psf_plot(ota_listing, title=None,
             #
             # set the x-ticks
             #
-            _xticks = [0, 0.5, 1., 2]
+            _xticks = [0, 0.5, 1, 2]
             _mxticks = [.1,.2,.3,.4,.6,.7,.8,.9,
                         1.2,1.4,1.6,1.8]
+            _mxticks.extend(numpy.arange(2, xmax, step=1))
+
             mxticks = matplotlib.ticker.FixedLocator([fx(t) for t in _mxticks])
             axes[iy, ix].xaxis.set_minor_locator(mxticks)
             ax.set_xticks([fx(t) for t in _xticks])
@@ -192,15 +170,14 @@ def make_psf_plot(ota_listing, title=None,
             #
             # general ticks stuff
             #
-            axes[iy, ix].tick_params(which='major', width=1., length=4, direction='in')
-            axes[iy, ix].tick_params(which='minor', width=1., length=2, color='grey', direction='in')
-
-            #yticks = matplotlib.ticker.NullLocator()
-            #axes[iy, ix].yaxis.set_major_locator(yticks)
+            axes[iy, ix].tick_params(which='major', width=1., length=4, direction='in',
+                                     left=True, right=True, top=True, bottom=True)
+            axes[iy, ix].tick_params(which='minor', width=1., length=2, color='grey', direction='in',
+                                     left=True, right=True, top=True, bottom=True)
 
     fig.subplots_adjust(wspace=0, hspace=0)
     # fig.set_tight_layout(True)
-    fig.set_size_inches(6,7)
+    fig.set_size_inches(9,7)
     fig.show()
 
     if (plotformat is None):
