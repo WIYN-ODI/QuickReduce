@@ -1237,7 +1237,7 @@ def collect_reduce_ota(filename,
                 fringe_hdu = pyfits.open(fringe_filename)
                 for ext in fringe_hdu[1:]:
                     if (extname == ext.header['EXTNAME']):
-                        if (options['verbose']): print "Working on fringe scaling for",extname
+                        if (options['verbose']): print("Working on fringe scaling for",extname)
                         fringe_scaling = podi_fringing.get_fringe_scaling(merged, ext.data, fringe_vector_file)
                         data_products['fringe-template'] = ext.data
                         if (fringe_scaling is not None):
@@ -1299,10 +1299,10 @@ def collect_reduce_ota(filename,
         logger.debug("Converting coordinates to J2000")
         coord_j2000 = ephem.Equatorial(hdu.header['RA'], hdu.header['DEC'], epoch=ephem.J2000)
         if (options['target_coords'] is not None):
-            if (options['verbose']): print "Overwriting target positions",options['target_coords']
+            if (options['verbose']): print("Overwriting target positions",options['target_coords'])
             ra, dec = options['target_coords']
             coord_j2000 = ephem.Equatorial(ra, dec, epoch=ephem.J2000)
-            if (options['verbose']): print "\n\nAdjusting ra/dec:", coord_j2000.ra, coord_j2000.dec,"\n\n"
+            if (options['verbose']): print("\n\nAdjusting ra/dec:", coord_j2000.ra, coord_j2000.dec, "\n\n")
 
         # Write the CRVALs with the pointing information
         #print numpy.degrees(coord_j2000.ra), numpy.degrees(coord_j2000.dec)  
