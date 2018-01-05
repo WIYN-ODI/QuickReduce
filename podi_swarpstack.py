@@ -2068,7 +2068,7 @@ def swarpstack(outputfile,
         # proper integration with the PPA framework.
         # print options['additional_fits_headers']
         first_useradded_key = None
-        for key, value in options['additional_fits_headers'].iteritems():
+        for key, value in options['additional_fits_headers'].items():
             if (key in hdustack[0].header):
                 # if key exists, leave comment unchanged
                 hdustack[0].header[key] = value
@@ -2454,9 +2454,9 @@ if __name__ == "__main__":
                    keep_intermediates=keep_intermediates,
                    unique_dir=unique_dir)
 
-    except KeyboardInterrupt, SystemExit:
+    except (KeyboardInterrupt, SystemExit) as e:
         pass
-    except RuntimeError:
+    except RuntimeError as e:
         logger.critical("Encountered critical error, terminating execution! Please check command!")
         logger.debug("Terminating after runtime error!")
     except:

@@ -60,7 +60,7 @@ import scipy.stats
 import scipy.optimize
 import bottleneck
 
-import Queue
+import queue
 import threading
 import multiprocessing
 import ctypes

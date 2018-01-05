@@ -26,7 +26,7 @@ import os
 import subprocess as sp
 import time
 
-import Queue
+import queue
 import multiprocessing
 
 def rsync(queue, target):

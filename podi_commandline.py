@@ -173,13 +173,13 @@ def read_options_from_commandline(options=None, ignore_errors=False):
     options['bpm_dir']  = cmdline_arg_set_or_default2("-bpm", "auto")
         
     if (options['verbose']):
-        print """
+        print("""
 Calibration data:
             Bias: %s
             Dark: %s
       Flatfields: %s
   Bad pixel mask: %s
-""" % (options['bias_dir'], options['dark_dir'], options['flat_dir'], options['bpm_dir'])
+""" % (options['bias_dir'], options['dark_dir'], options['flat_dir'], options['bpm_dir']))
 
     
     options['gain_correct'] = cmdline_arg_isset("-gain")

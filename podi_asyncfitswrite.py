@@ -24,7 +24,7 @@
 import sys
 import os
 import pyfits
-import Queue
+import queue
 import traceback
 
 import threading
@@ -47,16 +47,16 @@ class async_fits_writer_thread (threading.Thread):
 
     # This is the end-less loop checking the Queue and doing the work
     def run(self):
-        if (verbose): print "Starting " + self.name
+        if (verbose): print("Starting " + self.name)
 
         while True:
             #self.queue_lock.acquire()
             try:
-                print "\n\nTrying to get some work",self.name
+                print("\n\nTrying to get some work",self.name)
                 hdulist, filename, exit_cmd = self.queue.get(block=True)
 
-                print "\n\n",self.name,": ",filename,"\n\n"
-                print "\n\n",self.name,": ",hdulist,"\n\n"
+                print("\n\n",self.name,": ",filename,"\n\n")
+                print("\n\n",self.name,": ",hdulist,"\n\n")
                 
                 #self.queue_lock.release()
             except:
@@ -64,19 +64,19 @@ class async_fits_writer_thread (threading.Thread):
                 etype, error, stackpos = sys.exc_info()
                 stdout_write("# Exception report:\n")
                 stdout_write("#  ==> %s\n" % (error))
-                print traceback.format_exc()
+                print(traceback.format_exc())
                 stdout_write("#\n##############################\n")
-                print "\n\n\nCaught problem, continuing\n\n\n"
+                print("\n\n\nCaught problem, continuing\n\n\n")
                 #self.queue_lock.release()
                 continue
             
             if (exit_cmd or hdulist==None or filename==None):
-                if (verbose): print "\n\nexiting worker!",self.name,"\n\n"
+                if (verbose): print("\n\nexiting worker!",self.name,"\n\n")
                 self.queue.task_done()
                 break
 
             
-            if (verbose): print "Doing some work here!",filename
+            if (verbose): print("Doing some work here!",filename)
             #hdulist.fileinfo()
             #time.sleep(2)
             clobberfile(filename)
@@ -84,7 +84,7 @@ class async_fits_writer_thread (threading.Thread):
             if (True): stdout_write("File %s finished writing to disk\n" % (filename))
             self.queue.task_done()
 
-        if (verbose): print "All done, going home!",self.name
+        if (verbose): print("All done, going home!",self.name)
 
 
 
@@ -121,18 +121,18 @@ class async_fits_writer():
 
     def finish(self, userinfo=False):
         if (userinfo): stdout_write("Waiting for asynchronous I/O to complete ...")
-        if (verbose): print "Sending shutdown commands"
+        if (verbose): print("Sending shutdown commands")
         for t in self.threads:
             self.fits_queue.put((None, None, True))
 #        for t in self.threads:
 #            print "Joining thread"
 #            t.join()
 
-        print "Joinging Queue"
+        print("Joining Queue")
         self.fits_queue.join()
         self.threads = []
 
-        if (verbose): print "Finishing up work (in async_fits_writer.finish)"
+        if (verbose): print("Finishing up work (in async_fits_writer.finish)")
         if (userinfo): stdout_write(" done with writing files!\n")
 
     def __del__(self):
@@ -153,12 +153,12 @@ if __name__ == "__main__":
     afw.write(hdulist, "deleteme.test4.fits")
     afw.write(hdulist, "deleteme.test5.fits")
     afw.write(hdulist, "deleteme.test6.fits")
-    print "Waiting"
+    print("Waiting")
     afw.wait()
-    print "Starting new round"
+    print("Starting new round")
     afw.write(hdulist, "deleteme.test7.fits")
     afw.write(hdulist, "deleteme.test8.fits")
-    print "Done queueing all files for output!"
+    print("Done queueing all files for output!")
     del afw
     #time.sleep(5)
 

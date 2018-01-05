@@ -117,7 +117,7 @@ def wcs_wcspoly_to_header(wcs_polynomials, hdr):
 
 def wcs_clear_distortion(wcs_polynomials, min=0):
 
-    print "clearing distortion"
+    print("clearing distortion")
     xi, xi_r, eta, eta_r, cd, crval, crpix = wcs_polynomials
 
     xi[ordering>=min] = 0
@@ -128,7 +128,7 @@ def wcs_clear_distortion(wcs_polynomials, min=0):
 
     xi[0,1] = 1.
     eta[0,1] = 1
-    print ordering[0,1]
+    print(ordering[0,1])
 
     wcs_polynomials = xi, xi_r, eta, eta_r, cd, crval, crpix
 
@@ -161,11 +161,11 @@ def wcs_pix2wcs(xy, wcs_polynomials, include_distortion=True, debug=False):
     r = numpy.hypot(xi, eta)
 
     if (debug):
-        print "crpix=",crpix
-        print "xy=\n",xy
-        print "xy relative=\n",xy_relative
-        print "xi=\n",xi
-        print "eta=\n",eta
+        print("crpix=",crpix)
+        print("xy=\n",xy)
+        print("xy relative=\n",xy_relative)
+        print("xi=\n",xi)
+        print("eta=\n",eta)
 
     # compute r = sqrt(xi**2 + eta**2)
     _xi = numpy.radians(xi)
@@ -173,9 +173,9 @@ def wcs_pix2wcs(xy, wcs_polynomials, include_distortion=True, debug=False):
     _r = numpy.hypot(_xi, _eta)
 
     if (debug):
-        print "r=\n",_r
-        print "c_xi_r", c_xi_r
-        print "c_eta_r", c_eta_r
+        print("r=\n",_r)
+        print("c_xi_r", c_xi_r)
+        print("c_eta_r", c_eta_r)
         
     # xi_prime = polyval2d(_xi, _eta, c_xi) \
     #     + numpy.polynomial.polynomial.polyval(_r, c_xi_r[0])

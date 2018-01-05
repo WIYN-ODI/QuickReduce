@@ -80,7 +80,7 @@ import itertools
 
 import time
 import multiprocessing
-import Queue
+import queue
 
 from podi_definitions import *
 from podi_commandline import *
@@ -287,13 +287,13 @@ def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo
 
     logger.debug("Collecting catalogs for each OTA")
     for i in range(number_jobs_queued):
-        if (verbose): print "reading return ",i
+        if (verbose): print("reading return ",i)
 
         cat_name = return_queue.get()
-        if (cat_name != None):
+        if (cat_name is not None):
             final_cat, extension_name = cat_name
 
-            columns = [\
+            columns = [
                 pyfits.Column(name='CELL_X', format='I', array=final_cat[:, 0]),
                 pyfits.Column(name='CELL_Y', format='I', array=final_cat[:, 1]),
                 pyfits.Column(name='X',      format='I', array=final_cat[:, 2]),
@@ -455,7 +455,7 @@ def create_saturation_catalog_ota(filename, output_dir, verbose=True,
     out_hdulist.writeto(output_filename, clobber=True)
 
     if (verbose):
-        print "some of the saturated pixels:\n",final_cat[0:10,:]
+        print("some of the saturated pixels:\n",final_cat[0:10,:])
 
     #numpy.savetxt("test", final_cat)
     #print full_coords.shape
@@ -630,9 +630,9 @@ def load_saturation_table_list(indexfile, mjd_catalog_list):
                     if (os.path.isfile(abs_filename)):
                         mjd_catalog_list[abs_filename] = (mjd, exptime)
                 except:
-                    print "@@@@@ ERROR in podi_persistency:"
-                    print "@@@@@ Problem reading line:"
-                    print "@@@@@",line
+                    print("@@@@@ ERROR in podi_persistency:")
+                    print("@@@@@ Problem reading line:")
+                    print("@@@@@",line)
 
     #print "read from file:\n",mjd_catalog_list,"\n\n"
     return mjd_catalog_list
@@ -970,7 +970,7 @@ def map_persistency_effects(hdulist, verbose=False):
         if (number_saturated_pixels <= 0):
             continue
 
-        if (verbose): print "number of saturated pixels:", number_saturated_pixels
+        if (verbose): print("number of saturated pixels:", number_saturated_pixels)
 
         saturated_pixels_total += number_saturated_pixels
         extensions_with_saturated_pixels += 1
@@ -1095,7 +1095,7 @@ def find_latest_persistency_map(directory, mjd, verbose=False):
         timestamp = file[16:31]
         file_mjd = get_mjd_from_timestamp(timestamp)
 
-        if (verbose): print file, file_mjd, mjd, "smaller:",(file_mjd<mjd)
+        if (verbose): print(file, file_mjd, mjd, "smaller:",(file_mjd<mjd))
 
         if (file_mjd >= mjd):
             # That's weird, this file shouldn't exist, but maybe it's just a 
@@ -1109,15 +1109,15 @@ def find_latest_persistency_map(directory, mjd, verbose=False):
         if (d_mjd < min_delta_mjd and d_mjd > 5*mjd_seconds): 
             latest_map = file
             min_delta_mjd = d_mjd
-            if (verbose): print "Found better match: %s (MJD=%.6f, or %d secs)" % (
-                latest_map, file_mjd, min_delta_mjd*86400)
+            if (verbose): print("Found better match: %s (MJD=%.6f, or %d secs)" % (
+                latest_map, file_mjd, min_delta_mjd*86400))
 
-    if (latest_map == None):
+    if (latest_map is None):
         return None
 
     # Create full filename and return
     fullpath = "%s/%s" % (directory, latest_map)
-    print "Using",fullpath,"as persistency map"
+    print("Using",fullpath,"as persistency map")
     return fullpath
 
 def persistency_map_filename(directory, mjd):
@@ -1306,7 +1306,7 @@ if __name__ == "__main__":
             if (not is_image_extension(inputhdu[i])):
                 continue
             ota = int(inputhdu[i].header['EXTNAME'][3:5])
-            print ota
+            print(ota)
             inputhdu[i].data = mask_saturation_defects(catalog_file, ota, inputhdu[i].data)
         inputhdu.writeto(output_file, clobber=True)
 
@@ -1315,11 +1315,11 @@ if __name__ == "__main__":
         catalog_dir = cmdline_arg_set_or_default('-persistency', '.')
         inputhdu = pyfits.open(input_file)
         mjd = inputhdu[0].header['MJD-OBS']
-        print input_file,":",mjd
+        print(input_file,":",mjd)
 
         full_filelist = get_list_of_saturation_tables(catalog_dir)
         filelist = select_from_saturation_tables(full_filelist, mjd, [-1,600])
-        print "found closest:\n",filelist
+        print("found closest:\n",filelist)
 
     elif (cmdline_arg_isset("-fixpersistency")):
         input_file = get_clean_cmdline()[1]
@@ -1327,27 +1327,27 @@ if __name__ == "__main__":
         catalog_dir = cmdline_arg_set_or_default('-persistency', '.')
         inputhdu = pyfits.open(input_file)
         mjd = inputhdu[0].header['MJD-OBS']
-        print input_file,":",mjd
+        print(input_file,":",mjd)
 
         full_filelist = get_list_of_saturation_tables(catalog_dir)
         filelist = select_from_saturation_tables(full_filelist, mjd, [1,1800])
 
         exact_filename = select_from_saturation_tables(full_filelist, mjd, None)
-        print "previous files:",filelist
-        print "this file:",exact_filename
+        print("previous files:",filelist)
+        print("this file:",exact_filename)
 
         #inputhdu = pyfits.open(input_file)
         for i in range(1, len(inputhdu)):
             if (not is_image_extension(inputhdu[i])):
                 continue
             ota = int(inputhdu[i].header['EXTNAME'][3:5])
-            print "working on ota",ota
+            print("working on ota",ota)
 
             #exact_filename = exact_filelist.keys()[0]
             #inputhdu[i].data = mask_saturation_defects(exact_file[0][1], ota, inputhdu[i].data)
             inputhdu[i].data = mask_saturation_defects(exact_filename, ota, inputhdu[i].data)
             inputhdu[i].data = correct_persistency_effects(ota, inputhdu[i].data, mjd, filelist)      
-        print "Writing ", output_file
+        print("Writing ", output_file)
         inputhdu.writeto(output_file, clobber=True)
 
     else:

@@ -39,7 +39,7 @@ IPP_DIR = "/Volumes/odifile/Catalogs/IPPRefCat/catdir.synth.grizy/"
 def twomass_from_cds(ra, dec, radius, verbose):
 
     # Download the 2MASS PSC from Vizier
-    print "   Downloading 2MASS PSC catalog from Vizier ... (%.4f/%.4f +/- %.1f)" % (ra, dec, radius)
+    print("   Downloading 2MASS PSC catalog from Vizier ... (%.4f/%.4f +/- %.1f)" % (ra, dec, radius))
     twomass_cat = "/tmp/2mass.cat"
     cds = "find2mass -c %f %f -bd %f -e b -smJ > %s" % (ra, dec, radius, twomass_cat)
     os.system(cds)
@@ -167,7 +167,7 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
        "ra_query": ra_query,
        }
 
-    if (verbose): print sql_query
+    if (verbose): print(sql_query)
     logger.debug("Downloading catalog from SDSS ...")
     logger.debug(sql_query)
 
@@ -204,10 +204,10 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
     logger.debug(" found %d stars!\n" % (len(answer)-1))
 
     if (verbose):
-        print "Returned from SDSS:"
-        print "####################################################"
-        print ''.join(answer)
-        print "####################################################"
+        print("Returned from SDSS:")
+        print("####################################################")
+        print(''.join(answer))
+        print("####################################################")
 
     # If we are here, then the query returned at least some results.
     # Dump the first line just repeating what the output was
@@ -364,7 +364,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
         skytable['R_MAX'][selected] -= 360
         skytable['R_MIN'][selected] -= 360
 
-    if (verbose): print "# Search radius: RA=%.1f ... %.1f   DEC=%.1f ... %.1f" % (min_ra, max_ra, min_dec, max_dec)
+    if (verbose): print("# Search radius: RA=%.1f ... %.1f   DEC=%.1f ... %.1f" % (min_ra, max_ra, min_dec, max_dec))
 
     try:
         needed_catalogs = (skytable['PARENT'] > 0) & (skytable['PARENT'] < 25) & \
@@ -401,7 +401,6 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
 
         if (cattype == "IPPRef"):
             logger.debug("Reading from IPPRef catalog")
-            if (verbose): print "Reading IPPRef catalog"
             catalogfile = "%s/%s.cpt" % (basedir, catalogname)
 
             try:
@@ -436,13 +435,10 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
                 # no errors, so assume all errors to be 0.000 mag
                 array_to_add[:,i_mag*2+2] = photom_grizy[:,i_mag][select_from_cat] / 1e3
 
-            if (verbose): print "# Read %d stars from catalog %s ..." % (array_to_add.shape[0], catalogfile)
-
-        elif (cattype in ('2mass_opt', 
+        elif (cattype in ('2mass_opt',
                           '2mass_nir', 
                           'ucac4',
                           'sdss')):
-            if (verbose): print "Reading 2mass catalog"
             catalogfile = "%s/%s.fits" % (basedir, catalogname)
 
             try:
@@ -528,8 +524,6 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
                 for col in range(len(catalog_columns)):
                     if (catalog_columns[i] in [x.upper() for x in hdu_cat[1].data.columns.names]):
                         array_to_add[:,col] = hdu_cat[1].data.field(catalog_columns[col])[select_from_cat]
-
-            if (verbose): print "# Read %d stars from catalog %s ..." % (array_to_add.shape[0], catalogfile)
 
         elif (cattype == "general"):
 
@@ -635,8 +629,8 @@ if __name__ == "__main__":
     # catalog_type = cmdline_arg_set_or_default("-cattype", sitesetup.wcs_ref_type)
     # verbose = cmdline_arg_isset("-v")
 
-    print "# Catalog directory:", basedir
-    print "# RA: ", ra_range, " -- DEC:", dec_range
+    print("# Catalog directory:", basedir)
+    print("# RA: ", ra_range, " -- DEC:", dec_range)
     # print "DEC:", dec_range
 
     # catalog = get_reference_catalog(ra, dec, radius, basedir=basedir, cattype=catalog_type, verbose=verbose)
@@ -659,7 +653,7 @@ if __name__ == "__main__":
         catalog = catalog[:max_number_sources]
 
     #print catalog
-    print output_format
+    print(output_format)
     if (catalog is not None):
 
         if (output_format == "dat"):

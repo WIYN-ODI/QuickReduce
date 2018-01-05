@@ -27,7 +27,7 @@ import podi_sitesetup as sitesetup
 from podi_photcalib import estimate_zeropoint, estimate_mean_star_color
 
 
-import Queue
+import queue
 import multiprocessing
 
 max_pointing_error = 8.

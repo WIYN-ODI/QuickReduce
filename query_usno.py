@@ -22,7 +22,7 @@
 #
 
 
-import struct, datetime, cStringIO, pprint, sys, numpy, os
+import struct, datetime, pprint, sys, numpy, os
 from podi_definitions import *
 
 def my_float(s):
@@ -76,7 +76,7 @@ def query_usno(ra, dec, radius, maxcount, catfile, download=True):
         
     # Assemble the command string
     findusno = "findusnob1 %.8f %.8f -r %d -e b -m %d -sm > %s" % (ra, dec, radius, maxcount, catfile)
-    print findusno
+    print(findusno)
     stdout_write("Downloading USNO catalog from CDS/Vizier...\n")
     if (download):
         os.system(findusno)
@@ -85,13 +85,11 @@ def query_usno(ra, dec, radius, maxcount, catfile, download=True):
     file = open(catfile, "rb")
     raw_data = file.read()
 
-    f = cStringIO.StringIO(raw_data)
-
     results = numpy.zeros(shape=(maxcount, 5))
 
     # Now interpret the resulting catalog line by line
     current_star = 0
-    for line in f:
+    for line in file.readlines():
 
         # Ignore comment lines
         if (line[0] == "#"):
@@ -126,7 +124,7 @@ def query_usno(ra, dec, radius, maxcount, catfile, download=True):
 if __name__ == "__main__":
 
     results = query_usno(10.74225833333333, 41.37409777777778, 45, 1000, "usno.cat")
-    print "Read",results.shape[0],"stars from USNO-B1"
+    print("Read",results.shape[0],"stars from USNO-B1")
 
     #for i in range(results.shape[0]):
     #    print results[i,0], results[i,1], results[i,2], results[i,3], results[i,4]

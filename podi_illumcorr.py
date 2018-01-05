@@ -73,7 +73,7 @@ import scipy.optimize
 import bottleneck
 import scipy.signal
 
-import Queue
+import queue
 import threading
 import multiprocessing
 import ctypes

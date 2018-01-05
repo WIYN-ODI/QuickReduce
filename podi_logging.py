@@ -22,7 +22,7 @@ import itertools
 import logging
 
 import time
-import Queue
+import queue
 import threading
 import multiprocessing
 import traceback
@@ -238,8 +238,8 @@ def log_master(queue, options):
             debug_logger.addHandler(h)
             debug_logger.propagate=False
         except:
-            print "#@#@#@#@#@# Unable to write to debug file: %s" % (debug_filename)
-            print "#@#@#@#@#@# Routing all debug output to stderr"
+            print("#@#@#@#@#@# Unable to write to debug file: %s" % (debug_filename))
+            print("#@#@#@#@#@# Routing all debug output to stderr")
             debug_logger = logging.getLogger('debug')
             try:
                 h = logging.StreamHandler(stream=sys.stderr)
@@ -605,7 +605,7 @@ def print_stacktrace(sleep=0, logger=None, info=True, stdout=False):
 
     print >>ff, "\nCurrently running threads:\n -- %s" % ("\n -- ".join([str(x) for x in threading.enumerate()]))
 
-    for thread_id, frame in sys._current_frames().iteritems():
+    for thread_id, frame in sys._current_frames().items():
         name = thread_id
         #print name, frame
 
@@ -637,7 +637,7 @@ def print_stacktrace(sleep=0, logger=None, info=True, stdout=False):
     print >>ff, "========================================================"
 
     if (stdout):
-        print ff.get()
+        print(ff.get())
     else:
         if (logger == None):
             logger = logging.getLogger("StackTrace")
@@ -672,20 +672,20 @@ if __name__ == "__main__":
 
         try:
             import pika
-            print "Found PIKA module!"
+            print("Found PIKA module!")
         except ImportError:
-            print "There's no pika package installed, quitting"
+            print("There's no pika package installed, quitting")
             sys.exit(0)
         
         try:
             import podi_pikasetup
-            print "Found podi-setup for PIKA!"
+            print("Found podi-setup for PIKA!")
         except ImportError:
-            print "No podi-setup found."
-            print "Maybe you need to run `cp podi_pikasetup.py.example podi_pikasetup.py ?"
+            print("No podi-setup found.")
+            print("Maybe you need to run `cp podi_pikasetup.py.example podi_pikasetup.py ?")
             sys.exit(0)
 
-        print "Trying to connect to AMQP server"
+        print("Trying to connect to AMQP server")
         try:
             credentials = pika.PlainCredentials(podi_pikasetup.user, podi_pikasetup.password)
             connection = pika.BlockingConnection(
@@ -697,23 +697,23 @@ if __name__ == "__main__":
             channel = connection.channel()
             channel.queue_declare(queue=podi_pikasetup.jobstatus_queue, durable=True)
         except:
-            print "Connection failed!"
+            print("Connection failed!")
             sys.exit(0)
 
-        print "PIKA connection established!"
+        print("PIKA connection established!")
 
         def callback(ch, method, properties, body):
-            print " [o] %r" % (body,)
+            print(" [o] %r" % (body,))
 
         channel.basic_consume(callback,
                               queue=podi_pikasetup.jobstatus_queue,
                               no_ack=True)
 
-        print ' [*] Waiting for messages. To exit press CTRL+C'
+        print(') [*] Waiting for messages. To exit press CTRL+C')
         try:
             channel.start_consuming()
-        except (KeyboardInterrupt, SystemExit):
-            print "\nShutting down listener, good bye!"
+        except (KeyboardInterrupt, SystemExit) as e:
+            print("\nShutting down listener, good bye!")
         except:
             pass
 
@@ -737,7 +737,7 @@ if __name__ == "__main__":
         # for w in workers:
         #     w.join()
 
-        print log_setup
+        print(log_setup)
 
         for i in range(1):
             worker = multiprocessing.Process(target=test_worker_process, 

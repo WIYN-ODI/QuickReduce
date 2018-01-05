@@ -237,7 +237,7 @@ import traceback
 import datetime
 import warnings
 
-import Queue
+import queue
 import threading
 import multiprocessing
 import multiprocessing.reduction

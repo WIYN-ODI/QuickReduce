@@ -243,7 +243,7 @@ def fit_background(hdulist, plotname=None, exclude_videocells=True, fit_order=3,
 
     otas_to_fit = central_3x3
     #otas_to_fit = otas_to_normalize_ff[filter]
-    print "Fitting sky in OTAs",otas_to_fit
+    print("Fitting sky in OTAs",otas_to_fit)
 
     # Now go through each of the OTAs, and pick a number of datapoints to determine 
     # the background level. Measuring points should not be close to any stars and also
@@ -530,7 +530,7 @@ def fit_background(hdulist, plotname=None, exclude_videocells=True, fit_order=3,
 
 
     hdu = pyfits.HDUList(hdulist_out)
-    print  "done!"
+    print ("done!")
     return hdu
             
 
@@ -585,7 +585,7 @@ if __name__ == "__main__":
                 continue
 
             ota = hdulist[i].header['OTA']
-            print ota
+            print(ota)
             if (not src_catalog == None):
                 src_this_ota = src_catalog.field('OTA') == ota
                 #src_cat = numpy.zeros(shape=(numpy.sum(src_this_ota),2))
