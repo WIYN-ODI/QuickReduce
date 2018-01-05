@@ -210,7 +210,7 @@ def load_frame(filename, pupilghost_centers, binfac, bpmdir):
                 stdout_write("Using center position %d, %d for OTA %s\n" % (center_y, center_x, extname))
 
                 data = hdu_ref[i].data
-                if (bpmdir != None):
+                if (bpmdir is not None):
                     bpmfile = "%s/bpm_xy%s.reg" % (bpmdir, extname[3:5])
                     mask_broken_regions(data, bpmfile, verbose=False)
 
@@ -351,7 +351,7 @@ def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
             continue
 
         # Create a master collection containing all files
-        if (all_data == None):
+        if (all_data is None):
             # If this is the first file, create the master list
             all_data = data
             all_radius = radius
@@ -741,9 +741,9 @@ def compute_pupilghost(data, radius, angle,
 
             try:
                 val_i, val_o = 0,0
-                if (radial_splines[ri] != None):
+                if (radial_splines[ri] is not None):
                     val_i = radial_splines[ri](angle_here)
-                if (radial_splines[ro] != None):
+                if (radial_splines[ro] is not None):
                     val_o = radial_splines[ro](angle_here)
             except:
                 print "Found a problem: x/y = ",x,y
@@ -1050,9 +1050,9 @@ def fit_pupilghost(hdus, centers, rotator_angles, radius_range, dr_full,
             ro = int(math.ceil(r_here-0.5))
 
             val_i, val_o = 0,0
-            if (radial_splines[ri] != None):
+            if (radial_splines[ri] is not None):
                 val_i = radial_splines[ri](angle_here)
-            if (radial_splines[ro] != None):
+            if (radial_splines[ro] is not None):
                 val_o = radial_splines[ro](angle_here)
 
             # Now interpolate linearly between the two
@@ -1109,8 +1109,8 @@ def fit_pupilghost(hdus, centers, rotator_angles, radius_range, dr_full,
 
 def bin_azimuthal_profile(angles, data, d_angle, min_angle=None, max_angle=None, verbose=False):
 
-    if (min_angle == None): min_angle = numpy.min(angles)
-    if (max_angle == None): max_angle = numpy.max(angles)
+    if (min_angle is None): min_angle = numpy.min(angles)
+    if (max_angle is None): max_angle = numpy.max(angles)
 
     n_angles = int(math.floor((max_angle - min_angle) / d_angle))
     
@@ -1223,7 +1223,7 @@ if __name__ == "__main__":
             stdout_write("Using center position %d, %d for OTA %s\n" % (center_y, center_x, extname))
 
             data = hdu_ref[i].data
-            if (bpmdir != None):
+            if (bpmdir is not None):
                 bpmfile = "%s/bpm_xy%s.reg" % (bpmdir, extname[3:5])
                 mask_broken_regions(data, bpmfile, verbose=False)
 

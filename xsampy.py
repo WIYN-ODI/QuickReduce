@@ -759,7 +759,7 @@ class ThreadingXMLRPCServer(ThreadingMixIn, SimpleXMLRPCServer):
                                 logRequests, allow_none, encoding)
 
   def handle_error(self, request, client_address):
-    if self.log == None:
+    if self.log is None:
       BaseServer.handle_error(self, request, client_address)
     else:
       self.log.warning("Exception happened during processing of request from %s: %s" % (client_address, sys.exc_info()[1]))
@@ -1059,7 +1059,7 @@ if BDB_SUPPORT:
         groups =  self.db[id][16:]
         pwd = hashlib.md5(pwd).digest()
 
-        if self.access_restrict != None:
+        if self.access_restrict is not None:
 
           # ADMIN TEST
           if self.access_restrict.has_key("admin"):
@@ -1147,7 +1147,7 @@ if BDB_SUPPORT:
                                      logRequests, allow_none, encoding)
 
     def finish_request(self, request, client_address):
-      if self.auth_file != None and self.RequestHandlerClass == BasicAuthSimpleXMLRPCRequestHandler:
+      if self.auth_file is not None and self.RequestHandlerClass == BasicAuthSimpleXMLRPCRequestHandler:
         self.RequestHandlerClass(request, client_address, self,
                                  self.auth_file, self.access_restrict)
       else:
@@ -1185,7 +1185,7 @@ if SSL_SUPPORT and BDB_SUPPORT:
       return sslconn, addr
 
     def finish_request(self, request, client_address):
-      if self.auth_file != None and self.RequestHandlerClass == BasicAuthSimpleXMLRPCRequestHandler:
+      if self.auth_file is not None and self.RequestHandlerClass == BasicAuthSimpleXMLRPCRequestHandler:
         self.RequestHandlerClass(request, client_address, self,
                                  self.auth_file, self.access_restrict)
       else:
@@ -1318,7 +1318,7 @@ class SAMPHubServer(object):
     self._owner_group = owner_group
     self._timeout = timeout
     self._client_timeout = client_timeout
-    if log == None:
+    if log is None:
       self._log = SAMPLog()
     else:
       self._log = log
@@ -1354,7 +1354,7 @@ class SAMPHubServer(object):
     self._access_restrict = access_restrict
 
     # Reformat access_restrict string to suitable dictionary
-    if access_restrict != None:
+    if access_restrict is not None:
       if access_restrict == SAMP_RESTRICT_GROUP:
         access_restrict = {"group": owner_group, "admin": admin}
       elif access_restrict == SAMP_RESTRICT_OWNER:
@@ -1363,7 +1363,7 @@ class SAMPHubServer(object):
         access_restrict = None
 
     # Athentication file test
-    if auth_file != None:
+    if auth_file is not None:
       if not os.path.isfile(auth_file):
         self._log.error("Unable to load authentication file!")
         raise SAMPHubError("Unable to load authentication file!")
@@ -1381,15 +1381,15 @@ class SAMPHubServer(object):
     # XML-RPC server settings
     if https:
 
-      if keyfile != None and not os.path.isfile(keyfile):
+      if keyfile is not None and not os.path.isfile(keyfile):
         self._log.error("Unable to load SSL private key file!")
         raise SAMPHubError("Unable to load SSL private key file!")
 
-      if certfile == None or not os.path.isfile(certfile):
+      if certfile is None or not os.path.isfile(certfile):
         self._log.error("Unable to load SSL cert file!")
         raise SAMPHubError("Unable to load SSL cert file!")
 
-      if auth_file != None:
+      if auth_file is not None:
         self._log.info("Hub set for Basic Authentication using SSL.")
         self._server = BasicAuthSecureXMLRPCServer((self._addr or self._host_name, self._port or 0), 
                                                    keyfile, certfile, cert_reqs, ca_certs, ssl_version,
@@ -1406,7 +1406,7 @@ class SAMPHubServer(object):
                                     self._port)
     else:
 
-      if auth_file != None:
+      if auth_file is not None:
         self._log.info("Hub set for Basic Authentication.")
         self._server = BasicAuthXMLRPCServer((self._addr or self._host_name, self._port or 0),
                                              auth_file, access_restrict, self._log,
@@ -1515,7 +1515,7 @@ class SAMPHubServer(object):
     while self._is_running:
       time.sleep(1)
       self._thread_lock.acquire()
-      if self._timeout > 0 and self._last_activity_time != None:
+      if self._timeout > 0 and self._last_activity_time is not None:
         if time.time() - self._last_activity_time >= self._timeout:
           self._thread_lock.release()
           self._log.warning("Timeout expired, Hub is shutting down!")
@@ -1686,10 +1686,10 @@ class SAMPHubServer(object):
     if self._owner_group != "":	
       lockfile.write("hub.owner.group=%s\n" % self._owner_group)
 
-    if self._auth_file != None:
+    if self._auth_file is not None:
       lockfile.write("hub.access.auth.file=%s\n" % self._auth_file)
 
-    if self._access_restrict != None:
+    if self._access_restrict is not None:
       lockfile.write("hub.access.auth.restrict=%s\n" % self._access_restrict)
 
     if SSL_SUPPORT and self._https:
@@ -1742,7 +1742,7 @@ class SAMPHubServer(object):
 
     if os.path.isdir(lockfiledir):
       for filename in os.listdir(lockfiledir):
-        if re.match('samp\\-hub\\-\d+\\-\d+', filename) != None:
+        if re.match('samp\\-hub\\-\d+\\-\d+', filename) is not None:
           lockfilename = os.path.join(lockfiledir, filename)
           hub_is_running, lockfiledict = SAMPHubServer.checkRunningHub(lockfilename)
           if not hub_is_running:
@@ -1810,7 +1810,7 @@ class SAMPHubServer(object):
 
 
   def _createSecretCode(self):
-    if self._hub_secret_code_customized != None:
+    if self._hub_secret_code_customized is not None:
       return self._hub_secret_code_customized
     else:
       now = datetime.datetime.utcnow().isoformat()
@@ -2117,7 +2117,7 @@ class SAMPHubServer(object):
       client_private_key = self._getPrivateKeyFromPublicId(client_id)
       self._log.debug("getMetadata: private-key = %s client-id = %s" %  \
                       (private_key, client_id))
-      if client_private_key != None:
+      if client_private_key is not None:
         if self._metadata.has_key(client_private_key):
           self._log.debug("--> metadata = %s" % self._metadata[client_private_key])
           return self._metadata[client_private_key]
@@ -2185,7 +2185,7 @@ class SAMPHubServer(object):
 
     if self._private_keys.has_key(private_key):
       client_private_key = self._getPrivateKeyFromPublicId(client_id)
-      if client_private_key != None:
+      if client_private_key is not None:
         if self._id2mtypes.has_key(client_private_key):
           self._log.debug("getSubscriptions: client-id = %s mtypes = %s" %\
                           (client_id, str(self._id2mtypes[client_private_key])))
@@ -2297,7 +2297,7 @@ class SAMPHubServer(object):
       try:
         self._log.debug("notify %s from %s to %s" % (message["samp.mtype"], sender_public_id, recipient_public_id))
         recipient_private_key = self._getPrivateKeyFromPublicId(recipient_public_id)
-        if recipient_private_key != None:
+        if recipient_private_key is not None:
           try:
             if self._web_profile and recipient_private_key in self._web_profile_callbacks:
               # Web Profile
@@ -2365,7 +2365,7 @@ class SAMPHubServer(object):
       try:
         self._log.debug("call %s from %s to %s (%s)" % (msg_id.split(";;")[0], sender_public_id, recipient_public_id, message["samp.mtype"]))
         recipient_private_key = self._getPrivateKeyFromPublicId(recipient_public_id)
-        if recipient_private_key != None:
+        if recipient_private_key is not None:
           try:
             if self._web_profile and recipient_private_key in self._web_profile_callbacks:
               # Web Profile
@@ -2433,7 +2433,7 @@ class SAMPHubServer(object):
           del(self._sync_msg_ids_heap[msg_id])
           raise SAMPProxyError(1, "Timeout expired!")
 
-        if self._sync_msg_ids_heap[msg_id] != None:
+        if self._sync_msg_ids_heap[msg_id] is not None:
           response = copy.deepcopy(self._sync_msg_ids_heap[msg_id])
           del(self._sync_msg_ids_heap[msg_id])
           break
@@ -2466,7 +2466,7 @@ class SAMPHubServer(object):
             self._sync_msg_ids_heap[msg_id] = response
         else:
           recipient_private_key = self._getPrivateKeyFromPublicId(recipient_public_id)
-          if recipient_private_key != None:
+          if recipient_private_key is not None:
             if self._web_profile and recipient_private_key in self._web_profile_callbacks:
               # Web Profile
               self._web_profile_callbacks[recipient_private_key].put({"samp.methodName": "receiveResponse",
@@ -2503,7 +2503,7 @@ class SAMPHubServer(object):
   def _updateLastActivityTime(self, private_key = None):
     self._thread_lock.acquire()
     self._last_activity_time = time.time()
-    if private_key != None:
+    if private_key is not None:
       self._client_activity_time[private_key] = time.time()
     self._thread_lock.release()
 
@@ -2669,7 +2669,7 @@ class SAMPHubProxy(object):
 
     if os.path.isdir(lockfiledir):
       for filename in os.listdir(lockfiledir):
-        if re.match('samp\\-hub\\-\d+\\-\d+', filename) != None:
+        if re.match('samp\\-hub\\-\d+\\-\d+', filename) is not None:
           lockfilename = os.path.join(lockfiledir, filename)
           hub_is_running, lockfiledict = SAMPHubServer.checkRunningHub(lockfilename)
           if hub_is_running:
@@ -2729,7 +2729,7 @@ class SAMPHubProxy(object):
     self._connected = False
     self.lockfile = {}
 
-    if hub_params == None:
+    if hub_params is None:
       hubs = SAMPHubProxy.getRunningHubs()
       if len(hubs.keys()) > 0:
         # Use Single instance hub by default
@@ -2757,7 +2757,7 @@ class SAMPHubProxy(object):
       url = hub_params["samp.hub.xmlrpc.url"].replace("\\", "")
 
       # URL formatting for Basic Authentication parameters
-      if user != None and password != None:
+      if user is not None and password is not None:
         trans, addr = url.split("://")
         url = "%s://%s:%s@%s" % (trans, user, password, addr)
 
@@ -2966,7 +2966,7 @@ class SAMPClient(object):
     self._thread = None
     self._is_running = False
 
-    if metadata == None: metadata = {}
+    if metadata is None: metadata = {}
     self._metadata = metadata
     self._addr = addr
     self._port = port
@@ -3037,8 +3037,7 @@ class SAMPClient(object):
     @return: True if the client is running, False otherwise
     @rtype: boolean
     """
-    return self._is_running != None
-
+    return self._is_running is not None
 
   def _run_client(self):
     if self._callable:
@@ -3390,7 +3389,7 @@ class SAMPClient(object):
     """
     if self.hub.isConnected():
       
-      if self._private_key != None:
+      if self._private_key is not None:
         raise SAMPClientError("Client already registered")
       
       try:
@@ -3432,7 +3431,7 @@ class SAMPClient(object):
 
 
   def _setXmlrpcCallback(self):
-    if self.hub.isConnected() and self._private_key != None:
+    if self.hub.isConnected() and self._private_key is not None:
 
       try:
         self.hub.setXmlrpcCallback(self._private_key, \
@@ -3441,7 +3440,7 @@ class SAMPClient(object):
         pass
 
   def _declareSubscriptions(self, subscriptions = None):
-    if self.hub.isConnected() and self._private_key != None:
+    if self.hub.isConnected() and self._private_key is not None:
 
       try:
         mtypes_dict = {}
@@ -3473,10 +3472,10 @@ class SAMPClient(object):
     declared.
     @type metadata: dict
     """
-    if self.hub.isConnected() and self._private_key != None:
+    if self.hub.isConnected() and self._private_key is not None:
 
       try:
-        if metadata != None:
+        if metadata is not None:
           self._metadata = metadata
 
         self.hub.declareMetadata(self._private_key, self._metadata)
@@ -3915,9 +3914,9 @@ class SAMPIntegratedClient(object):
   def _format_easy_response(self, status, result, error):
 
     msg = {"samp.status": status}
-    if result != None:
+    if result is not None:
       msg.update({"samp.result": result})
-    if error != None:
+    if error is not None:
       msg.update({"samp.error": error})
 
     return msg
@@ -4456,7 +4455,7 @@ def main():
 
     if BDB_SUPPORT:
 
-      if options.access_restrict != None:
+      if options.access_restrict is not None:
         if options.access_restrict == SAMP_RESTRICT_OWNER and options.owner == "":
           log.warning("The access cannot be restricted to the owner if the owner "
                       "name is not specified!")

@@ -70,7 +70,7 @@ def find_center(hdu_data, coord_x, coord_y,
     all_x = rebin_image(coord_x, prebin, operation=numpy.mean)
     all_y = rebin_image(coord_y, prebin, operation=numpy.mean)
 
-    if (debugname != None):
+    if (debugname is not None):
         pyfits.HDUList([pyfits.PrimaryHDU(data=ot33b.T)]).writeto("debug_"+debugname+"___data.fits", clobber=True)
         pyfits.HDUList([pyfits.PrimaryHDU(data=all_x.T)]).writeto("debug_"+debugname+"___all_x.fits", clobber=True)
         pyfits.HDUList([pyfits.PrimaryHDU(data=all_y.T)]).writeto("debug_"+debugname+"___all_y.fits", clobber=True)
@@ -85,7 +85,7 @@ def find_center(hdu_data, coord_x, coord_y,
     x33 = scipy.ndimage.sobel(ot33b, axis=0, mode='constant')
     y33 = scipy.ndimage.sobel(ot33b, axis=1, mode='constant')
     abs33 = numpy.hypot(x33, y33)
-    if (debugname != None):
+    if (debugname is not None):
         pyfits.HDUList([pyfits.PrimaryHDU(data=abs33.T)]).writeto("debug_"+debugname+"___sobel.fits", clobber=True)
 
     #
@@ -110,7 +110,7 @@ def find_center(hdu_data, coord_x, coord_y,
     numpy.savetxt("mask.g", mask_grown)
     if (verbose): print "number valid pixels after growing",numpy.sum((mask_grown == False))
 
-    if (debugname != None):
+    if (debugname is not None):
         pyfits.HDUList([pyfits.PrimaryHDU(data=mask_grown_float.T)]).writeto("debug_"+debugname+"___mask.fits", clobber=True)
 
     #
@@ -121,7 +121,7 @@ def find_center(hdu_data, coord_x, coord_y,
     abs33_binary[abs33 < 0.1] = 0
     abs33_binary[abs33 >= 0.1] = 1
     abs33[mask_grown] = numpy.NaN
-    if (debugname != None):
+    if (debugname is not None):
         pyfits.HDUList([pyfits.PrimaryHDU(data=abs33.T)]).writeto("debug_"+debugname+"___sobel_filtered.fits", clobber=True)
     #
     # Now apply a threshold so we only deal with strong gradients and get rid 
@@ -132,7 +132,7 @@ def find_center(hdu_data, coord_x, coord_y,
     valid_pixels = numpy.isfinite(abs33)
     #print "number valid pixels",numpy.sum(valid_pixels)
     top10percent = scipy.stats.scoreatpercentile(abs33[valid_pixels].ravel(), 90)
-    if (threshold == None):
+    if (threshold is None):
         strong_values = abs33 > top10percent
         if (verbose): print "Only using pixels >",top10percent
     else:
@@ -207,7 +207,7 @@ def find_center(hdu_data, coord_x, coord_y,
     #            numpy.savetxt(sys.stdout, bincount_w)
     #            numpy.savetxt(sys.stdout, area_full_circle)
         
-    if (not fixed_radius == None):
+    if (not fixed_radius is None):
         # Find what radial bin is covered by the specified radius
         ir = int(math.floor((fixed_radius - search_r[0]) / search_r[2]))
         if (verbose): print "using fixed radius",fixed_radius, ir

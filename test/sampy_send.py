@@ -48,7 +48,7 @@ if __name__ == "__main__":
             try:
                 ret = cli1.ecallAndWait("hub", "samp.app.ping", "5")
                 print "SUCCESS\n",ret
-            except sampy.SAMPProxyError, e:
+            except sampy.SAMPProxyError as e:
                 # If timeout expires than a SAMPProxyError is returned
                 print "Error (%s): %s" % (e.faultCode, e.faultString)
                 print "Ran into SAMPProxyError"
@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
             try:
                 time.sleep(2)
-            except KeyboardInterrupt, SystemExit:
+            except KeyboardInterrupt as SystemExit:
                 break
                 pass
 
