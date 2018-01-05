@@ -13,7 +13,7 @@ if __name__ == "__main__":
     
     output_file = sys.argv[-1]
     if (os.path.isfile(output_file)):
-        print "output file",output_file,"exists"
+        print("output file", output_file, "exists")
         sys.exit(0)
 
     outfile = open(output_file, "w")
@@ -29,9 +29,9 @@ physical
         ota = filename[-6:-4]
         otax = int(ota[0])
         otay = int(ota[1])
-        print filename, ota, otax, otay 
+        print(filename, ota, otax, otay)
         offset = numpy.array([otax * size_x, otay*size_y, 0, 0])
-        print offset
+        print(offset)
 
         file = open(filename)
         for line in file:
@@ -40,7 +40,7 @@ physical
                 coord_list = coords.split(",")
                       
                 c = numpy.array([int(float(s)) for s in coord_list[:4]])
-                print c
+                print(c)
                 # add offset
                 c += offset
 

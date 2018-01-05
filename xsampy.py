@@ -258,7 +258,7 @@ import StringIO
 import Tkinter
 import Queue
 
-print "Starting SAMPy module hacked by Ralf Kotulla to lower CPU usage"
+print("Starting SAMPy module hacked by Ralf Kotulla to lower CPU usage")
 PYTHON_VERSION = float(platform.python_version()[:3])
 
 try:
@@ -1883,7 +1883,7 @@ class SAMPHubServer(object):
         r = w = e = None
         r, w, e = select.select([self._server.socket], [], [], 0.0001)
       except:
-        print "select 1 timed out"
+        print("select 1 timed out")
         pass
       if r:
         self._server.handle_request()
@@ -1901,7 +1901,7 @@ class SAMPHubServer(object):
           r, w, e = select.select([self._web_profile_server.socket], [], [], 0.0001)
           self._web_profile_popup_dialogue.update()
         except:
-          print "select 2 timed out"
+          print("select 2 timed out")
           pass
         if r:
           self._web_profile_server.handle_request()
@@ -3052,7 +3052,7 @@ class SAMPClient(object):
         r = w = e = None
         r, w, e = select.select([self.client.socket], [], [], 0.1)
       except:
-        print "select X timed out"
+        print("select X timed out")
         pass
       #sys.stdout.write(".")
       #sys.stdout.flush()
@@ -4482,13 +4482,13 @@ def main():
   except KeyboardInterrupt:
     hub.stop()
   except IOError, (errno, strerror):
-    print "[SAMP] Error: I/O error(%s): %s" % (errno, strerror)
+    print("[SAMP] Error: I/O error(%s): %s" % (errno, strerror))
   except SAMPHubError:
     pass
   except SystemExit:
     pass
   except:
-    print "[SAMP] Error: Unexpected error:", sys.exc_info()
+    print("[SAMP] Error: Unexpected error:", sys.exc_info())
 
 
 if __name__ == "__main__":

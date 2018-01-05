@@ -54,7 +54,7 @@ if __name__ == "__main__":
             try:
                 photcalib_tbhdu = hdulist['CAT.PHOTCALIB']
             except:
-                print "No PHOTCAL data found, aborting"
+                print("No PHOTCAL data found, aborting")
                 continue
 
 
@@ -65,7 +65,7 @@ if __name__ == "__main__":
         photfilt = hdulist[0].header['PHOTFILT'].upper()
 
         used = photcalib_tbhdu.data.field('USED4CALIB')
-        print "Read %5d stars from %s" % (used.shape[0], fn)
+        print("Read %5d stars from %s" % (used.shape[0], fn))
         # print used.shape
 
         odi_mag = photcalib_tbhdu.data.field(_odi_col) #- 2.5*numpy.log10(hdulist[0].header['EXPMEAS'])
@@ -92,15 +92,14 @@ if __name__ == "__main__":
         if (args.all_stars):
             select = (ref_color_error < args.max_error) & (rel_zp_err < args.max_error)
             catalog = catalog[select]
-            print "  down-selecting to %5d stars with errors < %.3f mag" % (
+            print("  down-selecting to %5d stars with errors < %.3f mag" % (
                 catalog.shape[0], args.max_error
-            )
+            ))
         else:
             catalog = catalog[used]
-            print "  down-selecting to %5d stars that were used for photometric calibration" % (
+            print("  down-selecting to %5d stars that were used for photometric calibration" % (
                 catalog.shape[0]
-            )
-
+            ))
 
         # print catalog.shape
 
@@ -111,12 +110,12 @@ if __name__ == "__main__":
     #
     # Now we have the full catalog
     #
-    print "\nSaving combined catalog to %s" % (args.output)
+    print("\nSaving combined catalog to %s" % (args.output))
     numpy.savetxt(args.output, full_catalog)
 
-    print "\nStarting fit using polygon of order %d for total of %d stars" % (
+    print("\nStarting fit using polygon of order %d for total of %d stars" % (
         args.poly_order, full_catalog.shape[0]
-    )
+    ))
     polynom = scipy.odr.polynomial(args.poly_order)
 
     data = scipy.odr.RealData(
@@ -130,7 +129,7 @@ if __name__ == "__main__":
     fit = myodr.run()
     fit.pprint()
     # print fit
-    print fit.beta
+    print(fit.beta)
 
     #
     # compare quality of photometric calibration with and without color
@@ -139,18 +138,18 @@ if __name__ == "__main__":
     before_correction = numpy.percentile(full_catalog[:,2], [16,84,50])
     before_median = before_correction[2]
     before_sigma = (before_correction[1]-before_correction[0])/2.
-    print "BEFORE: median=%.4f sigma=%f" % (
-        before_median, before_sigma)
+    print("BEFORE: median=%.4f sigma=%f" % (
+        before_median, before_sigma))
 
     corrected_catalog = full_catalog.copy()
     correction = numpy.polyval(fit.beta[::-1], corrected_catalog[:,0])
     corrected_catalog[:,2] -= correction
 
-    print "\nSaving corrected catalog to %s" % (args.output+".corr")
+    print("\nSaving corrected catalog to %s" % (args.output + ".corr"))
     numpy.savetxt(args.output+".corr", corrected_catalog)
 
     after_correction = numpy.percentile(corrected_catalog[:,2], [16,84,50])
     after_median = after_correction[2]
     after_sigma = (after_correction[1]-after_correction[0])/2.
-    print "after: median=%.4f sigma=%f" % (
-        after_median, after_sigma)
+    print("after: median=%.4f sigma=%f" % (
+        after_median, after_sigma))

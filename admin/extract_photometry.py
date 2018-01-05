@@ -72,4 +72,4 @@ if __name__ == "__main__":
         tbhdu,
     ])
     output_hdu.writeto(output_fn, clobber=True)
-    print "done calibrating %s --> %s" % (input_fn, output_fn)
+    print("done calibrating %s --> %s" % (input_fn, output_fn))

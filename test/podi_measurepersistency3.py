@@ -45,7 +45,7 @@ if __name__ == "__main__":
 
     # Create mask from saturated pixels in reference file.
     for filename in sys.argv[2:]:
-        print filename,"..."
+        print(filename, "...")
         hdulist = pyfits.open(filename)
         fppos = int(hdulist[0].header['FPPOS'][2:4])
 

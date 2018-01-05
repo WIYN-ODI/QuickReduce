@@ -474,7 +474,7 @@ def inherit_headers(header, primary_header):
 
     for header in headers_to_inherit:
         if (not header in primary_header):
-            print "Problem with header ",header
+            print("Problem with header ", header)
             continue
 
         card = primary_header.ascardlist()[header]
@@ -606,7 +606,7 @@ def insert_into_array(data, from_region, target, target_region):
     tx1, tx2, ty1, ty2 = break_region_string(target_region)
 
     if (fx2-fx1 != tx2-tx1 or fy2-fy1 != ty2-ty1):
-        print "Dimensions do not match, doing nothing"
+        print("Dimensions do not match, doing nothing")
     else:
         target[ty1:ty2+1, tx1:tx2+1] = data[fy1:fy2+1, fx1:fx2+1]
 
@@ -623,7 +623,7 @@ def mask_broken_regions(datablock, regionfile, verbose=False, reduction_log=None
     logger = logging.getLogger("MaskBrokenRegion")
 
     if (not os.path.isfile(regionfile)):
-        if (not reduction_log == None):
+        if (not reduction_log is None):
             reduction_log.failed('badpixels')
         return datablock
 
@@ -694,7 +694,7 @@ def mask_broken_regions(datablock, regionfile, verbose=False, reduction_log=None
 
     logger.debug("Marked %d bad pixel regions" % (counter))
 
-    if (not reduction_log == None):
+    if (not reduction_log is None):
         reduction_log.success('badpixels')
 
     return datablock
@@ -706,7 +706,7 @@ def is_image_extension(hdu):
     Check if a given HDU is a Image extension
 
     """
-    if (hdu == None):
+    if (hdu is None):
         return False
 
     if (type(hdu) == pyfits.hdu.image.ImageHDU or
@@ -843,7 +843,7 @@ def cell2ota__extract_data_from_cell(data_in=None):
     """
     Don't use anymore!
     """
-    if (data_in == None):
+    if (data_in is None):
         return numpy.zeros(shape=(494,480))
 
     return data_in[0:494, 0:480]
@@ -861,7 +861,7 @@ def cell2ota__get_target_region(x, y, binning=1, trimcell=None):
     # but pixel coordinates are counted bottom up
     _y = 7 - y
 
-    if (trimcell == None):
+    if (trimcell is None):
         trimcell = 0
 
     if (binning == 1):
@@ -950,7 +950,7 @@ def create_qa_filename(outputfile, plotname, options):
     """
     if (options['structure_qa_subdirs']):
         dirname, basename = os.path.split(outputfile)
-        if (dirname == None or dirname == ''): 
+        if (dirname is None or dirname == ''):
             dirname = "."
         qa_plotdir = "%s/%s/" % (dirname, options['structure_qa_subdir_name'])
         if (not os.path.isdir(qa_plotdir)):
@@ -1045,7 +1045,7 @@ def extract_datasec_from_cell(data, binning, trimcell=None):
 
     """
 
-    if (trimcell == None):
+    if (trimcell is None):
         trimcell=0
 
     if (binning == 1):
@@ -1146,7 +1146,7 @@ def collect_reduction_files_used(masterlist, files_this_frame):
 
     """
 
-    for key, value in files_this_frame.iteritems():
+    for key, value in files_this_frame.items():
         if (key in masterlist):
             existing_keys = masterlist[key]
             if (type(value) == list):
@@ -1204,11 +1204,11 @@ def create_association_table(master, verbose=False):
     full_filename = []
     short_filename = []
 
-    for key, value in master.iteritems():
+    for key, value in master.items():
         # print key,":",value
         for filename in set(value):
             reduction_step.append(key)
-            if (filename == None):
+            if (filename is None):
                 continue
             full_filename.append(os.path.abspath(filename))
             
@@ -1216,7 +1216,7 @@ def create_association_table(master, verbose=False):
             short_filename.append(filebase)
 
             if (verbose):
-                print "% 15s : %s" % (key, filename)
+                print("% 15s : %s" % (key, filename))
 
     # print reduction_step
     # print short_filename

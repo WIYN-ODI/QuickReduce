@@ -177,5 +177,5 @@ if __name__ == "__main__":
         cmd = "gunzip -c %s > %s" % (gzip, asciifile)
         os.system(cmd)
 
-        print cmd, fitsfile
+        print(cmd, fitsfile)
         ascii2fits(asciifile, fitsfile)

@@ -167,16 +167,15 @@ def ascii2fits(asciifile, fitsfile):
 def sort_fits_table(idx, fits):
 
     # Load the SkyTable so we know in what files to look for the catalog"
-    print "Loading lookup table"
+    print("Loading lookup table")
     skytable_hdu = pyfits.open(idx)
 
     #print skytable_hdu.info()
 
     skytable = skytable_hdu['SKY_REGION'].data
     #print skytable[:3]
-    
 
-    print "\n\nloading data file",fits
+    print("\n\nloading data file", fits)
     fits_hdu = pyfits.open(fits)
 
     decs = fits_hdu[1].data.field('dec')
@@ -184,7 +183,7 @@ def sort_fits_table(idx, fits):
     min_dec = numpy.min(decs)
     max_dec = numpy.max(decs)
 
-    print min_dec, max_dec
+    print(min_dec, max_dec)
 
     # Now select all lookup entries in the valid range
     
@@ -212,7 +211,7 @@ def sort_fits_table(idx, fits):
         #print copy_data.shape
 
         if (not os.path.isfile(outputfits)):
-            print "Preparing to copy",len(copy_data),"entries to new file",outputfits
+            print("Preparing to copy", len(copy_data), "entries to new file", outputfits)
             # This is a new file
             primhdu = pyfits.PrimaryHDU()
             coldefs = pyfits.ColDefs(fits_hdu[1].columns)
@@ -221,7 +220,7 @@ def sort_fits_table(idx, fits):
             table_hdu_out = pyfits.HDUList([primhdu, tbhdu])
             table_hdu_out.writeto(outputfits)
         else:
-            print "Preparing to copy",len(copy_data),"entries to existing file",outputfits
+            print("Preparing to copy", len(copy_data), "entries to existing file", outputfits)
             # This file already exists
             table_hdu_out = pyfits.open(outputfits, mode="update")
             nrows1 = table_hdu_out[1].data.shape[0]

@@ -51,9 +51,9 @@ if __name__ == "__main__":
     #filetime = time.strptime(reference_file[0:15],"%Y%m%dT%H%M%S")
 
     overscan_level = numpy.median(data[:,500:])
-    print "overscan-level=",overscan_level
-                                  
-    obsid = hdu[0].header['OBSID']
+print("overscan-level=", overscan_level)
+
+obsid = hdu[0].header['OBSID']
     ref_mjd = podi_persistency.get_mjd_from_timestamp(obsid[0:15])
     #ref_mjd = podi_persistency.get_mjd_from_timestamp(reference_file[0:15])
     #hdu[0].header['MJD-OBS']
@@ -133,7 +133,7 @@ if __name__ == "__main__":
         
         data = hdulist[extension].data
         overscan = numpy.median(data[:,500:])
-        print "overscan-level=",overscan_level
+        print("overscan-level=", overscan_level)
         data -= overscan_level
         
         bglevel = numpy.median(data[10:480,10:490])
@@ -216,7 +216,7 @@ if __name__ == "__main__":
 
     # Now go through each of the files and get the median level of the formerly saturated pixels
     for file in sys.argv[5:]:
-        print "Measuring file",file
+        print("Measuring file", file)
         this_hdu = pyfits.open(file)
         this_data = this_hdu[extension].data
         this_mjd = mjd = podi_persistency.get_mjd_from_timestamp(file[0:15])

@@ -63,14 +63,14 @@ def find_center(hdu, lx, ly, prebin=8, r_minmax=[100,200], x_minmax=[400,600], y
     kernel = numpy.ones(shape=(5,5))
     kernel_norm = kernel
 
-    print "number valid pixels before growing",numpy.sum((mask == False))
+    print("number valid pixels before growing", numpy.sum((mask == False)))
 
     mask_grown_float = scipy.ndimage.filters.convolve(mask, kernel)
     mask_grown = mask_grown_float > 0
     numpy.savetxt("mask.g", mask_grown)
     #print mask_grown_float[:8,:8]
 
-    print "number valid pixels after growing",numpy.sum((mask_grown == False))
+    print("number valid pixels after growing", numpy.sum((mask_grown == False)))
 
     abs33[numpy.isnan(ot33_orig)] = numpy.NaN
 
@@ -91,7 +91,7 @@ def find_center(hdu, lx, ly, prebin=8, r_minmax=[100,200], x_minmax=[400,600], y
     top10percent = scipy.stats.scoreatpercentile(abs33[valid_pixels].ravel(), 90)
     strong_values = abs33 > top10percent
 
-    print "Only using pixels >",top10percent
+    print("Only using pixels >", top10percent)
 
     all_y, all_x = numpy.indices(abs33.shape)
 
@@ -102,7 +102,7 @@ def find_center(hdu, lx, ly, prebin=8, r_minmax=[100,200], x_minmax=[400,600], y
 
     #print pixel_x
 
-    print numpy.sum(strong_values),"pixels with enough signal left"
+    print(numpy.sum(strong_values), "pixels with enough signal left")
 
     dx = 2
     dy = 2
@@ -148,14 +148,14 @@ def find_center(hdu, lx, ly, prebin=8, r_minmax=[100,200], x_minmax=[400,600], y
         ix, iy = numpy.unravel_index(index, center_only.shape)
 
     else:
-        print bincount.shape
+        print(bincount.shape)
         #numpy.savetxt("edges.txt", bincount[:,50,:])
 
         index = numpy.argmax(bincount)
 
         ix, iy, ir = numpy.unravel_index(index, bincount.shape)
 
-        print index, numpy.unravel_index(index, bincount.shape)
+        print(index, numpy.unravel_index(index, bincount.shape))
 
     return ix*dx+lx, iy*dy+ly, ir*dr+lr, bincount, abs33
 
@@ -176,7 +176,7 @@ if __name__ == "__main__":
     dx, dy, dr = 16,16,16
 
     for i in range(1,5):
-        print hdu[i].header["EXTNAME"]
+        print(hdu[i].header["EXTNAME"])
 
         r_minmax=[800,1600] 
         x_minmax=[lx[i], lx[i]+1600]
@@ -186,10 +186,9 @@ if __name__ == "__main__":
                                                     x_minmax=x_minmax, y_minmax=y_minmax, r_minmax=r_minmax,
                                                     dx=dx, dy=dy, dr=dr)
         numpy.savetxt("bincount"+hdu[i].header["EXTNAME"], numpy.sum(numpy.sum(bincount, axis=0), axis=0))
-        print x,y,r, " ---> ", x*prebin+1, y*prebin+1, r*8
+        print(x, y, r, " ---> ", x * prebin + 1, y * prebin + 1, r * 8)
 
         hdu[i].data = edge_frame
-        print
-
+        print()
     hdu.writeto("/scratch/edges.fits", clobber=True)
 

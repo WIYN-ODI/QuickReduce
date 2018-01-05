@@ -91,7 +91,7 @@ def polyval2d(x, y, m):
     for (i,j) in ij:
         #print i,j
         z += m[i,j] * x**j * y**i
-        print i,j,"-->",z
+        print(i, j, "-->", z)
     return z
 
 def my_pix2wcs(xy, wcs_polynomials):
@@ -100,23 +100,23 @@ def my_pix2wcs(xy, wcs_polynomials):
 
     #use the input x,y and compute xi and eta first
 
-    print "crpix=",crpix
-    print "xy=\n",xy
+    print("crpix=", crpix)
+    print("xy=\n", xy)
     xy_relative = xy[:,0:2] - crpix
-    print "xy relative=\n",xy_relative
+    print("xy relative=\n", xy_relative)
 
     xi  = xy_relative[:,0] * cd[0,0] + xy_relative[:,1] * cd[0,1]
     eta = xy_relative[:,1] * cd[1,0] + xy_relative[:,1] * cd[1,1]
 
-    print "xi=\n",xi
-    print "eta=\n",eta
+    print("xi=\n", xi)
+    print("eta=\n", eta)
 
     # compute r = sqrt(xi**2 + eta**2)
     r = numpy.hypot(xi, eta)
-    print "r=\n",r
+    print("r=\n", r)
 
-    print "c_xi_r", c_xi_r
-    print "c_eta_r", c_eta_r
+    print("c_xi_r", c_xi_r)
+    print("c_eta_r", c_eta_r)
 
     xi_prime = polyval2d(xi, eta, c_xi) \
         + numpy.polynomial.polynomial.polyval(r, c_xi_r[0])
@@ -124,10 +124,10 @@ def my_pix2wcs(xy, wcs_polynomials):
     eta_prime = polyval2d(eta, xi, c_eta) \
         + numpy.polynomial.polynomial.polyval(r, c_eta_r[0])
 
-    print "xi_prime=\n",xi_prime
-    print "eta_prime=\n",eta_prime
+    print("xi_prime=\n", xi_prime)
+    print("eta_prime=\n", eta_prime)
 
-    print "crval:",crval
+    print("crval:", crval)
     output = numpy.zeros_like(xy) #xi.shape[0],2)
     output[:,0] = xi_prime
     output[:,1] = eta_prime
@@ -137,21 +137,21 @@ def my_pix2wcs(xy, wcs_polynomials):
     return output
 
 
-print "running soem stupid testing"
+print("running soem stupid testing")
 ra, dec = wcs.pix2wcs(2000.0, 2000.0)
-print ra,dec
+print()
+var = ra, dec
 x,y = wcs.wcs2pix(ra, dec)
-print x,y
+print(x, y)
 
 wcs.header['PV2_18'] = wcs.header['PV2_18'] #0 #100e6
 wcs.updateFromHeader()
 x,y = wcs.wcs2pix(ra, dec)
-print x,y
+print(x, y)
 
 minRA, maxRA, minDec, maxDec = wcs.getImageMinMaxWCSCoords()
-print minRA, maxRA
-print minDec, maxDec
-
+print(minRA, maxRA)
+print(minDec, maxDec)
 
 xd, yd = 4000, 4000
 
@@ -162,8 +162,7 @@ pixelscale = 0.11 / 3600.
 cosine_correction = math.cos(math.radians(inputhdu.header['CRVAL2']))
 width = (maxRA - minRA) / pixelscale * cosine_correction
 height = (maxDec - minDec) / pixelscale
-print "\nnew size: %d x %d\n" % (width, height)
-
+print("\nnew size: %d x %d\n" % (width, height))
 
 primhdu = pyfits.PrimaryHDU(data=numpy.zeros(shape=(width,height)))
 # primhdu.header.update("CRPIX1", 0) #inputhdu.header['CRPIX1'])
@@ -194,31 +193,31 @@ primhdu.header.update("RADESYS", 'ICRS')
 
 # Now use this preliminary coordiante system to 
 # compute the position of the reference pixel
-print "Creating output Ra/Dec system"
+print("Creating output Ra/Dec system")
 outputwcs = astWCS.WCS(primhdu.header, mode="pyfits")
 
 
 #wcs_polynomials = header_to_polynomial(inputhdu.header)
 wcs_polynomials = header_to_polynomial(primhdu.header)
 xi, xi_r, eta, eta_r, cd, crval, crpix = wcs_polynomials
-print xi
+print(xi)
 
-print "=============================="
-print "=============================="
-print "=============================="
+print("==============================")
+print("==============================")
+print("==============================")
 radec = my_pix2wcs(numpy.array([[2000.,1000.]]), wcs_polynomials)
-print "my=",radec
-print "wcs=",outputwcs.pix2wcs(2000., 1000.)
-print "=============================="
-print "=============================="
-print "=============================="
+print("my=", radec)
+print("wcs=", outputwcs.pix2wcs(2000., 1000.))
+print("==============================")
+print("==============================")
+print("==============================")
 
 sys.exit(0)
 
 
 
 # Now for each pixel in the output frame, determine the RA and DEC sky coordinates
-print "Translating x/y to Ra/Dec"
+print("Translating x/y to Ra/Dec")
 y, x = numpy.indices(primhdu.data.shape)
 #print x[:10,:10]
 
@@ -230,7 +229,7 @@ outputwcs.header['CRPIX1'] = 0
 outputwcs.header['CRPIX2'] = 0
 outputwcs.updateFromHeader()
 crpix_x, crpix_y = outputwcs.wcs2pix(output_ra[0,0], output_dec[0,0])
-print crpix_x, crpix_y
+print(crpix_x, crpix_y)
 
 outputwcs.header['CRPIX1'] = crpix_x * -1
 outputwcs.header['CRPIX2'] = crpix_y * -1
@@ -239,7 +238,7 @@ primhdu.header['CRPIX2'] = crpix_y * -1
 outputwcs.updateFromHeader()
 
 newtry = outputwcs.wcs2pix(output_ra[0,0], output_dec[0,0])
-print newtry
+print(newtry)
 
 # origin_ra, origin_dec = wcs.pix2wcs(0,0)
 # # Now compute the pixel of the original reference in the new frame
@@ -253,9 +252,7 @@ print newtry
 # newtry = outputwcs.wcs2pix(origin_ra, origin_dec)
 # print newtry
 
-print "============================"
-
-
+print("============================")
 
 #output_radec = numpy.empty(shape=(output_ra.shape[0], output_ra.shape[1], 2))
 #output_radec[:,:,0] = output_ra
@@ -265,34 +262,31 @@ print "============================"
 
 # xy_coords_in_inputframe = numpy.array(wcs.wcs2pix(output_RaDec[:,0].ravel(), output_RaDec[:,1].ravel()))
 
-print "converting sky-coordinates of the new frame into pixel x/y from the old frame"
+print("converting sky-coordinates of the new frame into pixel x/y from the old frame")
 xy_coords_in_inputframe = numpy.array(wcs.wcs2pix(output_ra.ravel(), output_dec.ravel()))
 
-print xy_coords_in_inputframe
-print xy_coords_in_inputframe.shape
+print(xy_coords_in_inputframe)
+print(xy_coords_in_inputframe.shape)
 
-
-print "swapping axes to make things compatible with numpy"
+print("swapping axes to make things compatible with numpy")
 
 yx_coords_in_inputframe = numpy.swapaxes(xy_coords_in_inputframe,0,1)
-print yx_coords_in_inputframe
+print(yx_coords_in_inputframe)
 
-print "deprojecting"
+print("deprojecting")
 
 deproject = scipy.ndimage.interpolation.map_coordinates(
     input=img, coordinates=numpy.swapaxes(xy_coords_in_inputframe,0,1), 
     output=None, order=1, mode='constant', 
     cval=0.0, prefilter=True)
 
-print deproject.shape
+print(deproject.shape)
 
-
-print "converting image back to 2-d"
+print("converting image back to 2-d")
 deprojected_2d = numpy.reshape(deproject, primhdu.data.shape)
-print deprojected_2d.shape
+print(deprojected_2d.shape)
 
-
-print "Saving image back to fits"
+print("Saving image back to fits")
 primhdu.data = deprojected_2d
 
 primhdu.writeto("deprojected.fits", clobber=True)
@@ -306,18 +300,18 @@ sys.exit(0)
 #outputRA, outputDec = numpy.indices((4000,4000))
 outputRA, outputDec = numpy.indices((xd,yd))
 
-print "computing output Ra/dec for each pixel"
+print("computing output Ra/dec for each pixel")
 outputDec = numpy.array(outputDec, dtype=numpy.float32) * pixelscale + minDec
 outputRA = numpy.array(outputRA, dtype=numpy.float32) * pixelscale / numpy.cos(numpy.radians(outputDec)) + minRA
 
-print outputRA[:5,:5]
-print outputDec[:5,:5]
+print(outputRA[:5, :5])
+print(outputDec[:5, :5])
 
 #pixelcoords = numpy.zeros((4000,4000,2))
 
-print "converting ra/dec to x/y for each output pixel"
+print("converting ra/dec to x/y for each output pixel")
 
-print outputRA.ravel().shape
+print(outputRA.ravel().shape)
 #ret = wcs.pix2wcs(outputRA.ravel(), outputDec.ravel())
 ret = wcs.wcs2pix(outputRA.ravel(), outputDec.ravel())
 #print ret
@@ -326,8 +320,8 @@ ret = wcs.wcs2pix(outputRA.ravel(), outputDec.ravel())
 
 
 retarray = numpy.array(ret)
-print retarray.shape
-print retarray[0:10,:]
+print(retarray.shape)
+print(retarray[0:10, :])
 x = retarray[:,0]
 y = retarray[:,1]
 
@@ -337,7 +331,7 @@ y = retarray[:,1]
 #print x[:10]
 #print y[:10]
 
-print "deprojecting"
+print("deprojecting")
 
 #deproject1 = scipy.ndimage.interpolation.map_coordinates(input=img, coordinates=[[5,5],[7,7]], 
 #                                            output=None, order=1, mode='constant', 
@@ -348,14 +342,13 @@ print "deprojecting"
 
 
 xy_coords = numpy.swapaxes(retarray,0,1)
-print xy_coords
+print(xy_coords)
 
 deproject = scipy.ndimage.interpolation.map_coordinates(input=img, coordinates=xy_coords, 
                                             output=None, order=1, mode='constant', 
                                             cval=0.0, prefilter=True)
 
-
-print deproject.shape
+print(deproject.shape)
 
 deproject_2d = numpy.reshape(deproject, (xd,yd))
 

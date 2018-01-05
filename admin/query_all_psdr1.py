@@ -196,23 +196,23 @@ def convert_ascii_to_fits(raw_dir, out_dir, indexfile, start_at, end_at):
                       'D_MIN', 'D_MAX']:
         data[fieldname] = table.field(fieldname)
 
-    print data['NAME'].shape
+    print(data['NAME'].shape)
 
     boxsize = 0.1
     error_log = open("%s/conversion.errors" % (out_dir), "a")
     for field in range(start_at, end_at): #data['NAME'].shape[0]):
 
-        print
+        print()
         name = data['NAME'][field].strip()
         dir_name,_ = os.path.split(os.path.join(out_dir,name))
-        print dir_name
+        print(dir_name)
         if (not os.path.isdir(dir_name)):
             os.mkdir(dir_name)
         cat_fitsfile = "%s.fits" % (os.path.join(out_dir,name))
-        print cat_fitsfile
+        print(cat_fitsfile)
 
         if (os.path.isfile(cat_fitsfile)):
-            print "FITS catalog %s already exists, skipping" % (cat_fitsfile)
+            print("FITS catalog %s already exists, skipping" % (cat_fitsfile))
             continue
 
         r_min = data['R_MIN'][field]
@@ -227,15 +227,14 @@ def convert_ascii_to_fits(raw_dir, out_dir, indexfile, start_at, end_at):
         d_upper = math.ceil(d_max / boxsize) * boxsize
         r_lower = math.floor(data['R_MIN'][field] / boxsize) * boxsize
         r_upper = math.ceil(data['R_MAX'][field] / boxsize) * boxsize
-        print r_min, r_max, d_min, d_max, "   ==>  ", r_lower, r_upper, d_lower, d_upper
-
+        print(r_min, r_max, d_min, d_max, "   ==>  ", r_lower, r_upper, d_lower, d_upper)
 
         n_ra = (r_upper - r_lower) / boxsize
         n_dec = (d_upper - d_lower) / boxsize
 
         list_ra = numpy.arange(int(n_ra), dtype=numpy.float) * boxsize + r_lower
         list_dec = numpy.arange(int(n_ra), dtype=numpy.float) * boxsize + d_lower
-        print list_ra[0], list_ra[-1], list_dec[0], list_dec[-1]
+        print(list_ra[0], list_ra[-1], list_dec[0], list_dec[-1])
 
         collected_catalog = None
         error_abort = False
@@ -256,8 +255,8 @@ def convert_ascii_to_fits(raw_dir, out_dir, indexfile, start_at, end_at):
             # 49,50: y
             # 79: r mean kron magnitude - to isolate stars
             if (not os.path.isfile(fn)):
-                print "missing file %s for %s" % (fn, cat_fitsfile)
-                print >> error_log, "missing file %s for %s" % (
+                print("missing file %s for %s" % (fn, cat_fitsfile))
+                print( >> error_log, "missing file %s for %s" % (
                 fn, cat_fitsfile)
                 error_abort=True
                 break
@@ -272,7 +271,7 @@ def convert_ascii_to_fits(raw_dir, out_dir, indexfile, start_at, end_at):
                             break
                 if (skiprows is None):
                     print("No data found in %s for %s" % (fn, cat_fitsfile))
-                    print >>error_log, "No data found in %s for %s" % (fn, cat_fitsfile)
+                    print( >> error_log, "No data found in %s for %s" % (fn, cat_fitsfile)
                     continue
 
                 filedata = numpy.loadtxt(
@@ -289,7 +288,7 @@ def convert_ascii_to_fits(raw_dir, out_dir, indexfile, start_at, end_at):
                 )
             except (IndexError, ValueError, StopIteration, TypeError) as e:
                 print("Unable to load %s for %s: %s" % (fn, cat_fitsfile, type(e)))
-                print >>error_log, "Unable to load %s for %s: %s" % (fn, cat_fitsfile, type(e))
+                print( >> error_log, "Unable to load %s for %s: %s" % (fn, cat_fitsfile, type(e))
                 continue
 
 
@@ -314,7 +313,7 @@ def convert_ascii_to_fits(raw_dir, out_dir, indexfile, start_at, end_at):
                                (filedata[:, 18] > 0.) & (filedata[:, 18] < max_phot_error)
             except IndexError:
                 print("Error down-selecting from %s (%s)" % (fn, cat_fitsfile))
-                print >>error_log, "Error down-selecting from %s (%s)" % (fn, cat_fitsfile)
+                print( >> error_log, "Error down-selecting from %s (%s)" % (fn, cat_fitsfile)
                 continue
 
             good = is_star & in_field & good_detection & small_errors
@@ -438,7 +437,7 @@ if __name__ == "__main__":
                 if (os.path.isfile(cat_csvfile)):
                     continue
 
-                print RA, DEC, cat_csvfile
+                print(RA, DEC, cat_csvfile)
 
                 queue.put( (RA, RA+increment, DEC, DEC+increment, cat_csvfile))
                 fields_to_download += 1

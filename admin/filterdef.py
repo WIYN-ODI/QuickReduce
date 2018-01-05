@@ -70,7 +70,7 @@ if __name__ == "__main__":
         index = numpy.arange(data.shape[0])
         left_edge = numpy.max([0, numpy.min(index[good_data])-1])
         right_edge = numpy.min([data.shape[0], numpy.max(index[good_data])+1])
-        print left_edge, right_edge
+        print(left_edge, right_edge)
         data = data[left_edge:right_edge+1]
         numpy.savetxt(filterfile+".trunc", data)
 
@@ -146,8 +146,9 @@ if __name__ == "__main__":
 
         # print left_fwhm, right_fwhm
 
-        print "%30s: %7.2f %7.1f (%7.2f -- %7.2f) max=%0.4f mean=%.3f center=%.1f area=%7.2f   5%%=(%6.1f %6.1f)" % (
-            fn, mean_pos, fwhm, left_fwhm, right_fwhm, max_amplitude, mean_throughput, centerpos, total_area, left_5, right_5)
+        print("%30s: %7.2f %7.1f (%7.2f -- %7.2f) max=%0.4f mean=%.3f center=%.1f area=%7.2f   5%%=(%6.1f %6.1f)" % (
+            fn, mean_pos, fwhm, left_fwhm, right_fwhm, max_amplitude, mean_throughput, centerpos, total_area, left_5,
+            right_5))
         pycode.append(
             ' %30s: (%30s, %7.2f, %7.2f, %7.1f, %7.1f, %7.1f, %0.4f, %0.4f, %7.2f, %7.2f, %7.2f),' % (
                 ('"%s"' % fn), ('"%s"' % fn), mean_pos, centerpos, fwhm, left_fwhm, right_fwhm, max_amplitude, mean_throughput, total_area, left_5, right_5)
@@ -156,8 +157,8 @@ if __name__ == "__main__":
         # Save the corrected filter curve
         numpy.savetxt("%s.final" % (fn), data)
 
-    print "\n\n\n"
-    print "\n".join(pycode)+"\n"
+    print("\n\n\n")
+    print("\n".join(pycode) + "\n")
 
     ax.legend(fontsize=8, loc='best')
     ax2.legend(fontsize=8, loc='best')

@@ -244,8 +244,8 @@ def import_ucac(catalog_dir, ucac_ascii):
 
 
     # Load the UCAC file
-    print "\nWorking on",ucac_ascii
-    
+    print("\nWorking on", ucac_ascii)
+
     #ucac = numpy.loadtxt(ucac_ascii)
     x = open(ucac_ascii)
     lines = x.readlines()
@@ -290,8 +290,7 @@ def import_ucac(catalog_dir, ucac_ascii):
     # Find minimum and maximum declination - each catalog has all stars at all RAs
     dec_min = numpy.min(ucac[:,1])
     dec_max = numpy.max(ucac[:,1])
-    print "%d entries - declination %.2f -- %.2f" % (ucac.shape[0], dec_min, dec_max)
-
+    print("%d entries - declination %.2f -- %.2f" % (ucac.shape[0], dec_min, dec_max))
 
     # Select all catalog files in the declination range
     
@@ -409,12 +408,11 @@ def import_ucac(catalog_dir, ucac_ascii):
             pass
 
     # print ucac.shape, total
-    print "% 3d new files, added to % 3d files." % (n_new, n_added)
+    print("% 3d new files, added to % 3d files." % (n_new, n_added))
 
     return
 
-    
-    print "\n\nloading data file",fits
+    print("\n\nloading data file", fits)
     fits_hdu = pyfits.open(fits)
 
     decs = fits_hdu[1].data.field('dec')
@@ -422,7 +420,8 @@ def import_ucac(catalog_dir, ucac_ascii):
     min_dec = numpy.min(decs)
     max_dec = numpy.max(decs)
 
-    print min_dec, max_dec
+    print()
+    var = min_dec, max_dec
 
     # Now select all lookup entries in the valid range
     
@@ -450,7 +449,7 @@ def import_ucac(catalog_dir, ucac_ascii):
         #print copy_data.shape
 
         if (not os.path.isfile(outputfits)):
-            print "Preparing to copy",len(copy_data),"entries to new file",outputfits
+            print("Preparing to copy", len(copy_data), "entries to new file", outputfits)
             # This is a new file
             primhdu = pyfits.PrimaryHDU()
             coldefs = pyfits.ColDefs(fits_hdu[1].columns)
@@ -459,7 +458,7 @@ def import_ucac(catalog_dir, ucac_ascii):
             table_hdu_out = pyfits.HDUList([primhdu, tbhdu])
             table_hdu_out.writeto(outputfits)
         else:
-            print "Preparing to copy",len(copy_data),"entries to existing file",outputfits
+            print("Preparing to copy", len(copy_data), "entries to existing file", outputfits)
             # This file already exists
             table_hdu_out = pyfits.open(outputfits, mode="update")
             nrows1 = table_hdu_out[1].data.shape[0]

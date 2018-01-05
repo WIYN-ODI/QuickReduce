@@ -74,7 +74,7 @@ class PikaMessageHandler(logging.Handler):
                'localhost'))
         self.channel = self.connection.channel()
         self.channel.queue_declare(queue='hello')
-        print "Pika Handler all setup, ready for action"
+        print("Pika Handler all setup, ready for action")
 
     def emit(self, record):
         try:
@@ -90,7 +90,7 @@ class PikaMessageHandler(logging.Handler):
             self.channel.basic_publish(exchange='',
                       routing_key='hello',
                       body=msg)
-            print " [x] Sent ",msg
+            print(" [x] Sent ", msg)
 
             # if same_line:
             #     stream.write('... ')
@@ -117,7 +117,7 @@ def log_reader(queue,x):
         msg = queue.get()
         # if (msg == None):
         #     break
-        print msg_counter, msg
+        print(msg_counter, msg)
         msg_counter += 1
 
     return
@@ -181,7 +181,7 @@ def podi_logger(name):
 
 if __name__ == "__main__":
 
-    print "starting program"
+    print("starting program")
 
     x = podi_logger('test')
     x.info("podi-logging works")

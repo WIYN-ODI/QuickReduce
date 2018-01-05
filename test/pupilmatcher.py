@@ -46,9 +46,9 @@ def add_circle(buffer, center_x, center_y, radius, amplitude):
     dy = y - center_y
     d2 = dx*dx + dy*dy
 
-    print dx[0:10,0:10]
-    print dy[0:10,0:10]
-    print d2[0:10,0:10]
+    print(dx[0:10, 0:10])
+    print(dy[0:10, 0:10])
+    print(d2[0:10, 0:10])
 
     #print d2[995:1005, 995:1005]
     
@@ -87,15 +87,15 @@ def create_from_template(command_file, buffer):
     # Load command file 
     cmdfile = open(command_file, "r")
     cmds = cmdfile.readlines()
-    print cmds
-    
+    print(cmds)
+
     for i in range(len(cmds)):
         line = cmds[i]
         if (line[0] == "#"):
             continue
         
         items = line.strip().split()
-        print items
+        print(items)
 
         shape = items[0]
         if (shape == "fillcircle"):
@@ -194,7 +194,7 @@ def load_frame(filename, pupilghost_centers, binfac, bpmdir):
     stdout_write("\nLoading frame %s ...\n" % (filename))
 
     combined_file = "pg_combined_%+04d.fits" % numpy.around(rotator_angle)
-    print "combined-file:",combined_file
+    print("combined-file:", combined_file)
     if (use_buffered_files and os.path.isfile(combined_file)):
         hdu = pyfits.open(combined_file)
         combined = hdu[0].data
@@ -327,7 +327,7 @@ def subtract_background(data, radius, angle, radius_range, binfac):
 def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
 
     all_data, all_radius, all_angle, all_bgsub = None, None, None, None
-    print "Running do_work"
+    print("Running do_work")
 
     for filename in filenames:
         # Load and prepare all files
@@ -410,7 +410,7 @@ def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
         full_2d = azimuthal_2d + radial_2d
         full_2d[full_2d<0] = 0
 
-        print "Writing data"
+        print("Writing data")
         pyfits.PrimaryHDU(data=full_2d).writeto("fit_rad+nonrad.fits", clobber=True)
     except:
         pass
@@ -427,8 +427,7 @@ def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
     #
     #------------------------------------------------------------------------------
 
-
-    print "Interpolating to full resolution"
+    print("Interpolating to full resolution")
     xb, yb = numpy.indices(data.shape)
     
     # Prepare the 2-d interpolation spline
@@ -677,10 +676,10 @@ def fit_azimuthal_profiles(data, radius, angle, bgsub, pupil_sub, radius_range):
             radial_splines[cur_radius] = az_profile
         except:
             stdout_write("\n#\n")
-            print "# Serious problem found in ring %d - %d" % (int(ri), int(ro))
-            print "# Number of elements in ring: ", sorted_angles.shape, sorted_data.shape
-            print "# Number of knots:", good_angle_knots.shape
-            print "#"
+            print("# Serious problem found in ring %d - %d" % (int(ri), int(ro)))
+            print("# Number of elements in ring: ", sorted_angles.shape, sorted_data.shape)
+            print("# Number of knots:", good_angle_knots.shape)
+            print("#")
 
         if (show_plots):
             fine_profile_x = numpy.linspace(min_angle, max_angle, 1000)
@@ -691,7 +690,7 @@ def fit_azimuthal_profiles(data, radius, angle, bgsub, pupil_sub, radius_range):
             #plot.savefig("profile_az_%d-%d.png" % (ri,ro))
             plot.close()
 
-    print " - done!"
+    print(" - done!")
 
     return radial_splines
 
@@ -746,8 +745,8 @@ def compute_pupilghost(data, radius, angle,
                 if (radial_splines[ro] is not None):
                     val_o = radial_splines[ro](angle_here)
             except:
-                print "Found a problem: x/y = ",x,y
-                print "                 r_here/dr/ri/ro=",r_here, dr, ri, ro
+                print("Found a problem: x/y = ", x, y)
+                print("                 r_here/dr/ri/ro=", r_here, dr, ri, ro)
                 pass
             # Now interpolate linearly between the two
             if (ri == ro):
@@ -758,7 +757,7 @@ def compute_pupilghost(data, radius, angle,
 
 #            if (nonradial_profile[x,y] > pupil_radial_2d[x,y]):
 #                nonradial_profile[x,y] = pupil_radial_2d[x,y]
-    print " complete!"
+    print(" complete!")
 
     return nonradial_profile
 
@@ -1020,7 +1019,7 @@ def fit_pupilghost(hdus, centers, rotator_angles, radius_range, dr_full,
             #plot.savefig("profile_az_%d-%d.png" % (ri,ro))
             plot.close()
 
-    print " - done!"
+    print(" - done!")
 
     #------------------------------------------------------------------------------
     #
@@ -1064,13 +1063,13 @@ def fit_pupilghost(hdus, centers, rotator_angles, radius_range, dr_full,
 
             if (nonradial_profile[x,y] > pupil_radial_2d[x,y]):
                 nonradial_profile[x,y] = pupil_radial_2d[x,y]
-    print " complete!"
+    print(" complete!")
 
     fullprofile = nonradial_profile + pupil_radial_2d
     fullprofile[fullprofile<0] = 0
 
     if (write_intermediate):
-        print "Writing data"
+        print("Writing data")
         # Save non-radial as fits
         pyfits.PrimaryHDU(data=nonradial_profile).writeto("fit_nonradial.fits", clobber=True)
         pyfits.PrimaryHDU(data=pupil_radial_2d).writeto("fit_radial.fits", clobber=True)
@@ -1091,8 +1090,7 @@ def fit_pupilghost(hdus, centers, rotator_angles, radius_range, dr_full,
     #
     #------------------------------------------------------------------------------
 
-
-    print "Interpolating to full resolution"
+    print("Interpolating to full resolution")
     xb, yb = numpy.indices(data.shape)
     
     # Prepare the 2-d interpolation spline
@@ -1156,14 +1154,12 @@ def bin_azimuthal_profile(angles, data, d_angle, min_angle=None, max_angle=None,
     #var[count < 0.2*npixels] = 1e9
 
     if (verbose):
-        print "Results from az binning", a_start, a_end
-        print angle[:5]
-        print median[:5]
-        print count[:5]
-        print var[:5]
-        print
-
-
+        print("Results from az binning", a_start, a_end)
+        print(angle[:5])
+        print(median[:5])
+        print(count[:5])
+        print(var[:5])
+        print()
     return angle, median, var
 
 def sort_angles(angles, data):
@@ -1188,7 +1184,7 @@ def sort_angles(angles, data):
 #################################
 if __name__ == "__main__":
 
-    print """\
+    print("""\
 
   fit-pupilghost tool
   part of the pODI QuickReduce pipeline
@@ -1196,7 +1192,7 @@ if __name__ == "__main__":
   Contact the author with questions and comments.
   Website: members.galev.org/rkotulla
            --> Research --> podi-pipeline
-"""
+""")
 
     # Read in the input parameters
     template = sys.argv[1]

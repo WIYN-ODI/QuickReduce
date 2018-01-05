@@ -22,7 +22,7 @@ for (old,new) in podi_makefake56.old_new:
 
     hduout.append(ext)
 
-print "writing output"
+print("writing output")
 
 hdux = pyfits.HDUList(hduout)
 hdux.info()

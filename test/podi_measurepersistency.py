@@ -71,7 +71,7 @@ if __name__ == "__main__":
 
     # Now go through each of the files and get the median level of the formerly saturated pixels
     for file in sys.argv[5:]:
-        print "Measuring file",file
+        print("Measuring file", file)
         this_hdu = pyfits.open(file)
         this_data = this_hdu[extension].data
         this_mjd = mjd = podi_persistency.get_mjd_from_timestamp(file[0:15])
