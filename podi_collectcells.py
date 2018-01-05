@@ -1472,7 +1472,7 @@ def collect_reduce_ota(filename,
                 sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s" % (
                     sitesetup.sextractor, sex_config_file, parameters_file, catfile, 
                     fitsfile)
-                if (options['verbose']): print sexcmd
+                if (options['verbose']): print(sexcmd)
 
                 start_time = time.time()
                 #os.system(sexcmd)
@@ -1915,7 +1915,7 @@ def parallel_collect_reduce_ota(queue,
                 _ota_id, final_parameters = ret
             except:
                 podi_logging.log_exception()
-                print "\n\n",ret,"\n\n"
+                print ("\n\n",ret,"\n\n")
                 
             if (not _ota_id == ota_id):
                 # this is not meant for me, so put it back
@@ -2211,7 +2211,7 @@ def prestage_data(options, input):
         # This is a directory.
         # Let's assume all files in this directory need to be prestaged
         base, dirname = os.path.split(os.path.abspath(input))
-        print base, dirname
+        print(base, dirname)
         tmpdir = "%s/%s" % (sitesetup.staging_dir, dirname)
         # Create the directory
         if (not os.path.isdir(tmpdir)):
@@ -2273,7 +2273,7 @@ def prestage_data(options, input):
             if (fn.endswith(".fits.fz")):
                 # This is a .fits.fz file -> run funpack
                 outfile = "%s/%s" % (tmpdir, fn[:-3])
-                print outfile
+                print(outfile)
                 if (os.path.isfile(outfile)):
                     continue
                 logger.debug("Prestaging file w/ funpack: %s --> %s" % (filename, outfile))
@@ -3222,12 +3222,12 @@ def collectcells(input, outputfile,
 
     if (os.path.isfile(outputfile) and not options['clobber']):
         logger.info("File %s already exists, skipping!" % (outputfile))
-        print "#####################################################"
-        print "#"
-        print "# File %s already exists, skipping!" % (outputfile)
-        print "#"
-        print "#####################################################"
-        print "\n"
+        print("#####################################################")
+        print("#")
+        print("# File %s already exists, skipping!" % (outputfile))
+        print("#")
+        print("#####################################################")
+        print("\n")
         unstage_data(options, staged_data, input)
         return
 
@@ -4109,16 +4109,6 @@ def collectcells(input, outputfile,
     logger.info("Starting post-processing")
     additional_reduction_files = {}
 
-    if (options['fixwcs'] and verbose):
-        print fixwcs_extension
-        print fixwcs_odi_x
-        print fixwcs_odi_y
-        print fixwcs_bestguess.shape
-        print fixwcs_bestguess
-        
-    if(verbose):
-        print master_reduction_files_used
-        
     #
     # Now do some post-processing:
     # 1) Add or overwrite some headers with values from an external wcs minifits file
@@ -5587,7 +5577,7 @@ if __name__ == "__main__":
     if (len(sys.argv) <= 1 or sys.argv[1] == "-help"):
         #print help('podi_matchpupilghost')
         import podi_collectcells as me
-        print me.__doc__
+        print(me.__doc__)
         sys.exit(0)
 
     # m = multiprocessing.Manager()
@@ -5600,9 +5590,9 @@ if __name__ == "__main__":
     if (len(get_clean_cmdline())>2):
         outputfile = get_clean_cmdline()[2]
     else:
-        print "No output filename has been given, setting to default mergedcells.fits"
+        print("No output filename has been given, setting to default mergedcells.fits")
         outputfile = "mergedcells"
-    print "Writing results into",outputfile
+    print("Writing results into",outputfile)
 
     # Set the options for collectcells to some reasonable start values
     options = set_default_options()
@@ -5645,7 +5635,7 @@ if __name__ == "__main__":
             if (cmdline_arg_isset("-timeout")):
                 
                 timeout = float(cmdline_arg_set_or_default("-timeout", 900))
-                print "Setting timeout to",timeout,"seconds"
+                print("Setting timeout to",timeout,"seconds")
                 retvalue = collectcells_with_timeout(input, outputfile, options=options,
                                                      timeout=timeout,)
             else:
@@ -5657,7 +5647,7 @@ if __name__ == "__main__":
                 logger.debug("collectcells returned to __main__ after %.3f seconds" % ((end_time-start_time)))
                 retvalue = 0
     except:
-        print "Cleaning up left over child processes"
+        print("Cleaning up left over child processes")
         podi_logging.log_exception()
         #kill_all_child_processes(process_tracker)
         retvalue = 2
