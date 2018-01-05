@@ -128,7 +128,7 @@ def ascii2fits(asciifile, fitsfile):
     full_data = numpy.array(list_of_entries)
 
     #Create fits table
-    columns = [\
+    columns = [
         pyfits.Column(name='ra',      format='E', array=full_data[:,0]),
         pyfits.Column(name='dec',     format='E', array=full_data[:,1]),
         pyfits.Column(name='ra_err',  format='E', array=full_data[:,2]),
@@ -330,8 +330,8 @@ def import_ucac(catalog_dir, ucac_ascii):
         total += ucac_portion.shape[0]
 
         # Create the data
-        columns = [\
-                   pyfits.Column(name='ra',      format='E', array=ucac_portion[:, 0]),
+        columns = [
+            pyfits.Column(name='ra',      format='E', array=ucac_portion[:, 0]),
                    pyfits.Column(name='dec',     format='E', array=ucac_portion[:, 1]),
                    pyfits.Column(name='ra_err',  format='E', array=ucac_portion[:, 7]),
                    pyfits.Column(name='dec_err', format='E', array=ucac_portion[:, 8]),

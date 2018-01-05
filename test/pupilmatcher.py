@@ -733,7 +733,7 @@ def compute_pupilghost(data, radius, angle,
 
             if (ri < 0):
                 continue
-            elif (ro >= len(radial_splines) and ri < len(radial_splines)):
+            elif (ro >= len(radial_splines) > ri):
                 ro = ri
             elif (ri >= len(radial_splines)):
                 continue

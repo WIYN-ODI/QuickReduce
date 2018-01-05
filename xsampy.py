@@ -331,7 +331,7 @@ class WebProfilePopupDialogue(Tkinter.Tk):
       self._queue = queue
 
       self.title("SAMP Hub")
-      self._text = Tkinter.Label(self, font=("Helvetica", 14), \
+      self._text = Tkinter.Label(self, font=("Helvetica", 14),
                                  fg="red", justify=Tkinter.CENTER)
       self._text.pack(padx=5, pady=5, expand=1, fill=Tkinter.X,)
 
@@ -1198,7 +1198,7 @@ class SAMPHubServer(object):
   SAMP Hub Server implementation (Standard Profile v1.0)
   """
 
-  def __init__(self, secret = None, addr=None, port=0, lockfile=None, timeout = 0, \
+  def __init__(self, secret = None, addr=None, port=0, lockfile=None, timeout = 0,
                client_timeout = 0, log = None,
                mode = SAMP_HUB_SINGLE_INSTANCE, label = "",
                owner = "", owner_group = "", auth_file = None,
@@ -1334,7 +1334,7 @@ class SAMPHubServer(object):
     self._web_profile_requests_semaphore = Queue.Queue(1)
     if web_profile:
       try:
-        self._web_profile_server = WebProfileXMLRPCServer(('localhost', 21012), self._log, \
+        self._web_profile_server = WebProfileXMLRPCServer(('localhost', 21012), self._log,
                                                           logRequests = False, allow_none = True)
         self._web_profile_server.register_introspection_functions()
         self._log.info("Hub set to run with Web Profile support enabled.")
@@ -2003,7 +2003,7 @@ class SAMPHubServer(object):
       self._log.debug("setXmlrpcCallback: %s %s" % (private_key, xmlrpc_addr))
       server_proxy = None
       if SSL_SUPPORT and xmlrpc_addr[0:5] == "https":
-        server_proxy = xmlrpclib.ServerProxy( \
+        server_proxy = xmlrpclib.ServerProxy(
           xmlrpc_addr, transport = SafeTransport(key_file = self._keyfile,
                                                  cert_file = self._certfile,
                                                  cert_reqs = self._cert_reqs,
@@ -2029,8 +2029,8 @@ class SAMPHubServer(object):
     self._updateLastActivityTime(private_key)
     self._notifyRegister(private_key)
     self._log.debug("register: private-key = %s and self-id = %s" % (private_key, public_id))
-    return {"samp.self-id": public_id, \
-            "samp.private-key": private_key, \
+    return {"samp.self-id": public_id,
+            "samp.private-key": private_key,
             "samp.hub-id": self._hub_public_id}
   
   
@@ -2470,7 +2470,7 @@ class SAMPHubServer(object):
             if self._web_profile and recipient_private_key in self._web_profile_callbacks:
               # Web Profile
               self._web_profile_callbacks[recipient_private_key].put({"samp.methodName": "receiveResponse",
-                                                                      "samp.params": [responder_public_id, \
+                                                                      "samp.params": [responder_public_id,
                                                                                       recipient_msg_tag, response]})
               return
             # Standard Profile
@@ -2497,7 +2497,7 @@ class SAMPHubServer(object):
            #(self._hub_msg_id_counter, sender_public_id, \
             #sender_msg_id, self._hub_public_id, now)
     return "msg#%d;;%s;;%s;;%s" % \
-           (self._hub_msg_id_counter, self._hub_public_id, \
+           (self._hub_msg_id_counter, self._hub_public_id,
             sender_public_id, sender_msg_id)
 
   def _updateLastActivityTime(self, private_key = None):
@@ -3008,8 +3008,8 @@ class SAMPClient(object):
       if self._port == 0:
         self._port = self.client.socket.getsockname()[1]
   
-      self._xmlrpcAddr = "http://%s:%s" % (self._addr or \
-                                           self._host_name, \
+      self._xmlrpcAddr = "http://%s:%s" % (self._addr or
+                                           self._host_name,
                                            self._port)
 
 
@@ -3434,7 +3434,7 @@ class SAMPClient(object):
     if self.hub.isConnected() and self._private_key is not None:
 
       try:
-        self.hub.setXmlrpcCallback(self._private_key, \
+        self.hub.setXmlrpcCallback(self._private_key,
                                    self._xmlrpcAddr)
       except:
         pass
@@ -4231,11 +4231,11 @@ def main():
                     help = "run the Hub enabling the Web Profile.")
   
   timeout_group = OptionGroup(parser, "Timeout group",
-                              "Special options to setup hub and client timeouts." \
-                              "It contains a set of special options that allows to set up the Hub and " \
-                              "clients inactivity timeouts, that is the Hub or client inactivity time " \
-                              "interval after which the Hub shuts down or unregisters the client. " \
-                              "Notification of samp.hub.disconnect MType is sent to the clients " \
+                              "Special options to setup hub and client timeouts."
+                              "It contains a set of special options that allows to set up the Hub and "
+                              "clients inactivity timeouts, that is the Hub or client inactivity time "
+                              "interval after which the Hub shuts down or unregisters the client. "
+                              "Notification of samp.hub.disconnect MType is sent to the clients "
                               "forcibly unregistered for timeout expiration.")
 
   timeout_group.add_option("-t", "--timeout", dest="timeout", metavar="SECONDS",
@@ -4250,10 +4250,10 @@ def main():
   parser.add_option_group(timeout_group)
 
   log_group = OptionGroup(parser, "Logging options",
-                          "Additional options which allow to customize the logging output. By " \
-                          "default SAMPy Hub uses the standard output and standard error " \
-                          "devices to print out INFO level logging messages. Using the options " \
-                          "here below it is possible to modify the logging level and also " \
+                          "Additional options which allow to customize the logging output. By "
+                          "default SAMPy Hub uses the standard output and standard error "
+                          "devices to print out INFO level logging messages. Using the options "
+                          "here below it is possible to modify the logging level and also "
                           "specify the output files where redirect the logging messages.")
 
   log_group.add_option("-L", "--log-level", dest="loglevel", metavar="LEVEL",
@@ -4272,29 +4272,29 @@ def main():
   parser.add_option_group(log_group)
 
   adv_group = OptionGroup(parser, "Advanced group",
-                          "Advanced options addressed to facilitate administrative tasks and " \
-                          "allow new non-standard Hub behaviors. In particular the --label " \
-                          "options is used to assign a value to hub.label token and is used to " \
-                          "assign a name to the Hub instance. Option --auth-file sets the " \
-                          "authentication file enabling the access control through Basic " \
-                          "Authentication. The authentication file is a Berkeley DB file " \
-                          "in Hash format containing a set of <user name>=md5(<password>)<group 1>,<group 2>,<group 3>,... " \
-                          "key=value pairs. Options --owner and --group are additional tokens " \
-                          "(hub.owner.name and hub.owner.group respectively) available for " \
-                          "possible administrative tasks and usable in conjunction with --restrict " \
-                          "option for authentication tasks. --restrict option allows to restrict "\
-                          "the Hub access only to OWNER or to a certain owner GROUP. Access restriction " \
-                          "is actually enabled only if an authentication file is provided. " \
-                          "--admin option defines the name of the administrator user in case " \
-                          "of restricted access. The administrator user can always access the " \
-                          "hub instance even if it is running with the OWNER restricion policy. " \
-                          "The administrator must be declared in the authentication file. " \
-                          "The very special --multi option allows to start a Hub in multi-instance mode. " \
-                          "Multi-instance mode is a non-standard Hub behavior that enables " \
-                          "multiple contemporaneous running Hubs. Multi-instance hubs place " \
-                          "their non-standard lock-files within the <home directory>/.samp-1 " \
-                          "directory naming them making use of the format: " \
-                          "samp-hub-<PID>-<ID>, where PID is the Hub process ID while ID is an " \
+                          "Advanced options addressed to facilitate administrative tasks and "
+                          "allow new non-standard Hub behaviors. In particular the --label "
+                          "options is used to assign a value to hub.label token and is used to "
+                          "assign a name to the Hub instance. Option --auth-file sets the "
+                          "authentication file enabling the access control through Basic "
+                          "Authentication. The authentication file is a Berkeley DB file "
+                          "in Hash format containing a set of <user name>=md5(<password>)<group 1>,<group 2>,<group 3>,... "
+                          "key=value pairs. Options --owner and --group are additional tokens "
+                          "(hub.owner.name and hub.owner.group respectively) available for "
+                          "possible administrative tasks and usable in conjunction with --restrict "
+                          "option for authentication tasks. --restrict option allows to restrict "
+                          "the Hub access only to OWNER or to a certain owner GROUP. Access restriction "
+                          "is actually enabled only if an authentication file is provided. "
+                          "--admin option defines the name of the administrator user in case "
+                          "of restricted access. The administrator user can always access the "
+                          "hub instance even if it is running with the OWNER restricion policy. "
+                          "The administrator must be declared in the authentication file. "
+                          "The very special --multi option allows to start a Hub in multi-instance mode. "
+                          "Multi-instance mode is a non-standard Hub behavior that enables "
+                          "multiple contemporaneous running Hubs. Multi-instance hubs place "
+                          "their non-standard lock-files within the <home directory>/.samp-1 "
+                          "directory naming them making use of the format: "
+                          "samp-hub-<PID>-<ID>, where PID is the Hub process ID while ID is an "
                           "internal ID (integer).")
 
   adv_group.add_option("-l", "--label", dest = "label", metavar = "LABEL",
@@ -4329,17 +4329,17 @@ def main():
 
   if SSL_SUPPORT:
 
-    ssl_group = OptionGroup(parser, "SSL group", "Additional options to launch " \
-                            "the Hub instance using the Secure Sockets Layer (HTTPS). " \
-                            "The --key-file and --cert-file parameters specify optional " \
-                            "files which contain a certificate to be used to identify " \
-                            "the local side of the connection. " \
-                            "Often the private key is stored in the same file as the " \
-                            "certificate; in this case, only the --cert-file parameter need " \
-                            "be passed. If the private key is stored in a separate file, " \
-                            "both parameters must be used. If the private key is stored " \
-                            "in the certificate file, it should come before the first certificate " \
-                            "in the certificate chain.")
+    ssl_group = OptionGroup(parser, "SSL group", "Additional options to launch "
+                                                 "the Hub instance using the Secure Sockets Layer (HTTPS). "
+                                                 "The --key-file and --cert-file parameters specify optional "
+                                                 "files which contain a certificate to be used to identify "
+                                                 "the local side of the connection. "
+                                                 "Often the private key is stored in the same file as the "
+                                                 "certificate; in this case, only the --cert-file parameter need "
+                                                 "be passed. If the private key is stored in a separate file, "
+                                                 "both parameters must be used. If the private key is stored "
+                                                 "in the certificate file, it should come before the first certificate "
+                                                 "in the certificate chain.")
 
     ssl_group.add_option("-s", "--https", dest = "https", action = "store_true",
                          help = "run the Hub using the Secure Sockets Layer.")

@@ -216,12 +216,10 @@ def get_init_value(wcs):
         save_get_key(wcs.header, "PV2_4"),
         save_get_key(wcs.header, "PV2_5"),
         save_get_key(wcs.header, "PV2_6"),
-        \
         save_get_key(wcs.header, "PV1_7"),
         save_get_key(wcs.header, "PV1_8"),
         save_get_key(wcs.header, "PV1_9"),
         save_get_key(wcs.header, "PV1_10"),
-        \
         save_get_key(wcs.header, "PV2_7"),
         save_get_key(wcs.header, "PV2_8"),
         save_get_key(wcs.header, "PV2_9"),
