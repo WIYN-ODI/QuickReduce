@@ -874,7 +874,9 @@ def cell2ota__get_target_region(x, y, binning=1, trimcell=None):
         y2 = y1 + 247
         x1 = 254 * x
         x2 = x1 + 240
-        
+    else:
+        raise ValueError("Binning has illegal value (%d" % (binning))
+
     return x1+trimcell, x2-trimcell, y1+trimcell, y2-trimcell
 
 
@@ -1034,6 +1036,8 @@ def get_collected_image_dimensions(binning):
         sizex, sizey = 4096, 4096
     elif (binning == 2):
         sizex, sizey = 2048, 2048
+    else:
+        raise ValueError("Illegal binning value")
 
     return sizex, sizey
 
@@ -1052,6 +1056,8 @@ def extract_datasec_from_cell(data, binning, trimcell=None):
         dx, dy = 480, 494
     elif (binning == 2):
         dx, dy = 240, 247
+    else:
+        raise ValueError("Illegal binnning value")
 
     # print "extracting datasec", dx, dy
     return data[0+trimcell:dy-trimcell, 0+trimcell:dx-trimcell]
@@ -1068,6 +1074,8 @@ def extract_biassec_from_cell(data, binning):
         dx1, dx2, dy1, dy2 = 500, 550, 0, 494
     elif (binning == 2):
         dx1, dx2, dy1, dy2 = 260, 277, 0, 246
+    else:
+        raise ValueError("Illegal binnning value")
 
     # print dx1, dx2, dy1, dy2
     return data[dy1:dy2, dx1:dx2]
@@ -1221,7 +1229,7 @@ def create_association_table(master, verbose=False):
     # print reduction_step
     # print short_filename
 
-    columns = [\
+    columns = [
         pyfits.Column(name='correction',    format='A25',  array=reduction_step),
         pyfits.Column(name='filename_full', format='A375', array=full_filename),
         pyfits.Column(name='filename',      format='A100', array=short_filename),
