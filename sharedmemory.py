@@ -124,7 +124,11 @@ class SharedMemory( object ):
         Helper function needed to allocate shared memory numpy-arrays.
 
         """
-        (mm_address, mm_size) = _multiprocessing.address_of_buffer(self.mm)
+        mm_address = address_of_buffer(self.mm)
+        #(mm_address, mm_size) = _multiprocessing.address_of_buffer(self.mm)
+        #print("mm-size:", mm_size, self.n_bytes, self.n_bytes/4)
+        #print("mm-address", mm_address, address_of_buffer(self.mm))
+
         #address = self.shmem._wrapper.get_address()
         #size = self.shmem._wrapper.get_size()
         dtype = _ctypes_to_numpy[self._type]
@@ -134,7 +138,7 @@ class SharedMemory( object ):
              'data' : (mm_address, False),
              'typestr' : ">f4", #FloatType, #"uint8", #numpy.uint8.str,
              'descr' : "", #"UINT8", #numpy.uint8.descr,
-             'shape' : (mm_size/4,),
+             'shape' : (self.n_bytes//4,), #(self.n_bytes/4), #
              'strides' : None,
              'version' : 3
         }
