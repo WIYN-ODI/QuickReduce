@@ -32,6 +32,7 @@ Warning:
 
 """
 
+from __future__ import print_function
 
 import sys
 import numpy
@@ -316,8 +317,10 @@ def refine_wcs_shift(ref_x, ref_y, ota_x, ota_y, best_guess,
 
             # Save the coordinate pairs and which reference star is the closest match
 #            matched[start+i,0:6] = [aligned_x[i], aligned_y[i], ref_x[closest[i]], ref_y[closest[i]], start+i, closest[i]]
-            matched[start+i,:] = [aligned_x[i], aligned_y[i], ref_x[closest[i]], ref_y[closest[i]], start+i, closest[i], ota_px_x[start+i], ota_px_y[start+i] ]
-            print >>x, aligned_x[i], aligned_y[i], ref_x[closest[i]], ref_y[closest[i]], start+i, closest[i], ota_px_x[start+i], ota_px_y[start+i]
+            matched[start+i,:] = [aligned_x[i], aligned_y[i], ref_x[closest[i]],
+                                  ref_y[closest[i]], start+i, closest[i], ota_px_x[start+i], ota_px_y[start+i] ]
+            print(aligned_x[i], aligned_y[i], ref_x[closest[i]], ref_y[closest[i]],
+                  start+i, closest[i], ota_px_x[start+i], ota_px_y[start+i], file=x)
         x.close()
 
         start += blocksize
@@ -353,12 +356,11 @@ def refine_wcs_shift(ref_x, ref_y, ota_x, ota_y, best_guess,
     #
     # Dump some info into a file for later analysis and potentially plotting
     #
-    if (alignment_checkfile != None):
+    if (alignment_checkfile is not None):
         for i in range(matched.shape[0]):
-            print (matched[i,0], matched[i,1], matched[i,2], matched[i,3],\
-                ext,\
-                matched[i,0]-median[0],matched[i,1]-median[1],matches[i,0], matches[i,1], file=alignment_check)
-        print("\n\n\n\n\n", file=alignment_check)
+            print (matched[i,0], matched[i,1], matched[i,2], matched[i,3], ext,
+                matched[i,0]-median[0],matched[i,1]-median[1],matches[i,0], matches[i,1], file=alignment_checkfile)
+        print("\n\n\n\n\n", file=alignment_checkfile)
 
     if (verbose): print("Ref: %d, ODI: %d, Matched: %d" % (ref_x.shape[0], ota_x.shape[0], matched.shape[0]))
     return median, matched, matches

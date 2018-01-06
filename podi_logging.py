@@ -8,6 +8,7 @@ logging process.
 
 """
 
+from __future__ import print_function
 
 import sys
 import numpy
@@ -79,8 +80,8 @@ def test_worker_process(log_setup):
 # The worker configuration is done at the start of the worker process run.
 # Note that on Windows you can't rely on fork semantics, so each process
 # will run the logging configuration code when it starts.
-def log_slave_setup(queue):
-    h = QueueHandler(queue) # Just the one handler needed
+def log_slave_setup(msg_queue):
+    h = QueueHandler(msg_queue) # Just the one handler needed
     root = logging.getLogger()
     root.addHandler(h)
     root.setLevel(logging.DEBUG) # send all messages, for demo; no other level or filter logic applied.
@@ -185,7 +186,7 @@ class QueueHandler(logging.Handler):
 
 
 
-def log_master(queue, options):
+def log_master(msg_queue, options):
     """
 
     This is the main process that handles all log output. 
@@ -221,7 +222,7 @@ def log_master(queue, options):
             open_mode = "a" if (sitesetup.debug_log_append) else "w"
             debugfile = open(debug_filename, open_mode)
             enable_debug = True
-            print >>debugfile, " ".join(sys.argv)
+            print(" ".join(sys.argv), file=debugfile)
             
             # print 'activating debug output'
 
@@ -323,10 +324,10 @@ def log_master(queue, options):
     while True:
         try:
             try:
-                record = queue.get(timeout=1.)
+                record = msg_queue.get(timeout=1.)
             except (KeyboardInterrupt, SystemExit):
                 record = None
-            except Queue.Empty:
+            except queue.Empty:
                 pass
                 # print >>debugfile, "LogHandler: still running, but no message during the last second!"
                 # print "."
@@ -398,7 +399,7 @@ def log_master(queue, options):
                                       body=str(pika_msg)
                 )
              
-            queue.task_done()
+            msg_queue.task_done()
         except (KeyboardInterrupt, SystemExit):
             raise
         except:
@@ -430,24 +431,24 @@ def podi_log_master_start(options):
 
     """
 
-    queue = multiprocessing.JoinableQueue()
+    msg_queue = multiprocessing.JoinableQueue()
 
     #
     # Rename the thread name to make a more useful stacktrace
     #
-    queue._start_thread()
-    queue._thread.name = "QueueFeederThread___ParallelLogging"
+    msg_queue._start_thread()
+    msg_queue._thread.name = "QueueFeederThread___ParallelLogging"
 
     listener = multiprocessing.Process(target=log_master,
-                                kwargs={"queue": queue,
+                                kwargs={"msg_queue": msg_queue,
                                         "options": options}
                             )
     listener.start()
 
-    worker_setup = {"queue": queue,
+    worker_setup = {"msg_queue": msg_queue,
                   "configurer": log_slave_setup}
     
-    log_master_info = {"queue": queue,
+    log_master_info = {"msg_queue": msg_queue,
                        "listener": listener
                    }
 
@@ -464,7 +465,7 @@ def podi_log_master_quit(log_master_info):
     Shutdown the logging process
     """
 
-    log_master_info['queue'].put(None)
+    log_master_info['msg_queue'].put(None)
     try:
         # print "joining log listener"
         log_master_info['listener'].join()
@@ -472,8 +473,8 @@ def podi_log_master_quit(log_master_info):
     except (KeyboardInterrupt, SystemExit):
         pass
 
-    log_master_info['queue'].close()
-    log_master_info['queue'].join_thread()
+    log_master_info['msg_queue'].close()
+    log_master_info['msg_queue'].join_thread()
     return
 
 
@@ -483,11 +484,11 @@ def podi_logger_setup(setup):
     the logging subprocess.
     """
     
-    if (setup == None):
+    if (setup is None):
         return
         # handler = logging.StreamHandler(sys.stdout)
     else:
-        handler = QueueHandler(setup['queue'])
+        handler = QueueHandler(setup['msg_queue'])
 
     # import sys
     # handler = logging.StreamHandler(stream=sys.stdout)

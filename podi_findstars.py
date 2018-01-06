@@ -21,6 +21,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 #
 
+from __future__ import print_function
 import sys
 import os
 import pyfits

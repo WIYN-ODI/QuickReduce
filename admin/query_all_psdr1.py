@@ -256,8 +256,8 @@ def convert_ascii_to_fits(raw_dir, out_dir, indexfile, start_at, end_at):
             # 79: r mean kron magnitude - to isolate stars
             if (not os.path.isfile(fn)):
                 print("missing file %s for %s" % (fn, cat_fitsfile))
-                print( >> error_log, "missing file %s for %s" % (
-                fn, cat_fitsfile)
+                print("missing file %s for %s" % (
+                fn, cat_fitsfile, file=error_log)
                 error_abort=True
                 break
             try:
@@ -271,7 +271,7 @@ def convert_ascii_to_fits(raw_dir, out_dir, indexfile, start_at, end_at):
                             break
                 if (skiprows is None):
                     print("No data found in %s for %s" % (fn, cat_fitsfile))
-                    print( >> error_log, "No data found in %s for %s" % (fn, cat_fitsfile)
+                    print("No data found in %s for %s" % (fn, cat_fitsfile), file=error_log)
                     continue
 
                 filedata = numpy.loadtxt(
@@ -288,7 +288,7 @@ def convert_ascii_to_fits(raw_dir, out_dir, indexfile, start_at, end_at):
                 )
             except (IndexError, ValueError, StopIteration, TypeError) as e:
                 print("Unable to load %s for %s: %s" % (fn, cat_fitsfile, type(e)))
-                print( >> error_log, "Unable to load %s for %s: %s" % (fn, cat_fitsfile, type(e))
+                print("Unable to load %s for %s: %s" % (fn, cat_fitsfile, type(e)), file=error_log)
                 continue
 
 
@@ -313,7 +313,7 @@ def convert_ascii_to_fits(raw_dir, out_dir, indexfile, start_at, end_at):
                                (filedata[:, 18] > 0.) & (filedata[:, 18] < max_phot_error)
             except IndexError:
                 print("Error down-selecting from %s (%s)" % (fn, cat_fitsfile))
-                print( >> error_log, "Error down-selecting from %s (%s)" % (fn, cat_fitsfile)
+                print("Error down-selecting from %s (%s)" % (fn, cat_fitsfile), file=error_log)
                 continue
 
             good = is_star & in_field & good_detection & small_errors

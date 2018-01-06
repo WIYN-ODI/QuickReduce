@@ -224,6 +224,8 @@ Methods
 
 """
 
+from __future__ import print_function
+
 import sys
 import os
 import signal
@@ -1760,8 +1762,8 @@ def apply_software_binning(hdu, softbin):
 
 
 
-def parallel_collect_reduce_ota(queue, 
-                                final_results_queue, 
+def parallel_collect_reduce_ota(workqueue,
+                                final_results_queue,
                                 intermediate_queue,
                                 intermediate_results_queue,
                                 filename, ota_id,
@@ -1778,7 +1780,7 @@ def parallel_collect_reduce_ota(queue,
 
     Parameters
     ----------
-    queue : Queue
+    workqueue : Queue
 
         Input Queue containing names of raw OTA frames to be reduced
 
@@ -1803,10 +1805,10 @@ def parallel_collect_reduce_ota(queue,
     logger.debug("Process started")
 
     # while (True):
-    #     task = queue.get()
+    #     task = workqueue.get()
     #     # if (task == None):
     #     #     logger.info("Received termination signal, shutting down")
-    #     #     queue.task_done()
+    #     #     workqueue.task_done()
     #     #     return
 
     #     filename, ota_id, wrapped_pipe = task
@@ -1817,10 +1819,10 @@ def parallel_collect_reduce_ota(queue,
         try:
             data_products = collect_reduce_ota(filename, options=options)
         # except (KeyboardInterrupt, SystemExit):
-        #     queue.task_done()
-        #     while (not queue.empty()):
-        #         queue.get()
-        #         queue.task_done()
+        #     workqueue.task_done()
+        #     while (not workqueue.empty()):
+        #         workqueue.get()
+        #         workqueue.task_done()
         #     break
         except:
             # All other problems:
@@ -1833,7 +1835,7 @@ def parallel_collect_reduce_ota(queue,
         return_hdu = data_products['hdu']
         # print data_products
         if (return_hdu is None):
-            # queue.task_done()
+            # workqueue.task_done()
             # continue
             if (not os.path.isfile(filename)):
                 logger.critical("OTA did not return any data, missing file (%s)?" % (filename))
@@ -1846,7 +1848,7 @@ def parallel_collect_reduce_ota(queue,
 
             # return_queue.put( (ota_id, data_products, shmem_id) )
 
-            #queue.task_done()
+            #workqueue.task_done()
             #continue
             return
 
@@ -2047,7 +2049,7 @@ def parallel_collect_reduce_ota(queue,
         # podi_logging.print_stacktrace(logger=logger)
 
         #cmd_queue.task_done()
-        #queue.task_done()
+        #workqueue.task_done()
         if (complete is not None):
             complete.value = True
             pass
@@ -2929,7 +2931,7 @@ class reduce_collect_otas (object):
         self.shmem_list[id] = shmem
         job['complete'] = multiprocessing.Value('i', False)
         job['args'] = {
-            'queue': self.queue,
+            'workqueue': self.queue,
             'intermediate_results_queue': self.intermediate_results_queue,
             'final_results_queue': self.final_results_queue,
             'intermediate_queue': self.intermediate_queue,
