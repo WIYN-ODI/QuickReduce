@@ -128,13 +128,13 @@ def create_nonlinearity_data(inputfiles, output_filename="nonlin.dat"):
             exptime = hdulist[0].header['EXPTIME']
             expmeas = hdulist[0].header['EXPMEAS']
             jd      = hdulist[0].header['MJD-OBS']
-            print "Working on",filename, "exptime=",exptime
+            print("Working on",filename, "exptime=",exptime)
         except:
-            print "#####"
-            print "#####"
-            print "Error opening file",filename
-            print "#####"
-            print "#####"
+            print("#####")
+            print("#####")
+            print("Error opening file",filename)
+            print("#####")
+            print("#####")
             continue
 
         for ext in range(1, len(hdulist)):
@@ -219,7 +219,7 @@ def fit_nonlinearity_sequence(pinit, args):
     pfit = fit[0]
 
     uncert = numpy.sqrt(numpy.diag(fit[1]))
-    print pfit, uncert
+    print(pfit, uncert)
     return pfit, uncert
 
 
@@ -318,7 +318,7 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
                 logger.debug("Fitting OTA %02d, cell %1d,%1d ..." % (ota, cellx, celly))
 
                 this_cell = (data[:,0] == ota) & (data[:,3] == cellx) & (data[:,4] == celly)
-                if (debug): print "working on", ota, cellx, celly
+                if (debug): print("working on", ota, cellx, celly)
                 subset = data[this_cell]
                 #print ota, cellx, celly,":\n",subset
 
@@ -366,7 +366,7 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
                 #time.sleep(1)
 
                 satlevel = pow(2,16) - 1
-                if (debug): print satlevel
+                if (debug): print(satlevel)
 
                 si = numpy.argsort(exptime)[::-1] # this sorts from long to short exposures
                 #print si.shape
@@ -376,7 +376,7 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
                     cur_idx = si[idx]
                     this_exptime = exptime[cur_idx]
 
-                    if (debug): print "CP::", idx, si[idx], this_exptime, medlevel[cur_idx]
+                    if (debug): print("CP::", idx, si[idx], this_exptime, medlevel[cur_idx])
                     # search for the largest exposure time shorter than this one
                     shorter_t = exptime < this_exptime
                     if(numpy.sum(shorter_t) <= 0): break
@@ -385,17 +385,17 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
                     delta_t = this_exptime - exptime[idx_next_shorter]
                     delta_i = medlevel[cur_idx] - medlevel[idx_next_shorter]
                     slope = delta_i / delta_t
-                    if (debug): print delta_t, delta_i, "-->", slope
+                    if (debug): print(delta_t, delta_i, "-->", slope)
 
                     if (abs(slope-linear_slope)/linear_slope > 0.3):
-                        if (debug): print "found saturated intensity: %f\n" % (medlevel[cur_idx])
+                        if (debug): print("found saturated intensity: %f\n" % (medlevel[cur_idx]))
                         saturated[cur_idx] = True
                         
                         #logger.info("found saturated intensity: %f" % (medlevel[cur_idx]))
 
                 if (debug):
-                    print "*******************\n"*2
-                    print medlevel[saturated]
+                    print("*******************\n"*2)
+                    print(medlevel[saturated])
 
                 if (numpy.sum(saturated) > 0):
                     satlevel = numpy.min(medlevel[saturated]) 
@@ -433,7 +433,7 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
 
 
                 if (verbose):
-                    print ota, cellx, celly, pfit, uncert
+                    print(ota, cellx, celly, pfit, uncert)
 
                 linear_factor = pfit[0]
 
@@ -637,7 +637,7 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
     # Average together values with identical exposure times
     exptimes = set(subset[:,5])
     exptimes_sorted = numpy.zeros((len(exptimes)))
-    print exptimes
+    print(exptimes)
 
     i=0
     for x in exptimes:
@@ -645,7 +645,7 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
         i += 1
 
     exptimes_sorted = numpy.sort(exptimes_sorted)
-    print exptimes_sorted
+    print(exptimes_sorted)
 
     good_data = numpy.zeros(shape=(len(exptimes), subset.shape[1]))
     for exptime in range(exptimes_sorted.shape[0]):
@@ -748,7 +748,7 @@ def create_data_fit_plot(data, fitfile, ota, cellx, celly, outputfile):
             y_values = numpy.ones(shape=med_below.shape) * error_range[0]
             ax2.scatter(med_below/fluxscaling, y_values, c=colors[i], marker="v")
 
-        print "Order",i+1,":", fit
+        print("Order",i+1,":", fit)
 
         if (i==2):
 #            ax1.set_label()
@@ -1074,7 +1074,7 @@ Creating all fits
         fitsfile = get_clean_cmdline()[1]
         ota = int(get_clean_cmdline()[2])
         coeffs = load_nonlinearity_correction_table(fitsfile, ota)
-        print coeffs
+        print(coeffs)
 
 
     elif (cmdline_arg_isset("-compare")):

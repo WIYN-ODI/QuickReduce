@@ -403,7 +403,7 @@ def log_master(queue, options):
             raise
         except:
             import sys, traceback
-            print >> sys.stderr, 'Whoops! Problem:'
+            print('Whoops! Problem:', file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
 
     if (enable_pika):
@@ -413,7 +413,7 @@ def log_master(queue, options):
             pass
 
     if (enable_debug):
-        print >>debugfile, "done with logging, closing file"
+        print("done with logging, closing file", file=debugfile)
         debugfile.close()
 
 

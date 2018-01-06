@@ -1901,7 +1901,7 @@ def parallel_collect_reduce_ota(queue,
             # wait for instruction for my OTA-ID
             try:
                 ret = intermediate_queue.get(timeout=0.01)
-            except Queue.Empty:
+            except queue.Empty:
                 continue
             except IOError:
                 # most likely due to closed pipe after the queue has been closed
@@ -2336,7 +2336,7 @@ def unstage_data(options, staged, input):
 
 
 
-import cPickle as pickle
+import pickle
 
 class reduce_collect_otas (object):
 
@@ -2622,7 +2622,7 @@ class reduce_collect_otas (object):
             try:
                 #results = self.intermediate_results_queue.get_nowait()
                 results = self.intermediate_results_queue.get(timeout=0.05)
-            except Queue.Empty:
+            except queue.Empty:
                 #time.sleep(0.05)
                 continue
 
@@ -2723,7 +2723,7 @@ class reduce_collect_otas (object):
             while (True):
                 self.final_results_queue.get(block=True,timeout=0.001)
                 nq += 1
-        except Queue.Empty:
+        except queue.Empty:
             pass
         self.logger.debug("inserting sentinel")
         self.final_results_queue.put(multiprocessing.queues._sentinel)
@@ -2739,7 +2739,7 @@ class reduce_collect_otas (object):
             while (True):
                 self.intermediate_queue.get(block=True,timeout=0.001)
                 nq += 1
-        except Queue.Empty:
+        except queue.Empty:
             pass
         self.logger.debug("inserting sentinel")
         self.intermediate_queue.put(multiprocessing.queues._sentinel)
@@ -2757,7 +2757,7 @@ class reduce_collect_otas (object):
             while (True):
                 self.intermediate_results_queue.get(block=True,timeout=0.001)
                 nq += 1
-        except Queue.Empty:
+        except queue.Empty:
             pass
         self.logger.debug("inserting sentinel")
         self.intermediate_results_queue.put(multiprocessing.queues._sentinel)
@@ -2776,7 +2776,7 @@ class reduce_collect_otas (object):
                 self.intermediate_data_ack_queue.get(block=True,timeout=0.001)
                 nq += 1
                 self.logger.debug("Received message from intermediate_data_ack_queue: %d" % (nq))
-        except Queue.Empty:
+        except queue.Empty:
             self.logger.debug("Received Queue.Empty exception while clearing intermediate_data_ack_queue")
             pass
         self.logger.debug("inserting sentinel")
@@ -2810,7 +2810,7 @@ class reduce_collect_otas (object):
                         self.job_status_lock.release()
                         break
                 continue
-            except Queue.Empty:
+            except queue.Empty:
                 time.sleep(0.1)
                 pass
         self.logger.debug("Shutting down acknowledge_intermediate_data_received")
@@ -2862,7 +2862,7 @@ class reduce_collect_otas (object):
         #for i in range(len(self.info)):
             try:
                 result = self.final_results_queue.get(timeout=0.05)
-            except Queue.Empty:
+            except queue.Empty:
                 continue
 
 

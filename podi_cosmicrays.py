@@ -91,7 +91,7 @@ def removecosmics_mp(input_queue, return_queue):
         data, niter, id, method, verbose, setup = task
         gain, readnoise, sigclip, sigfrac, objlim, saturation_limit, binning = setup
 
-        print "Starting cosmic removal on one extension"
+        print("Starting cosmic removal on one extension")
 
         fixed, mask = remove_cosmics(data, niter, method, 
                                      gain=gain, readnoise=readnoise,
@@ -122,8 +122,8 @@ fwhm_to_sigma = 2 * math.sqrt(2 * math.log(2))
 if __name__ == "__main__":
 
     if (len(sys.argv) <= 1):
-        print __doc__
-        print cosmics.__doc__
+        print(__doc__)
+        print(cosmics.__doc__)
 
     elif (cmdline_arg_isset("-simple")):
 
@@ -194,7 +194,7 @@ if __name__ == "__main__":
             for peak in peaks:
             
                 img = numpy.zeros((imagesize, imagesize))
-                print img.shape
+                print(img.shape)
 
                 # Now convolve the source with the gaussian PSF
                 gauss_sigma = fwhm_pixels / fwhm_to_sigma
@@ -237,13 +237,13 @@ if __name__ == "__main__":
                         tile_in[:,:] = numpy.NaN
                         tile_out[:,:] = numpy.NaN
 
-                        print bg, peak, cosmicflux, fwhm
+                        print(bg, peak, cosmicflux, fwhm)
                         
                         #
                         # Add poisson noise to the image
                         #
                         noise_level = numpy.sqrt(with_bg * gain + readnoise**2)
-                        print noise_level.shape
+                        print(noise_level.shape)
 
                         # Now pick positions for the cosmics
                         # cosmics will occupy a fraction of the central area of 
@@ -320,9 +320,9 @@ if __name__ == "__main__":
                             # Compute how much flux we removed vs. 
                             # how much flux is in the cosmic
                             flux_out = numpy.sum(fixed)
-                            print "%7.1f %7.1f --> %7.1f == %6.3f" % (
+                            print("%7.1f %7.1f --> %7.1f == %6.3f" % (
                                 flux_in, flux_out, flux_in-flux_out, (flux_in-flux_out)/cosmicflux
-                            )
+                            ))
 
                         #all_images = numpy.append(all_images, noisy_image, axis=0)
                         imghdu = pyfits.ImageHDU(data=tile_in.copy())

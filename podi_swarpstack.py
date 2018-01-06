@@ -1149,7 +1149,7 @@ def swarpstack(outputfile,
         for fn in inputlist:
             if (not os.path.isfile(fn)):
                 continue
-            print fn
+            print(fn)
             hdulist = pyfits.open(fn)
             mjd_obs = hdulist[0].header['MJD-OBS']
             apf_data.append([mjd_obs, fn])
@@ -1158,7 +1158,7 @@ def swarpstack(outputfile,
         mjd_sort = numpy.argsort(apf_data[:,0])
         apf_data = apf_data[mjd_sort]
 
-        print apf_data
+        print(apf_data)
         logger.debug("done with data gathering")
         pass
 
@@ -1435,7 +1435,7 @@ def swarpstack(outputfile,
             #     logger.debug("swarp stderr:\n"+swarp_stderr)
         except OSError as e:
             podi_logging.log_exception()
-            print >>sys.stderr, "Execution failed:", e
+            print("Execution failed:", e, file=sys.stderr)
 
         #
         # some information about the resulting stack is in the output-file
@@ -1884,7 +1884,7 @@ def swarpstack(outputfile,
             logger.info("done, swarp returned (ret-code: %d)!" % ret.returncode)
         except OSError as e:
             podi_logging.log_exception()
-            print >>sys.stderr, "Execution failed:", e
+            print("Execution failed:", e, file=sys.stderr)
 
         logger.info("Stack (%s) complete, adding headers" % (dic['imageout']))
 
@@ -2091,7 +2091,7 @@ def swarpstack(outputfile,
     
         if (swarp_params['median_reject'] and idx==0):
             from swarp_filter import mask_outliers_in_stack
-            print "**\n"*3,"median reject starting!"
+            print("**\n"*3,"median reject starting!")
             mask_outliers_in_stack(median_frame=dic['imageout'],
                           singles=final_prepared_files)
             # rename the MEDIAN file to reference file
@@ -2101,7 +2101,7 @@ def swarpstack(outputfile,
                 shutil.move(fn_base+".MEDIAN.weight.fits", fn_base+".REFERENCE.weight.fits")
             except:
                 pass
-            print "rejectng done!", "\n**"*3
+            print("rejectng done!", "\n**"*3)
             # print "**\n"*3,"median reject comes now","\n**"*3
 
     # 
@@ -2352,7 +2352,7 @@ def read_swarp_params(filelist):
         params['autophotflat'] = True
         opt = cmdline_arg_set_or_default2("-autophotflat", None)
         if (opt is not None):
-            print opt
+            print(opt)
 
             apf_options = opt.split(":")
             for o in apf_options:
@@ -2385,7 +2385,7 @@ def read_swarp_params(filelist):
 if __name__ == "__main__":
     if (len(sys.argv) <= 1):
         import podi_swarpstack as me
-        print me.__doc__
+        print(me.__doc__)
         sys.exit(0)
 
     # Setup everything we need for logging

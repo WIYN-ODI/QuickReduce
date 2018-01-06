@@ -35,10 +35,13 @@ def rebuild_after_pickle(obj):
 
 import ctypes
 import multiprocessing.heap
-from multiprocessing.forking import assert_spawning, ForkingPickler
+#from multiprocessing.forking import assert_spawning, ForkingPickler
 import mmap
 import _multiprocessing
 import logging
+
+def address_of_buffer(buf):
+    return ctypes.addressof(ctypes.c_char.from_buffer(buf))
 
 class SharedMemory( object ):
 
@@ -78,8 +81,10 @@ class SharedMemory( object ):
         self.rebuild()
 
     def rebuild(self):
-        ForkingPickler.register(self.type_and_size, rebuild_after_pickle)
-        (mm_address, mm_size) = _multiprocessing.address_of_buffer(self.mm)
+        #ForkingPickler.register(self.type_and_size, rebuild_after_pickle)
+        #(mm_address, mm_size) = _multiprocessing.address_of_buffer(self.mm)
+        #(mm_address, mm_size) = address_of_buffer(self.mm)
+        mm_address = address_of_buffer(self.mm)
         self._array = self.type_and_size.from_address(mm_address)
         
 # # obj = _new_value(type_)
@@ -194,9 +199,9 @@ if __name__ == "__main__":
     
 
     time.sleep(2)
-    print "Allocating shared memory"
+    print("Allocating shared memory")
     shmem = SharedMemory(ctypes.c_float, shape)
-    print shmem
+    print(shmem)
 
     time.sleep(2)
 
@@ -206,23 +211,23 @@ if __name__ == "__main__":
     #
     def mp(shmem):
         nd = shmem.to_ndarray()
-        print nd.shape
+        print(nd.shape)
 
-    print "starting subprocess"
+    print("starting subprocess")
     p = multiprocessing.Process(target=mp, args=(shmem,))
     p.start()
 
     time.sleep(2)
 
-    print "deleting shmam"
+    print("deleting shmam")
     #shmem.free()
     del shmem
     time.sleep(2)
 
     def run():
-        print "running run"
+        print("running run")
         x = SharedMemory(ctypes.c_float, (1024,1024,1024))
-        print "done!"
+        print("done!")
 
     run()
     time.sleep(2)

@@ -144,7 +144,7 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False,
     if (outputfile == "auto"):
         outputfile = "fringes__%s.fits" % (filtername)
 
-    print "Output file=",outputfile
+    print("Output file=",outputfile)
 
     #
     # Prepare all input frames, just like for the illumination correction, i.e.
@@ -304,7 +304,7 @@ def compute_fringe_scale(datahdu, fringehdu):
     """
 
     extname = datahdu.header['EXTNAME']
-    print "\n\n\n",extname,"\n"
+    print("\n\n\n",extname,"\n")
     data = datahdu.data
     fringe = fringehdu.data
 
@@ -316,7 +316,7 @@ def compute_fringe_scale(datahdu, fringehdu):
     # compute mean fringe amplitude
     mean_fringe = bottleneck.nanmean(fringe_binned)
     fringe_binned -= mean_fringe
-    print "mean fringe =",mean_fringe
+    print("mean fringe =",mean_fringe)
 
     skylevel = datahdu.header['SKY_MEDI']
     skysub = data_binned - skylevel
@@ -329,7 +329,7 @@ def compute_fringe_scale(datahdu, fringehdu):
     res = scipy.optimize.fmin(min_stat, initial_guess, 
                               args=(skysub, fringe_binned),
                               full_output=True)
-    print res
+    print(res)
     res_fits = [[res[0][0], res[1], res[2], res[3], res[4]]]
 
     return res_fits
@@ -396,7 +396,7 @@ def match_subtract_fringing(data_filename, fringe_filename, verbose=True, output
 
         # Load data for each extension/OTA
         extname = data_hdulist[ext].header['EXTNAME']
-        print "Queuing work on",extname
+        print("Queuing work on",extname)
 
         cmd_data = (data_filename, fringe_filename, extname)
         queue.put( (False, cmd_data) )
@@ -429,7 +429,7 @@ def match_subtract_fringing(data_filename, fringe_filename, verbose=True, output
                 else numpy.append(all_results, numpy.array(res_fits), axis=0)
 
     if (verbose): stdout_write("computing scaling\n")
-    print all_results[:, 0:3]
+    print(all_results[:, 0:3])
 
     quality_sorted = numpy.sort(all_results[:,1])
     use_for_median = all_results[:,1] < quality_sorted[5]
@@ -454,7 +454,7 @@ def match_subtract_fringing(data_filename, fringe_filename, verbose=True, output
         data_hdulist.close()
         return median_scaling, std_scaling, None
 
-    print data_hdulist
+    print(data_hdulist)
     return median_scaling, std_scaling, data_hdulist
 
 
@@ -598,7 +598,7 @@ if __name__ == "__main__":
         filelist = get_clean_cmdline()[2:]
         operation = cmdline_arg_set_or_default("-op", "mean")
         operation = cmdline_arg_set_or_default("-op", "nanmedian.bn")
-        print "Using imcombine with __%s__ operation" % (operation)
+        print("Using imcombine with __%s__ operation" % (operation))
 
         bpm_dir = cmdline_arg_set_or_default("-bpm", None)
         wipe_cells = read_wipecells_list()
@@ -611,12 +611,12 @@ if __name__ == "__main__":
         boxsize = int(cmdline_arg_set_or_default("-boxsize", "15"))
         count = int(cmdline_arg_set_or_default("-count", "12500"))
 
-        print "Using %d boxes with +/- %d pixel width" % (count, boxsize)
+        print("Using %d boxes with +/- %d pixel width" % (count, boxsize))
 
         filename = get_clean_cmdline()[1]
         outputfile = get_clean_cmdline()[2]
 
-        print filename,"-->",outputfile
+        print(filename,"-->",outputfile)
         hdulist = pyfits.open(filename)
         for i in range(3,len(hdulist)):
             if (True): #is_image_extension(hdulist[i].header)):
@@ -674,7 +674,7 @@ if __name__ == "__main__":
                 fringemap = templatehdu[extname].data * scaling
                 inputhdu[i].data -= fringemap
             except:
-                print "Problem with extension",extname
+                print("Problem with extension",extname)
                 pass
                 continue
 
@@ -695,7 +695,7 @@ if __name__ == "__main__":
 
             # Load data for each extension/OTA
             extname = datahdu[ext].header['EXTNAME']
-            print "\n\n\n",extname,"\n"
+            print("\n\n\n",extname,"\n")
             data = datahdu[extname].data
             fringe = fringehdu[extname].data
 
@@ -720,7 +720,7 @@ if __name__ == "__main__":
             # Now select top 10 and bottom 10% of all intensities in the fringe map
             top10 = scipy.stats.scoreatpercentile(fringe_binned.ravel(), 100-percent_limit)
             bottom10 = scipy.stats.scoreatpercentile(fringe_binned.ravel(), percent_limit)
-            print top10, bottom10
+            print(top10, bottom10)
             #sys.exit(0)
 
             select_top10 = fringe_binned >= top10
@@ -768,11 +768,11 @@ if __name__ == "__main__":
 
             #sys.exit(0)
 
-            print top10, bottom10
-            print fringe_top10, fringe_bottom10, fringe_top10-fringe_bottom10
-            print sky_top10, sky_bottom10, sky_top10-sky_bottom10
+            print(top10, bottom10)
+            print(fringe_top10, fringe_bottom10, fringe_top10-fringe_bottom10)
+            print(sky_top10, sky_bottom10, sky_top10-sky_bottom10)
             fringe_scaling = (sky_top10-sky_bottom10)/(fringe_top10-fringe_bottom10)
-            print "scaling = ", fringe_scaling
+            print("scaling = ", fringe_scaling)
 
             def save_histogram(target, data, nbins=100):
                 valid = numpy.isfinite(data)
@@ -790,11 +790,11 @@ if __name__ == "__main__":
 
             dump = open("xxx.dump"+extname, "w")
             save_histogram(dump, fringe_binned[select_top10])
-            print >>dump, "\n\n\n\n\n"
+            print("\n\n\n\n\n", file=dump)
             save_histogram(dump, fringe_binned[select_bottom10])
-            print >>dump, "\n\n\n\n\n"
+            print("\n\n\n\n\n", file=dump)
             save_histogram(dump, data_binned[select_top10])
-            print >>dump, "\n\n\n\n\n"
+            print("\n\n\n\n\n", file=dump)
             save_histogram(dump, data_binned[select_bottom10])
             dump.close()
 
@@ -822,7 +822,7 @@ if __name__ == "__main__":
 
             # Load data for each extension/OTA
             extname = datahdu[ext].header['EXTNAME']
-            print "\n\n\n",extname,"\n"
+            print("\n\n\n",extname,"\n")
             data = datahdu[extname].data
             fringe = fringehdu[extname].data
 
@@ -834,7 +834,7 @@ if __name__ == "__main__":
             # compute mean fringe amplitude
             mean_fringe = bottleneck.nanmean(fringe_binned)
             fringe_binned -= mean_fringe
-            print "mean fringe =",mean_fringe
+            print("mean fringe =",mean_fringe)
 
             skylevel = datahdu[ext].header['SKY_MEDI']
             skysub = data_binned - skylevel
@@ -847,7 +847,7 @@ if __name__ == "__main__":
             res = scipy.optimize.fmin(min_stat, initial_guess, 
                                       args=(skysub, fringe_binned),
                                       full_output=True)
-            print res
+            print(res)
             res_fits = [[res[0][0], res[1], res[2], res[3], res[4]]]
             all_results = numpy.array(res_fits) if all_results == None else numpy.append(all_results, res_fits, axis=0)
 
@@ -864,7 +864,7 @@ if __name__ == "__main__":
 
             
 
-        print all_results
+        print(all_results)
 
         # Now that we got all best-fit factors, keep only the 
         # best 5 fits
@@ -874,7 +874,7 @@ if __name__ == "__main__":
         median_scaling = numpy.median(all_results[:,0][use_for_median])
         std_scaling = numpy.std(all_results[:,0][use_for_median])
 
-        print median_scaling, std_scaling
+        print(median_scaling, std_scaling)
 
 
         #datahdu.writeto("corrected.fits", clobber=True)
@@ -902,7 +902,7 @@ if __name__ == "__main__":
         fringe_hdulist = pyfits.open(fringe_frame)
 
         filter_name = data_hdulist[0].header['FILTER']
-        print "\nThis is filter",filter_name,"\n"
+        print("\nThis is filter",filter_name,"\n")
 
         options = podi_collectcells.read_options_from_commandline()
 
@@ -921,7 +921,7 @@ if __name__ == "__main__":
 
             region_file = "%s/fringe__%s__%s.reg" % (options['fringe_vectors'], filter_name, extname[0:5])
             vecs = get_fringe_scaling(data, fringe, region_file) 
-            print vecs
+            print(vecs)
 
             if (not vecs == None):
                 all_vecs = vecs if all_vecs == None else numpy.append(all_vecs, vecs, axis=0)
@@ -930,7 +930,7 @@ if __name__ == "__main__":
         valid = scaling_factors > 0
                 
         median_scaling = numpy.median(scaling_factors[valid])
-        print "median scaling=",median_scaling
+        print("median scaling=",median_scaling)
 
         for rep in range(3):
             lsig = scipy.stats.scoreatpercentile(scaling_factors[valid], 16)
@@ -944,7 +944,7 @@ if __name__ == "__main__":
         #numpy.savetxt("all_vecs.dat", all_vecs)
 
         final_scaling = numpy.median(scaling_factors[valid])
-        print "final scaling (OTA %s): %.3f" % (extname, final_scaling)
+        print("final scaling (OTA %s): %.3f" % (extname, final_scaling))
 
         # Now do the correction
         for ext in range(1, len(data_hdulist)):
@@ -957,6 +957,6 @@ if __name__ == "__main__":
 
     else:
 
-        print "No comprendo!"
+        print("No comprendo!")
 
     podi_logging.shutdown_logging(options)

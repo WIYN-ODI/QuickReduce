@@ -392,8 +392,8 @@ if __name__ == "__main__":
             'SKYBRITE',
             'LUNARAGE',
         ]:
-            print '% 8s = %s' % (key, hdr[key]) #, value, comment
+            print('% 8s = %s' % (key, hdr[key])) #, value, comment
 
-        print
+        print()
 
     podi_logging.shutdown_logging(options)
