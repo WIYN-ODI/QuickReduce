@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Copyright 2012-2013 Ralf Kotulla
 #                     kotulla@uwm.edu
@@ -783,10 +783,10 @@ valid_PG_filters = [
 if __name__ == "__main__":
 
     if (len(sys.argv) < 2):
-        print """
+        print("""
 Use as follows:
 podi_makecalibrations.py input.list calib-directory
-"""
+""")
         sys.exit(0)
 
     stdout_write("""\
@@ -1438,7 +1438,7 @@ podi_makecalibrations.py input.list calib-directory
                                         verbose=False,
                                         pg_matched=False,
                                         return_all=True)
-                                    print ota_ext.name, "\n", full_samples
+                                    print(ota_ext.name, "\n", full_samples)
                                                 
                                     # numpy.savetxt("flat_pg_samples.%d" % (ota), full_samples)
 

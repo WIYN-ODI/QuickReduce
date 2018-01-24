@@ -65,7 +65,7 @@ def normalize_flatfield(filename, outputfile,
     logger.info("Using these OTAs to normalize overall flux:\n%s" % (", ".join(["%02d" % ota for ota in list_of_otas_to_normalize])))
 
     flatfield_data = numpy.zeros(
-        shape=(len(list_of_otas_to_normalize)*4096*4096/(binning_x*binning_y)), 
+        shape=(len(list_of_otas_to_normalize)*4096*4096//(binning_x*binning_y)),
         dtype=numpy.float32)
     flatfield_data[:] = numpy.NaN
 
@@ -105,7 +105,7 @@ def normalize_flatfield(filename, outputfile,
 
         if (binning_x>1 or binning_y>1):
             sx, sy = hdulist[extension].data.shape[0], hdulist[extension].data.shape[1]
-            bx, by = sx/binning_x, sy/binning_y
+            bx, by = sx//binning_x, sy//binning_y
             one_d = numpy.reshape(hdulist[extension].data, (by,binning_y,bx,binning_x)).mean(axis=-1).mean(axis=1).flatten()
         else:
             one_d = hdulist[extension].data.flatten()
@@ -241,7 +241,7 @@ if __name__ == "__main__":
                 del hdulist
             else:
                 outputfile = "%s/%s.norm.fits" % (out_directory, basename[:-5])
-            print filename, outputfile            
+            print(filename, outputfile)
 
             # And finally, do the actual work
             normalize_flatfield(filename, outputfile, binning_x=binning_x, binning_y=binning_y, repeats=repeats)

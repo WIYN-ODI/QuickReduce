@@ -47,7 +47,7 @@ from podi_commandline import *
 import podi_sitesetup as sitesetup
 import podi_focalplanelayout
 
-import Queue
+import queue
 import multiprocessing
 import podi_logging, logging
 
@@ -1559,14 +1559,14 @@ def diagplot_photflat(extnames, data, one_sigma=None,
     if (one_sigma is None or not force_symmetric):
         user_sigma_plus = 50. + 50.*scipy.special.erf(float(n_sigma)/numpy.sqrt(2))
         user_sigma_minus = 100. - user_sigma_plus
-        print user_sigma_plus, user_sigma_minus
+        print(user_sigma_plus, user_sigma_minus)
 
         stats = numpy.nanpercentile(fluxfac, [16,84,50,5,95, user_sigma_minus, user_sigma_plus])
-        print stats
+        print(stats)
         one_sigma = 0.5*(stats[1]-stats[0])
-        print one_sigma, 0.25*(stats[4]-stats[3])
+        print(one_sigma, 0.25*(stats[4]-stats[3]))
         median = stats[2]
-        print median
+        print(median)
         one_sigma += numpy.fabs(median-1.)
         logger.info("Using automatic intensity scaling")
     if (force_symmetric):
@@ -1604,7 +1604,7 @@ def diagplot_photflat(extnames, data, one_sigma=None,
         )
 
     cbar = fig.colorbar(ims, orientation='vertical')
-    print "intensity range: %.3f ... %.3f" % (vmin, vmax)
+    print("intensity range: %.3f ... %.3f" % (vmin, vmax))
 
     if (title is None):
         title = "Photometric flatfield"
@@ -1862,7 +1862,7 @@ if __name__ == "__main__":
         dec = source_cat[:,1][valid_flags]
         fwhm = source_cat[:,5][valid_flags]
         ota = source_cat[:,8][valid_flags]
-        print fwhm
+        print(fwhm)
 
         ota_outlines = derive_ota_outlines(hdulist)
 
@@ -1880,7 +1880,7 @@ if __name__ == "__main__":
         fitsfile = get_clean_cmdline()[1]
         hdulist = pyfits.open(fitsfile)
         filtername = hdulist[0].header['FILTER']
-        print filtername
+        print(filtername)
 
         from podi_collectcells import read_options_from_commandline
         options = read_options_from_commandline(None)
@@ -1913,7 +1913,7 @@ if __name__ == "__main__":
         ra = table['ODI_RA'].reshape((n_src,1))
         dec = table['ODI_DEC'].reshape((n_src,1))
         matched_radec_odi = numpy.append(ra, dec, axis=1)
-        print matched_radec_odi.shape
+        print(matched_radec_odi.shape)
 
         ra = table['REF_RA'].reshape((n_src,1))
         dec = table['REF_DEC'].reshape((n_src,1))
@@ -1937,7 +1937,7 @@ if __name__ == "__main__":
         inputframe = get_clean_cmdline()[1]
         plotname = get_clean_cmdline()[2]
 
-        print inputframe,"-->",plotname
+        print(inputframe,"-->",plotname)
         
 
         from podi_collectcells import read_options_from_commandline
@@ -1948,7 +1948,7 @@ if __name__ == "__main__":
         try:
             odi_cat = hdulist['CAT.ODI'].data
         except:
-            print "no source catalog found"
+            print("no source catalog found")
             sys.exit(0)
 
         ota_outlines = derive_ota_outlines(hdulist)
