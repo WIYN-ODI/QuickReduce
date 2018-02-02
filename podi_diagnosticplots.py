@@ -34,9 +34,8 @@ import numpy
 import math
 
 import matplotlib
-import matplotlib.pyplot
 import matplotlib.colors
-from podi_plotting import *
+# from podi_plotting import *
 
 gain_correct_frames = False
 
@@ -73,6 +72,7 @@ def plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list,
     """
     
     logger = logging.getLogger("DiagPlot_WCSScatter")
+    import matplotlib.pyplot
 
     #fig = matplotlib.pyplot.figure()
     fig = matplotlib.pyplot.figure()
@@ -359,6 +359,7 @@ def plot_wcsdiag_shift(radec, d_radec,
     """
 
     logger = logging.getLogger("DiagPlot_WCSShift")
+    import matplotlib.pyplot
     fig = matplotlib.pyplot.figure()
     ax = fig.add_subplot(111)
     ax.ticklabel_format(useOffset=False)
@@ -681,7 +682,7 @@ def photocalib_zeropoint(output_filename,
         logger.debug("Error: No valid reference photometry found!")
         return
 
-
+    import matplotlib.pyplot
     fig = matplotlib.pyplot.figure()
     ax = fig.add_subplot(111)
 
@@ -950,6 +951,7 @@ def plot_zeropoint_map(details, ota_select, ota_outlines, output_filename, optio
 
     logger = logging.getLogger("DiagPlot_ZPmap")
 
+    import matplotlib.pyplot
     fig = matplotlib.pyplot.figure()
     ax = fig.add_subplot(111)
 
@@ -1139,7 +1141,7 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
 
     """
     logger = logging.getLogger("DiagPlot_PSFSize")
-                    
+    import matplotlib.pyplot
     fig = matplotlib.pyplot.figure()
     ax = fig.add_subplot(111)
 
@@ -1314,6 +1316,7 @@ def plot_psfshape_map(ra, dec, elongation, angle, fwhm,
                       ):
 
     logger = logging.getLogger("DiagPlot_PSFShape")
+    import matplotlib.pyplot
     fig = matplotlib.pyplot.figure()
     ax = fig.add_subplot(111)
     ax.ticklabel_format(useOffset=False)
@@ -1545,6 +1548,7 @@ def diagplot_photflat(extnames, data, one_sigma=None,
 
     logger = logging.getLogger("DiagPlot_PhotFlat")
 
+    import matplotlib.pyplot
     fig = matplotlib.pyplot.figure()
     ax = fig.add_subplot(111)
 
@@ -1674,6 +1678,7 @@ def plot_cellbycell_stats(
 
     logger = logging.getLogger("DiagPlot_CellbyCellStats")
 
+    import matplotlib.pyplot
     fig = matplotlib.pyplot.figure()
     ax = fig.add_subplot(111)
     ax.ticklabel_format(useOffset=False)
