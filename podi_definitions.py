@@ -1392,13 +1392,14 @@ def is_guide_ota(primhdu, ext, w=20):
         #
         
         x1,x2,y1,y2 = cell2ota__get_target_region(cx, cy, binning=binning, trimcell=0)
-        x21 = (x2-x1)/2
+        x1,x2,y1,y2 = int(x2),int(x2),int(y1),int(y2)
+        x21 = (x2-x1)//2
 
         # extract the mean value in the bottom corner
         corner = bottleneck.nanmean(ext.data[y1:y1+w, x1:x1+w].astype(numpy.float32))
 
         # also get the value in the bottom center
-        center = bottleneck.nanmean(ext.data[y1:y1+w, x1+x21-w/2:x1+x21+w//2].astype(numpy.float32))
+        center = bottleneck.nanmean(ext.data[y1:y1+w, x1+x21-w//2:x1+x21+w//2].astype(numpy.float32))
 
         excess = corner - center
         #print ext.name, cx, cy, corner, center, excess

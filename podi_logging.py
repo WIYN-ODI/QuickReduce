@@ -600,11 +600,11 @@ def print_stacktrace(sleep=0, logger=None, info=True, stdout=False):
     time.sleep(sleep)
 
     ff = fakefile()
-    print >>ff, "========================================================"
-    print >>ff, "==   STACK TRACE -- BEGIN                             =="
-    print >>ff, "========================================================"
+    print("========================================================", file=ff)
+    print("==   STACK TRACE -- BEGIN                             ==", file=ff)
+    print("========================================================", file=ff)
 
-    print >>ff, "\nCurrently running threads:\n -- %s" % ("\n -- ".join([str(x) for x in threading.enumerate()]))
+    print("\nCurrently running threads:\n -- %s" % ("\n -- ".join([str(x) for x in threading.enumerate()])), file=ff)
 
     for thread_id, frame in sys._current_frames().items():
         name = thread_id
@@ -613,34 +613,34 @@ def print_stacktrace(sleep=0, logger=None, info=True, stdout=False):
         for thread in threading.enumerate():
             if thread.ident == thread_id:
                 name = thread.name
-        print >>ff,"\nSTACK-TRACE for %s" % (name)
+        print("\nSTACK-TRACE for %s" % (name), file=ff)
         traceback.print_stack(frame, file=ff)
 
     try:
         import psutil
-        print >>ff, "\nList of subprocess of current process:"
+        print("\nList of subprocess of current process:", file=ff)
         this_process = psutil.Process()
         kids = this_process.children(recursive=True)
         if (len(kids) <= 0):
-            print >>ff, "  This process does not have any child-processes"
+            print("  This process does not have any child-processes", file=ff)
         else:
             now_time = time.time()
-            print >>ff, " -- %s" % ("\n -- ".join(["ProcID: %5d - %8.3f seconds" % (
-                p.pid, now_time-p.create_time()) for p in kids]))
+            print(" -- %s" % ("\n -- ".join(["ProcID: %5d - %8.3f seconds" % (
+                p.pid, now_time-p.create_time()) for p in kids])), file=ff)
     except:
 
-        print >>ff, "\nList of subprocesses not available, needs psutil package!"
+        print("\nList of subprocesses not available, needs psutil package!", file=ff)
         pass
 
-    print >>ff, ""
-    print >>ff, "========================================================"
-    print >>ff, "==   STACK TRACE -- END                               =="
-    print >>ff, "========================================================"
+    print("", file=ff)
+    print("========================================================", file=ff)
+    print("==   STACK TRACE -- END                               ==", file=ff)
+    print("========================================================", file=ff)
 
     if (stdout):
         print(ff.get())
     else:
-        if (logger == None):
+        if (logger is None):
             logger = logging.getLogger("StackTrace")
         if (info):
             logger.info("\n%s" % (ff.get()))

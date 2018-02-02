@@ -1340,7 +1340,7 @@ def plot_psfshape_map(ra, dec, elongation, angle, fwhm,
     round_stars = elongation < 0.25
     elongated = elongation > 0.1
     logger.debug("Plotting round stars")
-    if (numpy.sum(round) > 0 and show_round_stars):
+    if (numpy.sum(round_stars) > 0 and show_round_stars):
         ax.plot(ra[round_stars], dec[round_stars],
                 color='grey', marker='o', linestyle='None',
                 markeredgecolor='none', markersize=3, alpha=0.5

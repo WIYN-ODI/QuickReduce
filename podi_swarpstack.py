@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Copyright 2012-2013 Ralf Kotulla & WIYN Observatory
 #                     University of Wisconsin - Milwaukee & Madison
@@ -135,7 +135,8 @@ import bottleneck
 import ephem
 
 try:
-    sys.path.append(sitesetup.exec_dir+"/test")
+    sys.path.append("/work/asteroids/")
+    print(sys.path)
     import ephemerides
     import podi_ephemerides
 except:
@@ -292,6 +293,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
                 # now compute the Ra/Dec of the target in both the reference 
                 # frame and in this frame
                 ephem_data = swarp_params['ephemerides']['data']
+                logger.info("EPHEM_DATA: %s" % (ephem_data))
                 ra_from_mjd = scipy.interpolate.interp1d( ephem_data[:,0], ephem_data[:,1], kind='linear' )
                 dec_from_mjd = scipy.interpolate.interp1d( ephem_data[:,0], ephem_data[:,2], kind='linear' )
 
@@ -874,7 +876,7 @@ def mp_swarp_single(sgl_queue, dum):
             mask_hdu = pyfits.open(mask_file) #swarp_params['mask'])
 
             logger.info("Applying non-sid corr: %s" % (str(nonsidereal_dradec)))
-            if (not nonsidereal_dradec == None):
+            if (nonsidereal_dradec is not None):
                 
                 d_radec = numpy.array(nonsidereal_dradec)
 
