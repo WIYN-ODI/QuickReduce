@@ -155,18 +155,20 @@ R.M.S. %(RMS-RA-CLIP)0.3f'' / %(RMS-DEC-CLIP)0.3f''
         x = numpy.linspace(-3,3,600)
 
         for (sample, color) in select:
-            density_ra = gaussian_kde(d_ra[sample]*3600.)
-            density_ra.covariance_factor = lambda : .1
-            density_ra._compute_covariance()
-            peak_ra = numpy.max(density_ra(x))
-            ax.plot(x,max_dimension-density_ra(x)/peak_ra*histogram_scale, "-", color=color)#'black')
+            try:
+                density_ra = gaussian_kde(d_ra[sample]*3600.)
+                density_ra.covariance_factor = lambda : .1
+                density_ra._compute_covariance()
+                peak_ra = numpy.max(density_ra(x))
+                ax.plot(x,max_dimension-density_ra(x)/peak_ra*histogram_scale, "-", color=color)#'black')
 
-            density_dec = gaussian_kde(d_dec[sample]*3600.)
-            density_dec.covariance_factor = lambda : .1
-            density_dec._compute_covariance()
-            peak_dec = numpy.max(density_dec(x))
-            ax.plot(density_dec(x)/peak_dec*histogram_scale-max_dimension, x, "-", color=color)#'black')
-
+                density_dec = gaussian_kde(d_dec[sample]*3600.)
+                density_dec.covariance_factor = lambda : .1
+                density_dec._compute_covariance()
+                peak_dec = numpy.max(density_dec(x))
+                ax.plot(density_dec(x)/peak_dec*histogram_scale-max_dimension, x, "-", color=color)#'black')
+            except ValueError:
+                pass
 
 
     if (high_s2n is not None):
