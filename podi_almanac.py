@@ -325,10 +325,17 @@ if __name__ == "__main__":
         try:
             hdulist = pyfits.open(filename)
             hdr = hdulist[0].header
+            orig_header = pyfits.ImageHDU(header=hdulist[0].header).header
+
         except:
             continue
 
         add_ephem_data_to_header(hdr, time_overwrite)
+        for (key, value, comment) in hdr.cards:
+            if (key not in orig_header):
+                print ("%8s ==>" % (key)), value
+
+        #print hdr
 
 
 
