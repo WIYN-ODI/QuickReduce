@@ -2605,7 +2605,7 @@ class reduce_collect_otas (object):
                     # self.broadcast_intermediate_data(None)
                     continue
 
-            if (x%10 == 0): 
+            if (x%60 == 0):
                 self.logger.debug("still feeding workers (%d < %d)" % (
                      self.active_workers, self.number_cpus))
 
@@ -3073,7 +3073,7 @@ def collectcells(input, outputfile,
 
     if (options['verbose']):
         stdout_write("\nThese are the options we are using:\n")
-        for opt_name, opt_value in options.iteritems():
+        for opt_name, opt_value in options.items():
             stdout_write("   %30s: %s\n" % (opt_name, opt_value))
         stdout_write("----- end options\n\n")
 
@@ -3265,7 +3265,7 @@ def collectcells(input, outputfile,
     # add user-defined additional keywords
     if (len(options['additional_fits_headers']) > 0):
         _firstkey = None
-        for key, value in options['additional_fits_headers'].iteritems():
+        for key, value in options['additional_fits_headers'].items():
             ota_list[0].header[key] = (value, "user-added keyword")
             _firstkey = key if _firstkey is None else _firstkey
         add_fits_header_title(ota_list[0].header, "User-added keywords", _firstkey)
@@ -3363,6 +3363,7 @@ def collectcells(input, outputfile,
         # }
         # intermediate_results.append(intres)
 
+        logger.debug("Queuing up reduction for OTA %s" % (filename))
         worker.reduce_file(filename, ota_id+1)
 
         
