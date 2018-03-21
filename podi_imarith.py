@@ -71,7 +71,7 @@ def hdu_imarith(hdu1, op, hdu2, simple=False, numeric_2=None, rebin_fac=1.):
 
         fppos1 = img1.header['EXTNAME'] if ('EXTNAME' in img1.header and not simple) else idx_img1
         # stdout_write("\rComputing extension %s (%2d of %2d) ..." % (str(fppos1), idx_img1, len(hdu1) - 1))
-        if (numeric_2 != None):
+        if (numeric_2 is not None):
             if (op == "+"):
                 img1.data += numeric_2
             elif (op == "-"):
@@ -129,8 +129,10 @@ def imarith(input_1, op, input_2, output, simple):
     hdu_1 = pyfits.open(input_1)
 
     numeric_2 = None
+    hdu_2 = None
     if (not os.path.isfile(input_2)):
         numeric_2 = float(input_2)
+        print(numeric_2)
     else:
         hdu_2 = pyfits.open(input_2)
 
