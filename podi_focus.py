@@ -140,7 +140,7 @@ def mp_measure_focus(queue_in, queue_ret, verbose=False):
     while (True):
         task = queue_in.get()
 
-        if (task == None):
+        if (task is None):
             queue_in.task_done()
             logger.debug("Received shutdown command, terminating")
             return
@@ -320,7 +320,7 @@ def measure_focus_ota(filename, n_stars=5):
         overscan_level = numpy.mean(overscan_data)
         cell_cat[:, SXFocusColumn['background']] -= overscan_level
 
-        corr_cat = cell_cat if corr_cat == None else numpy.append(corr_cat, cell_cat, axis=0)
+        corr_cat = cell_cat if corr_cat is None else numpy.append(corr_cat, cell_cat, axis=0)
 
     # 
     # Attach to each measurement what detector lot it came from
@@ -415,7 +415,7 @@ def measure_focus_ota(filename, n_stars=5):
     #numpy.savetxt("dummy.distances", all_distances)
  
     filtered_angles = three_sigma_clip(all_angles)
-    if (filtered_angles == None or
+    if (filtered_angles is None or
         filtered_angles.ndim < 1 or
         filtered_angles.shape[0] <= 0):
         return None
@@ -638,7 +638,7 @@ def get_focus_measurement(filename, n_stars=5, output_dir="./", mp=False):
                 continue
 
         logger.debug("Adding file %s to task list" % (filename))
-        if (obsid == None):
+        if (obsid is None):
             hdulist = pyfits.open(filename)
             obsid = hdulist[0].header['OBSID']
             hdulist.close()
@@ -664,7 +664,7 @@ def get_focus_measurement(filename, n_stars=5, output_dir="./", mp=False):
     real_numbers = False
     for i in range(number_jobs_queued):
         returned = return_queue.get()
-        if (returned == None):
+        if (returned is None):
             continue
 
         focus_positions, found_real_numbers = returned
@@ -673,7 +673,7 @@ def get_focus_measurement(filename, n_stars=5, output_dir="./", mp=False):
 
         logger.debug("Received %d focus positions" % (focus_positions.shape[0]))
 
-        all_foci = focus_positions if all_foci == None else numpy.append(all_foci, focus_positions, axis=0)
+        all_foci = focus_positions if all_foci is None else numpy.append(all_foci, focus_positions, axis=0)
          #print cat_name
 
         return_queue.task_done()
@@ -684,7 +684,7 @@ def get_focus_measurement(filename, n_stars=5, output_dir="./", mp=False):
         p.join()
 
     #print all_foci, all_foci.ndim, all_foci.shape
-    if (all_foci == None or
+    if (all_foci is None or
         all_foci.ndim < 2 or
         all_foci.shape[0] <= 0):
         logger.error("Couldn't find any star patterns!")
