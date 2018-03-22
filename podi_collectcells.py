@@ -295,6 +295,9 @@ import podi_guidestars
 import podi_shifthistory
 import podi_photflat
 
+import psf_quality
+import podi_readfitscat
+
 import podi_associations
 import podi_calibrations
 from podi_calibrations import check_filename_directory
@@ -412,6 +415,7 @@ def apply_wcs_distortion(filename, hdu, binning, reduction_log=None):
     return True
 
 
+
 def collect_reduce_ota(filename,
                        verbose=False,
                        options=None):
@@ -464,6 +468,7 @@ def collect_reduce_ota(filename,
         'pupilghost-template': None,
         'reduction_files_used': None,
         'reduction_log': reduction_log,
+        'psf': None,
         }
    
     if (not os.path.isfile(filename)):
@@ -1469,8 +1474,10 @@ def collect_reduce_ota(filename,
                 logger.debug("Wrote temp file to %s" % (fitsfile))
                 sex_config_file = "%s/config/wcsfix.sex" % (sitesetup.exec_dir)
                 parameters_file = "%s/config/wcsfix.sexparam" % (sitesetup.exec_dir)
-                sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s" % (
-                    sitesetup.sextractor, sex_config_file, parameters_file, catfile, 
+                catalog_format = "-CATALOG_TYPE %s" % ("FITS_LDAC" if options['sextractor_write_fits'] else "ASCII_HEAD")
+                sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s %s" % (
+                    sitesetup.sextractor, sex_config_file, parameters_file,
+                    catfile, catalog_format,
                     fitsfile)
                 if (options['verbose']): print sexcmd
 
@@ -1520,13 +1527,21 @@ def collect_reduce_ota(filename,
                         print >>sys.stderr, "Execution failed:", e
                     end_time = time.time()
                     logger.debug("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
-
+                #
+                # By now we have run Sextractor, next up is loading the catalog
+                #
                 try:
                     source_cat = None
                     try:
-                        with warnings.catch_warnings():
-                            warnings.simplefilter("ignore")
-                            source_cat = numpy.loadtxt(catfile)
+                        if (options['sextractor_write_fits']):
+                            logger.debug("Reading Sextractor FITS catalog %s" % (catfile))
+                            source_cat = podi_readfitscat.read_fits_catalog(catfile, 'LDAC_OBJECTS', flatten=True)
+                            #logger.info("%s: Found %d sources" (extname, (-1 if source_cat is None else source_cat.shape[0]) ))
+                        else:
+                            with warnings.catch_warnings():
+                                warnings.simplefilter("ignore")
+                                logger.debug("Reading Sextractor ASCII catalog (%s)" % (catfile))
+                                source_cat = numpy.loadtxt(catfile)
                     except IOError:
                         logger.warning("The Sextractor catalog is empty, ignoring this OTA")
                         source_cat = None
@@ -1555,16 +1570,36 @@ def collect_reduce_ota(filename,
                 if (sitesetup.sex_delete_tmps):
                     clobberfile(fitsfile)
                     clobberfile(catfile)
+                    pass
 
 
             fixwcs_data = None
+
+        #
+        # Create some PSF quality data
+        #
+        psf = None
+        if (source_cat is not None):
+            start = time.time()
+            psf = psf_quality.PSFquality(
+                catalog_filename=None,
+                pixelscale=0.11,
+                catalog=source_cat,
+                image_data=merged,
+                use_vignets=False,
+                detector=ota,
+            )
+            psf.info(logger=logger)
+            end = time.time()
+            # psf.save2fits(fn="psf_%02d.fits" % (psf.detector))
+            logger.debug("Spent %.3f seconds creating PSF model" % (end-start))
 
         #
         # Sample that background at random place so we can derive a median background level later on
         # This is necessary both for the pupil ghost correction AND the fringing correction
         #
         starcat = None
-        if (not type(source_cat) == type(None)):
+        if (source_cat is not None):
             ota_x, ota_y = source_cat[:,2], source_cat[:,3]
             starcat = (ota_x, ota_y)
         # Now sample the background, excluding regions close to known sources
@@ -1692,7 +1727,8 @@ def collect_reduce_ota(filename,
     data_products['sourcecat'] = source_cat
     data_products['tech-header'] = tech_header
     data_products['reduction_files_used'] = reduction_files_used
-    
+    data_products['psf'] = psf
+
     logger.debug("Done with collect_cells for this OTA")
     return data_products #hdu, fixwcs_data
     
@@ -3647,6 +3683,7 @@ def collectcells(input, outputfile,
             logger.error("Illegal results")
             
         ota_id, data_products, shmem_id = intermed_results
+        print data_products['psf']
 
         logger.debug("Received intermediate results from OTA-ID %02d" % (ota_id))
         podi_logging.ppa_update_progress(int(50.*(i+1)/len(list_of_otas_being_reduced)), "Reducing")
@@ -4030,6 +4067,8 @@ def collectcells(input, outputfile,
 
     worker.abort()
 
+    psf_quality_data = {}
+
     for final_result in worker.get_final_results():
 
         ota_id, data_products, shmem_id = final_result
@@ -4073,12 +4112,19 @@ def collectcells(input, outputfile,
             all_tech_headers.append(data_products['tech-header'])
             # print "techdata for ota",ota_id,"\n",data_products['tech-header']
 
-
         #
         # Collect all information for the global reduction log
         #
         ota_reduction_log = data_products['reduction_log']
         global_reduction_log.combine(ota_reduction_log)
+
+        #
+        # Collect the data for the PSF quality plot
+        #
+        psf = data_products['psf']
+        if (psf is not None):
+            logger.info("ADDING PSF for OTA %s" % (psf.detector))
+            psf_quality_data[psf.detector] = psf
 
     worker.free_shared_memory()
 
@@ -4202,6 +4248,14 @@ def collectcells(input, outputfile,
 
             # Correct the sky sampling positions and box sizes
                        
+    print psf_quality_data
+    if (options['create_qaplots'] and psf_quality_data is not None):
+        plotfilename = create_qa_filename(outputfile, "psf", options)
+        psf_quality.make_psf_plot(ota_listing=psf_quality_data,
+                                  title="%(OBSID)s (%(OBJECT)s - %(FILTER)s - %(EXPTIME)ds)" % ota_list[0].header,
+                                  output_filename=plotfilename,
+                                  plotformat=options['plotformat'])
+
 
     #
     # Fix the WCS if requested

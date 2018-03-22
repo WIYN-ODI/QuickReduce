@@ -414,6 +414,8 @@ Calibration data:
         if (options[opt] == False and options[opt] is not None and options[opt] not in ["-","no"]):
             options[opt] = None
 
+    options['sextractor_write_fits'] = not cmdline_arg_isset("-asciisex")
+
     return options
 
 
@@ -535,6 +537,7 @@ def set_default_options(options_in=None):
 
     options['keep_all_cells'] = False
 
+    options['sextractor_write_fits'] = True
 
     return options
 

@@ -984,7 +984,7 @@ def plot_zeropoint_map(details, ota_select, ota_outlines, output_filename, optio
     #print ra_ota
     #print zp_ota
 
-    colormap_name = "spectral"
+    colormap_name = "nipy_spectral"
     sc = matplotlib.pyplot.scatter(ra, dec, c=zp, alpha=0.75, 
                                    vmin=zp_min, vmax=zp_max, edgecolor='none',
                                    s=9, cmap=matplotlib.pyplot.cm.get_cmap(colormap_name))
@@ -1147,7 +1147,7 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
 
     fwhm_min, fwhm_max = fwhm_range
 
-    colormap_name = "spectral" #"hsv", "jet" #"rainbow" #"Dark2"
+    colormap_name = "nipy_spectral" #"hsv", "jet" #"rainbow" #"Dark2"
 
     around_zero = False
     if ((numpy.max(ra) - numpy.min(ra)) > 180):
@@ -1380,7 +1380,7 @@ def plot_psfshape_map(ra, dec, elongation, angle, fwhm,
     # Draw all streaks
     if (numpy.sum(elongated) > 0):
         logger.debug("Plotting elongated stars")
-        colormap = matplotlib.pyplot.cm.get_cmap("spectral")
+        colormap = matplotlib.pyplot.cm.get_cmap("nipy_spectral")
         lines = LineCollection(arrows,
                            alpha=0.8, 
                            array=fwhm[elongated],
@@ -1599,7 +1599,7 @@ def diagplot_photflat(extnames, data, one_sigma=None,
             interpolation='bilinear',
             extent=((ox-0.5*rel_ota_size)*ota_px_size, (ox+0.5*rel_ota_size)*ota_px_size,
                     (oy-0.5*rel_ota_size)*ota_px_size, (oy+0.5*rel_ota_size)*ota_px_size),
-            cmap=matplotlib.pyplot.cm.get_cmap('spectral'), #matplotlib.cm.gray,
+            cmap=matplotlib.pyplot.cm.get_cmap('nipy_spectral'), #matplotlib.cm.gray,
             vmin=vmin, vmax=vmax,
         )
 
@@ -1772,7 +1772,7 @@ def plot_cellbycell_stats(
     #
     #
 
-    cmap = matplotlib.pyplot.cm.get_cmap('spectral')
+    cmap = matplotlib.pyplot.cm.get_cmap('nipy_spectral')
 
     corners = numpy.array(all_corners)
     ax.set_xlim([0, 8])
@@ -1788,7 +1788,7 @@ def plot_cellbycell_stats(
     coll = matplotlib.collections.PolyCollection(corners,  # facecolor='#505050', #
                                                  facecolor=colorvalues,
                                                  edgecolor='black', linestyle='-', linewidth=0.1,
-                                                 cmap=matplotlib.pyplot.cm.get_cmap('spectral'),
+                                                 cmap=matplotlib.pyplot.cm.get_cmap('nipy_spectral'),
                                                  )
 
     img = matplotlib.pyplot.imshow([[1e9], [1e9]], vmin=nl_min, vmax=nl_max, cmap=cmap, extent=(0, 0, 0, 0),
