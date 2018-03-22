@@ -240,8 +240,8 @@ def worker_slave(queue):
             #
             # If requested, also send the command to ds9
             #
+            local_filename = setup.translate_filename_remote2local(filename, setup.output_format)
             if (cmdline_arg_isset("-forward2ds9")):
-                local_filename = setup.translate_filename_remote2local(filename, setup.output_format)
                 forward2ds9_option = cmdline_arg_set_or_default("-forward2ds9", "image")
                 if (forward2ds9_option == "irafmosaic"):
                     cmd = "mosaicimage iraf %s" % (local_filename)
@@ -265,6 +265,12 @@ def worker_slave(queue):
                     podi_logging.log_exception()
                     pass
 
+            # By default, also open the psf diagnostic plot, if available
+            psf_plot_fn = local_filename[:-5]+".psf.png"
+            if (os.path.isfile(psf_plot_fn)):
+                cmd = "%s %s &" % (setup.focus_display, psf_plot_fn)
+                logger.info("Opening and displaying PSF diagnostic plot (%s)" % (psf_plot_fn))
+                os.system(cmd)
 
         #
         # Once the file is reduced, mark the current task as done.
