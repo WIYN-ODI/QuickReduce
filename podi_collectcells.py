@@ -4104,8 +4104,8 @@ def collectcells(input, outputfile,
         global_gain_sum += (hdu.header['GAIN'] * hdu.header['NGAIN'])
         global_gain_count += hdu.header['NGAIN']
 
-        if (not type(data_products['sourcecat']) == type(None)):
-            global_source_cat = data_products['sourcecat'] if (type(global_source_cat) == type(None)) \
+        if (data_products['sourcecat'] is not None):
+            global_source_cat = data_products['sourcecat'] if (global_source_cat is None) \
                 else numpy.append(global_source_cat, data_products['sourcecat'], axis=0)
 
         if ('tech-header' in data_products):
@@ -4249,13 +4249,17 @@ def collectcells(input, outputfile,
             # Correct the sky sampling positions and box sizes
                        
     print psf_quality_data
-    if (options['create_qaplots'] and psf_quality_data is not None):
+    if (options['create_qaplots'] and
+            (psf_quality_data is not None) and
+            (global_source_cat is not None)):
         plotfilename = create_qa_filename(outputfile, "psf", options)
-        psf_quality.make_psf_plot(ota_listing=psf_quality_data,
+        try:
+            psf_quality.make_psf_plot(ota_listing=psf_quality_data,
                                   title="%(OBSID)s (%(OBJECT)s - %(FILTER)s - %(EXPTIME)ds)" % ota_list[0].header,
                                   output_filename=plotfilename,
                                   plotformat=options['plotformat'])
-
+        except:
+            pass
 
     #
     # Fix the WCS if requested
