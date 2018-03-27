@@ -25,7 +25,7 @@ def pipes():
     p = Process(target=multiprocess_f, args=(child_conn,))
     p.start()
     data = parent_conn.recv()   # prints "[42, None, 'hello']"
-    print data.shape
+    print(data.shape)
     p.join()
 
 
@@ -51,7 +51,7 @@ def os_pipes():
     #data = r.read()   # prints "[42, None, 'hello']"
     data = pickle.load(r)
     r.close()
-    print data.shape
+    print(data.shape)
     p.join()
 
 
@@ -70,7 +70,7 @@ def mpqueue():
     p = Process(target=mpqueue_f, args=(queue,))
     p.start()
     data = queue.get()   # prints "[42, None, 'hello']"
-    print data.shape
+    print(data.shape)
     queue.join()
     p.join()
 

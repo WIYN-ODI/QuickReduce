@@ -20,10 +20,10 @@ max_cpu_count = -1
 
 try:
     number_cpus = multiprocessing.cpu_count()
-    print "Yippie, found %d CPUs to use in parallel!" % (number_cpus)
-    if (number_cpus > max_cpu_count and max_cpu_count > 1):
+    print("Yippie, found %d CPUs to use in parallel!" % (number_cpus))
+    if (number_cpus > max_cpu_count > 1):
         number_cpus = max_cpu_count
-        print "... but using only %d of them!" % (number_cpus)
+        print("... but using only %d of them!" % (number_cpus))
 except:
     pass
 
@@ -187,7 +187,7 @@ def imcombine(input_filelist, outputfile, operation):
         # Now open all the other files, look for the right extension, and copy their image data to buffer
         for file_number in range(1, len(filelist)):
             filename = filelist[file_number]
-            print "Loading frame",filename
+            print("Loading frame", filename)
             hdulist = pyfits.open(filename)
 
             buffer[:,:,file_number] = hdulist[cur_ext].data[:,:]
@@ -258,7 +258,7 @@ if __name__ == "__main__":
     #get_clean_cmdline()[2:]
 
     operation = sys.argv[2] #cmdline_arg_set_or_default("-op", "mean")
-    print "operation:", operation
-    print filelist
+    print("operation:", operation)
+    print(filelist)
 
     imcombine(filelist, outputfile, operation)

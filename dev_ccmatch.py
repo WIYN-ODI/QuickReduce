@@ -27,7 +27,7 @@ import podi_sitesetup as sitesetup
 from podi_photcalib import estimate_zeropoint, estimate_mean_star_color
 
 
-import Queue
+import queue
 import multiprocessing
 
 max_pointing_error = 8.
@@ -106,8 +106,8 @@ def count_matches(src_cat, ref_cat,
     count_grid_2d = numpy.zeros((grid_size, grid_size))#, dtype=numpy.int)
 
     idx_x, idx_y = numpy.indices(count_grid_2d.shape)
-    idx_x -= (grid_size-1)/2
-    idx_y -= (grid_size-1)/2
+    idx_x -= (grid_size-1)//2
+    idx_y -= (grid_size-1)//2
     valid_pixelpos = numpy.hypot(idx_x, idx_y) < (pointing_error * 3600)
 
     #
@@ -253,14 +253,14 @@ def count_matches(src_cat, ref_cat,
             plt.close(fig)
             plt.close()
 
-            print "\npeak at:", peak_pos, "max=%f std=%f mean=%f median=%f" % (
-                numpy.max(count_grid_2d), numpy.std(count_grid_2d), numpy.mean(count_grid_2d), numpy.median(count_grid_2d)
+            print("\npeak at:", peak_pos, "max=%f std=%f mean=%f median=%f" % (
+                numpy.max(count_grid_2d), numpy.std(count_grid_2d), numpy.mean(count_grid_2d), numpy.median(count_grid_2d))
             )
-            print "valid_only: std=%f, mean=%f, median=%f" % (
+            print("valid_only: std=%f, mean=%f, median=%f" % (
                 numpy.std(count_grid_2d[valid_pixelpos]), 
                 numpy.mean(count_grid_2d[valid_pixelpos]), 
                 numpy.median(count_grid_2d[valid_pixelpos])
-            )
+            ))
 
         # Compute the number of input sources we compared to the reference catalog
         n_searched = numpy.min([(chunk+1) * chunksize, src_cat.shape[0]])
@@ -283,8 +283,8 @@ def count_matches(src_cat, ref_cat,
         # now determine the scatter in peak position across the last three chunks
         peak_std = numpy.std(peak_position_np[-3:, :], axis=0)
         if (create_debug_files2):
-            print "scatter in peak position:", peak_std, (peak_std<2).all()
-            print "significance:", significance
+            print("scatter in peak position:", peak_std, (peak_std<2).all())
+            print("significance:", significance)
 
         #
         # Check if the uncertainty in the peak position was reduced or not
@@ -292,7 +292,7 @@ def count_matches(src_cat, ref_cat,
         #
         if (chunk > 4):
             if ((peak_std > previous_peak_std).any()):
-                if (create_debug_files2): print "Uncertainty in position is increasing, this is not good"
+                if (create_debug_files2): print("Uncertainty in position is increasing, this is not good")
                 # Mark this run as invalid
                 significance = -1.
                 break
@@ -300,19 +300,19 @@ def count_matches(src_cat, ref_cat,
             
         if (n_chunks > 3 and chunk < 3):
             # Try at least 3 chunks
-            if (create_debug_files2): print "--> need more chunks"
+            if (create_debug_files2): print("--> need more chunks")
             continue
         elif (n_chunks <= 3 and chunk < n_chunks-1):
             # If less than 3 chunks, only finish after the last chunk to 
             # include all/sufficient sources
-            if (create_debug_files2): print "--> waiting for last chunk"
+            if (create_debug_files2): print("--> waiting for last chunk")
             continue
 
         if ((peak_std < 2).all()): # scatter less than 2 arcsec in all directions
-            if (create_debug_files2): print "We found a solution!"
+            if (create_debug_files2): print("We found a solution!")
             break
         if (no_gain_chunks >= 2):
-            if (create_debug_files2): print "This seems to go no-where, aborting"
+            if (create_debug_files2): print("This seems to go no-where, aborting")
             significance = -2.
             break
 
@@ -349,11 +349,11 @@ def rotate_shift_catalog(src_cat, center, angle, shift=None, verbose = False):
 
     """
     if (verbose):
-        print "\n\n\nIn rotate_shift_catalog"
-        print "angle =", angle
-        print "shift =", shift
-        print "center =", center
-        print "src-cat=\n", src_cat[:3]
+        print("\n\n\nIn rotate_shift_catalog")
+        print("angle =", angle)
+        print("shift =", shift)
+        print("center =", center)
+        print("src-cat=\n", src_cat[:3])
 
     center_ra, center_dec = center
     # print center_ra, center_dec
@@ -368,7 +368,7 @@ def rotate_shift_catalog(src_cat, center, angle, shift=None, verbose = False):
 
     # angles are given in arcmin
     angle_rad = math.radians(angle)
-    if (verbose): print "angle radians =",angle_rad
+    if (verbose): print("angle radians =",angle_rad)
 
     # print "in rot_shift: angle-rad=",angle_rad
 
@@ -376,11 +376,11 @@ def rotate_shift_catalog(src_cat, center, angle, shift=None, verbose = False):
     src_rel_to_center[:,0] *= math.cos(math.radians(center_dec))
 
     if (verbose and not shift == None):
-        print "@@@@ shift rotation"
-        print "shift=", shift
-        print "angle=", angle*60, "arcmin"
-        print "X=",math.cos(angle_rad) * shift[0] - math.sin(angle_rad) * shift[1]
-        print "y=",math.sin(angle_rad) * shift[0] + math.cos(angle_rad) * shift[1]
+        print("@@@@ shift rotation")
+        print("shift=", shift)
+        print("angle=", angle*60, "arcmin")
+        print("X=",math.cos(angle_rad) * shift[0] - math.sin(angle_rad) * shift[1])
+        print("y=",math.sin(angle_rad) * shift[0] + math.cos(angle_rad) * shift[1])
 
     # Apply rotation
     src_rotated[:,0] \
@@ -401,8 +401,8 @@ def rotate_shift_catalog(src_cat, center, angle, shift=None, verbose = False):
         src_rotated += shift
     
     if (verbose): 
-        print "src_rotated=\n", src_rotated[:3,0:2]
-        print "src-final=\n", src_rotated[:3],"\n\n\n"
+        print("src_rotated=\n", src_rotated[:3,0:2])
+        print("src-final=\n", src_rotated[:3],"\n\n\n")
 
     src_output = src_cat.copy()
     src_output[:,0:2] = src_rotated[:,0:2]
@@ -634,8 +634,8 @@ def find_best_guess(src_cat, ref_cat,
         all_results[:,0] = numpy.linspace(angle_max[0], angle_max[1], n_angles)
 
     else:
-        print "We don't know how to handle this case"
-        print "in find_best_guess, angle_max =",angle_max
+        print("We don't know how to handle this case")
+        print("in find_best_guess, angle_max =",angle_max)
         sys.exit(0)
 
 
@@ -729,7 +729,7 @@ def find_best_guess(src_cat, ref_cat,
 
             if (create_debug_files):
                 numpy.savetxt("ccmatch.cat%f" % (angle*60), src_rotated)
-                print angle*60,offset
+                print(angle*60,offset)
                 matched_cat = kd_match_catalogs(src_rotated[:,0:2]+offset, ref_cat[:,0:2], matching_radius, max_count=1)
                 numpy.savetxt("ccmatch.matched_%f" % (angle*60), matched_cat)
 
@@ -828,8 +828,8 @@ def fit_best_rotation_shift(src_cat, ref_cat,
     if (create_debug_files):
         numpy.savetxt("ccm.src", src_cat)
         numpy.savetxt("ccm.ref", ref_cat)
-        print "src-cat:", src_cat[:5]
-        print "ref-cat:", ref_cat[:5]
+        print("src-cat:", src_cat[:5])
+        print("ref-cat:", ref_cat[:5])
 
     #
     # Fix the cos(declination) problem
@@ -1016,11 +1016,11 @@ def optimize_shift_rotation(p, guessed_match, hdulist, fitting=True):
     if (create_debug_files): 
         x = open("ccmatch.wcsfitting", "a")
         numpy.savetxt(x, diff)
-        print >>x, "\n\n\n\n\n"
+        # print >>x, "\n\n\n\n\n"
         x.close()
         
         y = open("ccmatch.fitparams", "a")
-        print >>y, p[0], p[1], p[2]
+        # print >>y, p[0], p[1], p[2]
         y.close()
         
     
@@ -1078,7 +1078,7 @@ def verify_wcs_model(cat, hdulist):
         comp[n_start:n_start+number_src_in_this_ota,6:8] = wcs2[:,0:2]
 
         dump_file = "debug.verifywcs."+extname
-        print "writing",dump_file
+        print("writing",dump_file)
         numpy.savetxt(dump_file, comp[n_start:n_start+number_src_in_this_ota,:])
 
         n_start += number_src_in_this_ota
@@ -1295,7 +1295,7 @@ def apply_correction_to_header(hdulist, best_guess, verbose=False):
             best_guess[1], best_guess[2], best_guess[0], ota_extension.header['EXTNAME']))
 
         if (verbose):
-            print hdulist[ext].header['CRVAL1'], hdulist[ext].header['CRVAL2']
+            print(hdulist[ext].header['CRVAL1'], hdulist[ext].header['CRVAL2'])
             hdulist[ext].header['XVAL1'] = hdulist[ext].header['CRVAL1']
             hdulist[ext].header['XVAL2'] = hdulist[ext].header['CRVAL2']
 
@@ -1328,7 +1328,7 @@ def apply_correction_to_header(hdulist, best_guess, verbose=False):
         # wcs_wcspoly_to_header(wcs_poly, hdulist[ext].header) #ota_extension.header)
 
         if (verbose):
-            print hdulist[ext].header['CRVAL1'], hdulist[ext].header['CRVAL2']
+            print(hdulist[ext].header['CRVAL1'], hdulist[ext].header['CRVAL2'])
 
     return
 
@@ -2206,7 +2206,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                                        verbose=False)
     matched = kd_match_catalogs(src_rotated, ref_close, matching_radius=(2./3600.), max_count=1)
     if (create_debug_files): 
-        print "XXX:", center_ra, center_dec, current_best_rotation, current_best_shift
+        print("XXX:", center_ra, center_dec, current_best_rotation, current_best_shift)
         numpy.savetxt("ccmatch.1.raw", src_raw)
         numpy.savetxt("ccmatch.1.rotated", src_rotated)
         numpy.savetxt("ccmatch.after_rotation", matched)
@@ -2313,8 +2313,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # Now we have the best fitting rotation and shift position.
     # In a next step, go ahead and refine the distortion in the frame
     # 
-    print "\n\n\nOptimizing distortion..."
-    print "Using initial guess", best_shift_rotation_solution
+    print("\n\n\nOptimizing distortion...")
+    print("Using initial guess", best_shift_rotation_solution)
 
     # Apply the best-fit rotation to all coordinates in source catalog
     # src_raw = numpy.loadtxt(src_catfile)
@@ -2352,7 +2352,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     matched_catalog = kd_match_catalogs(valid_src_cat, ref_cat, matching_radius=(2./3600))
     if (create_debug_files): numpy.savetxt("ccmatch.match_cat_for_distopt", matched_catalog)
     
-    print "OTAs of each source:\n",matched_catalog[:,8]
+    print("OTAs of each source:\n",matched_catalog[:,8])
 
     for ext in range(len(hdulist)):
         if (not is_image_extension(hdulist[ext])):
@@ -2361,11 +2361,11 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         ota_extension = hdulist[ext]
         # print ota_extension.header['FPPOS'], ota_extension.header['FPPOS'][2:4]
         ota = int(ota_extension.header['FPPOS'][2:4])
-        print "\n\n\nworking on OTA %02d ..." %(ota)
+        print("\n\n\nworking on OTA %02d ..." %(ota))
 
         # sources from this OTA
         in_this_ota = (matched_catalog[:,8] == ota)
-        print numpy.sum(in_this_ota)
+        print(numpy.sum(in_this_ota))
         number_src_in_this_ota = numpy.sum(in_this_ota)
 
         # Read the WCS imformation from the fits file
@@ -2377,7 +2377,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
 
 
         if (number_src_in_this_ota < 15):
-            print "Not enough stars to optimize distortion"
+            print("Not enough stars to optimize distortion")
             wcs_poly_after_fit = wcs_poly
 
         else:
@@ -2388,7 +2388,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             ota_cat = matched_catalog[in_this_ota]
             ota_ref = matched_catalog[in_this_ota][:,-2:] #31:33]
 
-            print "sources in ota %d = %s ..." % (ota, str(ota_cat.shape))
+            print("sources in ota %d = %s ..." % (ota, str(ota_cat.shape)))
 
             xi, xi_r, eta, eta_r, cd, crval, crpix = wcs_poly
             #numpy.savetxt(sys.stdout, xi, "%9.2e")
@@ -2419,7 +2419,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             # sys.exit(0)
 
             xi, xi_r, eta, eta_r, cd, crval, crpix = wcs_poly
-            print
+            print()
             #numpy.savetxt(sys.stdout, xi, "%9.2e")
             #numpy.savetxt(sys.stdout, xi_r, "%9.2e")
 
@@ -2434,7 +2434,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                 diff = input_ref - ra_dec_computed
                 if (not fit):
                     return diff
-                print p_xi,p_eta,numpy.sum(diff**2)
+                print(p_xi,p_eta,numpy.sum(diff**2))
                 return diff.ravel()
 
             #
@@ -2445,26 +2445,26 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             # For now, let's optimize only the first 4 factors
             n_free_parameters = 3 # or 4 or 7 or 12 or 17 or 24
             p_init = numpy.append(xi_1d[:n_free_parameters], eta_1d[:n_free_parameters])
-            print p_init
+            print(p_init)
 
-            print "ota-cat=\n",ota_cat[:,2:4]
-            print "ota-ref=\n",ota_ref
+            print("ota-cat=\n",ota_cat[:,2:4])
+            print("ota-ref=\n",ota_ref)
 
             diff = optimize_distortion(p_init, ota_cat[:,2:4], ota_ref, wcs_poly, fit=False)
             if (create_debug_files): numpy.savetxt("ccmatch.optimize_distortion_before_OTA%02d" % (ota), diff)
 
             if (True):
-                print "\n\n\n\n\n\n\nStarting fitting\n\n\n\n\n"
+                print("\n\n\n\n\n\n\nStarting fitting\n\n\n\n\n")
                 args = (ota_cat[:,2:4], ota_ref, wcs_poly, True)
                 fit = scipy.optimize.leastsq(optimize_distortion, 
                                              p_init, 
                                              args=args, 
                                              full_output=1)
 
-                print "\n\n\n\n\n\n\nDone with fitting"
-                print p_init
-                print fit[0]
-                print "\n\n\n\n\n"
+                print("\n\n\n\n\n\n\nDone with fitting")
+                print(p_init)
+                print(fit[0])
+                print("\n\n\n\n\n")
                 p_afterfit = fit[0]
             else:
                 p_afterfit = p_init
@@ -2665,7 +2665,7 @@ if __name__ == "__main__":
     elif (cmdline_arg_isset("-applynonsidereal")):
 
         if (not cmdline_arg_isset("-nonsidereal")):
-            print "The -nonsidereal flag wasn't given, don't know what to do"
+            print("The -nonsidereal flag wasn't given, don't know what to do")
         else:
             # open the input file
             input_file = get_clean_cmdline()[1]
@@ -2717,7 +2717,7 @@ if __name__ == "__main__":
         angle = float(get_clean_cmdline()[3])
         src_rotated = rotate_shift_catalog(src_cat, (center_ra, center_dec), angle, None)
 
-        print "done loading catalogs, starting work"
+        print("done loading catalogs, starting work")
         # start_time = time.time()
           
 #         import cProfile, pstats
@@ -2754,11 +2754,11 @@ if __name__ == "__main__":
         filtername = get_clean_cmdline()[1]
         zp = estimate_zeropoint(filtername)
 
-        print "ZP estimate:", zp
+        print("ZP estimate:", zp)
 
     else:
         mode = cmdline_arg_set_or_default('-mode', 'xxx')
-        print mode
+        print(mode)
 
         valid_modes = (
             "shift",
@@ -2769,8 +2769,8 @@ if __name__ == "__main__":
         )
         # valid_mode = (mode == "shift" or mode == "rotation" or mode == "distortion")
         if (not mode in valid_modes):
-            print "This mode is not known"
-            print "valid modes are:",valid_modes
+            print("This mode is not known")
+            print("valid modes are:",valid_modes)
 
 #             print """\
 # This mode is not known.

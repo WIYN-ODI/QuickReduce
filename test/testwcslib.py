@@ -57,4 +57,4 @@ if __name__ == "__main__":
             x, y = data_sel[j,0], data_sel[j,1]
             _ra, _dec = wcs.pix2wcs(x-1, y-1)
 
-            print x, y, i, data_sel[j,2], data_sel[j,3], _ra, _dec
+            print(x, y, i, data_sel[j, 2], data_sel[j, 3], _ra, _dec)

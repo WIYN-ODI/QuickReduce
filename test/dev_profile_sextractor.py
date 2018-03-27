@@ -80,13 +80,12 @@ if __name__ == "__main__":
             %(filename)s -VERBOSE_TYPE NORMAL " % opts
 
             # print sex
-            print """\
+            print("""\
 #################
 #
 #  det-sigma=%(detsigma)d    det-area=%(detarea)d
 #
-#################""" % opts
-
+#################""" % opts)
 
             start_clock = time.clock()
             start_time = time.time()
@@ -106,7 +105,7 @@ if __name__ == "__main__":
             elapsed_clock = (end_clock - start_clock)
             elapsed_time = (end_time - start_time)
 
-            print detsigma, detarea, number_sources, n_noflags, elapsed_time, elapsed_clock, catname
+            print(detsigma, detarea, number_sources, n_noflags, elapsed_time, elapsed_clock, catname)
             print >>dummy_log, detsigma, detarea, number_sources, n_noflags, elapsed_time, elapsed_clock, catname
             dummy_log.flush()
 

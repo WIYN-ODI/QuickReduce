@@ -67,7 +67,7 @@ from podi_definitions import *
 from podi_commandline import *
 import podi_associations
 
-import Queue
+import queue
 import threading
 import multiprocessing
 import ctypes

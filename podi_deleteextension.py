@@ -59,18 +59,18 @@ if __name__ == "__main__":
                     break
 
             if (delete_this_one):
-                print "Deleting extension %s ..." % (extname)
+                print("Deleting extension %s ..." % (extname))
                 continue
 
         except:
             pass
 
-        print "Keeping extension %s ..." % (extname)
+        print("Keeping extension %s ..." % (extname))
         outlist.append(hdulist[i])
 
 
 
-    print "writing"
+    print("writing")
     hdu_out = pyfits.HDUList(outlist)
 
     hdu_out.writeto(outputfile, clobber=True)

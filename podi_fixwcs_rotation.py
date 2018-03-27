@@ -80,14 +80,14 @@ def improve_match_and_rotation(fixwcs_ref_ra, fixwcs_ref_dec,
     ref_full = numpy.empty(shape=(fixwcs_ref_ra.shape[0],2))
     ref_full[:,0] = fixwcs_ref_ra[:]
     ref_full[:,1] = fixwcs_ref_dec[:]
-    print "Read ",ref_full.shape, "reference stars"
+    print("Read ",ref_full.shape, "reference stars")
 
     odi_full = numpy.empty(shape=(fixwcs_odi_ra.shape[0],4))
     odi_full[:,0] = fixwcs_odi_ra[:]
     odi_full[:,1] = fixwcs_odi_dec[:]
     odi_full[:,2] = fixwcs_odi_ra[:]
     odi_full[:,3] = fixwcs_odi_dec[:]
-    print "Read ",odi_full.shape, "ODI stars"
+    print("Read ",odi_full.shape, "ODI stars")
 
     odi_orig = odi_full.copy()
 
@@ -103,11 +103,11 @@ def improve_match_and_rotation(fixwcs_ref_ra, fixwcs_ref_dec,
 
     for repeat in range(matching_radii.shape[0]): #n_repeats):
         if (verbose):
-            print "\n\nThis is rotation iteration #",repeat
+            print("\n\nThis is rotation iteration #",repeat)
         return_cat = podi_matchcatalogs.match_catalogs(ref_full, odi_full, 
                                                        matching_radius=matching_radii[repeat])
 
-        if (verbose): print "return_Cat=",return_cat.shape
+        if (verbose): print("return_Cat=",return_cat.shape)
 
         # Now we should have almost matching catalogs, with the exception 
         # of the mismatch in rotation
@@ -115,7 +115,7 @@ def improve_match_and_rotation(fixwcs_ref_ra, fixwcs_ref_dec,
         good_matches = return_cat[:,2] > 0
         matched_cat = return_cat[good_matches]
 
-        if (verbose): print "after eliminating non-matched sources we have ",matched_cat.shape,"good matches left"
+        if (verbose): print("after eliminating non-matched sources we have ",matched_cat.shape,"good matches left")
 
             #i f (verbose): print matched_cat[0:5,:]
 
@@ -130,9 +130,9 @@ def improve_match_and_rotation(fixwcs_ref_ra, fixwcs_ref_dec,
 
         p_total += p_final
 
-        if (verbose): print "best transformation:",p_final
+        if (verbose): print("best transformation:",p_final)
         angle = math.degrees(p_final[2])
-        if (verbose): print "mismatched angle=",angle*60,"arcmin"
+        if (verbose): print("mismatched angle=",angle*60,"arcmin")
 
         if (output_debug_catalogs): numpy.savetxt("matched.cat.%d" % (repeat), matched_cat)
 
@@ -140,8 +140,8 @@ def improve_match_and_rotation(fixwcs_ref_ra, fixwcs_ref_dec,
         odi_full[:,0:2] = apply_transformation(p_final, odi_full[:,0:2])
 
         if (verbose):
-            print "cumulative correction:", p_total, "-->",p_total[0]*60, p_total[1]*60, math.degrees(p_total[2])*60
-            print "\n\n"
+            print("cumulative correction:", p_total, "-->",p_total[0]*60, p_total[1]*60, math.degrees(p_total[2])*60)
+            print("\n\n")
 
     # Now we have iteratively refined the matched catalog
     # In a final step use the original catalog to get the full transformation
@@ -155,8 +155,8 @@ def improve_match_and_rotation(fixwcs_ref_ra, fixwcs_ref_dec,
     p_final = out[0]
     covar = out[1]
 
-    print "final transformation:", p_final, "angle=", 60.*math.degrees(p_final[2])
-    if (verbose): print "straight sum of transformations: ", p_total
+    print("final transformation:", p_final, "angle=", 60.*math.degrees(p_final[2]))
+    if (verbose): print("straight sum of transformations: ", p_total)
 
     odi_corr = apply_transformation(p_total, odi_orig)
 
@@ -168,7 +168,7 @@ def improve_match_and_rotation(fixwcs_ref_ra, fixwcs_ref_dec,
     if (output_debug_catalogs): numpy.savetxt("matched.out", matched_cat)
 
 
-    print "after some fiddling we can now match",matched_cat.shape,"stars"
+    print("after some fiddling we can now match",matched_cat.shape,"stars")
 
     return p_final
 
@@ -194,13 +194,13 @@ if __name__ == "__main__":
     # Use the average position of the reference catalog
     med_ra = numpy.median(fixwcs_ref_ra)
     med_dec = numpy.median(fixwcs_ref_dec)
-    print med_ra, med_dec
+    print(med_ra, med_dec)
 
     dx = math.cos(final_transform[2])*med_ra + math.sin(final_transform[2])*med_dec
     dy = -math.sin(final_transform[2])*med_ra + math.cos(final_transform[2])*med_dec
 
-    print final_transform
-    print dx, dy
+    print(final_transform)
+    print(dx, dy)
 
-    print med_ra-dx, med_dec-dy
+    print(med_ra-dx, med_dec-dy)
 

@@ -12,7 +12,7 @@ if __name__ == "__main__":
         if (os.path.isfile(out_fn)):
             continue
 
-        print "Minimizing %s to %s" % (fn, out_fn)
+        print("Minimizing %s to %s" % (fn, out_fn))
 
         hdulist = pyfits.open(fn)
 

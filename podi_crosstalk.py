@@ -350,9 +350,9 @@ def measure_crosstalk(filename):
                 xtalk_effect = numpy.mean(xtalk_cleaned)
                 xtalk_raw = numpy.mean(xtalk_affected)
 
-                print cell_name, other_cellname, overscan_level, bgmedian, \
+                print(cell_name, other_cellname, overscan_level, bgmedian, \
                     numpy.mean(bg_pixels), bgmode, bgmode+overscan_level, \
-                    xtalk_effect, numpy.sum(xtalk_mask), n_saturated, xtalk_raw
+                    xtalk_effect, numpy.sum(xtalk_mask), n_saturated, xtalk_ra)
 
                 entry = [int(cell_name[2:]), int(other_cellname[2:]), xtalk_effect, numpy.sum(xtalk_mask), n_saturated]
 
@@ -375,7 +375,7 @@ def complete_xtalk_matrix(data):
 
         # select all measurements for this source cell
         src = data[ data[:,0] == src_cell ]
-        print src
+        print(src)
 
         # Now fill in the details
         matrix[row_y, src_x, src_x] = 1.0  # every cell contributes 100% flux to itself
@@ -386,7 +386,7 @@ def complete_xtalk_matrix(data):
             if (numpy.sum(target_cell) > 0):
                 # computed weighted average in case there's more than one 
                 # measurements for this cell combination
-                print numpy.sum(src[target_cell,2]), numpy.sum(src[target_cell,3])
+                print(numpy.sum(src[target_cell,2]), numpy.sum(src[target_cell,3]))
                                 
                 avg_xtalk_signal = \
                     numpy.sum(src[target_cell,2] * src[target_cell,3]) \
@@ -442,7 +442,7 @@ if __name__ == "__main__":
             target_cell = tx*10+y
             if (src_cell == target_cell):
                 continue
-            print src_cell, target_cell, x[y, sx, tx]*65535., 100, 100
+            print(src_cell, target_cell, x[y, sx, tx]*65535., 100, 100)
 
     elif (cmdline_arg_isset("-plot")):
 

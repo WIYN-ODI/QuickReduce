@@ -58,16 +58,16 @@ if __name__ == "__main__":
 
         full_catalog = catalog if full_catalog is None else \
             numpy.append(full_catalog, catalog, axis=0)
-        print catalog.shape, full_catalog.shape
+        print(catalog.shape, full_catalog.shape)
 
-        print "read %d entries from %s" % (nstars, fn)
+        print("read %d entries from %s" % (nstars, fn))
         first_file = False
 
     #
     # Now create the combined table
     #
-    print len(ttypes), len(tforms), len(tdisps), len(tunits)
-    print full_catalog.shape[0]
+    print(len(ttypes), len(tforms), len(tdisps), len(tunits))
+    print(full_catalog.shape[0])
 
     columns = []
     for col in range(full_catalog.shape[1]):

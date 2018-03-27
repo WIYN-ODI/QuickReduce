@@ -9,7 +9,7 @@ import scipy.interpolate
 import bottleneck
 import math
 import multiprocessing
-import Queue
+import queue
 import ctypes
 
 import astLib.astWCS as astWCS

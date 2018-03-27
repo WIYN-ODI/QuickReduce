@@ -76,7 +76,7 @@ def show_associations(inputfile, show_full_file):
     try:
         hdulist = pyfits.open(inputfile)
     except IOError:
-        print "Can't open the input file: %s" % (inputfile)
+        print("Can't open the input file: %s" % (inputfile))
         sys.exit(0)
 
     
@@ -140,7 +140,7 @@ def collect_reduction_files_used(masterlist, files_this_frame):
 
     """
 
-    for key, value in files_this_frame.iteritems():
+    for (key, value) in files_this_frame.items():
         if (key in masterlist):
             existing_keys = masterlist[key]
             if (type(value) == list):
@@ -198,9 +198,9 @@ def create_association_table(master, verbose=False):
     full_filename = []
     short_filename = []
 
-    if (not master == None):
+    if (master is not None):
 
-        for key, value in master.iteritems():
+        for (key, value) in master.items():
             # print key,":",value
             for filename in set(value):
                 reduction_step.append(key)
@@ -212,7 +212,7 @@ def create_association_table(master, verbose=False):
                 short_filename.append(filebase)
 
                 if (verbose):
-                    print "% 15s : %s" % (key, filename)
+                    print("% 15s : %s" % (key, filename))
 
     # print reduction_step
     # print short_filename

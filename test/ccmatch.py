@@ -26,28 +26,27 @@ if __name__ == "__main__":
     # eliminate all flagged stars
     src_cat = src_cat[src_cat[:,7] == 0][:,0:2]
 
-    print "src_cat:",src_cat.shape
+    print("src_cat:", src_cat.shape)
 
     # 
     # Create the reference catalog
     #
     ref_catfile = sys.argv[2]
     ref_raw = numpy.loadtxt(ref_catfile)[:,0:2]
-    print "ref. cat (raw) =",ref_raw.shape
-
+    print("ref. cat (raw) =", ref_raw.shape)
 
     #
     # Reduce the reference catalog to approx. the coverage of the source catalog
     #
     ref_cat = match_catalog_areas(src_cat, ref_raw, 2./60.)
-    print "area matched ref. catalog:", ref_cat.shape
+    print("area matched ref. catalog:", ref_cat.shape)
 
     #
     # compute the center of the field
     #
     center_ra = numpy.median(src_cat[:,0])
     center_dec = numpy.median(src_cat[:,1])
-    print "field center at ", center_ra, center_dec
+    print("field center at ", center_ra, center_dec)
 
     #
     # For testing purposes, rotate the field by a little
@@ -79,14 +78,14 @@ if __name__ == "__main__":
         if (len(matches[cur_src]) == 0):
             continue
 
-        if (verbose): print "\n",cur_src
+        if (verbose): print("\n", cur_src)
         # print matches[cur_src]
         #
         # matches[cur_src] contains the indices of matching stars from the reference catalog
         # So extract the actual coordinates of all nearby reference stars
         #
         cur_matches = numpy.array(ref_cat[matches[cur_src]])
-        if (verbose): print cur_matches
+        if (verbose): print(cur_matches)
 
         # print cur_matches.shape
 
@@ -94,7 +93,7 @@ if __name__ == "__main__":
     
         # Subtract the source position to get relative offsets
         cur_matches -= src_cat[cur_src]
-        if (verbose): print cur_matches
+        if (verbose): print(cur_matches)
 
         # And add all offsets into the global offset registry
         for cur_refstar in range(len(matches[cur_src])):
@@ -102,7 +101,7 @@ if __name__ == "__main__":
 
         cur_pair += 1
 
-    print "found", all_offsets.shape, "potential offsets"
+    print("found", all_offsets.shape, "potential offsets")
 
     numpy.savetxt("ccmatch.dump",all_offsets)
 
@@ -135,8 +134,8 @@ if __name__ == "__main__":
     max_coincidence_count = numpy.argmax(search_weights[:,0])
 
     best_offset = all_offsets[max_coincidence_count,:]
-    print "best offset", best_offset
-    print "matching in",search_weights[max_coincidence_count],"fields"
+    print("best offset", best_offset)
+    print("matching in", search_weights[max_coincidence_count], "fields")
 
     numpy.savetxt("ccmatch.offsetcount", search_weights)
 

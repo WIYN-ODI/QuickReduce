@@ -77,8 +77,9 @@ def record_pipeline_versioning(header):
     branch_name = get_branch_name(src_directory)
     commit_hash = get_last_commit(src_directory)
 
-    header['GITBRNCH'] = (branch_name, "git branch name")
-    header['GITCOMIT'] = (commit_hash, "git commit hash")
+    # print("GIT:", branch_name, commit_hash)
+    header['GITBRNCH'] = (str(branch_name), "git branch name")
+    header['GITCOMIT'] = (str(commit_hash), "git commit hash")
 
     add_fits_header_title(header, "Pipeline information", 'PLVER')
 

@@ -8,6 +8,7 @@ logging process.
 
 """
 
+from __future__ import print_function
 
 import sys
 import numpy
@@ -22,7 +23,7 @@ import itertools
 import logging
 
 import time
-import Queue
+import queue
 import threading
 import multiprocessing
 import traceback
@@ -79,8 +80,8 @@ def test_worker_process(log_setup):
 # The worker configuration is done at the start of the worker process run.
 # Note that on Windows you can't rely on fork semantics, so each process
 # will run the logging configuration code when it starts.
-def log_slave_setup(queue):
-    h = QueueHandler(queue) # Just the one handler needed
+def log_slave_setup(msg_queue):
+    h = QueueHandler(msg_queue) # Just the one handler needed
     root = logging.getLogger()
     root.addHandler(h)
     root.setLevel(logging.DEBUG) # send all messages, for demo; no other level or filter logic applied.
@@ -185,7 +186,7 @@ class QueueHandler(logging.Handler):
 
 
 
-def log_master(queue, options):
+def log_master(msg_queue, options):
     """
 
     This is the main process that handles all log output. 
@@ -221,7 +222,7 @@ def log_master(queue, options):
             open_mode = "a" if (sitesetup.debug_log_append) else "w"
             debugfile = open(debug_filename, open_mode)
             enable_debug = True
-            print >>debugfile, " ".join(sys.argv)
+            print(" ".join(sys.argv), file=debugfile)
             
             # print 'activating debug output'
 
@@ -238,8 +239,8 @@ def log_master(queue, options):
             debug_logger.addHandler(h)
             debug_logger.propagate=False
         except:
-            print "#@#@#@#@#@# Unable to write to debug file: %s" % (debug_filename)
-            print "#@#@#@#@#@# Routing all debug output to stderr"
+            print("#@#@#@#@#@# Unable to write to debug file: %s" % (debug_filename))
+            print("#@#@#@#@#@# Routing all debug output to stderr")
             debug_logger = logging.getLogger('debug')
             try:
                 h = logging.StreamHandler(stream=sys.stderr)
@@ -323,10 +324,10 @@ def log_master(queue, options):
     while True:
         try:
             try:
-                record = queue.get(timeout=1.)
+                record = msg_queue.get(timeout=1.)
             except (KeyboardInterrupt, SystemExit):
                 record = None
-            except Queue.Empty:
+            except queue.Empty:
                 pass
                 # print >>debugfile, "LogHandler: still running, but no message during the last second!"
                 # print "."
@@ -398,12 +399,12 @@ def log_master(queue, options):
                                       body=str(pika_msg)
                 )
              
-            queue.task_done()
+            msg_queue.task_done()
         except (KeyboardInterrupt, SystemExit):
             raise
         except:
             import sys, traceback
-            print >> sys.stderr, 'Whoops! Problem:'
+            print('Whoops! Problem:', file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
 
     if (enable_pika):
@@ -413,7 +414,7 @@ def log_master(queue, options):
             pass
 
     if (enable_debug):
-        print >>debugfile, "done with logging, closing file"
+        print("done with logging, closing file", file=debugfile)
         debugfile.close()
 
 
@@ -430,24 +431,24 @@ def podi_log_master_start(options):
 
     """
 
-    queue = multiprocessing.JoinableQueue()
+    msg_queue = multiprocessing.JoinableQueue()
 
     #
     # Rename the thread name to make a more useful stacktrace
     #
-    queue._start_thread()
-    queue._thread.name = "QueueFeederThread___ParallelLogging"
+    msg_queue._start_thread()
+    msg_queue._thread.name = "QueueFeederThread___ParallelLogging"
 
     listener = multiprocessing.Process(target=log_master,
-                                kwargs={"queue": queue,
+                                kwargs={"msg_queue": msg_queue,
                                         "options": options}
                             )
     listener.start()
 
-    worker_setup = {"queue": queue,
+    worker_setup = {"msg_queue": msg_queue,
                   "configurer": log_slave_setup}
     
-    log_master_info = {"queue": queue,
+    log_master_info = {"msg_queue": msg_queue,
                        "listener": listener
                    }
 
@@ -464,7 +465,7 @@ def podi_log_master_quit(log_master_info):
     Shutdown the logging process
     """
 
-    log_master_info['queue'].put(None)
+    log_master_info['msg_queue'].put(None)
     try:
         # print "joining log listener"
         log_master_info['listener'].join()
@@ -472,8 +473,8 @@ def podi_log_master_quit(log_master_info):
     except (KeyboardInterrupt, SystemExit):
         pass
 
-    log_master_info['queue'].close()
-    log_master_info['queue'].join_thread()
+    log_master_info['msg_queue'].close()
+    log_master_info['msg_queue'].join_thread()
     return
 
 
@@ -483,11 +484,11 @@ def podi_logger_setup(setup):
     the logging subprocess.
     """
     
-    if (setup == None):
+    if (setup is None):
         return
         # handler = logging.StreamHandler(sys.stdout)
     else:
-        handler = QueueHandler(setup['queue'])
+        handler = QueueHandler(setup['msg_queue'])
 
     # import sys
     # handler = logging.StreamHandler(stream=sys.stdout)
@@ -599,47 +600,47 @@ def print_stacktrace(sleep=0, logger=None, info=True, stdout=False):
     time.sleep(sleep)
 
     ff = fakefile()
-    print >>ff, "========================================================"
-    print >>ff, "==   STACK TRACE -- BEGIN                             =="
-    print >>ff, "========================================================"
+    print("========================================================", file=ff)
+    print("==   STACK TRACE -- BEGIN                             ==", file=ff)
+    print("========================================================", file=ff)
 
-    print >>ff, "\nCurrently running threads:\n -- %s" % ("\n -- ".join([str(x) for x in threading.enumerate()]))
+    print("\nCurrently running threads:\n -- %s" % ("\n -- ".join([str(x) for x in threading.enumerate()])), file=ff)
 
-    for thread_id, frame in sys._current_frames().iteritems():
+    for thread_id, frame in sys._current_frames().items():
         name = thread_id
         #print name, frame
 
         for thread in threading.enumerate():
             if thread.ident == thread_id:
                 name = thread.name
-        print >>ff,"\nSTACK-TRACE for %s" % (name)
+        print("\nSTACK-TRACE for %s" % (name), file=ff)
         traceback.print_stack(frame, file=ff)
 
     try:
         import psutil
-        print >>ff, "\nList of subprocess of current process:"
+        print("\nList of subprocess of current process:", file=ff)
         this_process = psutil.Process()
         kids = this_process.children(recursive=True)
         if (len(kids) <= 0):
-            print >>ff, "  This process does not have any child-processes"
+            print("  This process does not have any child-processes", file=ff)
         else:
             now_time = time.time()
-            print >>ff, " -- %s" % ("\n -- ".join(["ProcID: %5d - %8.3f seconds" % (
-                p.pid, now_time-p.create_time()) for p in kids]))
+            print(" -- %s" % ("\n -- ".join(["ProcID: %5d - %8.3f seconds" % (
+                p.pid, now_time-p.create_time()) for p in kids])), file=ff)
     except:
 
-        print >>ff, "\nList of subprocesses not available, needs psutil package!"
+        print("\nList of subprocesses not available, needs psutil package!", file=ff)
         pass
 
-    print >>ff, ""
-    print >>ff, "========================================================"
-    print >>ff, "==   STACK TRACE -- END                               =="
-    print >>ff, "========================================================"
+    print("", file=ff)
+    print("========================================================", file=ff)
+    print("==   STACK TRACE -- END                               ==", file=ff)
+    print("========================================================", file=ff)
 
     if (stdout):
-        print ff.get()
+        print(ff.get())
     else:
-        if (logger == None):
+        if (logger is None):
             logger = logging.getLogger("StackTrace")
         if (info):
             logger.info("\n%s" % (ff.get()))
@@ -672,20 +673,20 @@ if __name__ == "__main__":
 
         try:
             import pika
-            print "Found PIKA module!"
+            print("Found PIKA module!")
         except ImportError:
-            print "There's no pika package installed, quitting"
+            print("There's no pika package installed, quitting")
             sys.exit(0)
         
         try:
             import podi_pikasetup
-            print "Found podi-setup for PIKA!"
+            print("Found podi-setup for PIKA!")
         except ImportError:
-            print "No podi-setup found."
-            print "Maybe you need to run `cp podi_pikasetup.py.example podi_pikasetup.py ?"
+            print("No podi-setup found.")
+            print("Maybe you need to run `cp podi_pikasetup.py.example podi_pikasetup.py ?")
             sys.exit(0)
 
-        print "Trying to connect to AMQP server"
+        print("Trying to connect to AMQP server")
         try:
             credentials = pika.PlainCredentials(podi_pikasetup.user, podi_pikasetup.password)
             connection = pika.BlockingConnection(
@@ -697,23 +698,23 @@ if __name__ == "__main__":
             channel = connection.channel()
             channel.queue_declare(queue=podi_pikasetup.jobstatus_queue, durable=True)
         except:
-            print "Connection failed!"
+            print("Connection failed!")
             sys.exit(0)
 
-        print "PIKA connection established!"
+        print("PIKA connection established!")
 
         def callback(ch, method, properties, body):
-            print " [o] %r" % (body,)
+            print(" [o] %r" % (body,))
 
         channel.basic_consume(callback,
                               queue=podi_pikasetup.jobstatus_queue,
                               no_ack=True)
 
-        print ' [*] Waiting for messages. To exit press CTRL+C'
+        print(') [*] Waiting for messages. To exit press CTRL+C')
         try:
             channel.start_consuming()
-        except (KeyboardInterrupt, SystemExit):
-            print "\nShutting down listener, good bye!"
+        except (KeyboardInterrupt, SystemExit) as e:
+            print("\nShutting down listener, good bye!")
         except:
             pass
 
@@ -737,7 +738,7 @@ if __name__ == "__main__":
         # for w in workers:
         #     w.join()
 
-        print log_setup
+        print(log_setup)
 
         for i in range(1):
             worker = multiprocessing.Process(target=test_worker_process, 

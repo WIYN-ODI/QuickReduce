@@ -61,7 +61,7 @@ Methods
 """
 
 
-
+from __future__ import print_function
 import sys
 import os
 import pyfits
@@ -73,7 +73,7 @@ import scipy.optimize
 import bottleneck
 import scipy.signal
 
-import Queue
+import queue
 import threading
 import multiprocessing
 import ctypes
@@ -220,13 +220,13 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
                     continue
 
             if (mask_regions is not None):
-                print "Masking regions"
+                print("Masking regions")
                 mask_regions_using_ds9_regions(ext, mask_regions)
                 input_file_modified = True
 
             if (bpm_dir is not None):
                 bpmfile = "%s/bpm_xy%s.reg" % (bpm_dir, ext.name[3:5])
-                print "apply bpm from %s" % (bpmfile)
+                print("apply bpm from %s" % (bpmfile))
                 if (os.path.isfile(bpmfile)):
                     mask_broken_regions(ext.data, bpmfile)
                     input_file_modified = True
@@ -287,10 +287,10 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
                                        stderr=subprocess.PIPE)
                 (sex_stdout, sex_stderr) = ret.communicate()
                 if (not ret.returncode == 0):
-                    print sex_stdout
-                    print sex_stderr
+                    print(sex_stdout)
+                    print(sex_stderr)
             except OSError as e:
-                print >>sys.stderr, "Execution failed:", e
+                print("Execution failed:", e, file=sys.stderr)
             end_time = time.time()
             logger.debug("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
         else:
@@ -304,7 +304,7 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
         hdu_out = []
         hdu_out.append(hdulist[0])
 
-        print mask_regions
+        print(mask_regions)
         if (not os.path.isfile(masked_frame) or redo):
             logger.debug("Preparing masked frame: %s" % (masked_frame))
 
@@ -583,7 +583,7 @@ if __name__ == "__main__":
 
     else:
 
-        print """\
+        print("""\
 Options are:
 
   -create output.fits input*.fits
@@ -592,7 +592,7 @@ Options are:
 
   -applyall illumcorr.fits insert_string input*.fits
 
-"""
+""")
         
     # Shutdown logging to shutdown cleanly
     podi_logging.shutdown_logging(options)

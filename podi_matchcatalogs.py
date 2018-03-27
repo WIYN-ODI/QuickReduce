@@ -156,5 +156,3 @@ if __name__ == "__main__":
                              matching_radius=2, verbose=False)
 
     numpy.savetxt(sys.argv[3], matched)
-
-    print "Hello"

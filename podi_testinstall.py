@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Copyright 2012-2013 Ralf Kotulla
 #                     kotulla@uwm.edu
@@ -48,15 +48,15 @@ def check_package(name):
         exec(import_cmd)
 
     except ImportError as e:
-        print "\nProblem importing %s :\n %s" % (name, str(e))
+        print("\nProblem importing %s :\n %s" % (name, str(e)))
     except:
-        print "\nSome error occured while trying to import %s" % (name)
+        print("\nSome error occured while trying to import %s" % (name))
     else:
         try:
-            version = pkg.__version__
-            print "Found package: %s (version: %s)" % (name, pkg.__version__)
+            version = "??" #pkg.__version__
+            print("Found package: %s (version: %s)" % (name, version))
         except AttributeError:
-            print "Found package: %s" % (name)
+            print("Found package: %s" % (name))
             pass
         return True
 
@@ -80,13 +80,13 @@ def ask_for_option(var_name, question, backup, needs_quotes, config_array, grab_
     else:
 
         # Now ask user
-        print "----"
-        print question
-        print "Default:", suggestion
+        print("----")
+        print(question)
+        print("Default:", suggestion)
         try:
-            answer = raw_input("Answer:  ")
+            answer = input("Answer:  ")
         except KeyboardInterrupt:
-            print "\nTerminating\n"
+            print("\nTerminating\n")
             pass
             sys.exit(0)
 
@@ -108,21 +108,21 @@ def update_sitesetup(change_setup=True, change_catalogs=True, grab_only=False):
     try:
         import podi_sitesetup
         if (not grab_only):
-            print "********************************************************"
-            print "**                                                    **"
-            print "** This is an update, loading existing configuration  **"
-            print "**                                                    **"
-            print "********************************************************"
-            print
+            print("********************************************************")
+            print("**                                                    **")
+            print("** This is an update, loading existing configuration  **")
+            print("**                                                    **")
+            print("********************************************************")
+            print()
         else:
-            print "Keeping existing configuration"
+            print("Keeping existing configuration")
     except:
-        print "********************************************************"
-        print "**                                                    **"
-        print "** This is the very first run, initializing sitesetup **"
-        print "**                                                    **"
-        print "********************************************************"
-        print
+        print("********************************************************")
+        print("**                                                    **")
+        print("** This is the very first run, initializing sitesetup **")
+        print("**                                                    **")
+        print("********************************************************")
+        print()
         shutil.copy("podi_sitesetup.py.blank", "podi_sitesetup.py")
         import podi_sitesetup
         pass
@@ -308,30 +308,30 @@ def configure_catalogs(catalog_config=None):
         print
 
         try:
-            answer = raw_input("Add [a], change [c] or delete [d] catalog, or quit [q]?")
+            answer = input("Add [a], change [c] or delete [d] catalog, or quit [q]?")
         except KeyboardInterrupt:
-            print "\nTerminating\n"
+            print("\nTerminating\n")
             sys.exit(0)
 
         if (answer.lower() in ['a', 'c']):
             while (True):
-                cat_name = raw_input("name [no spaces!]:")
+                cat_name = input("name [no spaces!]:")
                 if (cat_name == ""):
-                    print "No empty catalog name allowed"
+                    print("No empty catalog name allowed")
                     continue
                 break
 
             while (True):
-                cat_dir = raw_input("Catalog directory:")
+                cat_dir = input("Catalog directory:")
                 # Add some verification here
                 if (cat_dir.lower() == "q"):
                     cat_dir = None
                     break
                 elif (not os.path.isdir(cat_dir)):
-                    print "The specified directory [%s] does not exist" % (cat_dir)
+                    print("The specified directory [%s] does not exist" % (cat_dir))
                     continue
                 elif (not os.path.isfile("%s/SkyTable.fits" % cat_dir)):
-                    print "The specified directory does not contain a valid Index file"
+                    print("The specified directory does not contain a valid Index file")
                     continue
                 else:
                     break
@@ -339,16 +339,16 @@ def configure_catalogs(catalog_config=None):
             if (cat_dir is not None):
                 while(True):
                     try:
-                        cat_mag = int(raw_input("Column of first magnitude [must be int]:"))
+                        cat_mag = int(input("Column of first magnitude [must be int]:"))
                         break
                     except ValueError:
                         continue
-                print cat_name, cat_dir, cat_mag
+                print(cat_name, cat_dir, cat_mag)
 
                 podi_sitesetup.catalog_directory[cat_name] = (cat_dir, cat_mag)
                 catalogs_changed = True
         elif (answer.lower() == 'd'):
-            cat_name = raw_input("catalog name:")
+            cat_name = input("catalog name:")
             if (cat_name in podi_sitesetup.catalog_directory):
                 del podi_sitesetup.catalog_directory[cat_name]
                 catalogs_changed = True
@@ -373,15 +373,15 @@ def configure_catalogs(catalog_config=None):
 
 def check_component(pkg, fct):
     found = hasattr(pkg, fct)
-    print "   * %-20s: %s" % (fct, found)
+    print("   * %-20s: %s" % (fct, found))
     return found
 
 if __name__ == "__main__":
-    print
-    print "Testing if all packages are installed"
-    print
+    print()
+    print("Testing if all packages are installed")
+    print()
 
-    print "\nchecking standard packages ..."
+    print("\nchecking standard packages ...")
     check_package('os')
     check_package('sys')
     check_package('math')
@@ -390,7 +390,7 @@ if __name__ == "__main__":
     check_package('ctypes')
     check_package('itertools')
 
-    print "\nchecking multi-processor packages ..."
+    print("\nchecking multi-processor packages ...")
     check_package('multiprocessing')
     check_package('Queue')
     check_package('threading')
@@ -398,7 +398,7 @@ if __name__ == "__main__":
     check_package('psutil')
 
 
-    print "\nchecking numerical processing packages ..."
+    print("\nchecking numerical processing packages ...")
     check_package('numpy')
     check_package('scipy')
     check_package('scipy.stats')
@@ -407,20 +407,20 @@ if __name__ == "__main__":
     check_package('scipy.ndimage')
     check_package('bottleneck')
 
-    print "\nchecking plotting packages ..."
+    print("\nchecking plotting packages ...")
     check_package('matplotlib')
     check_package('Image')
     check_package('ImageDraw')
 
 
-    print "\nchecking astronomy-related packages ..."
+    print("\nchecking astronomy-related packages ...")
     check_package('pyfits')
     check_package('ephem')
     check_package('astLib')
     check_package('jdcal')
 
     if (not check_package('podi_sitesetup')):
-        print """\
+        print("""\
         Module podi_sitesetup is a global configuration file for
         this podi pipeline. Copy the existing file
         podi_sitesetup.py.example to podi_sitesetup.py, open it
@@ -428,24 +428,24 @@ if __name__ == "__main__":
         WCS and photometric reference catalogs are set correctly.
         Then re-run this program.
 
-    """
+    """)
 
-    print "\nChecking cython-optimized package for pODI"
+    print("\nChecking cython-optimized package for pODI")
     done_checking_cython = False
     while (not done_checking_cython):
         if (not check_package('podi_cython')):
-            print """\
+            print("""\
  There was a problem import podi_cython. This module contains optimized
  code that needs to be compiled first. To do so, simply run:
 
  python setup.py build_ext --inplace
 
-"""
+""")
              
             try:
-                answer = raw_input("Do you want to compile this module now? (y/n)")
+                answer = input("Do you want to compile this module now? (y/n)")
             except KeyboardInterrupt:
-                print "\nTerminating\n"
+                print("\nTerminating\n")
                 sys.exit(0)
             if (answer in ['y', 'Y']):
                 subprocess.call("python setup.py build_ext --inplace".split())
@@ -460,31 +460,31 @@ if __name__ == "__main__":
             all_found = all_found and check_component(podi_cython, "sigma_clip_median")
             all_found = all_found and check_component(podi_cython, "lacosmics")
             if (all_found):
-                print "All routines found"
+                print("All routines found")
                 done_checking_cython = True
                 break
             else:
-                print "Some podi-cython routines could not be found!"
-                print "Please re-compile via python setup.py build_ext --python"
+                print("Some podi-cython routines could not be found!")
+                print("Please re-compile via python setup.py build_ext --python")
     
-    print "\nCheck done!\n"
+    print("\nCheck done!\n")
 
-    answer = raw_input("Do you want to run the sitesetup assistant (y/N)?")
+    answer = input("Do you want to run the sitesetup assistant (y/N)?")
     config_array = []
     config_changed = False
     if (answer.lower() == "y"):
-        print "\n"*4,"     Starting auto-configuration!","\n"*4
+        print("\n"*4,"     Starting auto-configuration!","\n"*4)
         # import sys, os, podi_sitesetup
         config_array, config_changed = update_sitesetup()
     else:
         # create config_array from existing configuration
         config_array, changes = update_sitesetup(grab_only=True)
 
-    answer = raw_input("Do you want to run the catalog setup assistant (y/N)?")
+    answer = input("Do you want to run the catalog setup assistant (y/N)?")
     catalog_config = ['', '', '# Catalog configuration']
     catalogs_changed = False
     if (answer.lower() == "y"):
-        print "\n"*4,"     Starting catalog-configuration!","\n"*4
+        print("\n"*4,"     Starting catalog-configuration!","\n"*4)
         # import sys, os, podi_sitesetup
         catalog_config, catalogs_changed = configure_catalogs(catalog_config)
     else:
@@ -509,13 +509,13 @@ if __name__ == "__main__":
             break
 
     if (config_changed or catalogs_changed):
-        print "\n\nThere were some changes to the configuration!"
+        print("\n\nThere were some changes to the configuration!")
         while (True):
-            answer = raw_input("Are you sure you want to update the configuration (y/n)? ")
+            answer = input("Are you sure you want to update the configuration (y/n)? ")
             if (len(answer) > 0):
                 break
             else:
-                print "I really need an answer!",
+                print("I really need an answer!",)
         if (answer == "y" or answer == "Y"):
             backup_file = "podi_sitesetup.py.backup_from_%s" % (datetime.datetime.now().strftime("%Y%m%dT%H%M%S"))
             # os.system("cp podi_sitesetup.py %s" % (backup_file))
@@ -534,9 +534,9 @@ if __name__ == "__main__":
             new_config.write(os.linesep*3)
             new_config.write("".join(lines[insert_at + 1:]))
             new_config.close()
-            print "Changes saved!"
+            print("Changes saved!")
         else:
-            print "Keeping configuration unchanged"
+            print("Keeping configuration unchanged")
     else:
-        print "\nNo changes found, keeping current configuration"
+        print("\nNo changes found, keeping current configuration")
 

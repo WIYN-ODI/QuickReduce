@@ -9,7 +9,7 @@ setup(
     cmdclass = {'build_ext': build_ext},
     ext_modules = [
         Extension("podi_cython", 
-                  sources=['cython_src/podi_cython.pyx', 
+                  sources=['cython_src/podi_cython.pyx',
                            "cython_src/sigma_clip_mean.c",
                            "cython_src/sigma_clip_median.c",
                            "cython_src/lacosmics.c",

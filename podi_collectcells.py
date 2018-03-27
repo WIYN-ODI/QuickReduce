@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Copyright 2012-2013 Ralf Kotulla
 #                     kotulla@uwm.edu
@@ -224,6 +224,8 @@ Methods
 
 """
 
+from __future__ import print_function
+
 import sys
 import os
 import signal
@@ -237,7 +239,7 @@ import traceback
 import datetime
 import warnings
 
-import Queue
+import queue
 import threading
 import multiprocessing
 import multiprocessing.reduction
@@ -1242,7 +1244,7 @@ def collect_reduce_ota(filename,
                 fringe_hdu = pyfits.open(fringe_filename)
                 for ext in fringe_hdu[1:]:
                     if (extname == ext.header['EXTNAME']):
-                        if (options['verbose']): print "Working on fringe scaling for",extname
+                        if (options['verbose']): print("Working on fringe scaling for",extname)
                         fringe_scaling = podi_fringing.get_fringe_scaling(merged, ext.data, fringe_vector_file)
                         data_products['fringe-template'] = ext.data
                         if (fringe_scaling is not None):
@@ -1304,10 +1306,10 @@ def collect_reduce_ota(filename,
         logger.debug("Converting coordinates to J2000")
         coord_j2000 = ephem.Equatorial(hdu.header['RA'], hdu.header['DEC'], epoch=ephem.J2000)
         if (options['target_coords'] is not None):
-            if (options['verbose']): print "Overwriting target positions",options['target_coords']
+            if (options['verbose']): print("Overwriting target positions",options['target_coords'])
             ra, dec = options['target_coords']
             coord_j2000 = ephem.Equatorial(ra, dec, epoch=ephem.J2000)
-            if (options['verbose']): print "\n\nAdjusting ra/dec:", coord_j2000.ra, coord_j2000.dec,"\n\n"
+            if (options['verbose']): print("\n\nAdjusting ra/dec:", coord_j2000.ra, coord_j2000.dec, "\n\n")
 
         # Write the CRVALs with the pointing information
         #print numpy.degrees(coord_j2000.ra), numpy.degrees(coord_j2000.dec)  
@@ -1479,7 +1481,7 @@ def collect_reduce_ota(filename,
                     sitesetup.sextractor, sex_config_file, parameters_file,
                     catfile, catalog_format,
                     fitsfile)
-                if (options['verbose']): print sexcmd
+                if (options['verbose']): print(sexcmd)
 
                 start_time = time.time()
                 #os.system(sexcmd)
@@ -1796,8 +1798,8 @@ def apply_software_binning(hdu, softbin):
 
 
 
-def parallel_collect_reduce_ota(queue, 
-                                final_results_queue, 
+def parallel_collect_reduce_ota(workqueue,
+                                final_results_queue,
                                 intermediate_queue,
                                 intermediate_results_queue,
                                 filename, ota_id,
@@ -1814,7 +1816,7 @@ def parallel_collect_reduce_ota(queue,
 
     Parameters
     ----------
-    queue : Queue
+    workqueue : Queue
 
         Input Queue containing names of raw OTA frames to be reduced
 
@@ -1839,10 +1841,10 @@ def parallel_collect_reduce_ota(queue,
     logger.debug("Process started")
 
     # while (True):
-    #     task = queue.get()
+    #     task = workqueue.get()
     #     # if (task == None):
     #     #     logger.info("Received termination signal, shutting down")
-    #     #     queue.task_done()
+    #     #     workqueue.task_done()
     #     #     return
 
     #     filename, ota_id, wrapped_pipe = task
@@ -1853,10 +1855,10 @@ def parallel_collect_reduce_ota(queue,
         try:
             data_products = collect_reduce_ota(filename, options=options)
         # except (KeyboardInterrupt, SystemExit):
-        #     queue.task_done()
-        #     while (not queue.empty()):
-        #         queue.get()
-        #         queue.task_done()
+        #     workqueue.task_done()
+        #     while (not workqueue.empty()):
+        #         workqueue.get()
+        #         workqueue.task_done()
         #     break
         except:
             # All other problems:
@@ -1869,7 +1871,7 @@ def parallel_collect_reduce_ota(queue,
         return_hdu = data_products['hdu']
         # print data_products
         if (return_hdu is None):
-            # queue.task_done()
+            # workqueue.task_done()
             # continue
             if (not os.path.isfile(filename)):
                 logger.critical("OTA did not return any data, missing file (%s)?" % (filename))
@@ -1882,7 +1884,7 @@ def parallel_collect_reduce_ota(queue,
 
             # return_queue.put( (ota_id, data_products, shmem_id) )
 
-            #queue.task_done()
+            #workqueue.task_done()
             #continue
             return
 
@@ -1937,7 +1939,7 @@ def parallel_collect_reduce_ota(queue,
             # wait for instruction for my OTA-ID
             try:
                 ret = intermediate_queue.get(timeout=0.01)
-            except Queue.Empty:
+            except queue.Empty:
                 continue
             except IOError:
                 # most likely due to closed pipe after the queue has been closed
@@ -1951,7 +1953,7 @@ def parallel_collect_reduce_ota(queue,
                 _ota_id, final_parameters = ret
             except:
                 podi_logging.log_exception()
-                print "\n\n",ret,"\n\n"
+                print ("\n\n",ret,"\n\n")
                 
             if (not _ota_id == ota_id):
                 # this is not meant for me, so put it back
@@ -2083,7 +2085,7 @@ def parallel_collect_reduce_ota(queue,
         # podi_logging.print_stacktrace(logger=logger)
 
         #cmd_queue.task_done()
-        #queue.task_done()
+        #workqueue.task_done()
         if (complete is not None):
             complete.value = True
             pass
@@ -2247,7 +2249,7 @@ def prestage_data(options, input):
         # This is a directory.
         # Let's assume all files in this directory need to be prestaged
         base, dirname = os.path.split(os.path.abspath(input))
-        print base, dirname
+        print(base, dirname)
         tmpdir = "%s/%s" % (sitesetup.staging_dir, dirname)
         # Create the directory
         if (not os.path.isdir(tmpdir)):
@@ -2309,7 +2311,7 @@ def prestage_data(options, input):
             if (fn.endswith(".fits.fz")):
                 # This is a .fits.fz file -> run funpack
                 outfile = "%s/%s" % (tmpdir, fn[:-3])
-                print outfile
+                print(outfile)
                 if (os.path.isfile(outfile)):
                     continue
                 logger.debug("Prestaging file w/ funpack: %s --> %s" % (filename, outfile))
@@ -2372,7 +2374,7 @@ def unstage_data(options, staged, input):
 
 
 
-import cPickle as pickle
+import pickle
 
 class reduce_collect_otas (object):
 
@@ -2639,7 +2641,7 @@ class reduce_collect_otas (object):
                     # self.broadcast_intermediate_data(None)
                     continue
 
-            if (x%10 == 0): 
+            if (x%60 == 0):
                 self.logger.debug("still feeding workers (%d < %d)" % (
                      self.active_workers, self.number_cpus))
 
@@ -2658,7 +2660,7 @@ class reduce_collect_otas (object):
             try:
                 #results = self.intermediate_results_queue.get_nowait()
                 results = self.intermediate_results_queue.get(timeout=0.05)
-            except Queue.Empty:
+            except queue.Empty:
                 #time.sleep(0.05)
                 continue
 
@@ -2759,7 +2761,7 @@ class reduce_collect_otas (object):
             while (True):
                 self.final_results_queue.get(block=True,timeout=0.001)
                 nq += 1
-        except Queue.Empty:
+        except queue.Empty:
             pass
         self.logger.debug("inserting sentinel")
         self.final_results_queue.put(multiprocessing.queues._sentinel)
@@ -2775,7 +2777,7 @@ class reduce_collect_otas (object):
             while (True):
                 self.intermediate_queue.get(block=True,timeout=0.001)
                 nq += 1
-        except Queue.Empty:
+        except queue.Empty:
             pass
         self.logger.debug("inserting sentinel")
         self.intermediate_queue.put(multiprocessing.queues._sentinel)
@@ -2793,7 +2795,7 @@ class reduce_collect_otas (object):
             while (True):
                 self.intermediate_results_queue.get(block=True,timeout=0.001)
                 nq += 1
-        except Queue.Empty:
+        except queue.Empty:
             pass
         self.logger.debug("inserting sentinel")
         self.intermediate_results_queue.put(multiprocessing.queues._sentinel)
@@ -2812,7 +2814,7 @@ class reduce_collect_otas (object):
                 self.intermediate_data_ack_queue.get(block=True,timeout=0.001)
                 nq += 1
                 self.logger.debug("Received message from intermediate_data_ack_queue: %d" % (nq))
-        except Queue.Empty:
+        except queue.Empty:
             self.logger.debug("Received Queue.Empty exception while clearing intermediate_data_ack_queue")
             pass
         self.logger.debug("inserting sentinel")
@@ -2846,7 +2848,7 @@ class reduce_collect_otas (object):
                         self.job_status_lock.release()
                         break
                 continue
-            except Queue.Empty:
+            except queue.Empty:
                 time.sleep(0.1)
                 pass
         self.logger.debug("Shutting down acknowledge_intermediate_data_received")
@@ -2898,7 +2900,7 @@ class reduce_collect_otas (object):
         #for i in range(len(self.info)):
             try:
                 result = self.final_results_queue.get(timeout=0.05)
-            except Queue.Empty:
+            except queue.Empty:
                 continue
 
 
@@ -2965,7 +2967,7 @@ class reduce_collect_otas (object):
         self.shmem_list[id] = shmem
         job['complete'] = multiprocessing.Value('i', False)
         job['args'] = {
-            'queue': self.queue,
+            'workqueue': self.queue,
             'intermediate_results_queue': self.intermediate_results_queue,
             'final_results_queue': self.final_results_queue,
             'intermediate_queue': self.intermediate_queue,
@@ -3107,7 +3109,7 @@ def collectcells(input, outputfile,
 
     if (options['verbose']):
         stdout_write("\nThese are the options we are using:\n")
-        for opt_name, opt_value in options.iteritems():
+        for opt_name, opt_value in options.items():
             stdout_write("   %30s: %s\n" % (opt_name, opt_value))
         stdout_write("----- end options\n\n")
 
@@ -3258,12 +3260,12 @@ def collectcells(input, outputfile,
 
     if (os.path.isfile(outputfile) and not options['clobber']):
         logger.info("File %s already exists, skipping!" % (outputfile))
-        print "#####################################################"
-        print "#"
-        print "# File %s already exists, skipping!" % (outputfile)
-        print "#"
-        print "#####################################################"
-        print "\n"
+        print("#####################################################")
+        print("#")
+        print("# File %s already exists, skipping!" % (outputfile))
+        print("#")
+        print("#####################################################")
+        print("\n")
         unstage_data(options, staged_data, input)
         return
 
@@ -3299,7 +3301,7 @@ def collectcells(input, outputfile,
     # add user-defined additional keywords
     if (len(options['additional_fits_headers']) > 0):
         _firstkey = None
-        for key, value in options['additional_fits_headers'].iteritems():
+        for key, value in options['additional_fits_headers'].items():
             ota_list[0].header[key] = (value, "user-added keyword")
             _firstkey = key if _firstkey is None else _firstkey
         add_fits_header_title(ota_list[0].header, "User-added keywords", _firstkey)
@@ -3397,6 +3399,7 @@ def collectcells(input, outputfile,
         # }
         # intermediate_results.append(intres)
 
+        logger.debug("Queuing up reduction for OTA %s" % (filename))
         worker.reduce_file(filename, ota_id+1)
 
         
@@ -4155,16 +4158,6 @@ def collectcells(input, outputfile,
     logger.info("Starting post-processing")
     additional_reduction_files = {}
 
-    if (options['fixwcs'] and verbose):
-        print fixwcs_extension
-        print fixwcs_odi_x
-        print fixwcs_odi_y
-        print fixwcs_bestguess.shape
-        print fixwcs_bestguess
-        
-    if(verbose):
-        print master_reduction_files_used
-        
     #
     # Now do some post-processing:
     # 1) Add or overwrite some headers with values from an external wcs minifits file
@@ -5645,7 +5638,7 @@ if __name__ == "__main__":
     if (len(sys.argv) <= 1 or sys.argv[1] == "-help"):
         #print help('podi_matchpupilghost')
         import podi_collectcells as me
-        print me.__doc__
+        print(me.__doc__)
         sys.exit(0)
 
     # m = multiprocessing.Manager()
@@ -5658,9 +5651,9 @@ if __name__ == "__main__":
     if (len(get_clean_cmdline())>2):
         outputfile = get_clean_cmdline()[2]
     else:
-        print "No output filename has been given, setting to default mergedcells.fits"
+        print("No output filename has been given, setting to default mergedcells.fits")
         outputfile = "mergedcells"
-    print "Writing results into",outputfile
+    print("Writing results into",outputfile)
 
     # Set the options for collectcells to some reasonable start values
     options = set_default_options()
@@ -5703,7 +5696,7 @@ if __name__ == "__main__":
             if (cmdline_arg_isset("-timeout")):
                 
                 timeout = float(cmdline_arg_set_or_default("-timeout", 900))
-                print "Setting timeout to",timeout,"seconds"
+                print("Setting timeout to",timeout,"seconds")
                 retvalue = collectcells_with_timeout(input, outputfile, options=options,
                                                      timeout=timeout,)
             else:
@@ -5715,7 +5708,7 @@ if __name__ == "__main__":
                 logger.debug("collectcells returned to __main__ after %.3f seconds" % ((end_time-start_time)))
                 retvalue = 0
     except:
-        print "Cleaning up left over child processes"
+        print("Cleaning up left over child processes")
         podi_logging.log_exception()
         #kill_all_child_processes(process_tracker)
         retvalue = 2

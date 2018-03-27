@@ -21,9 +21,9 @@ if __name__ == "__main__":
     skylevel = hdulist[0].header['SKYLEVEL']
     gain = hdulist[0].header['GAIN']
 
-    print skylevel, gain
+    print(skylevel, gain)
     skynoise = hdulist[0].header['SKYNOISE'] #math.sqrt(skylevel*gain)
-    print skynoise
+    print(skynoise)
 
     w=20/binning
     for ext in hdulist:
@@ -60,7 +60,6 @@ if __name__ == "__main__":
         _median = bottleneck.nanmedian(excesses)
 
         guideota = (_median > 10*skynoise)
-        print ext.name, _mean, _median, skylevel, guideota
-
+        print(ext.name, _mean, _median, skylevel, guideota)
 
         #break

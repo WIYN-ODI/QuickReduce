@@ -322,4 +322,4 @@ if __name__ == "__main__":
     filelist = sys.argv[1:]
     
     guidestats = draw_guidestarplot(filelist, title="some title", plot_filename="guide.png")
-    print guidestats
+    print(guidestats)

@@ -50,8 +50,8 @@ def view_shift_delay(filename):
     #numpy.savetxt("/Volumes/ODIScratch/rkotulla/shift.dump", shift_history)
 
     time_diff = (shift_history.field('shift_complete') - shift_history.field('message_received')) * 1000.
-    print time_diff.shape
-    print time_diff
+    print(time_diff.shape)
+    print(time_diff)
     count, bins = numpy.histogram(time_diff, 400, (-1,1))
     #for i in range(count.shape[0]):
     #    print bins[i], bins[i+1], count[i]
@@ -74,7 +74,7 @@ def view_xyhist(filename):
     shift_history = hdu[1].data
 
 
-    print "PLotting xy-histogram of shift positions"
+    print("PLotting xy-histogram of shift positions")
     count, xedges, yedges = numpy.histogram2d(shift_history.field('shift1'), shift_history.field('shift2'),
                                               bins=[20,20], range=[[-10,10], [-10,10]])
 
@@ -90,7 +90,7 @@ def view_xyhist(filename):
     for x in range(count.shape[0]):
         for y in range(count.shape[1]):
             color = "white" if count[x,y] < 0.2*max_count else "black"
-            print count[x,y], max_count, color
+            print(count[x,y], max_count, color)
             plot.text(0.5*(xedges[x]+xedges[x+1]), 0.5*(yedges[y]+yedges[y+1]), "%d" % count[x,y], ha='center', va='center', color=color)
 
     plot.xlabel("shift_x")
@@ -114,9 +114,9 @@ def view_shift_history(filename, plot_filename=None, extension_list=['png'], tit
     
     shift_history = hdu[1].data
 
-    print name.find("_shift")
+    print(name.find("_shift"))
     filebase = name[:name.find("_shift")]
-    print filebase
+    print(filebase)
     n_shifts = shift_history.field('shift1').shape[0]
     # Create plot
     fig = plot.figure(figsize=(12,6))
@@ -146,7 +146,7 @@ def view_shift_history(filename, plot_filename=None, extension_list=['png'], tit
 
     # Draw the two plots on the left, bototm one first
     ax = plot.axes([0.05,0.1, 0.38,.35])
-    print ax
+    print(ax)
     ax.scatter(shift_history.field(x_value)-x_offset, shift_history.field('shift2')+little_scatter_y,
                linewidth=0.5, alpha=0.5)
     ax.set_xlim((fn_min, fn_max))

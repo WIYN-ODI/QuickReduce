@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Copyright 2012-2013 Ralf Kotulla
 #                     kotulla@uwm.edu
@@ -121,7 +121,7 @@ def scamp_header_to_minifits(filename, minifits_outputname, reference_fits,
 
     # Now copy all scamp headers into the minifits
     # With this data at hand, work out the shift we need to apply to the scamp solution
-    print "Creating the minfits headers"
+    print("Creating the minfits headers")
     for ota in range(len(values_list)):
 
         # Create a new Image extension to hold the header
@@ -155,18 +155,18 @@ def scamp_header_to_minifits(filename, minifits_outputname, reference_fits,
         for ota in center_pos:
             xy = center_pos[ota]
             ext = tmp_hdulist[ota]
-            print xy, ext.header
+            print(xy, ext.header)
 
             wcs = astWCS.WCS(ext.header, mode='pyfits')
             ra_dec = wcs.pix2wcs(xy[0], xy[1])
-            print ra_dec
+            print(ra_dec)
             centers.append(ra_dec)
         centers = numpy.array(centers)
         numpy.savetxt(sys.stdout, centers)
         optical_center = numpy.mean(centers, axis=0)
-        print optical_center
-        print numpy.std(centers, axis=0)
-        print numpy.std(centers, axis=0)*3600.
+        print(optical_center)
+        print(numpy.std(centers, axis=0))
+        print(numpy.std(centers, axis=0)*3600.)
     else:
         wcs = astWCS.WCS(refhdu[reference_extension].header, mode='pyfits')
         optical_center = numpy.array(wcs.getCentreWCSCoords())
@@ -179,13 +179,13 @@ def scamp_header_to_minifits(filename, minifits_outputname, reference_fits,
     output_hdulist = [pyfits.PrimaryHDU()]
 
     for ota in tmp_hdulist[1:]:
-        print ota.name
+        print(ota.name)
 
         # create a number of random points scattered throughout the image
         xy = numpy.random.random((n_stars,2))
         xy *= [ota.header['NAXIS1'], ota.header['NAXIS2']]
-        print xy.shape
-        print xy[:5]
+        print(xy.shape)
+        print(xy[:5])
 
         wcs = astWCS.WCS(ota.header, mode='pyfits')
         ra_dec = numpy.array(wcs.pix2wcs(xy[:,0], xy[:,1]))
@@ -254,7 +254,7 @@ def scamp_header_to_minifits(filename, minifits_outputname, reference_fits,
         # compute RMS value of old-new
         d_radec = catalog[:, 0:2] - catalog[:, 4:6]
         rms_radec = numpy.std(d_radec, axis=0) * 3600
-        print "RMS of fit: %f/%f arcsec" % (rms_radec[0], rms_radec[1])
+        print("RMS of fit: %f/%f arcsec" % (rms_radec[0], rms_radec[1]))
 
         # Finally, delete the CRVAL header keywords and prepare the new ImageHDU
         for key in ['CRVAL1', 'CRVAL2']:
@@ -335,7 +335,7 @@ if __name__ == "__main__":
     except:
         pass
 
-    print recenter
+    print(recenter)
 
     scamp_header_to_minifits(scampfile, outputfile, reference, ref_ext, recenter_odi=recenter)
     

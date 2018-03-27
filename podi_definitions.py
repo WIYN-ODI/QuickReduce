@@ -474,7 +474,7 @@ def inherit_headers(header, primary_header):
 
     for header in headers_to_inherit:
         if (not header in primary_header):
-            print "Problem with header ",header
+            print("Problem with header ", header)
             continue
 
         card = primary_header.ascardlist()[header]
@@ -606,7 +606,7 @@ def insert_into_array(data, from_region, target, target_region):
     tx1, tx2, ty1, ty2 = break_region_string(target_region)
 
     if (fx2-fx1 != tx2-tx1 or fy2-fy1 != ty2-ty1):
-        print "Dimensions do not match, doing nothing"
+        print("Dimensions do not match, doing nothing")
     else:
         target[ty1:ty2+1, tx1:tx2+1] = data[fy1:fy2+1, fx1:fx2+1]
 
@@ -623,7 +623,7 @@ def mask_broken_regions(datablock, regionfile, verbose=False, reduction_log=None
     logger = logging.getLogger("MaskBrokenRegion")
 
     if (not os.path.isfile(regionfile)):
-        if (not reduction_log == None):
+        if (not reduction_log is None):
             reduction_log.failed('badpixels')
         return datablock
 
@@ -694,7 +694,7 @@ def mask_broken_regions(datablock, regionfile, verbose=False, reduction_log=None
 
     logger.debug("Marked %d bad pixel regions" % (counter))
 
-    if (not reduction_log == None):
+    if (not reduction_log is None):
         reduction_log.success('badpixels')
 
     return datablock
@@ -706,7 +706,7 @@ def is_image_extension(hdu):
     Check if a given HDU is a Image extension
 
     """
-    if (hdu == None):
+    if (hdu is None):
         return False
 
     if (type(hdu) == pyfits.hdu.image.ImageHDU or
@@ -843,7 +843,7 @@ def cell2ota__extract_data_from_cell(data_in=None):
     """
     Don't use anymore!
     """
-    if (data_in == None):
+    if (data_in is None):
         return numpy.zeros(shape=(494,480))
 
     return data_in[0:494, 0:480]
@@ -861,7 +861,7 @@ def cell2ota__get_target_region(x, y, binning=1, trimcell=None):
     # but pixel coordinates are counted bottom up
     _y = 7 - y
 
-    if (trimcell == None):
+    if (trimcell is None):
         trimcell = 0
 
     if (binning == 1):
@@ -874,7 +874,9 @@ def cell2ota__get_target_region(x, y, binning=1, trimcell=None):
         y2 = y1 + 247
         x1 = 254 * x
         x2 = x1 + 240
-        
+    else:
+        raise ValueError("Binning has illegal value (%d" % (binning))
+
     return x1+trimcell, x2-trimcell, y1+trimcell, y2-trimcell
 
 
@@ -950,7 +952,7 @@ def create_qa_filename(outputfile, plotname, options):
     """
     if (options['structure_qa_subdirs']):
         dirname, basename = os.path.split(outputfile)
-        if (dirname == None or dirname == ''): 
+        if (dirname is None or dirname == ''):
             dirname = "."
         qa_plotdir = "%s/%s/" % (dirname, options['structure_qa_subdir_name'])
         if (not os.path.isdir(qa_plotdir)):
@@ -1034,6 +1036,8 @@ def get_collected_image_dimensions(binning):
         sizex, sizey = 4096, 4096
     elif (binning == 2):
         sizex, sizey = 2048, 2048
+    else:
+        raise ValueError("Illegal binning value")
 
     return sizex, sizey
 
@@ -1045,13 +1049,15 @@ def extract_datasec_from_cell(data, binning, trimcell=None):
 
     """
 
-    if (trimcell == None):
+    if (trimcell is None):
         trimcell=0
 
     if (binning == 1):
         dx, dy = 480, 494
     elif (binning == 2):
         dx, dy = 240, 247
+    else:
+        raise ValueError("Illegal binnning value")
 
     # print "extracting datasec", dx, dy
     return data[0+trimcell:dy-trimcell, 0+trimcell:dx-trimcell]
@@ -1068,6 +1074,8 @@ def extract_biassec_from_cell(data, binning):
         dx1, dx2, dy1, dy2 = 500, 550, 0, 494
     elif (binning == 2):
         dx1, dx2, dy1, dy2 = 260, 277, 0, 246
+    else:
+        raise ValueError("Illegal binnning value")
 
     # print dx1, dx2, dy1, dy2
     return data[dy1:dy2, dx1:dx2]
@@ -1146,7 +1154,7 @@ def collect_reduction_files_used(masterlist, files_this_frame):
 
     """
 
-    for key, value in files_this_frame.iteritems():
+    for key, value in files_this_frame.items():
         if (key in masterlist):
             existing_keys = masterlist[key]
             if (type(value) == list):
@@ -1204,11 +1212,11 @@ def create_association_table(master, verbose=False):
     full_filename = []
     short_filename = []
 
-    for key, value in master.iteritems():
+    for key, value in master.items():
         # print key,":",value
         for filename in set(value):
             reduction_step.append(key)
-            if (filename == None):
+            if (filename is None):
                 continue
             full_filename.append(os.path.abspath(filename))
             
@@ -1216,12 +1224,12 @@ def create_association_table(master, verbose=False):
             short_filename.append(filebase)
 
             if (verbose):
-                print "% 15s : %s" % (key, filename)
+                print("% 15s : %s" % (key, filename))
 
     # print reduction_step
     # print short_filename
 
-    columns = [\
+    columns = [
         pyfits.Column(name='correction',    format='A25',  array=reduction_step),
         pyfits.Column(name='filename_full', format='A375', array=full_filename),
         pyfits.Column(name='filename',      format='A100', array=short_filename),
@@ -1384,13 +1392,14 @@ def is_guide_ota(primhdu, ext, w=20):
         #
         
         x1,x2,y1,y2 = cell2ota__get_target_region(cx, cy, binning=binning, trimcell=0)
-        x21 = (x2-x1)/2
+        x1,x2,y1,y2 = int(x2),int(x2),int(y1),int(y2)
+        x21 = (x2-x1)//2
 
         # extract the mean value in the bottom corner
         corner = bottleneck.nanmean(ext.data[y1:y1+w, x1:x1+w].astype(numpy.float32))
 
         # also get the value in the bottom center
-        center = bottleneck.nanmean(ext.data[y1:y1+w, x1+x21-w/2:x1+x21+w//2].astype(numpy.float32))
+        center = bottleneck.nanmean(ext.data[y1:y1+w, x1+x21-w//2:x1+x21+w//2].astype(numpy.float32))
 
         excess = corner - center
         #print ext.name, cx, cy, corner, center, excess

@@ -32,6 +32,7 @@ Warning:
 
 """
 
+from __future__ import print_function
 
 import sys
 import numpy
@@ -92,7 +93,7 @@ def compute_wcs_quality(odi_2mass_matched, ota, hdr=None):
     wcs_mean_ddec = numpy.median(d_dec) * 3600.
     rms_dra = numpy.sqrt(numpy.mean(d_ra**2)) * 3600.
     rms_ddec = numpy.sqrt(numpy.mean(d_dec**2)) * 3600.
-    print "WCS quality:", ota, wcs_mean_dra*3600., wcs_mean_ddec*3600., wcs_scatter*3600., wcs_scatter2*3600., rms_dra, rms_ddec
+    print("WCS quality:", ota, wcs_mean_dra*3600., wcs_mean_ddec*3600., wcs_scatter*3600., wcs_scatter2*3600., rms_dra, rms_ddec)
 
     def make_valid(x):
         return x if numpy.isfinite(x) else -9999
@@ -104,7 +105,7 @@ def compute_wcs_quality(odi_2mass_matched, ota, hdr=None):
     results['MEDIAN-RA'] = wcs_mean_dra
     results['MEDIAN-DEC'] = wcs_mean_ddec
 
-    if (not hdr == None):
+    if (hdr is not None):
         hdr["WCS_RMSA"] = (make_valid(results['RMS-RA']),     "RA r.m.s. of WCS matching [arcsec]")
         hdr["WCS_RMSD"] = (make_valid(results['RMS-DEC']),    "DEC r.m.s. of WCS matching [arcsec]")
         hdr["WCS_RMS"] =  (make_valid(results['RMS']),        "r.m.s. of WCS matching [arcsec]")
@@ -124,7 +125,7 @@ def count_matches(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1, mat
     matching_radius = matching_radius_arcsec * arcsec
     max_d2 = matching_radius * matching_radius
 
-    if (verbose): print "Matching radius",matching_radius, max_d2
+    if (verbose): print("Matching radius",matching_radius, max_d2)
     
     index_ota = numpy.arange(ota_count).reshape((ota_count,1)).repeat(ref_count, axis=1)
     index_ref = numpy.arange(ref_count).reshape((1,ref_count)).repeat(ota_count, axis=0)
@@ -189,8 +190,8 @@ def count_matches(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1, mat
                 idx_ota, idx_ref = index_ota[close_match], index_ref[close_match]
                 #print idx_ota.shape, idx_ref.shape
                 for match in range(idx_ota.shape[0]):
-                    print "MATCH_%d"%(matched_pair),ota_x[idx_ota[match]], ota_y[idx_ota[match]], \
-                        ref_x[idx_ref[match]], ref_y[idx_ref[match]], shift_dx, shift_dy
+                    print("MATCH_%d"%(matched_pair),ota_x[idx_ota[match]], ota_y[idx_ota[match]], \
+                        ref_x[idx_ref[match]], ref_y[idx_ref[match]], shift_dx, shift_dy)
 
                 matched_pair += 1
                 pass
@@ -202,7 +203,7 @@ def count_matches(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1, mat
     good_datapoints = numpy.isfinite(match_results[:,:,0])
 
     selected_matches = match_results[good_datapoints]
-    if (verbose): print "Selected matches=",selected_matches.shape
+    if (verbose): print("Selected matches=",selected_matches.shape)
 
     return selected_matches
 
@@ -219,27 +220,27 @@ def shift_align_wcs(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1):
     std = numpy.std(selected_matches[:,0])
     sigma = scipy.stats.scoreatpercentile(selected_matches[:,0], 84) - median
 
-    if (verbose): print "MATCH-RESULTS:"
-    if (verbose): print "Random matches:",median,"+/-",std,"   (",sigma,")"
+    if (verbose): print("MATCH-RESULTS:")
+    if (verbose): print("Random matches:",median,"+/-",std,"   (",sigma,")")
     most_matches_idx = numpy.argmax(selected_matches[:,0])
-    if (verbose): print "max position", most_matches_idx
+    if (verbose): print("max position", most_matches_idx)
     most_matches = selected_matches[most_matches_idx,0]
-    if (verbose): print "maximum matches:", most_matches
+    if (verbose): print("maximum matches:", most_matches)
 
     #max_index = numpy.unravel_index(max_position, (match_results.shape[0:2]))
     #print max_index
     #print match_results[max_index[0],max_index[1],:]
-    if (verbose): print selected_matches[most_matches_idx]
+    if (verbose): print(selected_matches[most_matches_idx])
 
     #
     # Now to be sure, make sure the peak we found is significant
     #
     if (most_matches >= median + 3*sigma):
-        if (verbose): print "Found seemingly significant match:"
+        if (verbose): print("Found seemingly significant match:")
     else:
-        if (verbose): print "Found match, but not sure how reliable it is:"
-    if (verbose): print selected_matches[most_matches_idx]
-    if (verbose): print "Random matches: %d +/- %d (1sigma) (3-sigma: %d)" % (median, sigma, median+3*sigma)
+        if (verbose): print("Found match, but not sure how reliable it is:")
+    if (verbose): print(selected_matches[most_matches_idx])
+    if (verbose): print("Random matches: %d +/- %d (1sigma) (3-sigma: %d)" % (median, sigma, median+3*sigma))
 
     return selected_matches[most_matches_idx,1], selected_matches[most_matches_idx,2], \
         selected_matches[most_matches_idx,0], \
@@ -316,8 +317,10 @@ def refine_wcs_shift(ref_x, ref_y, ota_x, ota_y, best_guess,
 
             # Save the coordinate pairs and which reference star is the closest match
 #            matched[start+i,0:6] = [aligned_x[i], aligned_y[i], ref_x[closest[i]], ref_y[closest[i]], start+i, closest[i]]
-            matched[start+i,:] = [aligned_x[i], aligned_y[i], ref_x[closest[i]], ref_y[closest[i]], start+i, closest[i], ota_px_x[start+i], ota_px_y[start+i] ]
-            print >>x, aligned_x[i], aligned_y[i], ref_x[closest[i]], ref_y[closest[i]], start+i, closest[i], ota_px_x[start+i], ota_px_y[start+i]
+            matched[start+i,:] = [aligned_x[i], aligned_y[i], ref_x[closest[i]],
+                                  ref_y[closest[i]], start+i, closest[i], ota_px_x[start+i], ota_px_y[start+i] ]
+            print(aligned_x[i], aligned_y[i], ref_x[closest[i]], ref_y[closest[i]],
+                  start+i, closest[i], ota_px_x[start+i], ota_px_y[start+i], file=x)
         x.close()
 
         start += blocksize
@@ -335,8 +338,8 @@ def refine_wcs_shift(ref_x, ref_y, ota_x, ota_y, best_guess,
     clipping = matches.copy()
     for rep in range(2):
         valid_range = (clipping[:,0] < dmax[0]) & (clipping[:,0] > dmin[0]) & (clipping[:,1] > dmin[1]) & (clipping[:,1] < dmax[1])
-        if (verbose): print "valid_range.shape=",valid_range.shape
-        if (verbose): print "count=",numpy.sum(valid_range)
+        if (verbose): print("valid_range.shape=",valid_range.shape)
+        if (verbose): print("count=",numpy.sum(valid_range))
 
         if (numpy.sum(valid_range) <= 0):
             median = [0,0]
@@ -348,20 +351,18 @@ def refine_wcs_shift(ref_x, ref_y, ota_x, ota_y, best_guess,
         sigma = 0.5*(sigma_p - sigma_m)
         dmin = median - 3*sigma
         dmax = median + 3*sigma
-        if (verbose): print "MEDIAN/SIGMA=",median, sigma, dmin, dmax
+        if (verbose): print("MEDIAN/SIGMA=",median, sigma, dmin, dmax)
 
     #
     # Dump some info into a file for later analysis and potentially plotting
     #
-    if (alignment_checkfile != None):
+    if (alignment_checkfile is not None):
         for i in range(matched.shape[0]):
-            print >>alignment_check, \
-                matched[i,0], matched[i,1], matched[i,2], matched[i,3],\
-                ext,\
-                matched[i,0]-median[0],matched[i,1]-median[1],matches[i,0], matches[i,1]
-        print >>alignment_check, "\n\n\n\n\n"
+            print (matched[i,0], matched[i,1], matched[i,2], matched[i,3], ext,
+                matched[i,0]-median[0],matched[i,1]-median[1],matches[i,0], matches[i,1], file=alignment_checkfile)
+        print("\n\n\n\n\n", file=alignment_checkfile)
 
-    if (verbose): print "Ref: %d, ODI: %d, Matched: %d" % (ref_x.shape[0], ota_x.shape[0], matched.shape[0])
+    if (verbose): print("Ref: %d, ODI: %d, Matched: %d" % (ref_x.shape[0], ota_x.shape[0], matched.shape[0]))
     return median, matched, matches
 
 
@@ -413,17 +414,17 @@ def get_overall_best_guess(frame_shift):
         sigma = 0.5*(sigma_p - sigma_m)
         dmin = median - 3*sigma
         dmax = median + 3*sigma
-        print median, sigma, dmin, dmax
+        print(median, sigma, dmin, dmax)
 
     best_guess = median
-    print "Best shift solution so far:",best_guess
+    print("Best shift solution so far:",best_guess)
     return best_guess
 
 def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref"):
 
     tmp, dummy = os.path.split(sys.argv[0])
     dot_config_dir = tmp + "/config/"
-    print dot_config_dir
+    print(dot_config_dir)
     
     hdulist = pyfits.open(fitsfile)
     ra, dec = hdulist[1].header['CRVAL1'], hdulist[1].header['CRVAL2']
@@ -440,10 +441,10 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
         stdout_write("Read %s stars from USNO-B1\n" % (usno.shape[0]))
 
         usno_dumpfile = fitsfile[:-5]+".usno.coord"
-        print "USNO dump-file:", usno_dumpfile
+        print("USNO dump-file:", usno_dumpfile)
         usno_dump = open(usno_dumpfile, "w")
         for i in range(usno.shape[0]):
-            print >>usno_dump, usno[i, 0], usno[i, 1]
+            print(usno[i, 0], usno[i, 1], file=usno_dump)
         usno_dump.close()
 
         ref_ra = usno[:,0]
@@ -464,7 +465,7 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
         sex_param_file = dot_config_dir+"fixwcs.param"
         sex_logfile = fitsfile[:-5]+".sextractor.log"
         sex_cmd = "sex -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s >& %s" % (sex_config_file, sex_param_file, sex_catalogfile, fitsfile, sex_logfile)
-        print sex_cmd
+        print(sex_cmd)
         stdout_write("Running SExtractor to search for stars, be patient (logfile: %s) ..." % (sex_logfile))
         if ((not cmdline_arg_isset("-skip_sex")) or (not os.path.isfile(sex_catalogfile))):
             os.system(sex_cmd)
@@ -483,7 +484,7 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
         sex_dumpfile = fitsfile[:-5]+".sex.coord"
         sex_dump = open(sex_dumpfile, "w")
         for i in range(sex_cat.shape[0]):
-            print >>sex_dump, sex_cat[i, 6], sex_cat[i, 7]
+            print(sex_cat[i, 6], sex_cat[i, 7], file=sex_dump)
         sex_dump.close()
 
         odi_ra = sex_cat[:,6]
@@ -547,7 +548,7 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
         ota_center_dec = (centerx-hdulist[ext].header['CRPIX1'])*hdulist[ext].header['CD2_1'] \
             + (centery-hdulist[ext].header['CRPIX2'])*hdulist[ext].header['CD2_2'] \
             + hdulist[ext].header['CRVAL2']
-        print "center:", ra, dec
+        print("center:", ra, dec)
 
 
         #
@@ -556,8 +557,8 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
         #
         width_ra = 0.1/math.cos(numpy.radians(dec))
         width_dec = 0.1
-        print "RA-Range:",ra-width_ra,ra+width_ra
-        print "DEC-Range:",dec-width_dec,dec+width_dec
+        print("RA-Range:",ra-width_ra,ra+width_ra)
+        print("DEC-Range:",dec-width_dec,dec+width_dec)
 
         min_ra = ota_center_ra - width_ra
         max_ra = ota_center_ra + width_ra
@@ -594,13 +595,13 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
         else:
             global_number_matches = numpy.append(global_number_matches, tmp, axis=0)
                 
-        print "#######################"
-        print "##"
-        print "## OTA %d" % (ext)
-        print "## dx,dy = %.5f, %.5f" % (dx, dy)
-        print "## #matches = %d" % (n)
-        print "##"
-        print "#######################"
+        print("#######################")
+        print("##")
+        print("## OTA %d" % (ext))
+        print("## dx,dy = %.5f, %.5f" % (dx, dy))
+        print("## #matches = %d" % (n))
+        print("##")
+        print("#######################")
 
     #
     # Now that the individual OTAs have returned their shift positions, 
@@ -629,10 +630,10 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
 
     alignment_checkfile = cmdline_arg_set_or_default("-checkalign", None)
     #alignment_check = None
-    print "ali-check=",alignment_checkfile
+    print("ali-check=",alignment_checkfile)
     if (alignment_checkfile != None):
         alignment_check = open(alignment_checkfile, "w")
-        print "Opened alignment check file"
+        print("Opened alignment check file")
 
     if (cmdline_arg_isset("-singleota_shift")):
         for ext in range(1, len(hdulist)):
@@ -699,8 +700,8 @@ def apply_wcs_shift(shift, hdr, fixrot_trans=None, verbose=False):
         hdr['CRVAL1'] =  math.cos(angle)*cr1 + math.sin(angle)*cr2 + fixrot_trans[0]
         hdr['CRVAL2'] =  math.cos(angle)*cr2 - math.sin(angle)*cr1 + fixrot_trans[1] 
         if (verbose):
-            print "CR1/2 before=",cr1, cr2
-            print "CR1/2 after =",hdr['CRVAL1'],  hdr['CRVAL2']
+            print("CR1/2 before=",cr1, cr2)
+            print("CR1/2 after =",hdr['CRVAL1'],  hdr['CRVAL2'])
 
         cd11 = hdr['CD1_1']
         cd12 = hdr['CD1_2']
@@ -781,7 +782,7 @@ def rotate_optimize(ota_list, extensions, ref_ra, ref_dec, odi_x, odi_y):
                 #apply_fit_params(wcs_thistime[i].header, wcs[i].header, p)
                 wcs_thistime[i].updateFromHeader()
 
-        print p
+        print(p)
 
         # Compute the updated RA/DEC from the pixel X/Ys
         ra, dec = odi2wcs(odi_x, odi_y, extensions, wcs_thistime)
@@ -807,7 +808,7 @@ def rotate_optimize(ota_list, extensions, ref_ra, ref_dec, odi_x, odi_y):
     #print xxx.shape, "\n",xxx
 
     for src in range(odi_x.shape[0]):
-        print >>df, ref_ra[src], ref_dec[src], odi_x[src], odi_y[src], ra[src], dec[src]
+        print(ref_ra[src], ref_dec[src], odi_x[src], odi_y[src], ra[src], dec[src], file=df)
 
     df.close()
 
@@ -854,13 +855,13 @@ def optimize_shift(n_matches, verbose=False, declination=0, debuglogfile=None, s
     if (debuglogfile != None):
         debuglog = open(debuglogfile, "w")
         numpy.savetxt(debuglog, n_matches)
-        print >>debuglog, "\n\n\n\n\n"
+        print("\n\n\n\n\n", file=debuglog)
 
         numpy.savetxt(debuglog, n_multiple)
-        print >>debuglog, "\n\n\n\n\n"
+        print("\n\n\n\n\n", file=debuglog)
 
         numpy.savetxt(debuglog, total_sum)
-        print >>debuglog, "\n\n\n\n\n"
+        print("\n\n\n\n\n", file=debuglog)
 
 
     # Go through the list of possible shifts and sum up all shifts in the neighborhood
@@ -868,8 +869,8 @@ def optimize_shift(n_matches, verbose=False, declination=0, debuglogfile=None, s
     d_ra_max = d_neighbor / math.cos(math.radians(declination))
     d_dec_max = d_neighbor
 
-    if (verbose): print "\n\n\nXXX Search-radius for match-conglomeration (arcsec): ",\
-            d_ra_max*3600, d_dec_max*3600,"\n\n\n"
+    if (verbose): print("\n\n\nXXX Search-radius for match-conglomeration (arcsec): ",\
+            d_ra_max*3600, d_dec_max*3600,"\n\n\n")
 
     for i in range(total_sum.shape[0]):
         d_ra = numpy.fabs(total_sum[i,0] - total_sum[:,0])
@@ -884,14 +885,14 @@ def optimize_shift(n_matches, verbose=False, declination=0, debuglogfile=None, s
 
     if (debuglogfile != None):
         numpy.savetxt(debuglog, total_sum)
-        print >>debuglog, "\n\n\n\n\n"
+        print("\n\n\n\n\n", file=debuglog)
 
     # Sort the values to make it easy to find the maximum
     #si = numpy.argsort(total_sum[:,2])
     best = numpy.argmax(total_sum[:,2])
 
     best_guess = total_sum[best,:]
-    if (verbose): print "max positions",best_guess
+    if (verbose): print("max positions",best_guess)
 
     max_matches = best_guess[2]
 
@@ -919,15 +920,15 @@ def optimize_shift(n_matches, verbose=False, declination=0, debuglogfile=None, s
 
     contrast = 1.0 * float(best_guess[2]) / float(second_peak[2])
 
-    if (debuglogfile != None):
+    if (debuglogfile is not None):
         numpy.savetxt(debuglog, secondary_solutions)
   
     if (verbose): 
-        print "secondary peak:", second_peak
-        print "contrast:", contrast
+        print("secondary peak:", second_peak)
+        print("contrast:", contrast)
 
 
-    if (debuglogfile != None):
+    if (debuglogfile is not None):
         debuglog.close()
 
     return best_guess, contrast, [dr, dxmin, dxmax, dymin, dymax]

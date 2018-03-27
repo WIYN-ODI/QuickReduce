@@ -96,8 +96,8 @@ def plot_crval () :
     
     
     plt.plot(x, y, ".")
-    m, b = np.polyfit(x, y, 1) 
-    print m, b
+    m, b = np.polyfit(x, y, 1)
+    print(m, b)
     plt.plot (x, m * x + b, '--k')
     plt.savefig ("crval.png")
     return

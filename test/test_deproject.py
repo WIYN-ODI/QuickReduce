@@ -26,9 +26,8 @@ img = hdulist[13].data
 wcs = astWCS.WCS(hdulist[13].header, mode="pyfits")
 
 minRA, maxRA, minDec, maxDec = wcs.getImageMinMaxWCSCoords()
-print minRA, maxRA
-print minDec, maxDec
-
+print(minRA, maxRA)
+print(minDec, maxDec)
 
 xd, yd = 4000, 4000
 
@@ -37,25 +36,25 @@ pixelscale = 0.13 / 3600.
 #outputRA, outputDec = numpy.indices((4000,4000))
 outputRA, outputDec = numpy.indices((xd,yd))
 
-print "computing output Ra/dec for each pixel"
+print("computing output Ra/dec for each pixel")
 outputDec = numpy.array(outputDec, dtype=numpy.float32) * pixelscale + minDec
 outputRA = numpy.array(outputRA, dtype=numpy.float32) * pixelscale / numpy.cos(numpy.radians(outputDec)) + minRA
 
-print outputRA[:5,:5]
-print outputDec[:5,:5]
+print(outputRA[:5, :5])
+print(outputDec[:5, :5])
 
 #pixelcoords = numpy.zeros((4000,4000,2))
 
-print "converting ra/dec to x/y for each output pixel"
+print("converting ra/dec to x/y for each output pixel")
 
-print outputRA.ravel().shape
+print(outputRA.ravel().shape)
 #ret = wcs.pix2wcs(outputRA.ravel(), outputDec.ravel())
 ret = wcs.wcs2pix(outputRA.ravel(), outputDec.ravel())
 #print ret
 
 retarray = numpy.array(ret)
-print retarray.shape
-print retarray[0:10,:]
+print(retarray.shape)
+print(retarray[0:10, :])
 x = retarray[:,0]
 y = retarray[:,1]
 
@@ -65,7 +64,7 @@ y = retarray[:,1]
 #print x[:10]
 #print y[:10]
 
-print "deprojecting"
+print("deprojecting")
 
 #deproject1 = scipy.ndimage.interpolation.map_coordinates(input=img, coordinates=[[5,5],[7,7]], 
 #                                            output=None, order=1, mode='constant', 
@@ -73,14 +72,13 @@ print "deprojecting"
 #print deproject1
 
 xy_coords = numpy.swapaxes(retarray,0,1)
-print xy_coords
+print(xy_coords)
 
 deproject = scipy.ndimage.interpolation.map_coordinates(input=img, coordinates=xy_coords, 
                                             output=None, order=1, mode='constant', 
                                             cval=0.0, prefilter=True)
 
-
-print deproject.shape
+print(deproject.shape)
 
 deproject_2d = numpy.reshape(deproject, (xd,yd))
 

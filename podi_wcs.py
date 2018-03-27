@@ -117,7 +117,7 @@ def wcs_wcspoly_to_header(wcs_polynomials, hdr):
 
 def wcs_clear_distortion(wcs_polynomials, min=0):
 
-    print "clearing distortion"
+    print("clearing distortion")
     xi, xi_r, eta, eta_r, cd, crval, crpix = wcs_polynomials
 
     xi[ordering>=min] = 0
@@ -128,7 +128,7 @@ def wcs_clear_distortion(wcs_polynomials, min=0):
 
     xi[0,1] = 1.
     eta[0,1] = 1
-    print ordering[0,1]
+    print(ordering[0,1])
 
     wcs_polynomials = xi, xi_r, eta, eta_r, cd, crval, crpix
 
@@ -161,11 +161,11 @@ def wcs_pix2wcs(xy, wcs_polynomials, include_distortion=True, debug=False):
     r = numpy.hypot(xi, eta)
 
     if (debug):
-        print "crpix=",crpix
-        print "xy=\n",xy
-        print "xy relative=\n",xy_relative
-        print "xi=\n",xi
-        print "eta=\n",eta
+        print("crpix=",crpix)
+        print("xy=\n",xy)
+        print("xy relative=\n",xy_relative)
+        print("xi=\n",xi)
+        print("eta=\n",eta)
 
     # compute r = sqrt(xi**2 + eta**2)
     _xi = numpy.radians(xi)
@@ -173,9 +173,9 @@ def wcs_pix2wcs(xy, wcs_polynomials, include_distortion=True, debug=False):
     _r = numpy.hypot(_xi, _eta)
 
     if (debug):
-        print "r=\n",_r
-        print "c_xi_r", c_xi_r
-        print "c_eta_r", c_eta_r
+        print("r=\n",_r)
+        print("c_xi_r", c_xi_r)
+        print("c_eta_r", c_eta_r)
         
     # xi_prime = polyval2d(_xi, _eta, c_xi) \
     #     + numpy.polynomial.polynomial.polyval(_r, c_xi_r[0])
@@ -380,10 +380,10 @@ def wcs_pix2wcs_2(xy, wcs_polynomials, debug=False):
 def update_etaxi(etaxi, etaxi_r, p, debug=False):
 
     if (debug):
-        print "\n\n\nUpdateing ext/xi:\n"
-        print "eta/xi="
+        print("\n\n\nUpdateing ext/xi:\n")
+        print("eta/xi=")
         numpy.savetxt(sys.stdout, etaxi, "%9.2e")
-        print "eta/xi radial="
+        print("eta/xi radial=")
         numpy.savetxt(sys.stdout, etaxi_r, "%9.2e")
 
     skip = (ordering  <  0) | (ordering >= p.shape[0])
@@ -406,14 +406,14 @@ def update_etaxi(etaxi, etaxi_r, p, debug=False):
     etaxi_r[valid_r] = etaxi_r_change[valid_r]
 
     if (debug):
-        print "order_1d=\n",order1d
-        print "skip_1d=\n",skip_r
-        print "valid_1d=\n",valid_r
+        print("order_1d=\n",order1d)
+        print("skip_1d=\n",skip_r)
+        print("valid_1d=\n",valid_r)
 
-        print "eta/xi radial change="
+        print("eta/xi radial change=")
         numpy.savetxt(sys.stdout, etaxi_r_change, "%9.2e")
 
-        print "eta/xi radial after="
+        print("eta/xi radial after=")
         numpy.savetxt(sys.stdout, etaxi_r, "%9.2e")
 
     return etaxi, etaxi_r
@@ -460,10 +460,10 @@ def wcs_poly_to_arrays(wcs_poly, debug=False):
 #    for ((x,y) for x in A for y in B)
 
     if (debug):
-        print "wcs_poly_to_arrays -> n_dim =",n_dim
-        print "xi-2d:"
+        print("wcs_poly_to_arrays -> n_dim =",n_dim)
+        print("xi-2d:")
         numpy.savetxt(sys.stdout, xi, "%9.2e")
-        print "xi-1d:"
+        print("xi-1d:")
         numpy.savetxt(sys.stdout, xi_1d, "%9.2e")
 
     return xi_1d, eta_1d
@@ -490,14 +490,14 @@ def wcs_apply_rotation(wcs_poly, angle, debug=False):
     rotated_cd = cd.dot(rot_matrix)
 
     if (debug):
-        print "input cd matrix"
+        print("input cd matrix")
         numpy.savetxt(sys.stdout, cd, "%+13.6e")
-        print "rotation matrix"
+        print("rotation matrix")
         numpy.savetxt(sys.stdout, rot_matrix, "%+13.6e")
-        print "input cd matrix"
+        print("input cd matrix")
         numpy.savetxt(sys.stdout, rotated_cd, "%+13.6e")
 
-        print 
+        print()
 
     return xi, xi_r, eta, eta_r, rotated_cd, crval, crpix
 
@@ -512,15 +512,15 @@ def wcs_apply_shift(wcs_poly, shift, debug=False):
     crval_shifted = crval + shift
 
     if (debug):
-        print "input crval matrix"
+        print("input crval matrix")
         numpy.savetxt(sys.stdout, crval, "%+13.6e")
 
-        print "shift"
+        print("shift")
         numpy.savetxt(sys.stdout, shift, "%+13.6e")
-        print "output crval"
+        print("output crval")
         numpy.savetxt(sys.stdout, crval_shifted, "%+13.6e")
 
-        print
+        print()
 
     return xi, xi_r, eta, eta_r, cd, crval_shifted, crpix
 
@@ -550,7 +550,7 @@ def rotate_polynomial(poly, rotate):
 
 
     for (i,j) in itertools.product(range(poly.shape[0]), range(poly.shape[1])):
-        print "\n\n",i,j
+        print("\n\n",i,j)
 
         new_matrix = ax_plus_by_multipower(rotate_x, i, rotate_y, j)
         
@@ -620,36 +620,36 @@ if __name__ == '__main__':
         in1 = numpy.array([[0,1],[1,0]])
         in2 = numpy.array([[0,0.5],[1,0]])
         out = ax_plus_by_multiply(in1, in2)
-        print out
+        print(out)
 
 
         out3 = ax_plus_by_multiply(in1, out)
-        print out3
+        print(out3)
 
         out4 = ax_plus_by_multiply(in1, out3)
-        print out4
+        print(out4)
 
         out4b = ax_plus_by_multiply(out3, in1)
-        print out4b
+        print(out4b)
 
         out6 = ax_plus_by_multiply(out3, out3)
-        print out6
+        print(out6)
 
-        print "\n\n\n\n"
-        print ax_plus_by_power(in1, 0)
-        print ax_plus_by_power(in1, 1)
-        print ax_plus_by_power(in1, 2)
-        print ax_plus_by_power(in1, 3)
-        print ax_plus_by_power(in1, 4)
-        print ax_plus_by_power(in1, 5)
+        print("\n\n\n\n")
+        print(ax_plus_by_power(in1, 0))
+        print(ax_plus_by_power(in1, 1))
+        print(ax_plus_by_power(in1, 2))
+        print(ax_plus_by_power(in1, 3))
+        print(ax_plus_by_power(in1, 4))
+        print(ax_plus_by_power(in1, 5))
 
-        print "\n\n"
-        print ax_plus_by_multipower(in1,0,in2,0)
-        print ax_plus_by_multipower(in1,1,in2,0)
-        print ax_plus_by_multipower(in1,0,in2,1)
-        print ax_plus_by_multipower(in1,1,in2,1)
+        print("\n\n")
+        print(ax_plus_by_multipower(in1,0,in2,0))
+        print(ax_plus_by_multipower(in1,1,in2,0))
+        print(ax_plus_by_multipower(in1,0,in2,1))
+        print(ax_plus_by_multipower(in1,1,in2,1))
 
-        print "\n\n\ntrying rotation ...\n"
+        print("\n\n\ntrying rotation ...\n")
         rot_angle = 0
         new_x = numpy.array([[0, math.cos(math.radians(rot_angle))],
                              [math.sin(math.radians(rot_angle)), 0],
@@ -663,12 +663,12 @@ if __name__ == '__main__':
 
         rotated_x = ax_plus_by_multiply(pure_x, new_x)
         rotated_y = ax_plus_by_multiply(pure_x, new_y)
-        print rotated_x
-        print rotated_y
+        print(rotated_x)
+        print(rotated_y)
 
         sys.exit(0)
 
-    print "# hello!"
+    print("# hello!")
 
     fitsfile = sys.argv[1]
 

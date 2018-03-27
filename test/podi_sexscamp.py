@@ -67,7 +67,7 @@ if __name__ == "__main__":
         sex_cmd = "sex -PARAMETERS_NAME %s -CATALOG_NAME %s %s %s >& %s" % (param_file, catfile, sex_opt, filename, logfile)
 
         #print sex_cmd
-        print "Running SExtractor on frame",filename
+        print("Running SExtractor on frame", filename)
         os.system(sex_cmd)
 
 
@@ -75,12 +75,12 @@ if __name__ == "__main__":
         for p in scamp_params:
             scamp_opt += " -%s %s" % (p, scamp_params[p])
 
-        print "Running Scamp on frame",filename
+        print("Running Scamp on frame", filename)
         scamp_cmd = "scamp %s %s >> %s 2>&1" % (scamp_opt, catfile, logfile)
         #print scamp_cmd
         os.system(scamp_cmd)
 
-        print "done!\n"
+        print("done!\n")
 
 
 

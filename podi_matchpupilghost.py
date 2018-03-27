@@ -697,7 +697,7 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filtername, pupil_hd
     else:
         if (filtername in pupilghost_centers):
             if (extname in pupilghost_centers[filtername]):
-                print pupilghost_centers[filtername][extname]
+                print(pupilghost_centers[filtername][extname])
                 center_x, center_y = pupilghost_centers[filtername][extname]
             else:
                 if (extname in pupilghost_centers):
@@ -715,8 +715,8 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filtername, pupil_hd
     # Now we know we have to do something
     #
     if (verbose): 
-        print "Found matching pupil ghost template in extension",right_ext
-    print "Using center coordinates", center_x, center_y," for data frame"
+        print("Found matching pupil ghost template in extension",right_ext)
+    print("Using center coordinates", center_x, center_y," for data frame")
 
     if (rotate):
         # print "___%s___" % rotator_angle
@@ -731,13 +731,13 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filtername, pupil_hd
         template[numpy.isnan(template)] = 0.
 
         if (math.fabs(rotator_angle) < 0.5):
-            if (verbose): print "Rotator angle is small (%.2f), skipping rotation" % (rotator_angle)
+            if (verbose): print("Rotator angle is small (%.2f), skipping rotation" % (rotator_angle))
             rotated = template
         else:
-            if (verbose): print "rotating template by",rotator_angle,"degrees"
+            if (verbose): print("rotating template by",rotator_angle,"degrees")
             rotated = rotate_around_center(template, rotator_angle, mask_nans=False)
     else:
-        if (verbose): print "No rotation requested, skipping rotation"
+        if (verbose): print("No rotation requested, skipping rotation")
         rotated = pupil_hdu[right_ext].data
      
    
@@ -767,14 +767,14 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filtername, pupil_hd
         pyfits.HDUList([pyfits.PrimaryHDU(), imghdu]).writeto("template_%s.fits" % extname, clobber=True)
         tx, ty, _, _, _, _ = dev_pgcenter.find_pupilghost_center(imghdu, verbose=False,
                                                                  fixed_radius=vr)
-        print "Found pg center at",tx, ty
+        print("Found pg center at",tx, ty)
         
         template_centerx, template_centery = tx+xys[0], ty+xys[2]
-        print "Using",template_centerx, template_centery, "as center coordinates for template"
+        print("Using",template_centerx, template_centery, "as center coordinates for template")
         # center_x, center_y = vx, vy
         
         # Swap x/y since python does it too
-        print "rot.shape=",rotated.shape
+        print("rot.shape=",rotated.shape)
 
  
     bx = template_centerx - center_x
@@ -805,7 +805,7 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filtername, pupil_hd
     input_hdu.header['PGSCALNG'] = (scaling, "pupil ghost template scaling")
     input_hdu.header['PGROTANG'] = (rotator_angle, "pupil ghost rotator angle")
 
-    if (verbose): print "all done, going home!"
+    if (verbose): print("all done, going home!")
     return input_hdu
 
 
@@ -1093,7 +1093,7 @@ def iterate_reject_scaling_factors(samples, iterations=3, significant_only=True)
         return scale*x + bg
 
     include = numpy.zeros((_samples.shape[0])) == 0
-    print "include shape:", include.shape
+    print("include shape:", include.shape)
     pg_x = _samples[:,5]
     sci_y = _samples[:,4]
 
@@ -1174,7 +1174,7 @@ def iterate_reject_scaling_factors(samples, iterations=3, significant_only=True)
 
             # get local scatter
             in_bin = (pg_x >= _x1) & (pg_x <= _x2)
-            print "BIN #",bin, in_bin.shape, include.shape
+            print("BIN #",bin, in_bin.shape, include.shape)
 
             this_bin_errors = errors[in_bin & include]
             if (this_bin_errors.shape[0] <= 0):
@@ -1220,7 +1220,7 @@ if __name__ == "__main__":
     if (len(sys.argv) <= 1 or sys.argv[1] == "-help"):
         #print help('podi_matchpupilghost')
         import podi_matchpupilghost as me
-        print me.__doc__
+        print(me.__doc__)
 
     elif (cmdline_arg_isset("-makeradial")):
         inputframe = get_clean_cmdline()[1]
@@ -1385,7 +1385,7 @@ if __name__ == "__main__":
         #     #include = (errors < 3*one_sigma) & (errors > -2*one_sigma)
         #     include = (errors < 2*one_sigma) & (errors > -1.5*one_sigma)
 
-        print scale, bg
+        print(scale, bg)
             
     else:
         # Read filenames from command line
@@ -1399,7 +1399,7 @@ if __name__ == "__main__":
         scaling = 1.0
         if (len(sys.argv) > 4):
             scaling = float(sys.argv[4])
-        print "using scaling factor",scaling
+        print("using scaling factor",scaling)
 
         subtract_pupilghost(input_hdu, pupil_hdu, scaling=scaling, 
                             source_center_coords='precomp',

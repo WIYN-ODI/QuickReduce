@@ -101,13 +101,13 @@ def worker_slave(queue):
         try:
             # print "\n\nWaiting for stuff to do\n\n"
             task = queue.get()
-        except KeyboardInterrupt, SystemExit:
+        except (KeyboardInterrupt, SystemExit) as e:
             # print "worker received termination notice"
             # Ignore the shut-down command here, and wait for the official 
             # shutdown command from main task
             continue
 
-        if (task == None):
+        if (task is None):
             logger.info("Shutting down worker")
             queue.task_done()
             break
@@ -612,13 +612,13 @@ def workerprocess___qr_stack(queue):
         try:
             # print "\n\nWaiting for stuff to do\n\n"
             task = queue.get()
-        except KeyboardInterrupt, SystemExit:
+        except (KeyboardInterrupt, SystemExit) as e:
             # print "worker received termination notice"
             # Ignore the shut-down command here, and wait for the official 
             # shutdown command from main task
             continue
 
-        if (task == None):
+        if (task is None):
             logger.info("Shutting down worker")
             queue.task_done()
             break
@@ -660,7 +660,7 @@ def handle_qr_stack_request(private_key, sender_id, msg_id, mtype, params, extra
     params['timestamp'] = datetime.datetime.now()
 
     # print "copying extras"
-    for key, value in extra.iteritems():
+    for key, value in extra.items():
         params[key] = value
 
     # print "adding to queue"
@@ -832,7 +832,7 @@ def workerprocess___qr_mastercals(queue, options):
         try:
             # print "\n\nWaiting for stuff to do\n\n"
             task = queue.get()
-        except KeyboardInterrupt, SystemExit:
+        except (KeyboardInterrupt, SystemExit) as e:
             # print "worker received termination notice"
             # Ignore the shut-down command here, and wait for the official 
             # shutdown command from main task
@@ -964,7 +964,7 @@ def SAMPListener():
             else:
                 break
 
-    except KeyboardInterrupt, SystemExit:
+    except (KeyboardInterrupt, SystemExit) as e:
         logger.info("\rAborting and shutting down SAMPListener ...")
         #sys.exit(0)
         return 
@@ -1020,9 +1020,9 @@ def SAMPListener():
                 ret = cli1.ecall_and_wait("hub", "samp.app.ping", "5")
                 # if successful, wait a little and check again
                 time.sleep(5)
-            except KeyboardInterrupt, SystemExit:
+            except (KeyboardInterrupt, SystemExit) as e:
                 #print "Received abort command, forwarding exception"
-                raise
+                raise e
             except Exception as e:
                 # If timeout expires than a SAMPProxyError is returned
 
@@ -1049,7 +1049,7 @@ def SAMPListener():
                 sys.stdout.write("%s\b" % (quiet_string[quiet_pos % 4]))
             sys.stdout.flush()
                 
-    except KeyboardInterrupt, SystemExit:
+    except (KeyboardInterrupt, SystemExit) as e:
         #print "Got termination notice"
         pass
 

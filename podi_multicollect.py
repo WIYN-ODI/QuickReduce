@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Copyright 2012-2013 Ralf Kotulla
 #                     kotulla@uwm.edu
@@ -160,7 +160,7 @@ if __name__ == "__main__":
             etype, error, stackpos = sys.exc_info()
             stdout_write("# Exception report:")
             stdout_write("#  ==> %s\n" % (error))
-            print traceback.format_exc()
+            print(traceback.format_exc())
             stdout_write("##############################\n")
         end_time = time.time()
 

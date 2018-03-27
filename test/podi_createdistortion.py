@@ -216,12 +216,10 @@ def get_init_value(wcs):
         save_get_key(wcs.header, "PV2_4"),
         save_get_key(wcs.header, "PV2_5"),
         save_get_key(wcs.header, "PV2_6"),
-        \
         save_get_key(wcs.header, "PV1_7"),
         save_get_key(wcs.header, "PV1_8"),
         save_get_key(wcs.header, "PV1_9"),
         save_get_key(wcs.header, "PV1_10"),
-        \
         save_get_key(wcs.header, "PV2_7"),
         save_get_key(wcs.header, "PV2_8"),
         save_get_key(wcs.header, "PV2_9"),
@@ -236,7 +234,7 @@ if __name__ == "__main__":
     global loopcounter
 
     filename = sys.argv[1]
-    print filename
+    print(filename)
 
     hdulist = pyfits.open(filename)
 
@@ -271,8 +269,8 @@ if __name__ == "__main__":
     
         hdulist[extension].header = wcs.header
 
-        print "done (%d)" % (loopcounter)
-         #   d_crval1, d_crval2 = out[0][0]-pinit[0], out[0][1]-pinit[1]
+        print("done (%d)" % (loopcounter))
+        #   d_crval1, d_crval2 = out[0][0]-pinit[0], out[0][1]-pinit[1]
          #   ota_list[ext].header.update("D_CRVAL1", d_crval1)
          #   ota_list[ext].header.update("D_CRVAL2", d_crval2)
 

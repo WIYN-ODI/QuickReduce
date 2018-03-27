@@ -37,7 +37,6 @@ This module contains all information and imports dealing with plotting
 
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot
 import matplotlib.colors
 from matplotlib.colors import LinearSegmentedColormap
 
@@ -51,6 +50,8 @@ colorfade_bluewhite = {'red':   ((0.0, 1.0, 1.0),
                                  (1.0, 218./255., 0.0))
                        }
 cmap_bluewhite = matplotlib.colors.LinearSegmentedColormap('BlueWhite', colorfade_bluewhite)
+
+import matplotlib.pyplot
 matplotlib.pyplot.register_cmap(cmap=cmap_bluewhite)
 
 import matplotlib.patches

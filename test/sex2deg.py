@@ -28,7 +28,7 @@ import numpy
 
 if __name__ == "__main__":
 
-    print "Press Ctrl-D to abort"
+    print("Press Ctrl-D to abort")
 
     while (True):
         
@@ -38,4 +38,4 @@ if __name__ == "__main__":
         #print ra, dec
 
         coord_j2000 = ephem.Equatorial(ra, dec, epoch=ephem.J2000)
-        print numpy.degrees(coord_j2000.ra), numpy.degrees(coord_j2000.dec) 
+        print(numpy.degrees(coord_j2000.ra), numpy.degrees(coord_j2000.dec))

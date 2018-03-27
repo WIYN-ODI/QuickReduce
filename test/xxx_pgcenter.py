@@ -70,7 +70,7 @@ def find_center(hdu_data, coord_x, coord_y,
     all_x = rebin_image(coord_x, prebin, operation=numpy.mean)
     all_y = rebin_image(coord_y, prebin, operation=numpy.mean)
 
-    if (debugname != None):
+    if (debugname is not None):
         pyfits.HDUList([pyfits.PrimaryHDU(data=ot33b.T)]).writeto("debug_"+debugname+"___data.fits", clobber=True)
         pyfits.HDUList([pyfits.PrimaryHDU(data=all_x.T)]).writeto("debug_"+debugname+"___all_x.fits", clobber=True)
         pyfits.HDUList([pyfits.PrimaryHDU(data=all_y.T)]).writeto("debug_"+debugname+"___all_y.fits", clobber=True)
@@ -85,7 +85,7 @@ def find_center(hdu_data, coord_x, coord_y,
     x33 = scipy.ndimage.sobel(ot33b, axis=0, mode='constant')
     y33 = scipy.ndimage.sobel(ot33b, axis=1, mode='constant')
     abs33 = numpy.hypot(x33, y33)
-    if (debugname != None):
+    if (debugname is not None):
         pyfits.HDUList([pyfits.PrimaryHDU(data=abs33.T)]).writeto("debug_"+debugname+"___sobel.fits", clobber=True)
 
     #
@@ -104,13 +104,13 @@ def find_center(hdu_data, coord_x, coord_y,
     # 
     kernel = numpy.ones(shape=(5,5))
     kernel_norm = kernel
-    if (verbose): print "number valid pixels before growing",numpy.sum((mask == False))
+    if (verbose): print("number valid pixels before growing", numpy.sum((mask == False)))
     mask_grown_float = scipy.ndimage.filters.convolve(mask, kernel)
     mask_grown = mask_grown_float > 0
     numpy.savetxt("mask.g", mask_grown)
-    if (verbose): print "number valid pixels after growing",numpy.sum((mask_grown == False))
+    if (verbose): print("number valid pixels after growing", numpy.sum((mask_grown == False)))
 
-    if (debugname != None):
+    if (debugname is not None):
         pyfits.HDUList([pyfits.PrimaryHDU(data=mask_grown_float.T)]).writeto("debug_"+debugname+"___mask.fits", clobber=True)
 
     #
@@ -121,7 +121,7 @@ def find_center(hdu_data, coord_x, coord_y,
     abs33_binary[abs33 < 0.1] = 0
     abs33_binary[abs33 >= 0.1] = 1
     abs33[mask_grown] = numpy.NaN
-    if (debugname != None):
+    if (debugname is not None):
         pyfits.HDUList([pyfits.PrimaryHDU(data=abs33.T)]).writeto("debug_"+debugname+"___sobel_filtered.fits", clobber=True)
     #
     # Now apply a threshold so we only deal with strong gradients and get rid 
@@ -132,15 +132,14 @@ def find_center(hdu_data, coord_x, coord_y,
     valid_pixels = numpy.isfinite(abs33)
     #print "number valid pixels",numpy.sum(valid_pixels)
     top10percent = scipy.stats.scoreatpercentile(abs33[valid_pixels].ravel(), 90)
-    if (threshold == None):
+    if (threshold is None):
         strong_values = abs33 > top10percent
-        if (verbose): print "Only using pixels >",top10percent
+        if (verbose): print("Only using pixels >", top10percent)
     else:
         strong_values = abs33 > threshold
-        if (verbose): print "Only using pixels >",threshold
+        if (verbose): print("Only using pixels >", threshold)
 
-
-#    all_y, all_x = numpy.indices(abs33.shape)
+    #    all_y, all_x = numpy.indices(abs33.shape)
 
     #
     # All we need from now on are the coordinates of pixels with strong gradients
@@ -148,7 +147,7 @@ def find_center(hdu_data, coord_x, coord_y,
     pixel_x = all_x[strong_values]
     pixel_y = all_y[strong_values]
     pixel_value = abs33[strong_values]
-    if (verbose): print numpy.sum(strong_values),"pixels with enough signal left"
+    if (verbose): print(numpy.sum(strong_values), "pixels with enough signal left")
 
     #
     # setup the array for the pattern recognition
@@ -198,19 +197,20 @@ def find_center(hdu_data, coord_x, coord_y,
         if (verbose):
             if (i_cx == 30 and i_cy == 25):
                 for i in range(count.shape[0]):
-                    print "@@@", cx, cy, count[i], count_w[i], bincount_w[i_cx, i_cy, i], area_full_circle[i], \
-                        edges[i], outer_r[i], inner_r[i]
+                    print("@@@", cx, cy, count[i], count_w[i], bincount_w[i_cx, i_cy, i], area_full_circle[i],
+                          edges[i], outer_r[i], inner_r[i])
 
             ir = int(math.floor((fixed_radius - search_r[0]) / search_r[2]))
-            print "@-@",cx, cy, count[ir], count_w[ir], bincount_w[i_cx, i_cy, ir], bincount[i_cx, i_cy, ir], area_full_circle[ir], ir*search_r[2]+search_r[0], search_r[2]
+            print("@-@", cx, cy, count[ir], count_w[ir], bincount_w[i_cx, i_cy, ir], bincount[i_cx, i_cy, ir],
+                  area_full_circle[ir], ir * search_r[2] + search_r[0], search_r[2])
     #            numpy.savetxt(sys.stdout, bincount_w)
     #            numpy.savetxt(sys.stdout, bincount_w)
     #            numpy.savetxt(sys.stdout, area_full_circle)
         
-    if (not fixed_radius == None):
+    if (not fixed_radius is None):
         # Find what radial bin is covered by the specified radius
         ir = int(math.floor((fixed_radius - search_r[0]) / search_r[2]))
-        if (verbose): print "using fixed radius",fixed_radius, ir
+        if (verbose): print("using fixed radius", fixed_radius, ir)
 
         # For this radius, find the center position with the strongest signal
         center_only = bincount_w[:,:,ir]
@@ -227,10 +227,10 @@ def find_center(hdu_data, coord_x, coord_y,
 
 
     if (verbose): 
-        print "found some results:"
-        print "  center-x=",x_values_to_try[ix],"(",ix,")"
-        print "  center-y=",y_values_to_try[iy],"(",iy,")"
-        print "    radius=",r_values_to_try[ir],"(",ir,")"
+        print("found some results:")
+        print("  center-x=", x_values_to_try[ix], "(", ix, ")")
+        print("  center-y=", y_values_to_try[iy], "(", iy, ")")
+        print("    radius=", r_values_to_try[ir], "(", ir, ")")
 
     return x_values_to_try[ix], y_values_to_try[iy], r_values_to_try[ir], bincount, abs33
 
@@ -256,25 +256,25 @@ def xxx_find_pupilghost_center(hdu,
 
 #    cx, cy = pupilghost_center_guess[hdu.header["EXTNAME"]]
 
-    print "transposing/copying input"
-    rawdata = hdu.data.T.copy()
+print("transposing/copying input")
+rawdata = hdu.data.T.copy()
     # trim the edges generously
 #    rawdata[3980:,:] = numpy.NaN
  #   rawdata[:,3980:] = numpy.NaN
-    print "creating input px/py"
-    px, py = numpy.indices(rawdata.shape)
+    print("creating input px/py")
+px, py = numpy.indices(rawdata.shape)
 
     search_width=250
 
     search_r = [1240,1320, 2]
     search_x = [cx-search_width, cx+search_width,10]
     search_y = [cy-search_width, cy+search_width,10]
-    print "\n\ninitial search"
-    print "search-r=",search_r
-    print "search-x=",search_x
-    print "search-y=",search_y
-    print "----"
-    verbose=True
+print("\n\ninitial search")
+print("search-r=", search_r)
+print("search-x=", search_x)
+print("search-y=", search_y)
+print("----")
+verbose=True
     prebin=8
     x, y, r, bincount, edge_frame = find_center(rawdata, px, py,
                                                 search_r = search_r,
@@ -285,10 +285,10 @@ def xxx_find_pupilghost_center(hdu,
                                                 fixed_radius=1270,
                                                 verbose=True
                                                 )
-    if (verbose): print x,y,r, " ---> ", x, y, r
-    if (verbose): print x,y,r, " ---> ", x/prebin, y/prebin, r/prebin
+    if (verbose): print(x, y, r, " ---> ", x, y, r)
+if (verbose): print(x, y, r, " ---> ", x / prebin, y / prebin, r / prebin)
 
-    # numpy.savetxt("bincount"+hdu[i].header["EXTNAME"], numpy.sum(numpy.sum(bincount, axis=0), axis=0))
+# numpy.savetxt("bincount"+hdu[i].header["EXTNAME"], numpy.sum(numpy.sum(bincount, axis=0), axis=0))
     # log = open("bincount"+hdu[i].header["EXTNAME"]+".full", "w")
     # for x,y,z  in itertools.product(range(bincount.shape[0]), 
     #                                 range(bincount.shape[1]), 
@@ -332,15 +332,15 @@ def xxx_find_pupilghost_center(hdu,
                                                                           threshold=0,
                                                 )
 
-    if (verbose): print "MID-resolution: ", x,y,r, " ---> ", fixed_r_x, fixed_r_y, fixed_r_r
+    if (verbose): print("MID-resolution: ", x, y, r, " ---> ", fixed_r_x, fixed_r_y, fixed_r_r)
 
-    search_r = [radius-20,radius+20,2]
+search_r = [radius-20,radius+20,2]
     search_x = [center_x-30,center_x+30,4]
     search_y = [center_y-30,center_y+30,4]
-    print "search-r=",search_r
-    print "search-x=",search_x
-    print "search-y=",search_y
-    prebin=4
+print("search-r=", search_r)
+print("search-x=", search_x)
+print("search-y=", search_y)
+prebin=4
     var_r_x, var_r_y, var_r_r, bincount2, edge_frame2 = find_center(midres_filtered,
                                                 midres_px, midres_py,
                                                 search_r = search_r,
@@ -351,16 +351,16 @@ def xxx_find_pupilghost_center(hdu,
                                                   threshold=0,
                                                 )
 
-    if (verbose): print "MID-resolution (variable r): ", x,y,r, " ---> ", var_r_x, var_r_y, var_r_r
-    print "MID-resolution (variable r): ", x,y,r, " ---> ", var_r_x/prebin, var_r_y/prebin, var_r_r/prebin
+    if (verbose): print("MID-resolution (variable r): ", x, y, r, " ---> ", var_r_x, var_r_y, var_r_r)
+print("MID-resolution (variable r): ", x, y, r, " ---> ", var_r_x / prebin, var_r_y / prebin, var_r_r / prebin)
 
-    if (True):
-        print "dumping bincount2"
+if (True):
+        print("dumping bincount2")
         dump = open("bincount.dump", "w")
-        print bincount2.shape
+        print(bincount2.shape)
         for r in range(bincount2.shape[2]):
             for (x,y) in itertools.product(range(bincount2.shape[1]), range(bincount2.shape[0])):
-                print >>dump, x, y, (center_x-30)+x*4, (center_y-30)+y*4, r*50+(radius-20), bincount2[y,x,r]
+                print >> dump, x, y, (center_x - 30) + x * 4, (center_y - 30) + y * 4, r * 50 + (radius - 20), bincount2[y, x, r]
             print >>dump, "\n\n\n\n\n"
         dump.close()
 
@@ -381,10 +381,9 @@ if __name__ == "__main__":
     fx, fy, fr, vx, vy, vr = xxx_find_pupilghost_center(hdu[extension], 
                                                         cx, cy,
                                                         verbose=False,)
-    print "   fixed radius:", fx, fy, fr
-    print "variable radius:", vx, vy, vr
+    print("   fixed radius:", fx, fy, fr)
+    print("variable radius:", vx, vy, vr)
 
- 
     # hduout = hdu[0:5]
     # hduout.writeto("/scratch/edges.fits", clobber=True)
 

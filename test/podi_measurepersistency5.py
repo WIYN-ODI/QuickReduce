@@ -51,7 +51,7 @@ if __name__ == "__main__":
     filename = sys.argv[2]
     allinfo = []
     if (True):
-        print filename,"..."
+        print(filename, "...")
         hdulist = pyfits.open(filename)
         fppos = int(hdulist[0].header['FPPOS'][2:4])
         #ctimestamp = time.ctime(os.path.getctime(filename))

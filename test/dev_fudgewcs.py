@@ -38,8 +38,8 @@ def fudge_wcs(input_file, ds9, output_file, target_coords):
 #    ds9.set("multiframe "+input_file)
 
     coords = ds9.get("imexam coordinate image")
-    print coords
-    coords_ref = [float(coords.split()[0]), float(coords.split()[1])]
+print(coords)
+coords_ref = [float(coords.split()[0]), float(coords.split()[1])]
 
     # 
     # With the user-selected pixel coordinates, compute the Ra/Dec value of this pixel
@@ -48,20 +48,20 @@ def fudge_wcs(input_file, ds9, output_file, target_coords):
     wcs_poly = podi_wcs.header_to_polynomial(hdulist[extension].header)
     xy = numpy.array([[coords_ref[0], coords_ref[1]],
                       ])
-    print xy.shape
-    print xy[:,0:2]
-    ra_dec = podi_wcs.wcs_pix2wcs(xy, wcs_poly)
-    print ra_dec
+print(xy.shape)
+print(xy[:, 0:2])
+ra_dec = podi_wcs.wcs_pix2wcs(xy, wcs_poly)
+    print(ra_dec)
 
-    # Now change the CRVAL values in all frames so thie chosen pixel has ra/dec= 0,0
+# Now change the CRVAL values in all frames so thie chosen pixel has ra/dec= 0,0
 #    d_crval1 = hdulist[extension].header["CRVAL1"] - ra_dec[0,0]
 #    d_crval2 = hdulist[extension].header["CRVAL2"] - ra_dec[0,1]
     d_crval1 = hdulist[extension].header["CRVAL1"] - ra_dec[0,0]
     d_crval2 = hdulist[extension].header["CRVAL2"] - ra_dec[0,1]
 
-    print d_crval1, d_crval2
+print(d_crval1, d_crval2)
 
-    for ext in range(len(hdulist)):
+for ext in range(len(hdulist)):
         if (not is_image_extension(hdulist[ext])):
             continue
 
@@ -72,8 +72,8 @@ def fudge_wcs(input_file, ds9, output_file, target_coords):
 
 
     # output_file = sys.argv[3]
-    print "writing output file",output_file
-    hdulist.writeto(output_file, clobber=True)
+print("writing output file", output_file)
+hdulist.writeto(output_file, clobber=True)
 
 
 if __name__ == "__main__":

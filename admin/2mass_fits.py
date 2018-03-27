@@ -128,7 +128,7 @@ def ascii2fits(asciifile, fitsfile):
     full_data = numpy.array(list_of_entries)
 
     #Create fits table
-    columns = [\
+    columns = [
         pyfits.Column(name='ra',      format='E', array=full_data[:,0]),
         pyfits.Column(name='dec',     format='E', array=full_data[:,1]),
         pyfits.Column(name='ra_err',  format='E', array=full_data[:,2]),
@@ -177,5 +177,5 @@ if __name__ == "__main__":
         cmd = "gunzip -c %s > %s" % (gzip, asciifile)
         os.system(cmd)
 
-        print cmd, fitsfile
+        print(cmd, fitsfile)
         ascii2fits(asciifile, fitsfile)

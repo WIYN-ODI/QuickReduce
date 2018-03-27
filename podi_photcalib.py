@@ -94,6 +94,7 @@ Methods
 """
 
 
+from __future__ import print_function
 import sys
 import numpy
 import os
@@ -256,7 +257,7 @@ def photcalib_old(fitsfile, output_filename, calib_directory, overwrite_cat=None
 
     tmp, dummy = os.path.split(sys.argv[0])
     dot_config_dir = tmp + "/config/"
-    print dot_config_dir
+    print(dot_config_dir)
     
     hdulist = pyfits.open(fitsfile)
     ra, dec = hdulist[1].header['CRVAL1'], hdulist[1].header['CRVAL2']
@@ -269,7 +270,7 @@ def photcalib_old(fitsfile, output_filename, calib_directory, overwrite_cat=None
     sex_param_file = dot_config_dir+"fixwcs.param"
     sex_logfile = fitsfile[:-5]+".sextractor.log"
     sex_cmd = "sex -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s >& %s" % (sex_config_file, sex_param_file, sex_catalogfile, fitsfile, sex_logfile)
-    print sex_cmd
+    print(sex_cmd)
     stdout_write("Running SExtractor to search for stars, be patient (logfile: %s) ..." % (sex_logfile))
     if ((not cmdline_arg_isset("-skip_sex")) or (not os.path.isfile(sex_catalogfile)) or cmdline_arg_isset("-forcesex")):
         os.system(sex_cmd)
@@ -299,7 +300,7 @@ def photcalib_old(fitsfile, output_filename, calib_directory, overwrite_cat=None
     else:
         if (calib_directory != None):
             std_stars = load_catalog_from_stripe82cat(ra, dec, calib_directory, sdss_filter)
-            print std_stars.shape
+            print(std_stars.shape)
         if (std_stars.shape[0] <= 0):
             if (calib_directory != None):
                 stdout_write("Couldn't find any stars in the Stripe82 Standard star catalog :(\n")
@@ -314,10 +315,10 @@ def photcalib_old(fitsfile, output_filename, calib_directory, overwrite_cat=None
         
     dump = open("dump.cat", "w")
     for i in range(std_stars.shape[0]):
-        print >>dump, std_stars[i,0], std_stars[i,1]
-    print >>dump, "\n\n\n\n\n\n\n\n"
+        print(std_stars[i,0], std_stars[i,1], file=dump)
+    print("\n\n\n\n\n\n\n\n", file=dump)
     for i in range(sex_cat.shape[0]):
-        print >>dump, sex_cat[i,6], sex_cat[i,7]
+        print(sex_cat[i,6], sex_cat[i,7], file=dump)
     
     dump.close()
 
@@ -404,14 +405,14 @@ def load_sdss_catalog_from_fits(sdss_ref_dir, ra_range, dec_range, verbose=True)
     # Select entries that match our list
     
     logger.debug("# Searching for stars in sky with ra=%s, dec=%s" % (ra_range, dec_range))
-    if (verbose): print "# Searching for stars in sky with ra=%s, dec=%s" % (ra_range, dec_range)
+    if (verbose): print("# Searching for stars in sky with ra=%s, dec=%s" % (ra_range, dec_range))
 
     min_dec = dec_range[0]
     max_dec = dec_range[1]
     min_ra = ra_range[0]
     max_ra = ra_range[1]
 
-    if (verbose): print min_ra, max_ra, min_dec, max_dec
+    if (verbose): print(min_ra, max_ra, min_dec, max_dec)
 
     if (max_ra > 360.):
         # This wraps around the high end, shift all ra values by -180
@@ -425,12 +426,12 @@ def load_sdss_catalog_from_fits(sdss_ref_dir, ra_range, dec_range, verbose=True)
         skytable['R_MAX'][selected] -= 360
         skytable['R_MIN'][selected] -= 360
 
-    if (verbose): print "# Search radius: RA=%.1f ... %.1f   DEC=%.1f ... %.1f" % (min_ra, max_ra, min_dec, max_dec)
+    if (verbose): print("# Search radius: RA=%.1f ... %.1f   DEC=%.1f ... %.1f" % (min_ra, max_ra, min_dec, max_dec))
     
     needed_catalogs = (skytable['R_MAX'] > min_ra)  & (skytable['R_MIN'] < max_ra) & \
                       (skytable['D_MAX'] > min_dec) & (skytable['D_MIN'] < max_dec)
 
-    if (verbose): print skytable[needed_catalogs]
+    if (verbose): print(skytable[needed_catalogs])
 
     files_to_read = skytable['NAME'][needed_catalogs]
     logger.debug(files_to_read)
@@ -454,7 +455,7 @@ def load_sdss_catalog_from_fits(sdss_ref_dir, ra_range, dec_range, verbose=True)
     full_catalog = numpy.zeros(shape=(0,len(catalog_columns)))
     for catalogname in files_to_read:
 
-        if (verbose): print "Reading 2mass catalog"
+        if (verbose): print("Reading 2mass catalog")
         catalogfile = "%s/%s.fits" % (sdss_ref_dir, catalogname)
         hdu_cat = pyfits.open(catalogfile)
         if (hdu_cat[1].header['NAXIS2'] <= 0):
@@ -475,13 +476,13 @@ def load_sdss_catalog_from_fits(sdss_ref_dir, ra_range, dec_range, verbose=True)
         in_search_range = (cat_ra_shifted > min_ra) & (cat_ra_shifted < max_ra ) & (cat_dec > min_dec) & (cat_dec < max_dec)
 
         array_to_add = numpy.zeros(shape=(numpy.sum(in_search_range),len(catalog_columns)))
-        if (verbose): print catalogfile, numpy.sum(in_search_range)
+        if (verbose): print(catalogfile, numpy.sum(in_search_range))
         for col in range(len(catalog_columns)):
             array_to_add[:,col] = hdu_cat[1].data.field(catalog_columns[col])[in_search_range]
 
         full_catalog = numpy.append(full_catalog, array_to_add, axis=0)
         
-    if (verbose): print "# Read a total of %d stars from %d catalogs!" % (full_catalog.shape[0], len(files_to_read))
+    if (verbose): print("# Read a total of %d stars from %d catalogs!" % (full_catalog.shape[0], len(files_to_read)))
     logger.debug("# Read a total of %d stars from %d catalogs!" % (full_catalog.shape[0], len(files_to_read)))
 
     return full_catalog
@@ -533,7 +534,7 @@ def query_sdss_catalog(ra_range, dec_range, sdss_filter, verbose=False):
 
     if (sitesetup.sdss_ref_type == "stripe82"):
         std_stars = numpy.zeros(shape=(0,0)) #load_catalog_from_stripe82cat(ra, dec, calib_directory, sdss_filter)
-        print std_stars.shape
+        print(std_stars.shape)
 
     elif (sitesetup.sdss_ref_type == 'local'):
         
@@ -1708,7 +1709,7 @@ if __name__ == "__main__":
         source_cat = numpy.loadtxt(catalogfile)
         
         filtername = hdulist[0].header['FILTER']
-        print catalogfile,"-->",source_cat.shape
+        print(catalogfile,"-->",source_cat.shape)
 
         output_filename = get_clean_cmdline()[2]
 
@@ -1736,17 +1737,17 @@ if __name__ == "__main__":
             #print catalog.shape
             pass
         else:
-            print "there was a problem..."
+            print("there was a problem...")
 
         if (cmdline_arg_isset("-print")):
             numpy.savetxt(sys.stdout, catalog)
         else:
-            print "Found",catalog.shape[0],"results"
+            print("Found",catalog.shape[0],"results")
         #print catalog
 
     elif (cmdline_arg_isset("-swarp")):
 
-        print """\
+        print("""\
 
            ************************************************
            * photcalib for - Swarp'ed QR data             *
@@ -1754,7 +1755,7 @@ if __name__ == "__main__":
            * part of the QuickReduce pipeline package     *
            * (c) 2014, Ralf Kotulla and WIYN Observatory  *
            ************************************************
-        """
+        """)
         import podi_collectcells
         options = podi_collectcells.read_options_from_commandline()
         # Setup everything we need for logging
@@ -1806,7 +1807,7 @@ if __name__ == "__main__":
                             logger.debug("Stderr=\n"+sex_stderr)
                     except OSError as e:
                         podi_logging.log_exception()
-                        print >>sys.stderr, "Execution failed:", e
+                        print("Execution failed:", e, file=sys.stderr)
                     end_time = time.time()
                     logger.debug("SourceExtractor returned after %.3f seconds" % (end_time - start_time))
                     # os.system(sexcmd)
@@ -1886,41 +1887,41 @@ if __name__ == "__main__":
         import podi_collectcells
         options = podi_collectcells.read_options_from_commandline()
 
-        print "Starting phot-calib..."
+        print("Starting phot-calib...")
         for inputfile in get_clean_cmdline()[1:]:
 
-            print "Working on",inputfile
+            print("Working on",inputfile)
 
             if (inputfile[-3:] == ".fz"):
                 if (os.path.isfile(inputfile[-3:])):
-                    print "given fz-compressed file, but uncompressed file also exists..."
+                    print("given fz-compressed file, but uncompressed file also exists...")
                     inputfile = inputfile[:-3]
                 else:
-                    print "found fz-compressed file, unpacking..."
+                    print("found fz-compressed file, unpacking...")
                     os.system("funpack -v "+inputfile)
                     inputfile = inputfile[:-3]
 
-                print "continuing work on",inputfile
+                print("continuing work on",inputfile)
                 if (not os.path.isfile(inputfile)):
-                    print "file not found, something must have gone wrong with funpack"
+                    print("file not found, something must have gone wrong with funpack")
                     continue
                           
             # Run SourceExtractor
-            print "Running source-extractor"
+            print("Running source-extractor")
             sex_config_file = "%s/config/wcsfix.sex" % (options['exec_dir'])
             parameters_file = "%s/config/wcsfix.sexparam" % (options['exec_dir'])
             catfile = "%s.cat" % (inputfile[:-5])
             sexcmd = "%s -c %s -PARAMETERS_NAME %s -CATALOG_NAME %s %s %s" % (
                         sitesetup.sextractor, sex_config_file, parameters_file, catfile, 
                         inputfile, sitesetup.sex_redirect)
-            print sexcmd
+            print(sexcmd)
             if (os.path.isfile(catfile) and not cmdline_arg_isset("-resex")):
-                print "catalog exists, re-using it"
+                print("catalog exists, re-using it")
                 if (not cmdline_arg_isset("-replot")):
                     continue
 
             else:
-                if (options['verbose']): print sexcmd
+                if (options['verbose']): print(sexcmd)
                 os.system(sexcmd)
 
             hdulist = pyfits.open(inputfile)
@@ -1936,12 +1937,12 @@ if __name__ == "__main__":
 
             # Load the catalog
             src_catalog = numpy.loadtxt(catfile)
-            print "Found",src_catalog.shape[0],"stars in frame"
+            print("Found",src_catalog.shape[0],"stars in frame")
 
             # Now eliminate all frames with magnitude 99
             good_photometry = src_catalog[:,SXcolumn['mag_aper_3.0']] < 0
             src_catalog = src_catalog[good_photometry]
-            print src_catalog.shape[0],"stars with good photometry"
+            print(src_catalog.shape[0],"stars with good photometry")
 
 
             outputfile = inputfile #[:-5]+".photcalib"
@@ -1956,8 +1957,8 @@ if __name__ == "__main__":
                             verbose=False,
                             eliminate_flags=True)
             zeropoint_median, zeropoint_std, odi_sdss_matched, zeropoint_exptime = pc
-            print zeropoint_median
-            print zeropoint_std
+            print(zeropoint_median)
+            print(zeropoint_std)
 
     elif (cmdline_arg_isset("-zpmapcombine")):
 
@@ -2216,7 +2217,7 @@ if __name__ == "__main__":
     elif (cmdline_arg_isset("-color")):
         filtername = get_clean_cmdline()[1]
         color = estimate_mean_star_color(filtername)
-        print color
+        print(color)
 
     else:
         fitsfile = get_clean_cmdline()[1]
