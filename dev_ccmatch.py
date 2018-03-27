@@ -1627,6 +1627,8 @@ def estimate_match_fraction(src_cat, primary_header, meanTeff = 5000):
     # also account for exposure time
     exptime = primary_header['EXPMEAS'] if 'EXPMEAS' in primary_header else (
         primary_header['EXPTIME'] if 'EXPTIME' in primary_header else 1.0)
+    if (not numpy.isfinite(exptime) or exptime <= 0):
+        exptime = 1.0
     zeropoint = magzero + 2.5*math.log10(exptime)
     logger.debug("Accouting for exposure time, using inst. ZP = %.4f" % (zeropoint))
 
