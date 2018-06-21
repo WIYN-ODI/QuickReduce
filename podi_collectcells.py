@@ -4675,15 +4675,6 @@ def collectcells(input, outputfile,
             photcalib_details=photcalib_details,
         )
 
-        ref_tbhdu = create_odi_sdss_matched_tablehdu(
-            photcalib_details['odi_sdss_matched_raw'],
-            photcalib_details=photcalib_details,
-            extname="CAT.PHOTREF",
-        )
-        logger.info("#sources in catalog: %d" % (
-            photcalib_details['odi_sdss_matched_raw'].shape[0]))
-        ota_list.append(ref_tbhdu)
-
         # ota_list[0].header['PHOTMCAT'] = (photcalib_details['catalog'])
         # ota_list[0].header['PHOTFILT'] = (photcalib_details['reference_filter'])
         #
@@ -4778,6 +4769,16 @@ def collectcells(input, outputfile,
         # and add it to the output.
         if (odi_sdss_matched is not None and odi_sdss_matched.shape[0] > 0):
             logger.debug("Adding matched SDSS=ODI source catalog to output as FITS extension")
+
+            ref_tbhdu = create_odi_sdss_matched_tablehdu(
+                photcalib_details['odi_sdss_matched_raw'],
+                photcalib_details=photcalib_details,
+                extname="CAT.PHOTREF",
+            )
+            logger.debug("#sources in catalog: %d" % (
+                photcalib_details['odi_sdss_matched_raw'].shape[0]))
+            ota_list.append(ref_tbhdu)
+
             match_tablehdu = create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details)
             logger.debug("final photcalib cat: %d" % (odi_sdss_matched.shape[0]))
             # Copy a bunch of headers so we can makes heads and tails of the catalog
