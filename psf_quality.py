@@ -521,7 +521,7 @@ class PSFquality (object):
     def info(self, logger=None):
         if (logger is None):
             logger = self.logger()
-        logger.info("PSF-quality: size: %dx%d, #frames=%d, FWHM=%.2f (Imax: G=%.3f/M=%.3f/D=%.3f)" % (
+        logger.debug("PSF-quality: size: %dx%d, #frames=%d, FWHM=%.2f (Imax: G=%.3f/M=%.3f/D=%.3f)" % (
             self.window_x, self.window_y, self.n_sources, self.fwhm,
             self.intensity, self.moffat_peak, numpy.max(self.data)
         ))
