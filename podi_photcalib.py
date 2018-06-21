@@ -866,6 +866,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     std_stars = None
     ref_filenames = None
     for catname in sitesetup.photcalib_order:
+        logger.debug("Trying to find stars in %s catalog" % (catname))
 
         if (catname == "sdss"):
             # Figure out which SDSS to use for calibration
@@ -960,15 +961,15 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                 logger.info("Found %d reference sources in %s catalog" % (std_stars.shape[0], catname))
                 break
             else:
-                logger.warning("Problem with querying the %s catalog" % (catname))
+                logger.warning("No suitable reference sources found in the %s catalog" % (catname))
         else:
             logger.error("Illegal catalog name in the photcalib order: %s" % (catname))
             return error_return_value
 
-
     if (std_stars is None or
-        type(std_stars) == numpy.ndarray and std_stars.shape[0] <= 0):
+            (type(std_stars) == numpy.ndarray and std_stars.shape[0] <= 0)):
         # No sources found, report a photometric calibration failure.
+        logger.warning("No photometric reference sources found :(")
         return error_return_value
 
     if (error_cutoff is None):
