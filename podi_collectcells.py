@@ -3686,7 +3686,7 @@ def collectcells(input, outputfile,
             logger.error("Illegal results")
             
         ota_id, data_products, shmem_id = intermed_results
-        print data_products['psf']
+        # print(data_products['psf'])
 
         logger.debug("Received intermediate results from OTA-ID %02d" % (ota_id))
         podi_logging.ppa_update_progress(int(50.*(i+1)/len(list_of_otas_being_reduced)), "Reducing")
@@ -3769,7 +3769,7 @@ def collectcells(input, outputfile,
             # We don't know about this OTA, skip it
             continue
 
-        if (type(sky_samples[ext]) == type(None)):
+        if (sky_samples[ext] is None):
             logger.debug("Found empty sky-sample list: %s" % (ota_name))
             continue
 
@@ -3778,13 +3778,13 @@ def collectcells(input, outputfile,
         sky_plus_ota[:, -1] = ota_number
 
         not_a_guiding_ota = ota_headers[ota_name]['CELLMODE'].find("V") < 0
-        if (ota_number in valid_ext and not_a_guiding_ota and not type(sky_samples[ext]) == type(None)):
-            if (type(sky_samples_global) == type(None)):
+        if (ota_number in valid_ext and not_a_guiding_ota and sky_samples[ext] is not None):
+            if (sky_samples_global is None):
                 sky_samples_global = sky_plus_ota 
             else:
                 sky_samples_global = numpy.append(sky_samples_global, sky_plus_ota, axis=0)
         
-        if (type(sky_samples_global) == type(None)):
+        if (sky_samples_global is None):
             continue
         logger.debug("Entire list of sky-samples now contains % 4d entries" % (sky_samples_global.shape[0]))
 
@@ -4126,7 +4126,7 @@ def collectcells(input, outputfile,
         #
         psf = data_products['psf']
         if (psf is not None):
-            logger.info("ADDING PSF for OTA %s" % (psf.detector))
+            logger.debug("ADDING PSF for OTA %s" % (psf.detector))
             psf_quality_data[psf.detector] = psf
 
     worker.free_shared_memory()
@@ -4241,7 +4241,7 @@ def collectcells(input, outputfile,
 
             # Correct the sky sampling positions and box sizes
                        
-    print psf_quality_data
+    # print(psf_quality_data)
     if (options['create_qaplots'] and
             (psf_quality_data is not None) and
             (global_source_cat is not None)):
@@ -4728,15 +4728,6 @@ def collectcells(input, outputfile,
             photcalib_details=photcalib_details,
         )
 
-        ref_tbhdu = create_odi_sdss_matched_tablehdu(
-            photcalib_details['odi_sdss_matched_raw'],
-            photcalib_details=photcalib_details,
-            extname="CAT.PHOTREF",
-        )
-        logger.info("#sources in catalog: %d" % (
-            photcalib_details['odi_sdss_matched_raw'].shape[0]))
-        ota_list.append(ref_tbhdu)
-
         # ota_list[0].header['PHOTMCAT'] = (photcalib_details['catalog'])
         # ota_list[0].header['PHOTFILT'] = (photcalib_details['reference_filter'])
         #
@@ -4831,6 +4822,16 @@ def collectcells(input, outputfile,
         # and add it to the output.
         if (odi_sdss_matched is not None and odi_sdss_matched.shape[0] > 0):
             logger.debug("Adding matched SDSS=ODI source catalog to output as FITS extension")
+
+            ref_tbhdu = create_odi_sdss_matched_tablehdu(
+                photcalib_details['odi_sdss_matched_raw'],
+                photcalib_details=photcalib_details,
+                extname="CAT.PHOTREF",
+            )
+            logger.info("#sources in catalog: %d" % (
+                photcalib_details['odi_sdss_matched_raw'].shape[0]))
+            ota_list.append(ref_tbhdu)
+
             match_tablehdu = create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details)
             logger.debug("final photcalib cat: %d" % (odi_sdss_matched.shape[0]))
             # Copy a bunch of headers so we can makes heads and tails of the catalog
@@ -4919,7 +4920,7 @@ def collectcells(input, outputfile,
     # Also make sure to compute real Ra/Dec values from OTA, X, and Y
     #
     logger.debug("Creating the SKYLEVEL table extension")
-    if (not type(sky_samples_global) == type(None)):
+    if (sky_samples_global is not None):
         sky_samples_final = numpy.empty((0,sky_samples_global.shape[1]))
         sky_otas = set(sky_samples_global[:,-1])
 
@@ -4964,7 +4965,7 @@ def collectcells(input, outputfile,
                           array=sky_samples_final[:,2], disp='F8.3'),
             # source OTA
             pyfits.Column(name='OTA', format='I2', unit='',
-                          array=sky_samples_final[:,2], disp='I2.2'),
+                          array=sky_samples_final[:,-1], disp='I2.2'),
         ]
         sky_coldefs = pyfits.ColDefs(sky_columns)
         sky_tbhdu = pyfits.BinTableHDU.from_columns(sky_coldefs)
