@@ -923,7 +923,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                                                                      cattype="IPPRef",
                                                                      return_filenames=True)
             #print "IPP:", _std_stars
-            if (not _std_stars == None and _std_stars.shape[0] > 0):
+            if (_std_stars is not None and _std_stars.shape[0] > 0):
                 detailed_return['catalog'] = "IPPRef"
                 std_stars = _std_stars
                 logger.debug("Found %d reference sources in IPPRef catalog" % (std_stars.shape[0]))
