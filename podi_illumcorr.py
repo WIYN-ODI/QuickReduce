@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 #
 # Copyright 2012-2013 Ralf Kotulla
 #                     kotulla@uwm.edu
@@ -174,7 +174,7 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
 
     while (True):
         cmd = queue.get()
-        if (cmd == None):
+        if (cmd is None):
             root.debug("Received shutdown command")
             queue.task_done()
             return
@@ -220,13 +220,13 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
                     continue
 
             if (mask_regions is not None):
-                print("Masking regions")
+                logger.info("Masking regions")
                 mask_regions_using_ds9_regions(ext, mask_regions)
                 input_file_modified = True
 
             if (bpm_dir is not None):
                 bpmfile = "%s/bpm_xy%s.reg" % (bpm_dir, ext.name[3:5])
-                print("apply bpm from %s" % (bpmfile))
+                logger.info("apply bpm from %s" % (bpmfile))
                 if (os.path.isfile(bpmfile)):
                     mask_broken_regions(ext.data, bpmfile)
                     input_file_modified = True
@@ -304,7 +304,7 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
         hdu_out = []
         hdu_out.append(hdulist[0])
 
-        print(mask_regions)
+        logger.debug("MASK-regions:\n%s" % (str(mask_regions)))
         if (not os.path.isfile(masked_frame) or redo):
             logger.debug("Preparing masked frame: %s" % (masked_frame))
 
@@ -523,7 +523,21 @@ if __name__ == "__main__":
 
     if (cmdline_arg_isset("-create")):
 
-        filelist = get_clean_cmdline()[2:]
+        _filelist = get_clean_cmdline()[2:]
+        filelist = []
+        for fn in _filelist:
+            if (fn.startswith("@") and os.path.isfile(fn[1:])):
+                with open(fn[1:], "r") as listfile:
+                    lines = listfile.readlines()
+                    for line in lines:
+                        if line.startswith("#"):
+                            continue
+                        _fn = line.split()[0]
+                        if (os.path.isfile(_fn)):
+                            filelist.append(_fn)
+            elif (os.path.isfile(fn)):
+                filelist.append(fn)
+
         outfile = get_clean_cmdline()[1]
         tmpdir = cmdline_arg_set_or_default("-tmp", sitesetup.swarp_singledir)
         redo = cmdline_arg_isset("-redo")
