@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 #
 # Copyright 2012-2013 Ralf Kotulla
 #                     kotulla@uwm.edu
@@ -640,6 +640,12 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
             # related to the checksum calculation
             clobberfile(outputfile)
             out_hdu.writeto(outputfile, clobber=True)
+        except pyfits.VerifyError:
+            logger.warning("Encountered FITS verification error, writing anyway")
+            try:
+                out_hdu.writeto(outputfile, clobber=True, checksum=False, output_verify='ignore')
+            except:
+                raise
         except:
             raise
         out_hdu.close()
