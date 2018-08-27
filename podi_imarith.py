@@ -147,7 +147,7 @@ def imarith(input_1, op, input_2, output, simple):
 
     stdout_write(" writing output ...")
     clobberfile(output)
-    output_hdu.writeto(output)
+    output_hdu.writeto(output, output_verify='fix+ignore')
     stdout_write(" done!\n\n")
 
     return
