@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 
@@ -14,7 +14,7 @@ try:
 #    import xsampy as sampy
      import astropy.vo.samp as sampy
 except ImportError:
-    print "For this to work you need the SAMPy package installed"
+    print("For this to work you need the SAMPy package installed")
     raise
 
 import os
@@ -278,7 +278,7 @@ def worker_slave(queue):
         logger.info("task done!")
         queue.task_done()
 
-    print "Terminating worker process..."
+    print("Terminating worker process...")
 
     return
         
@@ -510,7 +510,7 @@ def handle_swarp_request(params, logger):
     if ('pixelscale' in params):
         try:
             pixelscale = float(params['pixelscale'])
-            print "setting pixelscale"
+            print("setting pixelscale")
             if (pixelscale >= 0.1):
                 options += " -pixelscale=%s" % params['pixelscale']
         except:
@@ -669,7 +669,7 @@ def handle_qr_stack_request(private_key, sender_id, msg_id, mtype, params, extra
 
     # print "added msg to queue"
 
-    print "Done with this one, hungry for more!"
+    print("Done with this one, hungry for more!")
     # print "\n"*5
     return
 
@@ -709,7 +709,7 @@ def handle_mastercals_request(params, logger, options):
     str_filelist = params['filelist']
     logger.debug("Received 'filelist': %s" % (str_filelist))
 
-    print str_filelist
+    print(str_filelist)
 
 
     # print "starting work on file",str_filelist
@@ -741,7 +741,7 @@ def handle_mastercals_request(params, logger, options):
     logger.info("Input filelist:\n%s" % ("\n".join([" --> %s" % fn for fn in filelist])))
 
     # Find name of output directory
-    print options['calib_dir']
+    print(options['calib_dir'])
     if (options['calib_dir'] == []):
         # No cals directory given, this is no longer allowed!!!
         logger.error("Need a -cals directory to support the make_calibrations mode")
@@ -941,14 +941,14 @@ def create_client(metadata, wait=0):
     return cli1
 
 def SAMPListener():
-    print """
+    print("""
 
    *******************************************************************
    * SAMPListener for automatic image reduction (locally/remote)     *
    * Part of the QuickReduce package for the WIYN One Degree Imager  *
    * Author: Ralf Kotulla, kotulla@uwm.edu                           *
    *******************************************************************
-"""
+""")
 
     logger = logging.getLogger("SAMPListener")
 
@@ -997,7 +997,7 @@ def SAMPListener():
     # 
     logger.info("Starting QR MasterCal worker process...")
     options = read_options_from_commandline(ignore_errors=True)
-    print options
+    print(options)
     qr_mastercals_process = multiprocessing.Process(
         target=workerprocess___qr_mastercals,
         kwargs={
@@ -1054,7 +1054,7 @@ def SAMPListener():
         pass
 
         
-    print # to get off the "current system time" line
+    print("") # to get off the "current system time" line
     try:
         # Disconnect from hub
         logger.info("Disconnecting from SAMP Hub ...")
@@ -1093,16 +1093,16 @@ if __name__ == "__main__":
             cli1.bind_receive_message(setup.message_queue, receive_msg)
             cli1.disconnect()
 
-            print "\nConnection successful!\n"
+            print("\nConnection successful!\n")
         except Exception as err:
-            print "\nProblem connecting {0}\n ".format (err)
+            print("\nProblem connecting {0}\n ".format (err))
             pass
         
         sys.exit(0)
 
 
     elif (cmdline_arg_isset("-yappi")):
-        print "Running with yappi profiler"
+        print("Running with yappi profiler")
         import yappi
         yappi.start()
         SAMPListener()
@@ -1113,13 +1113,13 @@ if __name__ == "__main__":
 
     else:
 
-        print "Starting logger"
+        print("Starting logger")
         options = read_options_from_commandline(None, ignore_errors=True)
         options = podi_logging.setup_logging(options)
         
         SAMPListener()
 
-        print "Shutting down QuickReduce logging"
+        print("Shutting down QuickReduce logging")
         podi_logging.shutdown_logging(options)
 
     
