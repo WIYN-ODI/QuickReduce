@@ -438,7 +438,7 @@ if __name__ == "__main__":
  There was a problem import podi_cython. This module contains optimized
  code that needs to be compiled first. To do so, simply run:
 
- python setup.py build_ext --inplace
+ python3 setup.py build_ext --inplace
 
 """)
              
@@ -448,7 +448,7 @@ if __name__ == "__main__":
                 print("\nTerminating\n")
                 sys.exit(0)
             if (answer in ['y', 'Y']):
-                subprocess.call("python setup.py build_ext --inplace".split())
+                subprocess.call("python3 setup.py build_ext --inplace".split())
                 continue
             else:
                 break
