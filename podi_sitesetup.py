@@ -1,0 +1,100 @@
+#!/usr/bin/env python
+#
+# Copyright 2012-2013 Ralf Kotulla
+#                     kotulla@uwm.edu
+#
+# This file is part of the ODI QuickReduce pipeline package.
+#
+# If you find this program or parts thereof please make sure to
+# cite it appropriately (please contact the author for the most
+# up-to-date reference to use). Also if you find any problems 
+# or have suggestiosn on how to improve the code or its 
+# functionality please let me know. Comments and questions are 
+# always welcome. 
+#
+# The code is made publicly available. Feel free to share the link
+# with whoever might be interested. However, I do ask you to not 
+# publish additional copies on your own website or other sources. 
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+#
+
+from podi_definitions import *
+from podi_commandline import *
+number_cpus = "auto"
+
+catalog_directory = {}
+
+#
+#
+# DO NOT MODIFY ANYTHING ABOVE THIS LINE
+#
+#
+
+
+
+###AUTO-CONFIG-INSERT-HERE
+
+# Add more options here
+
+
+
+
+#
+#
+# DO NOT MODIFY ANYTHING BELOW THIS LINE
+#
+#
+
+# This the order in which the catalogs are queried for the photometric 
+# calibration. This is the currently best order, so mess with it on you 
+# own risk. 
+photcalib_order = ['sdss', 'ippref', 'ucac4']
+photcalib_error_cutoff = {
+    'SDSS': 0.02,
+    'IPPRef': 0.05, 
+    'UCAC4': 0.05,
+}
+wcscalib_order = ['sdss', '2mass']
+
+
+if (cmdline_arg_isset("-ncpu")):
+    number_cpus = int(cmdline_arg_set_or_default("-ncpu", number_cpus))
+    # print "Using user-defined CPU count of",number_cpus
+else:
+    try:
+        import multiprocessing
+        number_cpus = multiprocessing.cpu_count()
+        # print "Yippie, found %d CPUs to use in parallel!" % (number_cpus)
+        if (number_cpus > max_cpu_count and max_cpu_count > 1):
+            number_cpus = max_cpu_count
+            # print "... but using only %d of them!" % (number_cpus)
+    except:
+        # print "Problem figuring out how many CPUs to use, setting to 1"
+        number_cpus=1
+        pass
+
+
+
+
+
+################################################################################
+#
+#   ##
+#   ##    Important!
+#   ##    you will break the code!
+#   ##
+# 
+#   ##    Do not put any options after this block!
+#
+################################################################################
+if __name__ == "__main__":
+    print("""
+This file defines some site properties, mostly paths.
+
+Please run podi_testinstall to change settings in here
+rather than editing the file by hand!
+""")
+    
