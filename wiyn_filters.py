@@ -23,7 +23,7 @@ sdss_equivalents = {
     #
     "odi_NB695": 'r',
     "odi_NB422": 'g',
-    'odi_NB659": 'r',
+    "odi_NB659": 'r',
     "odi_NB749": 'i',
     #
     # All other filters
