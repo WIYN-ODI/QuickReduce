@@ -142,7 +142,7 @@ def sample_background_using_ds9_regions(hdu, sky_regions):
 
 
 def sample_background(data, wcs, starcat, min_found=200, boxwidth=30, 
-                      fit_regions=[], box_center=None,
+                      fit_regions=None, box_center=None,
                       min_box_spacing=5,
                       combine_method=bottleneck.nanmedian):
 
@@ -152,8 +152,11 @@ def sample_background(data, wcs, starcat, min_found=200, boxwidth=30,
     tried = 0
     max_tried = int(1.5*min_found)
 
+    if (fit_regions is None):
+        fit_regions = []
+
     skip_nan_boxes = True
-    if (box_center == None):
+    if (box_center is None):
         box_center = numpy.zeros(shape=(max_tried,2))
         box_center[:,0] = numpy.random.randint(boxwidth, data.shape[1]-boxwidth, max_tried)
         box_center[:,1] = numpy.random.randint(boxwidth, data.shape[0]-boxwidth, max_tried)
@@ -162,7 +165,7 @@ def sample_background(data, wcs, starcat, min_found=200, boxwidth=30,
         skip_nan_boxes = False
 
     # Unpack the x/y coordinates of all known stars/sources in this frame
-    if (starcat != None):
+    if (starcat is not None):
         ota_x, ota_y = starcat
 
     #
