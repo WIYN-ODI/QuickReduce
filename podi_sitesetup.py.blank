@@ -91,10 +91,10 @@ else:
 #
 ################################################################################
 if __name__ == "__main__":
-    print
-    print "This file defines some site properties, mostly paths."
-    print
-    print "Please run podi_testinstall to change settings in here"
-    print "rather than editing the file by hand!"
-    print
+    print("""
+This file defines some site properties, mostly paths.
+
+Please run podi_testinstall to change settings in here
+rather than editing the file by hand!
+""")
     
