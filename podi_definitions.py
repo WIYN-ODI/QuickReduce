@@ -1366,7 +1366,7 @@ def wipecells(ext, wipecells_list, binning=1, fillvalue=numpy.NaN):
 
     return
 
-def is_guide_ota(primhdu, ext, w=20):
+def is_guide_ota(primhdu, ext, w=20, debug=False):
 
     logger = logging.getLogger("IsGuideOTA")
 
@@ -1385,6 +1385,10 @@ def is_guide_ota(primhdu, ext, w=20):
     excesses = numpy.empty((8,8))
     excesses[:,:] = numpy.NaN
 
+    if (debug):
+        center_hdu = [pyfits.PrimaryHDU()]
+        corner_hdu = [pyfits.PrimaryHDU()]
+
     for cx, cy in itertools.product(range(8), repeat=2):
 
         #
@@ -1392,7 +1396,7 @@ def is_guide_ota(primhdu, ext, w=20):
         #
         
         x1,x2,y1,y2 = cell2ota__get_target_region(cx, cy, binning=binning, trimcell=0)
-        x1,x2,y1,y2 = int(x2),int(x2),int(y1),int(y2)
+        x1,x2,y1,y2 = int(x1),int(x2),int(y1),int(y2)
         x21 = (x2-x1)//2
 
         # extract the mean value in the bottom corner
@@ -1400,6 +1404,11 @@ def is_guide_ota(primhdu, ext, w=20):
 
         # also get the value in the bottom center
         center = bottleneck.nanmean(ext.data[y1:y1+w, x1+x21-w//2:x1+x21+w//2].astype(numpy.float32))
+
+        if (debug):
+            print(cx,cy,corner, center)
+            corner_hdu.append(pyfits.ImageHDU(data=ext.data[y1:y1+w, x1:x1+w]))
+            center_hdu.append(pyfits.ImageHDU(data=ext.data[y1:y1+w, x1+x21-w//2:x1+x21+w//2]))
 
         excess = corner - center
         #print ext.name, cx, cy, corner, center, excess
@@ -1412,5 +1421,8 @@ def is_guide_ota(primhdu, ext, w=20):
     is_guideota = (_median > 10*skynoise)
     logger.debug("Found corner excess mean=%.1f, median=%.1f --> guide-OTA: %s" % (
         _mean, _median, "YES" if is_guideota else "NO"))
+
+    if (debug):
+        return is_guideota, excesses, _mean, _median, skynoise, corner_hdu, center_hdu
 
     return is_guideota
