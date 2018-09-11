@@ -563,7 +563,7 @@ def expand_to_fullres_worker(job_queue, photflat, blocksize, shmem_out, shmem_sh
 
         try:
             job = job_queue.get_nowait()
-        except Queue.Empty:
+        except queue.Empty:
             # print "done!"
             break
 
@@ -604,7 +604,7 @@ def expand_to_fullres_worker(job_queue, photflat, blocksize, shmem_out, shmem_sh
 
 
 
-def expand_to_fullres(photflat, blocksize, out_dimension=None):
+def expand_to_fullres(photflat, blocksize, out_dimension=None, mag2flux=True):
 
     if (out_dimension is None):
         out_dimension = (4096, 4096)
@@ -644,7 +644,10 @@ def expand_to_fullres(photflat, blocksize, out_dimension=None):
 
     # Now we have the photometric flat-field, convert it to scaling frame
     #print("writing results")
-    photflat_2d = numpy.power(10, 0.4*out_buffer)
+    if (mag2flux):
+        photflat_2d = numpy.power(10, 0.4*out_buffer)
+    else:
+        photflat_2d = numpy.copy(out_buffer)
 
     return photflat_2d
 
