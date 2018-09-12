@@ -667,12 +667,15 @@ if __name__ == "__main__":
 
     outputfile = get_clean_cmdline()[1]
 
-    filelist = get_clean_cmdline()[2:]
+    filelist = handle_filelists(get_clean_cmdline()[2:])
 
     operation = cmdline_arg_set_or_default("-op", "mean")
 
     subtract = cmdline_arg_set_or_default("-subtract", None)
     scale = cmdline_arg_set_or_default("-scale", None)
+
+
+    print("Combining into %s:\n -- %s" % (outputfile, "\n -- ".join(filelist)))
 
     imcombine(filelist, outputfile, operation, subtract=subtract, scale=scale)
 
