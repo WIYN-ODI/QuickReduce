@@ -44,7 +44,7 @@ import scipy.special
 import itertools
 import logging
 import bottleneck
-from bottleneck import nanmean, nanmedian
+# from bottleneck import nanmean, nanmedian
 
 from podi_commandline import *
 import podi_sitesetup as sitesetup
@@ -1426,3 +1426,30 @@ def is_guide_ota(primhdu, ext, w=20, debug=False):
         return is_guideota, excesses, _mean, _median, skynoise, corner_hdu, center_hdu
 
     return is_guideota
+
+
+
+
+def handle_filelists(in_list, only_valid_files=True):
+
+    out_list = list(in_list)
+    while(True):
+
+        for i, fn in enumerate(out_list):
+            if (fn.startswith("@")):
+                del out_list[i]
+                with open(fn[1:], "r") as listfile:
+                    lines = listfile.readlines()
+                    for l in lines:
+                        if (len(l) <= 1 or l.startswith("#")):
+                            continue
+                        items = l.strip().split()
+
+                        _fn = items[0]
+                        if ((only_valid_files and os.path.isfile(_fn)) or not only_valid_files):
+                            out_list.append(_fn)
+                continue
+
+        break
+
+    return out_list
