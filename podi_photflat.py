@@ -18,6 +18,7 @@ from podi_commandline import *
 import podi_associations
 import podi_logging
 from podi_definitions import *
+import sharedmemory
 
 class PhotFlatFrame(object):
 
@@ -556,7 +557,8 @@ def expand_to_fullres_worker(job_queue, photflat, blocksize, shmem_out, shmem_sh
 
     # print ix,iy
 
-    out_buffer = shmem_as_ndarray(shmem_out).reshape(shmem_shape)
+    # out_buffer = shmem_as_ndarray(shmem_out).reshape(shmem_shape)
+    out_buffer = shmem_out.to_ndarray()
     out = numpy.empty((blocksize, blocksize))
 
     while (True):
@@ -613,13 +615,19 @@ def expand_to_fullres(photflat, blocksize, out_dimension=None, mag2flux=True):
     # Prepare parallel interpolation upwards to full-resolution
     #
     _x,_y = out_dimension
-    out_shmem = multiprocessing.RawArray(ctypes.c_float, _x*_y)
-    out_buffer = shmem_as_ndarray(out_shmem).reshape(out_dimension)
+
+    out_shmem = sharedmemory.SharedMemory(_type=ctypes.c_float, shape=out_dimension)
+    out_buffer = out_shmem.to_ndarray()
+    # print(out_shmem, out_buffer, out_shmem.is_allocated())
+
+    # out_shmem = multiprocessing.RawArray(ctypes.c_float, _x*_y)
+    # out_buffer = shmem_as_ndarray(out_shmem).reshape(out_dimension)
     out_buffer[:, :] = numpy.NaN
     job_queue = multiprocessing.JoinableQueue()
     data_lock = multiprocessing.Lock()
 
     # prepare all jobs - each job interpolates one little block
+    # print("preparing job queue")
     for ix, iy in itertools.product(range(photflat.shape[0]-1), repeat=2):
         job_queue.put((ix,iy))
 
@@ -642,12 +650,16 @@ def expand_to_fullres(photflat, blocksize, out_dimension=None, mag2flux=True):
         p.join()
 
 
+
     # Now we have the photometric flat-field, convert it to scaling frame
     #print("writing results")
     if (mag2flux):
         photflat_2d = numpy.power(10, 0.4*out_buffer)
     else:
         photflat_2d = numpy.copy(out_buffer)
+
+    # print("freeing memory")
+    out_shmem.free()
 
     return photflat_2d
 
