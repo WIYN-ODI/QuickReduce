@@ -133,6 +133,7 @@ import time
 import itertools
 import bottleneck
 import ephem
+import ic_background
 
 try:
     sys.path.append("/work/asteroids/")
@@ -412,7 +413,8 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
 
             skylevel = 0.
             if (not swarp_params['subtract_back'] == False and
-                not swarp_params['subtract_back'] in ['swarp', "_REGIONS_"]):
+                not swarp_params['subtract_back'] in ['swarp', "_REGIONS_"] and
+                not swarp_params['subtract_back'].startswith("IC,")):
                 skylevel = numpy.NaN
                 if (swarp_params['subtract_back'] in hdulist[0].header):
                     skylevel = hdulist[0].header[swarp_params['subtract_back']]
@@ -430,6 +432,23 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
                             continue
                         ext.data -= skylevel
                         logger.debug("Subtracting skylevel (%f) from extension %s" % (skylevel, ext.name))
+            elif (swarp_params['subtract_back'].startswith("IC,")):
+                logger.info("Using scale & subtract model for BG subtraction")
+                ic_file = swarp_params['subtract_back'][3:]
+                if (not os.path.isfile(ic_file)):
+                    logger.critical("Unable to open IC file for sky-subtraction: %s" % (ic_file))
+                    skylevel = 0
+                else:
+                    # Now we do have an illumination correction template for sky-subtraction
+                    hdulist, skyframe = ic_background.scale_subtract_background_model(
+                        in_filename=hdulist,
+                        ic_file=ic_file,
+                        out_filename=None, per_ota=True,
+                        twod_model=True,
+                        logger=logger,
+                    )
+                    skylevel = hdulist[0].header['SKYLEVEL']
+                    skyframe.writeto(corrected_filename[:-5]+".skybg.fits", clobber=True)
             elif (swarp_params['subtract_back'] == 'swarp'):
                 skylevel = hdulist[0].header['SKYLEVEL']
             elif (swarp_params['subtract_back'] == "_REGIONS_"):
