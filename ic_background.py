@@ -16,6 +16,7 @@ from podi_definitions import is_image_extension
 import podi_fitskybackground
 import podi_photflat
 
+debug = False
 
 def scale_subtract_background_model(in_filename, ic_file, out_filename,
                                     per_ota=True,
@@ -45,7 +46,7 @@ def scale_subtract_background_model(in_filename, ic_file, out_filename,
     _y, _x = numpy.indices((9,9))
     grid_x = _x * pixel_sampling
     grid_y = _y * pixel_sampling
-    print(grid_x)
+    # if (debug): print(grid_x)
     logger.info("Finding optimal scaling for background model")
     n_sky_samples = 500
     smoothing_length = 8.  # 8 arcmin
@@ -104,14 +105,17 @@ def scale_subtract_background_model(in_filename, ic_file, out_filename,
         #numpy.savetxt("gridraw", final_grid_sky[ext.name].reshape((-1,2)))
         #break
 
-    numpy.savetxt("ratios.dmp", all_ratios)
-    numpy.savetxt("bgsamples.sky", all_sky_samples)
+    if (debug):
+        numpy.savetxt("ratios.dmp", all_ratios)
+        numpy.savetxt("bgsamples.sky", all_sky_samples)
+
+        all_model_samples[:, 0:2] = all_sky_samples[:, 0:2]
+        numpy.savetxt("bgsamples.model", all_model_samples)
+
+        numpy.savetxt("all_sky.dmp", all_sky_samples)
+        numpy.savetxt("all_models.dmp", all_model_samples)
 
     all_model_samples[:, 0:2] = all_sky_samples[:, 0:2]
-    numpy.savetxt("bgsamples.model", all_model_samples)
-
-    numpy.savetxt("all_sky.dmp", all_sky_samples)
-    numpy.savetxt("all_models.dmp", all_model_samples)
 
     #
     # now correct data
@@ -134,10 +138,12 @@ def scale_subtract_background_model(in_filename, ic_file, out_filename,
             logger.debug("Scaling model by %f for %s" % (global_ratio, ext.name))
 
     all_sky_samples[:,4] -= global_ratio * all_model_samples[:,4]
-    numpy.savetxt("all_sky_sub.dmp", all_sky_samples)
-    print(all_sky_samples[:10, 4])
+    if (debug):
+        numpy.savetxt("all_sky_sub.dmp", all_sky_samples)
+        print(all_sky_samples[:10, 4])
 
     if (twod_model):
+        logger.info("Running 2-d model")
         # print(final_grid_sky)
         projected_sky = all_sky_samples.copy()
         median_declination = numpy.median(projected_sky[:, 1])
@@ -145,7 +151,7 @@ def scale_subtract_background_model(in_filename, ic_file, out_filename,
         cos_declination = numpy.cos(numpy.radians(median_declination))
         # projected_sky[:,0] *= cos_declination
         projected_sky[:,0] = (projected_sky[:,0] - median_ra) * numpy.cos(numpy.radians(projected_sky[:,1])) + median_ra
-        numpy.savetxt("all_sky_proj.dmp", projected_sky)
+        if (debug): numpy.savetxt("all_sky_proj.dmp", projected_sky)
 
 
         coord_tree = scipy.spatial.cKDTree(projected_sky[:, 0:2])
@@ -200,7 +206,7 @@ def scale_subtract_background_model(in_filename, ic_file, out_filename,
             # print("\n"*3)
 
         gridded_sky = numpy.array(gridded_sky)
-        numpy.savetxt("sky.grid", gridded_sky)
+        if (debug): numpy.savetxt("sky.grid", gridded_sky)
 
         #logger.info("Saving skyframe")
         sky_hdu = pyfits.HDUList(skyframe)
@@ -210,7 +216,7 @@ def scale_subtract_background_model(in_filename, ic_file, out_filename,
     # save output
     #
     if (out_filename is not None):
-        logger.info("Saving output")
+        logger.info("Saving sky-model output to %s" % (out_filename))
         imghdu.writeto(out_filename, clobber=True)
 
     if (twod_model):
