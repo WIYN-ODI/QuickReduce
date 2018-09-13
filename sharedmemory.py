@@ -187,7 +187,7 @@ class SharedMemory( object ):
         self.allocated = False
 
     def is_allocated(self):
-        return self.allocated()
+        return self.allocated
 
 
     # def __del__(self):
