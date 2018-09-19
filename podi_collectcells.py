@@ -417,7 +417,6 @@ def apply_wcs_distortion(filename, hdu, binning, reduction_log=None):
     return True
 
 
-
 def collect_reduce_ota(filename,
                        verbose=False,
                        options=None):
@@ -4114,6 +4113,7 @@ def collectcells(input, outputfile,
         if ('tech-header' in data_products):
             all_tech_headers.append(data_products['tech-header'])
             # print "techdata for ota",ota_id,"\n",data_products['tech-header']
+
 
         #
         # Collect all information for the global reduction log

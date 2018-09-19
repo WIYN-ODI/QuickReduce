@@ -35,7 +35,70 @@ catalog_directory = {}
 
 
 
-###AUTO-CONFIG-INSERT-HERE
+# Your setup parameters are next:
+max_cpu_count = 7
+wcs_ref_dir = "/work/odi_catalogs/2mass"
+wcs_ref_type = "2mass_nir"
+sdss_ref_type = "local"
+sdss_ref_dir = "/work/odi_catalogs/sdss/"
+ucac4_ref_dir = "/work/odi_catalogs/ucac4/"
+ippref_ref_dir = "none"
+scratch_dir = "/tmp"
+sextractor = "/usr/local/bin/sex"
+sex_redirect = " >& /dev/null"
+sex_delete_tmps = True
+diagplot__zeropoint_ZPrange = [0.5, 0.5]
+diagplot__zeropoint_magrange = [11, 21]
+diagplot__zeropointmap_range = [0.2, 0.2]
+debug_log_filename = "debug.log"
+debug_log_append = True
+crj_sigclip = 5.0
+crj_sigfrac = 0.3
+crj_objlim = 5.0
+crj_saturation = 55000
+crj_niter = 4
+swarp_exec = "/usr/bin/swarp"
+swarp_singledir = "/sas/scratch/"
+exec_dir = "/work/quickreduce/merge_master_py3/"
+fixwcs_mode = "otashear"
+max_pointing_error = [2, 5, 8, 12, 20]
+max_rotator_error = [-3, 3.5]
+min_wcs_quality = 3.0
+wcs_match_multiplier = 0.6
+saturation_limit = 65535
+persistency_duration = 600
+log_shell_output = False
+staging_dir = "/tmp/"
+sextractor_cache_dir = "/tmp/"
+flat_order = ['tflat', 'dflat', 'flat']
+per_ota_timeout = 300
+mastercal_cache = "/tmp"
+photcalib_saturation = 58000
+
+
+# Catalog configuration
+catalog_directory['ucac4'] = ("/nas/wiyn/odi/catalogs/ucac4/", 5)
+catalog_directory['sdss_dr8'] = ("/sas/data/odi_catalogs/sdss_photcalib/", 5)
+catalog_directory['ippref'] = ("/nas/wiyn/odi/catalogs/ipp/", 5)
+catalog_directory['gaia'] = ("/sas/data/odi_catalogs/gaia/", 5)
+catalog_directory['sdss_dr13'] = ("/sas/data/odi_catalogs/sdss_dr13/", 7)
+catalog_directory['2mass'] = ("/sas/data/odi_catalogs/2mass/", 7)
+catalog_directory['panstarrs'] = ("/sas/data/odi_catalogs/panstarrs/", 7)
+
+
+# Add more options here
+
+catalog_mags = {}
+catalog_mags['sdss_dr8'] = ['ra', 'dec', 'u', 'err_u', 'g', 'err_g', 'r', 'err_r', 'i', 'err_i', 'z', 'err_z']
+catalog_mags['ippref'] = ['ra', 'dec', ]
+catalog_mags['2mass'] = ['ra', 'dec', 'err_ra', 'err_dec', ]
+catalog_mags['sdss_dr13'] = ['ra', 'dec', 'u', 'err_u', 'g', 'err_g', 'r', 'err_r', 'i', 'err_i', 'z', 'err_z']
+catalog_mags['ucac4'] = ['ra', 'dec', 'err_ra', 'err_dec', '', '', '', '', '', '',
+                         'g', 'err_g', 'r', 'err_r', 'i', 'err_i',]
+catalog_mags['panstarrs'] = ['ra', 'dec', 'err_ra', 'err_dec',
+                             'g', 'err_g', 'r', 'err_r', 'i', 'err_i',
+                             'z', 'err_z', 'y', 'err_y',]
+
 
 # Add more options here
 
@@ -51,13 +114,13 @@ catalog_directory = {}
 # This the order in which the catalogs are queried for the photometric 
 # calibration. This is the currently best order, so mess with it on you 
 # own risk. 
-photcalib_order = ['sdss', 'ippref', 'ucac4']
+photcalib_order = ['panstarrs', 'sdss_dr13', 'ippref', 'ucac4']
 photcalib_error_cutoff = {
     'SDSS': 0.02,
     'IPPRef': 0.05, 
     'UCAC4': 0.05,
 }
-wcscalib_order = ['sdss', '2mass']
+wcscalib_order = ['gaia', 'sdss', '2mass']
 
 
 if (cmdline_arg_isset("-ncpu")):
@@ -91,10 +154,10 @@ else:
 #
 ################################################################################
 if __name__ == "__main__":
-    print("""
-This file defines some site properties, mostly paths.
-
-Please run podi_testinstall to change settings in here
-rather than editing the file by hand!
-""")
+    print()
+    print("This file defines some site properties, mostly paths.")
+    print()
+    print("Please run podi_testinstall to change settings in here")
+    print("rather than editing the file by hand!")
+    print()
     
