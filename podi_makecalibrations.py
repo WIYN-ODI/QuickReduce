@@ -320,7 +320,7 @@ def compute_techdata_from_bias_flat(flatlist, biaslist, ota):
                 ota = hdu[1].header['WN_OTAX'] * 10 + hdu[1].header['WN_OTAY']
                 mjd = hdu[0].header['MJD-OBS']
                 nonlinearity_file = options['nonlinearity']
-                if (options['nonlinearity'] == None or 
+                if (options['nonlinearity'] is None or
                     options['nonlinearity'] == "" or
                     not os.path.isfile(nonlinearity_file)):
                     nonlinearity_file = podi_nonlinearity.find_nonlinearity_coefficient_file(mjd, options)
@@ -409,7 +409,7 @@ def compute_techdata_mpwrapper(input_queue, return_queue):
     
     while (True):
         lists = input_queue.get()
-        if (lists == None):
+        if (lists is None):
             input_queue.task_done()
             break
         
@@ -583,7 +583,7 @@ def compute_techdata(calib_biaslist, flat_names, output_dir, options, n_frames=2
                 # Receive all results 
                 for i in range(number_parallel_jobs):
                     results = result_queue.get()
-                    if (results == None):
+                    if (results is None):
                         continue
                     ota, avg, std = results
                     logger.debug("Adding results for OTA %02d to tech-hdu" % (ota))
@@ -627,7 +627,7 @@ def compute_techdata(calib_biaslist, flat_names, output_dir, options, n_frames=2
   
 def gain_readnoise_to_tech_hdu(hdulist, gain, readnoise):
 
-    if (gain == None and readnoise== None):
+    if (gain is None and readnoise is None):
         # nothing to do
         return 
 
@@ -644,7 +644,7 @@ def gain_readnoise_to_tech_hdu(hdulist, gain, readnoise):
     #
     # Add all gain information to tech-hdu
     #
-    if (not gain == None):
+    if (gain is not None):
         for extname in gain:
 
             ota = int(extname[3:5]) # extname has to be of form OTAxy.SCI
@@ -657,7 +657,7 @@ def gain_readnoise_to_tech_hdu(hdulist, gain, readnoise):
     #
     # Add all read-noise information to tech-hdu
     #
-    if (not readnoise == None):
+    if (readnoise is not None):
         for extname in readnoise:
             #print extname
 
@@ -673,7 +673,7 @@ def gain_readnoise_to_tech_hdu(hdulist, gain, readnoise):
     #
     # If we have both readnoise AND gain, also remember the readnoise in electrons
     # 
-    if (not readnoise == None and not gain == None):
+    if (readnoise is not None and gain is not None):
         for extname in gain:
             if (not extname in readnoise):
                 continue
@@ -1031,7 +1031,7 @@ podi_makecalibrations.py input.list calib-directory
                         # bias_hdu = None
                         end_time = time.time()
                         logger.debug("Collectcells (%s) finished after %.3f seconds" % (cur_bias, end_time-start_time))
-                        if (bias_hdu == None and need_hdu_returned):
+                        if (bias_hdu is None and need_hdu_returned):
                             logger.error("Collectcells did not return the expected data!")
                             continue
 
@@ -1055,11 +1055,11 @@ podi_makecalibrations.py input.list calib-directory
                 #
                 # Compute the read-noise for each cell
                 #
-                if (compute_gain_readnoise and not bias_hdu == None):
+                if (compute_gain_readnoise and bias_hdu is not None):
                     readnoise = compute_readnoise(gain_readnoise_bias[binning], binning)
                     gain_readnoise_to_tech_hdu(bias_hdu, None, readnoise)
                     # print readnoise
-                    if (not readnoise == None):
+                    if (readnoise is not None):
                         # Compute average readnoise numbers and add to extensions
                         for extname in readnoise:
                             all_ron = readnoise[extname]
@@ -1070,7 +1070,7 @@ podi_makecalibrations.py input.list calib-directory
                             logger.debug("Found readnoise (%s): %.4f +/- %.4f" % (extname, avg_readnoise, std_readnoise))
 
                 # Relabel the file as 'master-bias" and save to disk
-                if (not bias_hdu == None):
+                if (bias_hdu is not None):
                     bias_hdu[0].header['OBJECT'] = "master-bias"
                     bias_hdu.writeto(bias_frame, clobber=True)
 
@@ -1126,7 +1126,7 @@ podi_makecalibrations.py input.list calib-directory
 
         if (not only_selected_mastercals or 'DARK' in only_selected_mastercals):
             cmdline_opts = read_options_from_commandline()
-            options['bias_dir'] = output_directory if (cmdline_opts['bias_dir'] == None) else cmdline_opts['bias_dir']
+            options['bias_dir'] = output_directory if (cmdline_opts['bias_dir'] is None) else cmdline_opts['bias_dir']
             stdout_write("####################\n#\n# Creating dark-frame (binning %d)\n#\n####################\n" % (binning))
             darks_to_stack = []
             if (not os.path.isfile(dark_frame) or cmdline_arg_isset("-redo")):
@@ -1152,7 +1152,7 @@ podi_makecalibrations.py input.list calib-directory
                 dark_hdu = imcombine(darks_to_stack, dark_frame, "sigmaclipmean", return_hdu=True)
                 
                 # Relabel the file as 'master-dark" and save to disk
-                if (not dark_hdu == None):
+                if (dark_hdu is not None):
                     dark_hdu[0].header['OBJECT'] = "master-dark"
                     dark_hdu.writeto(dark_frame, clobber=True)
 
@@ -1199,8 +1199,8 @@ podi_makecalibrations.py input.list calib-directory
     if (not only_selected_mastercals or 'FLAT' in only_selected_mastercals):
 
         cmdline_opts = read_options_from_commandline()
-        options['bias_dir'] = output_directory if (cmdline_opts['bias_dir'] == None) else cmdline_opts['bias_dir']
-        options['dark_dir'] = output_directory if (cmdline_opts['dark_dir'] == None) else cmdline_opts['dark_dir']
+        options['bias_dir'] = output_directory if (cmdline_opts['bias_dir'] is None) else cmdline_opts['bias_dir']
+        options['dark_dir'] = output_directory if (cmdline_opts['dark_dir'] is None) else cmdline_opts['dark_dir']
 
         pupilghost_dir = options['pupilghost_dir']
 
@@ -1338,7 +1338,7 @@ podi_makecalibrations.py input.list calib-directory
                         logger.info("Stacking %d frames into %s ..." % (len(flats_to_stack), flat_frame))
                         flat_hdus = imcombine(flats_to_stack, flat_frame, "sigmaclipmean", return_hdu=True)
 
-                        if (flat_hdus == None):
+                        if (flat_hdus is None):
                             # There was a problem with the stacking, so skip to the next flat-field
                             continue
 
@@ -1397,7 +1397,7 @@ podi_makecalibrations.py input.list calib-directory
                                         source_center_coords='data'
                                     )
 
-                                    if (pg_template == None):
+                                    if (pg_template is None):
                                         continue
 
                                     pg_templates[ota_ext.name] = pg_template
@@ -1411,7 +1411,7 @@ podi_makecalibrations.py input.list calib-directory
                                     #
                                     mjd = flat_hdus[0].header['MJD-OBS']
                                     nonlinearity_file = options['nonlinearity']
-                                    if (options['nonlinearity'] == None or 
+                                    if (options['nonlinearity'] is None or
                                         options['nonlinearity'] == "" or
                                         not os.path.isfile(nonlinearity_file)):
                                         nonlinearity_file = podi_nonlinearity.find_nonlinearity_coefficient_file(mjd, options)
@@ -1442,7 +1442,7 @@ podi_makecalibrations.py input.list calib-directory
                                                 
                                     # numpy.savetxt("flat_pg_samples.%d" % (ota), full_samples)
 
-                                    all_pg_samples = full_samples if all_pg_samples == None else \
+                                    all_pg_samples = full_samples if all_pg_samples is None else \
                                                      numpy.append(all_pg_samples, full_samples, axis=0)
 
                                 #

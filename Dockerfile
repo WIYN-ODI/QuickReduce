@@ -5,22 +5,34 @@ FROM opensuse:latest
 # Install (using the suse package manager) all system requirements to
 # deploy the OS and python framework, including all its library dependencies.
 RUN zypper install --no-confirm \
-    python python-devel \
-    python-pip \
-    python-setuptools \
-    python-numpy python-numpy-devel \
-    python-scipy \
-    python-matplotlib \
-    python-Django \
-    python-Pillow \
-    python-Cython \
+    python3 python3-devel \
+    python3-pip \
+    python3-setuptools \
     gsl gsl-devel \
     wget \
     gcc \
     git \
     gcc-fortran \
     freetype2-devel \
-    libpng12-devel
+    libpng12-devel \
+    && \
+    \
+    zypper install -d --no-confirm \
+           python3-numpy python3-numpy-devel \
+           python3-scipy \
+           python3-matplotlib \
+           python3-Django \
+           python3-Pillow \
+           python3-Cython
+
+
+
+    # python3-numpy python3-numpy-devel \
+    # python3-scipy \
+    # python3-matplotlib \
+    # python3-Django \
+    # python3-Pillow \
+    # python3-Cython \
 
 # Define where the software lives, ...
 WORKDIR /app
@@ -29,10 +41,10 @@ WORKDIR /app
 ADD . /app
 
 # Install all remaining python packages as specified in the requirements file
-RUN pip install --upgrade pip && pip install -r requirements.txt
+RUN pip3 install --upgrade pip && pip3 install --ignore-installed -r requirements.txt
 
 # Compile the podi_cython module
-RUN cd /app && python setup.py build_ext --inplace
+RUN cd /app && python3 setup.py build_ext --inplace
 
 # install astromatic software (Sextractor & Swarp)
 RUN cd /tmp && \

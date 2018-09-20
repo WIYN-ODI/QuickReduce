@@ -102,7 +102,7 @@ if __name__ == "__main__":
         fppos = 'xy00' if 'FPPOS' not in hdulist[0].header else hdulist[0].header['FPPOS']
         ota = int(fppos[2:4])
         ota_list[-1].name = 'OTA%02d.SCI' % (ota)
-        if (not tmpfile == None):
+        if (not tmpfile is None):
             os.remove(tmpfile)
 
         # #

@@ -125,7 +125,7 @@ def create_quickview(filename, output_directory, z1=None, z2=None, verbose=False
     if (verbose):
         stdout_write("   Finding best intensity levels ...")
 
-    if (z1 == None or z2 == None):
+    if (z1 is None or z2 is None):
         median = 0
         std = 1e8
         for looper in range(3):
@@ -174,7 +174,7 @@ def multi_convert(queue, xxx):
 
     while (True):
         filename, output_directory, z1, z2 = queue.get()
-        if (filename == None):
+        if (filename is None):
             queue.task_done()
             return
 

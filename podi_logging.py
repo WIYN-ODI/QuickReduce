@@ -298,7 +298,7 @@ def log_master(msg_queue, options):
         import podi_pikasetup
 
         amqp_uri = os.getenv('AMQP_URI')
-        if (not amqp_uri == None):
+        if (amqp_uri is not None):
             debug_logger.debug("Using credentials from AMQP_URI")
             params = pika.connection.URLParameters(amqp_uri) 
             connection = pika.BlockingConnection(params) 
@@ -335,7 +335,7 @@ def log_master(msg_queue, options):
             except:
                 raise
 
-            if (record == None): 
+            if (record is None):
                 break
 
             msg_received += 1
@@ -570,7 +570,7 @@ def log_platform_debug_data():
 
 def setup_logging(options=None):
 
-    if (options == None):
+    if (options is None):
         options = {}
 
     # Setup everything we need for logging

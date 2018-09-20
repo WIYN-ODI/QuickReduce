@@ -135,7 +135,7 @@ def find_center(hdu_data, coord_x, coord_y,
     valid_pixels = numpy.isfinite(abs33)
     #print "number valid pixels",numpy.sum(valid_pixels)
     top10percent = scipy.stats.scoreatpercentile(abs33[valid_pixels].ravel(), 90)
-    if (threshold == None):
+    if (threshold is None):
         strong_values = abs33 > top10percent
         if (verbose): print("Only using pixels >",top10percent)
     else:

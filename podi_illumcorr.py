@@ -97,7 +97,7 @@ def get_illumination_filename(calibdir, filtername, binning):
         fn = "%s/illumination__%s_bin%d.fits" % (calibdir, filtername, binning)
         return fn
 
-    elif (calibdir == None):
+    elif (calibdir is None):
         fn = "illumination__%s_bin%d.fits" % (filtername, binning)
         return fn
 
@@ -150,7 +150,7 @@ def apply_illumination_correction(input_hdu, illumcorr_hdu, output_file=None,
     if (not illum_is_hdu):
         illumcorr_hdu.close()
 
-    if (not input_is_hdu and not output_file == None):
+    if (not input_is_hdu and output_file is not None):
         clobberfile(output_file)
         input_hdu.writeto(output_file, clobber=True)
         return output_file
@@ -232,7 +232,7 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
                     input_file_modified = True
 
             #print wipe_cells
-            if (not wipe_cells == None):
+            if (wipe_cells is not None):
                 wipecells(ext, wipe_cells)
 
             ota_list.append(ext)
@@ -427,7 +427,7 @@ def prepare_illumination_correction(filelist, outfile, tmpdir=".", redo=False,
     masked_list = []
     for i in range(number_files_sent_off):
         masked_frame = return_queue.get()
-        if (not masked_frame == None):
+        if (masked_frame is not None):
             masked_list.append(masked_frame)
 
     for p in processes:

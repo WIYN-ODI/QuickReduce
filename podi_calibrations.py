@@ -40,7 +40,7 @@ def check_filename_directory(given, default_filename):
 
     """
 
-    if (given == None):
+    if (given is None):
         return None
 
     if (not type(given) == list):

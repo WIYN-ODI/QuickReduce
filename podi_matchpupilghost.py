@@ -1262,7 +1262,7 @@ if __name__ == "__main__":
         template_hdu = pyfits.open(templatefile)
 
         singleext = cmdline_arg_set_or_default("-single", None)
-        if (not singleext == None): singleext = singleext.split(",")
+        if (singleext is not None): singleext = singleext.split(",")
 
         full_samples = None
         all_corrections = {}
@@ -1275,7 +1275,7 @@ if __name__ == "__main__":
             in_hdu = ext #in_hdulist['OTA33.SCI']
             extname = in_hdu.name
 
-            if (not singleext == None and not extname in singleext):
+            if (singleext is not None and not extname in singleext):
                 logger.info("Skipping extension %s" % (extname))
                 continue
 
@@ -1292,7 +1292,7 @@ if __name__ == "__main__":
                 non_negative=False,
                 source_center_coords='data'
             )
-            if (pg_correction == None):
+            if (pg_correction is None):
                 logger.info("No PG correction found for %s" % (extname))
                 continue
 
@@ -1312,7 +1312,7 @@ if __name__ == "__main__":
 
             #print "REceived", type(scaling_samples), type(all_samples), "from OTA", extname
 
-            if (scaling_samples == None):
+            if (scaling_samples is None):
                 logger.info("No PG scaling received for OTA %s" % (extname))
                 continue
 
@@ -1320,7 +1320,7 @@ if __name__ == "__main__":
             numpy.savetxt("pg_samples"+extname, scaling_samples)
             numpy.savetxt("pg_samples2"+extname, all_samples)
 
-            full_samples = all_samples if full_samples == None else \
+            full_samples = all_samples if full_samples is None else \
                            numpy.append(full_samples, all_samples, axis=0)
 
         logger.info("Computing global scaling from %d samples" % (full_samples.shape[0]))
@@ -1360,7 +1360,7 @@ if __name__ == "__main__":
         samples = None
         for fn in get_clean_cmdline()[1:]:
             s = numpy.loadtxt(fn)
-            samples = s if samples == None else numpy.append(samples, s, axis=0)
+            samples = s if samples is None else numpy.append(samples, s, axis=0)
 
             scale, bg = iterate_reject_scaling_factors(samples, iterations=3,
                                                        significant_only=False)

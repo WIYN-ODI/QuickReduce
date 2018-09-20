@@ -204,11 +204,11 @@ def fit_nonlinearity_sequence(pinit, args):
     def err_fct(p,x,y,err, fitrange_x, fitrange_y):
         yfit = fit_fct(p,x)
         in_fit_range = numpy.isfinite(x) & numpy.isfinite(y)
-        if (not fitrange_x == None):
+        if (fitrange_x is not None):
             in_fit_range = in_fit_range & (x >= fitrange_x[0]) & (x < fitrange_x[1])
-        if (not fitrange_y == None):
+        if (fitrange_y is not None):
             in_fit_range = in_fit_range & (y >= fitrange_y[0]) & (y < fitrange_y[1])
-        if (err == None):
+        if (err is None):
             return ((y-yfit))[in_fit_range]
         return ((y-yfit)/err)[in_fit_range]
 
@@ -282,7 +282,7 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
     logger = logging.getLogger("NLFitter")
     debug = False
 
-    if (outputfits == None):
+    if (outputfits is None):
         logger.error("No output FITS filename given, not doing any work!")
         return
 
@@ -870,8 +870,8 @@ def create_nonlinearity_map(fitfile, outputfile, fluxlevel, minmax, labels=True)
     #colorvalues = [cm.jet(x) for x in np.random.rand(20)]
     #colorvalues = [matplotlib.pyplot.cm.jet(x) for x in all_intensity]
     
-    nl_min = numpy.min(all_intensity[numpy.isfinite(all_intensity)]) if minmax[0] == None else float(minmax[0])
-    nl_max = numpy.max(all_intensity[numpy.isfinite(all_intensity)]) if minmax[1] == None else float(minmax[1])
+    nl_min = numpy.min(all_intensity[numpy.isfinite(all_intensity)]) if minmax[0] is None else float(minmax[0])
+    nl_max = numpy.max(all_intensity[numpy.isfinite(all_intensity)]) if minmax[1] is None else float(minmax[1])
     
         
     colorvalues = cmap((numpy.array(all_intensity)-nl_min)/(nl_max-nl_min)) #[matplotlib.pyplot.cm.jet(x) for x in all_intensity]
@@ -957,8 +957,8 @@ def plot_cellbycell_map(fitfile, outputfile, minmax, labels=True, fontsize=2):
     ax.set_xlim([0,8])
     ax.set_ylim([0,8])
     
-    nl_min = numpy.min(all_intensity[numpy.isfinite(all_intensity)]) if minmax[0] == None else float(minmax[0])
-    nl_max = numpy.max(all_intensity[numpy.isfinite(all_intensity)]) if minmax[1] == None else float(minmax[1])
+    nl_min = numpy.min(all_intensity[numpy.isfinite(all_intensity)]) if minmax[0] is None else float(minmax[0])
+    nl_max = numpy.max(all_intensity[numpy.isfinite(all_intensity)]) if minmax[1] is None else float(minmax[1])
     
     colorvalues = cmap((numpy.array(all_intensity)-nl_min)/(nl_max-nl_min))
 

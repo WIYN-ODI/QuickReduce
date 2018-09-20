@@ -468,7 +468,7 @@ if __name__ == "__main__":
             #filename = sys.argv[1]
 
             _ae  = measure_crosstalk(filename)
-            all_entries = _ae if all_entries == None else numpy.append(all_entries, _ae, axis=0)
+            all_entries = _ae if all_entries is None else numpy.append(all_entries, _ae, axis=0)
 
         numpy.savetxt(sys.stdout, all_entries, "%02d %02d %12.8f %5d %5d")
         numpy.savetxt("xtalk.test", all_entries)

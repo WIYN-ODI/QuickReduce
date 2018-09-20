@@ -84,7 +84,7 @@ def removecosmics_mp(input_queue, return_queue):
 
     while (True):
         task = input_queue.get()
-        if (task == None):
+        if (task is None):
             input_queue.task_done()
             break
 

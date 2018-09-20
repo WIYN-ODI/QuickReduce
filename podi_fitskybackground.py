@@ -279,7 +279,7 @@ def fit_background(hdulist, plotname=None, exclude_videocells=True, fit_order=3,
         ota_ra = odi_ra[ota_select]
         ota_dec = odi_dec[ota_select]
 
-        if (all_ra == None):
+        if (all_ra is not None):
             all_ra = ota_ra
             all_dec = ota_dec
         else:
@@ -589,7 +589,7 @@ if __name__ == "__main__":
 
             ota = hdulist[i].header['OTA']
             print(ota)
-            if (not src_catalog == None):
+            if (nsrc_catalog is not None):
                 src_this_ota = src_catalog.field('OTA') == ota
                 #src_cat = numpy.zeros(shape=(numpy.sum(src_this_ota),2))
                 #src_cat[:,0] = src_catalog.field('X')[src_this_ota]

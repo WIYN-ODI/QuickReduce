@@ -29,7 +29,7 @@ if __name__ == "__main__":
 
             print "Creating sublog",sublog_id, ";   current line =",i
             fn = "%s/debug.sublog.%04d" % (output_dir, sublog_id)
-            if (not sublog_name == None):
+            if (sublog_name is not None):
                 fn += ".%s" % (sublog_name)
 
             # Determine if the reduction was completed successfully

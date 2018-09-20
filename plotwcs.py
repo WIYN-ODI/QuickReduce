@@ -63,8 +63,8 @@ if __name__ == "__main__":
         _corners = corners / softbin
         radec = numpy.array(wcs.pix2wcs(_corners[:,0], _corners[:,1]))
         radec -= wcs_offset
-        if (not extname == None and ext.name == extname):
-            print "\n",radec[:4,:]
+        if (extname is not None and ext.name == extname):
+            print("\n",radec[:4,:])
         #print radec, radec.shape
 
 

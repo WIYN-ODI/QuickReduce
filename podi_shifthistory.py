@@ -121,7 +121,7 @@ def view_shift_history(filename, plot_filename=None, extension_list=['png'], tit
     # Create plot
     fig = plot.figure(figsize=(12,6))
     fig.canvas.set_window_title("podi_viewshifthistory: Shift history for: %s" % (name))
-    if (title == None):
+    if (title is None):
         fig.suptitle("Shift history for: %s  --  #shifts = %d" % (name[:-11], n_shifts ))
     else:
         full_title = title % {
@@ -219,7 +219,7 @@ def view_shift_history(filename, plot_filename=None, extension_list=['png'], tit
     ax3.set_xlabel(u"OT-shift \u0394x [pixels]")
     ax3.set_ylabel(u"OT-shift \u0394y [pixels]")
 
-    if (plot_filename == None):
+    if (plot_filename is None):
         plot.show()
     else:
         for ext in extension_list:

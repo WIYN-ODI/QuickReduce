@@ -132,7 +132,7 @@ def mp_create_saturation_catalog(queue_in, queue_ret, verbose=False):
     while (True):
         cmd = queue_in.get()
 
-        if (cmd == None):
+        if (cmd is None):
             queue_in.task_done()
             logger.debug("Received shutdown command, terminating")
             return
@@ -253,7 +253,7 @@ def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo
         number_jobs_queued += 1
 
         # Remember the very first FITS file we find. This will serve as the primary HDU
-        if (first_fits_file == None): 
+        if (first_fits_file is None):
             # Create a primary HDU from the first found fits-file
             try:
                 firsthdu = pyfits.open(filename)
@@ -266,7 +266,7 @@ def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo
             firsthdu = None
             first_fits_file = filename
 
-    if (first_fits_file == None):
+    if (first_fits_file is None):
         logger.warning("Couldn't find a valid FITS file, thus nothing to do")
         return
 
@@ -613,7 +613,7 @@ def load_saturation_table_list(indexfile, mjd_catalog_list):
         except:
             pass
 
-    if (mjd_catalog_list == None):
+    if (mjd_catalog_list is None):
         # This means we couldn't find or read the pickled catalog
         # in that case, read the regular ascii index file
         with open(indexfile, "r") as fh:
@@ -671,7 +671,7 @@ def get_list_of_saturation_tables(directory, mjd_catalog_list=None):
 
     logger = logging.getLogger("GetSatCats")
 
-    if (mjd_catalog_list == None):
+    if (mjd_catalog_list is None):
         mjd_catalog_list = {}
 
     # Get a list of all files in the specified directory
@@ -761,7 +761,7 @@ def select_from_saturation_tables(mjd_catalog_list, search_mjd, delta_mjd_range=
         delta_mjd = (search_mjd - mjd) * 86400.
         # print "%80s %14.7f %9.3f %12.3f (%12.3f)" % (full_filename, mjd, exptime, delta_mjd, delta_mjd-exptime)
 
-        if (delta_mjd_range == None):
+        if (delta_mjd_range is None):
             if (delta_mjd > -1 and delta_mjd < 1):
                 return full_filename
         else:
@@ -774,7 +774,7 @@ def select_from_saturation_tables(mjd_catalog_list, search_mjd, delta_mjd_range=
 
                 #close_mjd_files.append( (mjd, full_filename) )
 
-    if (delta_mjd_range == None):
+    if (delta_mjd_range is None):
         return None
 
     return close_mjd_files
@@ -1209,7 +1209,7 @@ def subtract_persistency(persistency_map, image_hdu):
 
 def create_new_persistency_map(shape=None, write_fits=None):
 
-    if (shape == None):
+    if (shape is None):
         sx, sy = 480, 494
         px, py = 4096, 4096
     else:

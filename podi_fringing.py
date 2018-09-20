@@ -194,7 +194,7 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False,
     masked_list = []
     for i in range(number_files_sent_off):
         masked_frame = return_queue.get()
-        if (not masked_frame == None):
+        if (masked_frame is not None):
             masked_list.append(masked_frame)
 
     for p in processes:
@@ -426,7 +426,7 @@ def match_subtract_fringing(data_filename, fringe_filename, verbose=True, output
     for i in range(number_extensions):
         res_fits = return_queue.get()
         if (res_fits != None):
-            all_results = res_fits if (all_results == None) \
+            all_results = res_fits if (all_results is None) \
                 else numpy.append(all_results, numpy.array(res_fits), axis=0)
 
     if (verbose): stdout_write("computing scaling\n")
@@ -850,7 +850,7 @@ if __name__ == "__main__":
                                       full_output=True)
             print(res)
             res_fits = [[res[0][0], res[1], res[2], res[3], res[4]]]
-            all_results = numpy.array(res_fits) if all_results == None else numpy.append(all_results, res_fits, axis=0)
+            all_results = numpy.array(res_fits) if all_results is None else numpy.append(all_results, res_fits, axis=0)
 
 #            xopt, fopt, iter, funcalls, warnflag, allvecs = res
 #            print xopt
@@ -924,8 +924,8 @@ if __name__ == "__main__":
             vecs = get_fringe_scaling(data, fringe, region_file) 
             print(vecs)
 
-            if (not vecs == None):
-                all_vecs = vecs if all_vecs == None else numpy.append(all_vecs, vecs, axis=0)
+            if (vecs is not None):
+                all_vecs = vecs if all_vecs is None else numpy.append(all_vecs, vecs, axis=0)
 
         scaling_factors = all_vecs[:,6]
         valid = scaling_factors > 0

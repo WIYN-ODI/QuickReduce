@@ -375,7 +375,7 @@ def rotate_shift_catalog(src_cat, center, angle, shift=None, verbose = False):
     # Account for cos(declination)
     src_rel_to_center[:,0] *= math.cos(math.radians(center_dec))
 
-    if (verbose and not shift == None):
+    if (verbose and shift is not None):
         print("@@@@ shift rotation")
         print("shift=", shift)
         print("angle=", angle*60, "arcmin")
@@ -514,7 +514,7 @@ def count_matches_parallelwrapper(work_queue, return_queue,
     logger = logging.getLogger("ParCountMatch")
     while (True):
         task = work_queue.get()
-        if (task == None):
+        if (task is None):
             break
 
         angle_id, angle = task
@@ -615,7 +615,7 @@ def find_best_guess(src_cat, ref_cat,
 
     logger = logging.getLogger('findbestguess')
 
-    if (angle_max == None):
+    if (angle_max is None):
         # This means there's no rotation at all
         n_angles = 1
         all_results = numpy.zeros(shape=(1, 4))
@@ -1222,7 +1222,7 @@ def ccmatch_shift(source_cat,
     Perform a simple astrometric calibration, allowing for a shift only
 
     """
-    if (center == None):
+    if (center is None):
         center_ra = numpy.median(source_cat[:,0])
         center_dec = numpy.median(source_cat[:,1])
     else:
@@ -1264,10 +1264,10 @@ def log_shift_rotation(hdulist, params, n_step=1, description="",
     hdulist[0].header['WCS%d_DDE' % n_step] = (params[2]*3600, "%s d_DEC [arcsec]" % (description))
     hdulist[0].header['WCS%d_N'   % n_step] = (int(params[3]), "%s n_matches" % (description))
 
-    if (not n_random_matches == None):
+    if (n_random_matches is not None):
         hdulist[0].header['WCS_NRND'] = (int(n_random_matches) if n_random_matches >= 0 else -1,
                                          "number of random matches")
-    if (not wcs_contrast == None):
+    if (wcs_contrast is not None):
         hdulist[0].header['WCS_QUAL'] = (wcs_contrast, "WCS quality")
 
     return
@@ -1393,7 +1393,7 @@ def parallel_optimize_wcs_solution(queue_in, queue_out):
     while (True):
 
         data_in = queue_in.get()
-        if (data_in == None):
+        if (data_in is None):
             logger.debug("Received end signal, shutting down")
             queue_in.task_done()
             return
@@ -1446,7 +1446,7 @@ def recompute_radec_from_xy(hdulist, src_catalog):
 
         ota_full[:,0:2] = ota_radec
 
-        global_cat = ota_full if (global_cat == None) else numpy.append(global_cat, ota_full, axis=0)
+        global_cat = ota_full if (global_cat is None) else numpy.append(global_cat, ota_full, axis=0)
 
     return global_cat
 
@@ -1593,7 +1593,7 @@ def improve_wcs_solution(src_catalog,
                                        matching_radius=(2./3600.), 
                                        max_count=1)
 
-    if (not output_catalog == None and create_debug_files):
+    if (output_catalog is not None and create_debug_files):
         numpy.savetxt(output_catalog, matched_global)
 
     # print "Returning from improve_wcs_solution", src_catalog.shape, global_cat.shape, matched_global.shape
@@ -1646,7 +1646,7 @@ def estimate_match_fraction(src_cat, primary_header, meanTeff = 5000):
     # Estimate X-J color index
     mean_star_color = estimate_mean_star_color(
         primary_header['FILTER'], T=meanTeff)
-    if (mean_star_color == None):
+    if (mean_star_color is None):
         mean_star_color = 0.5
 
     estimated_Jband = cal_mags - mean_star_color
@@ -1824,7 +1824,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
             center_ra = ext.header['CRVAL1']
             center_dec = ext.header['CRVAL2']
             break
-    if (center_ra == None or center_dec == None):
+    if (center_ra is None or center_dec is None):
         logger.info("Unable to find a field center")
         return return_value
     logger.debug("field center at %f   %f" % (center_ra, center_dec))
@@ -2593,7 +2593,7 @@ def compute_wcs_quality(odi_2mass_matched, hdr=None):
     logger.debug("WCS quality: sigma=%(SIGMA-RA).3f , %(SIGMA-DEC).3f , %(SIGMA).3f [arcsec]" % results)
     # print "WCS quality:", ota, wcs_mean_dra*3600., wcs_mean_ddec*3600., wcs_scatter*3600., wcs_scatter2*3600., rms_dra, rms_ddec
     
-    if (not hdr == None):
+    if (hdr is not None):
         hdr["WCS_RMSA"] = (make_valid(results['RMS-RA']),     "RA r.m.s. of WCS matching [arcsec]")
         hdr["WCS_RMSD"] = (make_valid(results['RMS-DEC']),    "DEC r.m.s. of WCS matching [arcsec]")
         hdr["WCS_RMS"] =  (make_valid(results['RMS']),        "r.m.s. of WCS matching [arcsec]")

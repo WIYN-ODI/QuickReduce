@@ -137,7 +137,7 @@ def parallel_compute(queue, return_queue, shmem_buffer, shmem_results, size_x, s
 
     while (True):
         line = queue.get()
-        if (line == None):
+        if (line is None):
             queue.task_done()
             break
 
@@ -418,14 +418,14 @@ def imcombine_subprocess(extension, filelist, shape, operation, queue, verbose,
             framedata = ext.data[:,:]
             
             # optionally, apply the scaling and subtraction correction
-            if (not subtract == None):
+            if (subtract is not None):
                 try:
                     framedata -= float(subtract)
                 except ValueError:
                     if (subtract in hdulist[0].header):
                         # print "subtracting",hdulist[0].header[subtract]
                         framedata -= hdulist[0].header[subtract]                
-            if (not scale == None):
+            if (scale is not None):
                 try:
                     framedata *= float(scale)
                 except ValueError:
@@ -525,10 +525,10 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
         # a master association table combining all input data
         #
         assoc_table = podi_associations.read_associations(hdulist)
-        if (assoc_table == None):
+        if (assoc_table is None):
             logger.info("No association data available")
             assoc_table = {'input_simple': [fn]}
-        if (master_associations == None):
+        if (master_associations is None):
             master_associations = assoc_table
         else:
             master_associations = podi_associations.collect_reduction_files_used(

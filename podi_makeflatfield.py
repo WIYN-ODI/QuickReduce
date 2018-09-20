@@ -49,7 +49,7 @@ def normalize_flatfield(filename, outputfile,
     logger = logging.getLogger("NormFlatField")
     logger.debug("Starting to normalize %s" % (str(batchmode_hdu)))
 
-    if (not batchmode_hdu == None):
+    if (batchmode_hdu is not None):
         hdulist = batchmode_hdu
     else:
         hdulist = pyfits.open(filename)
@@ -59,7 +59,7 @@ def normalize_flatfield(filename, outputfile,
     fpl = podi_focalplanelayout.FocalPlaneLayout(hdulist)
 
     list_of_otas_to_normalize = fpl.get_science_area_otas(filter, include_vignetted=False)
-    if (not normalize_otas == None):
+    if (normalize_otas is not None):
         list_of_otas_to_normalize = normalize_otas
 
     logger.info("Using these OTAs to normalize overall flux:\n%s" % (", ".join(["%02d" % ota for ota in list_of_otas_to_normalize])))

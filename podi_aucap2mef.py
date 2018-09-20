@@ -58,7 +58,7 @@ def mask_broken_regions(datablock, regionfile, verbose=False):
             coords = line[4:-2]
             coord_list = coords.split(",")
                         
-            if (not datablock == None):
+            if (datablock is not None):
                 x, y = int(float(coord_list[0])), int(float(coord_list[1]))
                 dx, dy = int(0.5*float(coord_list[2])), int(0.5*float(coord_list[3]))
                 #mask[y-dy:y+dy,x-dx:x+dx] = 1

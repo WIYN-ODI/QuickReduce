@@ -95,7 +95,7 @@ class ReductionLog:
         for step in self.steps:
             try:
                 outcome, hdrkey, comment = self.steps[step]
-                firstkey = hdrkey if firstkey == None else firstkey
+                firstkey = hdrkey if firstkey is None else firstkey
                 hdr.append((hdrkey, outcome, comment))
             except:
                 pass
@@ -122,7 +122,7 @@ class ReductionLog:
                 # They are the same, so don't change anything
                 pass
 
-            elif (this == None):
+            elif (this is None):
                 # If the current state is undefined, use the other one
                 self.set(step, other)
 

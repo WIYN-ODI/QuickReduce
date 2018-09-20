@@ -363,7 +363,7 @@ def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
             continue
 
         # Create a master collection containing all files
-        if (all_data == None):
+        if (all_data is None):
             # If this is the first file, create the master list
             all_data = data
             all_radius = radius
@@ -1160,8 +1160,8 @@ def fit_pupilghost(hdus, centers, rotator_angles, radius_range, dr_full,
 
 def bin_azimuthal_profile(angles, data, d_angle, min_angle=None, max_angle=None, verbose=False):
 
-    if (min_angle == None): min_angle = numpy.min(angles)
-    if (max_angle == None): max_angle = numpy.max(angles)
+    if (min_angle is None): min_angle = numpy.min(angles)
+    if (max_angle is None): max_angle = numpy.max(angles)
 
     n_angles = int(math.floor((max_angle - min_angle) / d_angle))
     

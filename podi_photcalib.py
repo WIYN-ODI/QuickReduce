@@ -859,7 +859,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
     # sdss_filter = sdss_equivalents[filtername]
     sdss_filter = find_closest_sdss_counterpart(filtername)
     logger.debug("Translating filter: %s --> %s" % (filtername, sdss_filter))
-    if (sdss_filter == None):
+    if (sdss_filter is None):
         # This filter is not covered by SDSS, can't perform photometric calibration
         return error_return_value
 
@@ -877,7 +877,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                                                                     cattype="sdss",
                                                                     return_filenames=True)
 
-            if (not _std_stars == None and _std_stars.shape[0] > 0):
+            if (_std_stars is not None and _std_stars.shape[0] > 0):
                 detailed_return['catalog'] = "SDSS"
                 # Found some SDSS stars
                 std_stars = _std_stars
@@ -891,7 +891,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             detailed_return['catalog'] = "UCAC4"
 
             # Try to get some data from UCAC4 instead
-            if (not sitesetup.ucac4_ref_dir == None and 
+            if (sitesetup.ucac4_ref_dir is not None and
                 not sitesetup.ucac4_ref_dir == "none" and
                 os.path.isdir(sitesetup.ucac4_ref_dir)):
                 logger.debug("Running UCAC4 query (%s)" % (sitesetup.ucac4_ref_dir))
@@ -1651,7 +1651,7 @@ def write_photcalib_headers(hdr,
         hdr['RADZP_E0'] = photcalib_details['radialZPfit_error'][0]
         hdr['RADZP_E1'] = photcalib_details['radialZPfit_error'][1]
 
-    if (not photcalib_details['zp_restricted'] == None):
+    if (photcalib_details['zp_restricted'] is not None):
         (sel_median, sel_std, sel_psigma, sel_msigma, sel_n, sel_medodimag,
          sel_maxodimag, sel_minodimag) = photcalib_details['zp_restricted']
         hdr['ZPRESMED'] = sel_median
@@ -1663,7 +1663,7 @@ def write_photcalib_headers(hdr,
         hdr['ZPRES_MX'] = sel_maxodimag
         hdr['ZPRES_MN'] = sel_minodimag
 
-    if (not photcalib_details['zp_magnitude_slope'] == None):
+    if (photcalib_details['zp_magnitude_slope'] is not None):
         fit, uncert = photcalib_details['zp_magnitude_slope']
         hdr['ZPSLP_P0'] = fit[0]
         hdr['ZPSLP_P1'] = fit[1]
@@ -1683,7 +1683,7 @@ def write_photcalib_headers(hdr,
     zp_airmass1, "phot Zeropoint corrected for airmass")
 
     # Add some information whether or not we performed a color-term correction
-    colorterm_correction = (not photcalib_details['colorterm'] == None)
+    colorterm_correction = (photcalib_details['colorterm'] is not None)
     hdr['MAGZ_CT'] = colorterm_correction
     hdr['MAGZ_COL'] = photcalib_details[
         'colorcorrection'] if colorterm_correction else ""
@@ -1734,7 +1734,7 @@ if __name__ == "__main__":
         dec_range = [dec_min, dec_max]
         catalog = query_sdss_catalog(ra_range, dec_range, "r", verbose=False)
 
-        if (not catalog == None):
+        if (catalog is not None):
             #print catalog.shape
             pass
         else:

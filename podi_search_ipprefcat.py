@@ -340,7 +340,7 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
     # print ra, dec, radius, type(ra), type(dec), type(radius)
     #logger.debug("# Searching for stars within %.1f degress around %f , %f ..." % (radius, ra, dec))
 
-    if (not radius == None and radius > 0):
+    if (radius is not None and radius > 0):
         min_dec = dec - radius
         max_dec = dec + radius
         min_ra = ra - radius/math.cos(math.radians(dec))

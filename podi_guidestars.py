@@ -48,9 +48,9 @@ def draw_guidestarplot(filelist, title=None, plot_filename=None):
     fig = plot.figure()
     fig.set_facecolor('#e0e0e0')
     fig.canvas.set_window_title(
-        title if not title == None else "Guide Star details")
+        title if title is not None else "Guide Star details")
     fig.suptitle(
-        title if not title == None else "Guide Star details")
+        title if title is not None else "Guide Star details")
     #
     # Set all plot dimensions
     #
@@ -287,7 +287,7 @@ def draw_guidestarplot(filelist, title=None, plot_filename=None):
 
     hist_flux.set_ylim((global_min_flux-0.05, 1.05))
 
-    if (not plot_filename == None):
+    if (plot_filename is not None):
         fig.set_size_inches(8,6)
         fig.savefig(plot_filename, dpi=100,
                     facecolor=fig.get_facecolor(), edgecolor='none')

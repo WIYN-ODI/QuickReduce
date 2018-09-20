@@ -78,7 +78,7 @@ def subtract_pupilghost(filename_hdu, output_file, profile_file, operation="subt
                     ota.header.add_history("Pupilghost: profile in %s" % profile_file)
                     ota.header.add_history("Pupilghost: center @ %d,%d" % (center_x, center_y))
 
-    if (not output_file == None):
+    if (output_file is not None):
         # Now all the work is done, all final data is stored in img2, write results to new file                    
         if (verbose): stdout_write(" writing output ...")
         clobberfile(outputfile)

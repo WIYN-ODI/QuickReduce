@@ -83,11 +83,11 @@ class reduce_collect_otas (object):
             workers_alive = 0
             for fn in self.info:
                 process = self.info[fn]['process']
-                if (process == None):
+                if (process is None):
                     continue
 
                 pid = process.pid
-                if (pid == None):
+                if (pid is None):
                     # not started yet
                     continue
 
@@ -112,7 +112,7 @@ class reduce_collect_otas (object):
                 # Check all workers, and start one if we find one that's not alive
                 started_new_process = False
                 for fn in self.files_to_reduce: #self.info:
-                    if (self.info[fn]['process'] == None):
+                    if (self.info[fn]['process'] is None):
                         
                         #if (not self.info[fn]['process'].is_alive()):
                         print "starting worker for %s" % (fn)
@@ -123,7 +123,7 @@ class reduce_collect_otas (object):
                         self.info[fn]['process'] = p
                         self.info[fn]['process'].start()
 
-                        if (not self.info[fn]['intermediate_data'] == None):
+                        if (self.info[fn]['intermediate_data'] is not None):
                             # this process is being started after intermediate data
                             # has already been sent
                             # --> re-queue one more intermediate to allow completion

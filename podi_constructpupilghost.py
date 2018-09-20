@@ -71,7 +71,7 @@ def get_median_level(data, radii, ri, ro):
 
 def fit_spline_background(radii, flux, logger=None):
 
-    if (logger == None):
+    if (logger is None):
         logger = logging.getLogger("FitSpline")
 
     # data = numpy.loadtxt("/home/work/odi_commissioning/pupilghost/radial__x")
@@ -145,7 +145,7 @@ def mp_pupilghost_slice(job_queue, result_queue, bpmdir, binfac):
     while (True):
 
         task = job_queue.get()
-        if (task == None):
+        if (task is None):
             job_queue.task_done()
             break
 
@@ -489,7 +489,7 @@ def subtract_background(data, radius, angle, radius_range, binfac, logger=None):
     - binfac (the binning used for the data)
     """
 
-    if (logger == None):
+    if (logger is None):
         logger = logging.getLogger("BGSub")
 
     # Compute the radial bin size in binned pixels
@@ -847,7 +847,7 @@ def combine_pupilghost_slices(out_filename, filelist, op='sigclipmean'):
 
         # Read the assocation table of this frame
         in_assoc  = podi_associations.read_associations(hdulist)
-        if (not in_assoc == None):
+        if (in_assoc is not None):
             logger.debug("Found assocations:\n%s" % (str(in_assoc)))
             assoc_table = podi_associations.collect_reduction_files_used(assoc_table, in_assoc)
 
@@ -898,8 +898,8 @@ def combine_pupilghost_slices(out_filename, filelist, op='sigclipmean'):
                 #logger.info("Adding key: %s" % (keyname))
                 combined.header[keyname] = headers[idx][keyname]
                 #primhdu.header[keyname] = headers[idx][keyname]
-                first_hdr = keyname if first_hdr == None else first_hdr
-                if (prev_hdr == None):
+                first_hdr = keyname if first_hdr is None else first_hdr
+                if (prev_hdr is None):
                     print "adding header",keyname," somewhere"
                     primhdu.header.append((keyname, headers[idx][keyname]))
                     prev_hdr = keyname

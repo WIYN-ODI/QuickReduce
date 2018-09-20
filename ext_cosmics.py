@@ -128,7 +128,7 @@ class cosmicsimage:
         visualizations a la f2n.drawstarslist, but could be useful 
         anyway.
         """
-        if verbose == None:
+        if verbose is None:
             verbose = self.verbose
         if verbose:
             print("Labeling mask pixels ...")
@@ -198,9 +198,9 @@ class cosmicsimage:
         But for the true L.A.Cosmic, we don't use this, i.e. we use 
         the full mask at each iteration.
         """
-        if verbose == None:
+        if verbose is None:
             verbose = self.verbose
-        if mask == None:
+        if mask is None:
             mask = self.mask
             
         if verbose:
@@ -289,7 +289,7 @@ class cosmicsimage:
         used to avoid these regions in cosmic detection and cleaning 
         procedures. Slow ...
         """
-        if verbose == None:
+        if verbose is None:
             verbose = self.verbose
         if verbose:
             print("Detecting saturated stars ...")
@@ -356,11 +356,11 @@ class cosmicsimage:
         Returns the mask of saturated stars after finding them if not 
         yet done. Intended mainly for external use.
         """
-        if verbose == None:
+        if verbose is None:
             verbose = self.verbose
         if not self.satlevel > 0:
             raise RuntimeError("Cannot determine satstars : you gave satlevel <= 0 !")
-        if self.satstars == None:
+        if self.satstars is None:
             self.findsatstars(verbose = verbose)
         return self.satstars
 
@@ -385,7 +385,7 @@ class cosmicsimage:
         Estimates the background level. This could be used to fill 
         pixels in large cosmics.
         """
-        if self.backgroundlevel == None:
+        if self.backgroundlevel is None:
             self.backgroundlevel = np.median(self.rawarray.ravel())
         return self.backgroundlevel
         
@@ -413,7 +413,7 @@ class cosmicsimage:
         the search.
         """
         
-        if verbose == None:
+        if verbose is None:
             verbose = self.verbose
 
         if verbose:
@@ -555,7 +555,7 @@ class cosmicsimage:
         Stops if no cosmics are found or if maxiter is reached.
         """
             
-        if self.satlevel > 0 and self.satstars == None:
+        if self.satlevel > 0 and self.satstars is None:
             self.findsatstars(verbose=verbose)
             
         if (verbose): print("Starting %i L.A.Cosmic iterations ..." % maxiter)
@@ -629,7 +629,7 @@ def tofits(outfilename, pixelarray, hdr = None, verbose = True):
     if os.path.isfile(outfilename):
         os.remove(outfilename)
     
-    if hdr == None: # then a minimal header will be created 
+    if hdr is None: # then a minimal header will be created
         hdu = pyfits.PrimaryHDU(pixelarray.transpose())
     else: # this if else is probably not needed but anyway ...
         hdu = pyfits.PrimaryHDU(pixelarray.transpose(), hdr)

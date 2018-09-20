@@ -80,7 +80,7 @@ def compute_wcs_quality(odi_2mass_matched, ota, hdr=None):
     d_dec = (odi_2mass_matched[:,1] - odi_2mass_matched[:,3])
     d_ra  = ((odi_2mass_matched[:,0] - odi_2mass_matched[:,2]) 
              * numpy.cos(numpy.radians(odi_2mass_matched[:,1])))
-    if (not ota == None):
+    if (ota is not None):
         in_this_ota = odi_2mass_matched[:,10] == ota
         d_ra = d_ra[in_this_ota]
         d_dec = d_dec[in_this_ota]
@@ -258,9 +258,9 @@ def refine_wcs_shift(ref_x, ref_y, ota_x, ota_y, best_guess,
     matched = numpy.zeros(shape=(ota_x.shape[0],8))
     # 8 columns: ota_x, ota_y, ref_x, ref_y, id, matched_id, ota_pixel_x, ota_pixel_y
 
-    if (ota_px_x == None):
+    if (ota_px_x is None):
         ota_px_x = numpy.ones(shape=(ota_x.shape[0])) * -999
-    if (ota_px_y == None):
+    if (ota_px_y is None):
         ota_px_y = numpy.ones(shape=(ota_y.shape[0])) * -999
 
         #for i in range(ref_x.shape[0]):
@@ -497,7 +497,7 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
             source_cat = podi_findstars.find_stars(hdulist[ext], binning=4, boxsize=24, dumpfile=None, verbose=False,
                                     detect_threshold=1.5, detect_minarea=6, roundness_limit=[-0.2,+0.2])
             source_cat[:,7] = ext
-            if (full_source_cat == None):
+            if (full_source_cat is None):
                 full_source_cat = source_cat
             else:
                 full_source_cat = numpy.append(full_source_cat, source_cat, axis=0)
@@ -590,7 +590,7 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
         tmp = numpy.ones(shape=(number_matches.shape[0], number_matches.shape[1]+1))
         tmp[:,:-1] = number_matches
         tmp[:,-1] *= ota_id
-        if (global_number_matches == None):
+        if (global_number_matches is None):
             global_number_matches = tmp
         else:
             global_number_matches = numpy.append(global_number_matches, tmp, axis=0)

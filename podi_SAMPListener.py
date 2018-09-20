@@ -163,10 +163,10 @@ def worker_slave(queue):
                     pass
 
                 #print "*"*80
-                if (not _stdout == "" and not _stdout == None):
+                if (not _stdout == "" and _stdout is not None):
                     logger.info("Received STDOUT:\n%s" % (_stdout))
                     #print "*"*80
-                if (not _stderr == "" and not _stderr == None):
+                if (not _stderr == "" and _stderr is not None):
                     logger.info("Received STDERR:\n%s" % (_stderr))
                     #print _stderr
                     #print "*"*80
@@ -179,7 +179,7 @@ def worker_slave(queue):
             logger.info("Done with analysis")
 
             # Now check if we are supposed to open/display the focus plot
-            if (not setup.focus_display == None):
+            if (setup.focus_display is not None):
                 
                 remote_filename = "%s/%s_focus.png" % (setup.output_dir, obsid)
                 local_filename = setup.translate_filename_remote2local(filename, remote_filename)
@@ -221,10 +221,10 @@ def worker_slave(queue):
                     pass
 
                 #print "*"*80
-                if (not _stdout == "" and not _stdout == None):
+                if (not _stdout == "" and _stdout is not None):
                     logger.info("Received STDOUT:\n%s" % (_stdout))
                     #print "*"*80
-                if (not _stderr == "" and not _stderr == None):
+                if (not _stderr == "" and _stderr is not None):
                     logger.info("Received STDERR:\n%s" % (_stderr))
                     #print _stderr
                     #print "*"*80
@@ -838,7 +838,7 @@ def workerprocess___qr_mastercals(queue, options):
             # shutdown command from main task
             continue
 
-        if (task == None):
+        if (task is None):
             logger.info("Shutting down worker")
             queue.task_done()
             break
@@ -959,7 +959,7 @@ def SAMPListener():
     try:
         while (True):
             cli1 = create_client(metadata)
-            if (cli1 == None):
+            if (cli1 is None):
                 time.sleep(1)
             else:
                 break
@@ -1037,7 +1037,7 @@ def SAMPListener():
                 logger.info("Lost connection to hub, trying to re-establish it ...\n Cause: %s" % e)
                 while (True):
                     cli1 = create_client(metadata)
-                    if (cli1 == None):
+                    if (cli1 is None):
                         time.sleep(1)
                     else:
                         break

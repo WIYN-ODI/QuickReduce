@@ -204,7 +204,7 @@ def create_association_table(master, verbose=False):
             # print key,":",value
             for filename in set(value):
                 reduction_step.append(key)
-                if (filename == None):
+                if (filename is None):
                     continue
                 full_filename.append(os.path.abspath(filename))
 

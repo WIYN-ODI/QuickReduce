@@ -34,7 +34,7 @@ class FocalPlaneLayout(object):
               type(inp) == pyfits.hdu.compressed.CompImageHDU or
               type(inp) == pyfits.hdu.image.PrimaryHDU):
             self.hdu = inp
-        elif (inp == None):
+        elif (inp is None):
             # This is a fall-back mode, creating a class that can not do 
             # everything it could do otherwise
             return
@@ -59,7 +59,7 @@ class FocalPlaneLayout(object):
 
         if (binning > 0):
             self.hw_binning = binning
-        elif (not self.hdulist == None):
+        elif (self.hdulist is not None):
             # We have a proper HDUList, so we can likely extract the data from 
             # the first image extension
 
@@ -69,7 +69,7 @@ class FocalPlaneLayout(object):
                 self.hw_binning = int(self.hdulist[1].header['CCDSUM'].split()[0])
             else:
                 self.hw_binning = 1
-        elif (not self.hdu == None and 'BINNING' in self.hdu.header):
+        elif (self.hdu is not None and 'BINNING' in self.hdu.header):
             # Also can use the header if already set
             self.hw_binning = self.hdu.header['BINNING']
         else:
@@ -632,7 +632,7 @@ class FocalPlaneLayout(object):
 
     def get_fringevector_directory(self, userinput):
         
-        if (not userinput == None and os.path.isdir(userinput)):
+        if (userinput is not None and os.path.isdir(userinput)):
             return userinput
         else:
             import podi_sitesetup as sitesetup

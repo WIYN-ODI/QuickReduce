@@ -83,11 +83,11 @@ def lacosmics(
     x, n = data_in.shape[0], data_in.shape[1]
     # print "n_pixels=",x,"    n_images=",n
 
-    if (cleaned == None):
+    if (cleaned is None):
         cleaned = numpy.ndarray(shape=(data_in.shape[0], data_in.shape[1]), dtype=numpy.float64)
-    if (mask == None):
+    if (mask is None):
         mask = numpy.ndarray(shape=(data_in.shape[0], data_in.shape[1]), dtype=numpy.int32)
-    if (saturated == None):
+    if (saturated is None):
         saturated = numpy.ndarray(shape=(data_in.shape[0], data_in.shape[1]), dtype=numpy.int32)
 
     lacosmics__cy(&data_in[0,0], 

@@ -91,7 +91,7 @@ def cmdline_arg_set_or_default(name, defvalue):
 
     if (cmdline_arg_isset(name)):
         val = get_cmdline_arg(name)
-        if (val == None):
+        if (val is None):
             return defvalue
         return val
     return defvalue
@@ -121,9 +121,9 @@ def read_comma_separated_list(inp, ignore_errors=True):
     ret_list = []
     if (type(inp) == list):
         return inp
-    elif (inp == None):
+    elif (inp is None):
         return None
-    elif (not inp == None):
+    elif (inp is not None):
         for _in in inp.split(","):
             if (os.path.isdir(_in) or os.path.isfile(_in) or ignore_errors):
                 ret_list.append(_in)
@@ -139,7 +139,7 @@ def read_options_from_commandline(options=None, ignore_errors=False):
 
     logger = logging.getLogger("ReadOptions")
 
-    if (options == None):
+    if (options is None):
         options = set_default_options()
 
     options['verbose'] = cmdline_arg_isset("-verbose")
@@ -310,7 +310,7 @@ Calibration data:
     if (cmdline_arg_isset("-nonsidereal")):
         logger.debug("Found -nonsidereal command line flag")
         value = cmdline_arg_set_or_default("-nonsidereal", None)
-        if (not value == None):
+        if (value is not None):
             items = value.split(',')
             if (len(items) == 3):
                 ns = {}
@@ -335,7 +335,7 @@ Calibration data:
                         logger.critical("Could not find the reference file for the -nonsidereal option!")
                         logger.critical("Disabling nonsidereal WCS correction")
                     pass
-                if (not ns['ref_mjd'] == None):
+                if (ns['ref_mjd'] is not None):
                     options['nonsidereal'] = ns
             else:
                 logger.critical("I don't understand the -nonsidereal parameter")
@@ -381,7 +381,7 @@ Calibration data:
     options['pupilghost_dir'] = cmdline_arg_set_or_default2("-pupilghost", "auto")
 
     options['trimcell'] = cmdline_arg_set_or_default("-trimcell", None)
-    if (not options['trimcell'] == None):
+    if (options['trimcell'] is not None):
         try:
             options['trimcell'] = int(options['trimcell'])
         except:
