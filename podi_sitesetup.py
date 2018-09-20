@@ -120,7 +120,7 @@ photcalib_error_cutoff = {
     'IPPRef': 0.05, 
     'UCAC4': 0.05,
 }
-wcscalib_order = ['gaia', 'sdss', '2mass']
+wcscalib_order = ['gaia', 'sdss_dr13', '2mass']
 
 
 if (cmdline_arg_isset("-ncpu")):

@@ -152,7 +152,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
     while (True):
 
         cmd = input_queue.get()
-        if (cmd == None):
+        if (cmd is None):
             input_queue.task_done()
             break
 
