@@ -219,26 +219,26 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
         # Assemble the temporary filename for the corrected frame
         suffix = None
         # Now construct the output filename
-        if (suffix == None and swarp_params['no-fluxscale'] and not numpy.isnan(fluxscale_value)):
+        if (suffix is None and swarp_params['no-fluxscale'] and not numpy.isnan(fluxscale_value)):
             suffix = "exptimenorm"
-        if (suffix == None and not numpy.isnan(swarp_params['target_magzero']) and not numpy.isnan(fluxscale_value)):
+        if (suffix is None and not numpy.isnan(swarp_params['target_magzero']) and not numpy.isnan(fluxscale_value)):
             suffix = "fluxnorm"
-        if (suffix == None and swarp_params['use_nonsidereal']):
+        if (suffix is None and swarp_params['use_nonsidereal']):
             suffix = "nonsidereal"
-        if (suffix == None and swarp_params['use_ephemerides']):
+        if (suffix is None and swarp_params['use_ephemerides']):
             suffix = "ephemerides"
-        if (suffix == None and options['skip_otas'] != []):
+        if (suffix is None and options['skip_otas'] != []):
             suffix = "otaselect"
-        if (suffix == None and options['illumcorr']):
+        if (suffix is None and options['illumcorr']):
             suffix = "illumcorr"
-        if (suffix == None and not options['bpm_dir'] == None):
+        if (suffix is None and options['bpm_dir'] is not None):
             suffix = "bpmfixed"
-        if (suffix == None and not swarp_params['subtract_back'] == 'swarp'):
+        if (suffix is None and not swarp_params['subtract_back'] == 'swarp'):
             suffix = "skysub"
         if (suffix is None and options['photflat'] is not None):
             suffix = "photflat"
 
-        if (not suffix == None):
+        if (suffix is not None):
             corrected_filename = "%(single_dir)s/%(obsid)s.%(suffix)s.%(fileid)d.fits" % {
                 "single_dir": swarp_params['unique_singledir'],
                 "obsid": hdulist[0].header['OBSID'],
@@ -251,7 +251,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
         #
         # Check if we need to apply any corrections
         #
-        if (corrected_filename == None or 
+        if (corrected_filename is None or
             (os.path.isfile(corrected_filename) and swarp_params['reuse_singles'])
         ):
             # Either we don't need to apply any corrections or we can re-use an 
@@ -322,8 +322,8 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
                     if ('CRVAL1' in ext.header and
                         'CRVAL2' in ext.header):
                         # print ext.header['CRVAL1'], ext.header['CRVAL2'], (ext.header['EXTNAME'] if 'EXTNAME' in ext.header else "??")
-                        orig_ra = ext.header['CRVAL1'] if orig_ra == None else orig_ra
-                        orig_dec = ext.header['CRVAL2'] if orig_dec == None else orig_dec
+                        orig_ra = ext.header['CRVAL1'] if orig_ra is None else orig_ra
+                        orig_dec = ext.header['CRVAL2'] if orig_dec is None else orig_dec
                         ext.header['CRVAL1'] += d_ra
                         ext.header['CRVAL2'] += d_dec
                         # print ext.header['CRVAL1'], ext.header['CRVAL2'], (ext.header['EXTNAME'] if 'EXTNAME' in ext.header else "??")
@@ -351,7 +351,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
                 # Save the modified OTA list for later
                 hdulist = pyfits.HDUList(ota_list)
 
-            if (not options['bpm_dir'] == None):
+            if (options['bpm_dir'] is not None):
                 logger.debug("Applying bad-pixel masks")
                 for ext in range(len(hdulist)):
                     if (not is_image_extension(hdulist[ext])):
@@ -360,7 +360,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
                     fppos = None
                     if ('FPPOS' in hdulist[ext].header):
                         fppos = hdulist[ext].header['FPPOS']
-                    if (not fppos == None):
+                    if (fppos is not None):
                         region_file = "%s/bpm_%s.reg" % (options['bpm_dir'], fppos)
                         if (os.path.isfile(region_file)):
                             mask_broken_regions(hdulist[ext].data, region_file)
@@ -388,13 +388,13 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
                 hdulist = pyfits.HDUList(ota_list)
 
             # Mask out saturated pixels
-            if (not swarp_params['mask_saturated'] == None):
+            if (swarp_params['mask_saturated'] is not None):
                 for ext in hdulist:
                     if (not is_image_extension(ext)):
                         continue
                     ext.data[ext.data > swarp_params['mask_saturated']] = numpy.NaN
 
-            if (not options['illumcorr_dir'] == None):
+            if (options['illumcorr_dir'] is not None):
                 illum_file = podi_illumcorr.get_illumination_filename(
                     options['illumcorr_dir'], hdulist[0].header['FILTER'], hdulist[0].header['BINNING'])
                 logger.debug("Applying illumination correction (%s)" % (illum_file))
@@ -402,7 +402,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
                     master_reduction_files_used, {"illumination": illum_file})
                 podi_illumcorr.apply_illumination_correction(hdulist, illum_file)
 
-            if (not swarp_params['wipe_cells'] == None):
+            if (swarp_params['wipe_cells'] is not None):
                 binning = hdulist[0].header['BINNING']
                 # XXX ADD SUPPORT FOR SOFTWARE BINNING AS WELL HERE !!!
                 logger.info("Wiping out specified cells")
@@ -474,7 +474,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
                 #
                 # Now we have all sky-samples across the entire focal plane
                 #
-                if (not all_sky_samples == None and
+                if (all_sky_samples is not None and
                     all_sky_samples.size > 0):
                     cleaned = three_sigma_clip(all_sky_samples[:,2])
                     skylevel = numpy.median(cleaned)
@@ -816,7 +816,7 @@ def mp_swarp_single(sgl_queue, dum):
 
     while(True):
         cmd = sgl_queue.get()
-        if (cmd == None):
+        if (cmd is None):
             sgl_queue.task_done()
             break
 
@@ -871,7 +871,7 @@ def mp_swarp_single(sgl_queue, dum):
         # Apply the mask if requested
         #
         if (single_created_ok and create_mask and swarp_params['mask-list']):
-            # not swarp_params['mask'] == None and 
+            # not swarp_params['mask'] is None and
 
             #
             # Based on the MJD of this frame, determine the best mask-frame
@@ -1123,7 +1123,7 @@ def swarpstack(outputfile,
     # Construct a unique name to hold intermediate files
     #
     ############################################################################
-    if (not unique_dir == None and os.path.isdir(unique_dir)):
+    if (unique_dir is not None and os.path.isdir(unique_dir)):
         unique_singledir = unique_dir
         keep_intermediates = True
     else:
@@ -1142,8 +1142,8 @@ def swarpstack(outputfile,
     # Prepare the mask file(s) if requested
     #
     ############################################################################
-    if (not swarp_params['mask-fits'] == None and
-        swarp_params['mask'] == None):
+    if (swarp_params['mask-fits'] is not None and
+        swarp_params['mask'] is None):
 
         mask_list = []
         mask_mjds = []
@@ -1313,7 +1313,7 @@ def swarpstack(outputfile,
     logger.debug("Using header-only-file: %s" % (header_only_file))
 
     # Make sure the reference file is a valid file
-    if (not swarp_params['reference_file'] == None):
+    if (swarp_params['reference_file'] is not None):
         if (os.path.isfile(swarp_params['reference_file'])):
             logger.info("Using %s as reference file" % (swarp_params['reference_file']))
         else:
@@ -1336,7 +1336,7 @@ def swarpstack(outputfile,
     #
     ############################################################################
     logger.info("reference_file = %s" % (str(swarp_params['reference_file'])))
-    if (not swarp_params['cutout_list'] == None):
+    if (swarp_params['cutout_list'] is not None):
 
         if (swarp_params['pixelscale'] <= 0):
             swarp_params['pixelscale'] = 0.11
@@ -1354,14 +1354,14 @@ def swarpstack(outputfile,
         logger.info("Setting custom image cutout region: ra=%f dec=%f imgsize=%dpx (%f'')" % (
             out_crval1, out_crval2, imgsize_pixels, imgsize_arcsec))
 
-    elif (add_only or not swarp_params['reference_file'] == None):
+    elif (add_only or swarp_params['reference_file'] is not None):
         #
         # This is the simpler add-only mode
         #
 
         logger.info("Reading sky-coverage from reference frame")
 
-        if (not swarp_params['reference_file'] == None):
+        if (swarp_params['reference_file'] is not None):
             output_info = pyfits.open(swarp_params['reference_file'])
         else:
             # Open the existing output header and get data from there
@@ -2007,7 +2007,7 @@ def swarpstack(outputfile,
         #
         nonsid_mode = 'none'
         if (swarp_params['use_nonsidereal']): nonsid_mode = 'nonsidereal'
-        if ('ephemerides' in swarp_params and not swarp_params['ephemerides'] == None): nonsid_mode = "ephemerides"
+        if ('ephemerides' in swarp_params and swarp_params['ephemerides'] is not None): nonsid_mode = "ephemerides"
         hdustack[0].header['NONSIDRL'] = (nonsid_mode,
                                           "Non-sidereal correction")
         valid_nonsidereal_reference = None
@@ -2054,7 +2054,7 @@ def swarpstack(outputfile,
 
         add_fits_header_title(hdustack[0].header, "SwarpStack parameters supplied by user", 'MAGZERO')
 
-        if (not valid_nonsidereal_reference == None):
+        if (valid_nonsidereal_reference is not None):
             master_reduction_files_used = \
                 podi_associations.collect_reduction_files_used(master_reduction_files_used, 
                                              {"mjd-reference": valid_nonsidereal_reference})
@@ -2095,9 +2095,9 @@ def swarpstack(outputfile,
                 # if key exists, leave comment unchanged
                 hdustack[0].header[key] = value
             else:
-                if (first_useradded_key == None): first_useradded_key = key
+                if (first_useradded_key is None): first_useradded_key = key
                 hdustack[0].header[key] = (value, "user-added keyword")
-        if (len(options['additional_fits_headers']) > 0 and not first_useradded_key == None):
+        if (len(options['additional_fits_headers']) > 0 and first_useradded_key is not None):
             add_fits_header_title(hdustack[0].header, 
                                   "user-added keywords", first_useradded_key)
 
@@ -2206,7 +2206,7 @@ def read_swarp_params(filelist):
     if (cmdline_arg_isset("-bgsub")):
         params['subtract_back'] = cmdline_arg_set_or_default("-bgsub", 'swarp')
 
-        if (not params['subtract_back'] == None and
+        if (params['subtract_back'] is not None and
             os.path.isfile(params['subtract_back'])):
             params['sky_regions_file'] = params['subtract_back']
             params['subtract_back'] = "_REGIONS_"
@@ -2241,7 +2241,7 @@ def read_swarp_params(filelist):
     if (params['use_ephemerides']):
         opts = cmdline_arg_set_or_default('-ephemerides', None)
         # print opts
-        if (opts == None):
+        if (opts is None):
             params['use_ephemerides'] = False
         else:
             items = opts.split(',')
@@ -2259,7 +2259,7 @@ def read_swarp_params(filelist):
                 
                 ref_mjd, ref_obsid = get_reference_mjd(ref_file)
 
-                if (not ref_mjd == None):
+                if (ref_mjd is not None):
                     object_name = items[1]
                     full_filelist = list(filelist)
                     full_filelist.append(ref_file)
@@ -2273,7 +2273,7 @@ def read_swarp_params(filelist):
             elif (items[0] == 'file'):
                 ref_file = get_clean_cmdline()[2] if len(items) <=3 else items[2]
                 ref_mjd, ref_obsid = get_reference_mjd(ref_file)
-                if (not ref_mjd == None):
+                if (ref_mjd is not None):
 
                     # Now read and process the datafile
                     import ephemerides
@@ -2293,7 +2293,7 @@ def read_swarp_params(filelist):
                         'target': "user-defined",
                         'ref-obsid': ref_obsid,
                     }
-            if (ref_mjd == None):
+            if (ref_mjd is None):
                 params['use_ephemerides'] = False
 
 
