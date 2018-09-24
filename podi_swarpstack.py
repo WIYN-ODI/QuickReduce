@@ -294,7 +294,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
                 # now compute the Ra/Dec of the target in both the reference 
                 # frame and in this frame
                 ephem_data = swarp_params['ephemerides']['data']
-                logger.info("EPHEM_DATA: %s" % (ephem_data))
+                logger.debug("EPHEM_DATA: %s" % (ephem_data))
                 ra_from_mjd = scipy.interpolate.interp1d( ephem_data[:,0], ephem_data[:,1], kind='linear' )
                 dec_from_mjd = scipy.interpolate.interp1d( ephem_data[:,0], ephem_data[:,2], kind='linear' )
 
