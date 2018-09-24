@@ -2309,8 +2309,8 @@ def read_swarp_params(filelist):
                 params['clip-ampfrac'] = float(items[1])
 
     params['mask-fits'] = None
-    params['mask-npix'] = cmdline_arg_set_or_default("-masknpix", 5)
-    params['mask-nsigma'] = cmdline_arg_set_or_default("-masknsigma", 2)
+    params['mask-npix'] = float(cmdline_arg_set_or_default("-masknpix", 5))
+    params['mask-nsigma'] = float(cmdline_arg_set_or_default("-masknsigma", 2))
     params['mask-list'] = None
     params['mask-mjds'] = None
     if (cmdline_arg_isset("-maskframe")):
