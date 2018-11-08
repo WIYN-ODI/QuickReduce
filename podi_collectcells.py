@@ -4665,10 +4665,11 @@ def collectcells(input, outputfile,
             for ext in ota_list:
                 if (not is_image_extension(ext)):
                     continue
-                if (ext.name in pf_hdu):
+                try:
+                    ff = pf_hdu[ext.name].data
                     logger.debug("Applying photometric flat-field to OTA %s" % (ext.name))
-                    ext.data /= pf_hdu[ext.name].data
-                else:
+                    ext.data /= ff
+                except KeyError:
                     logger.warning("No auto-photflat data for OTA %s" % (ext.name))
                     photflat_allsuccess = False
             if (photflat_allsuccess):
