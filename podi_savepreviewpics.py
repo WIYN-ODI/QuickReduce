@@ -37,7 +37,7 @@ input....fits -z1=0 -z2=65000 -ncpus=4``
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 # import scipy
 import math
@@ -59,7 +59,7 @@ crossout_missing_otas = True
 from podi_definitions import *
 from podi_commandline import *
 
-def create_quickview(filename, output_directory, z1=None, z2=None, verbose=False, clobber=True):
+def create_quickview(filename, output_directory, z1=None, z2=None, verbose=False, overwrite=True):
 
     if (not os.path.isfile(filename)):
         return
@@ -178,7 +178,7 @@ def multi_convert(queue, xxx):
             queue.task_done()
             return
 
-        create_quickview(filename, output_directory, z1, z2, verbose=False, clobber=clobber)
+        create_quickview(filename, output_directory, z1, z2, verbose=False, overwrite=clobber)
     return
 
 if __name__ == "__main__":

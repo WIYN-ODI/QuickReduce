@@ -4,7 +4,7 @@
 import sys
 import numpy
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import datetime
 import scipy
 import scipy.stats
@@ -73,7 +73,7 @@ for ext in range(len(hdulist)):
 
     # output_file = sys.argv[3]
 print("writing output file", output_file)
-hdulist.writeto(output_file, clobber=True)
+hdulist.writeto(output_file, overwrite=True)
 
 
 if __name__ == "__main__":

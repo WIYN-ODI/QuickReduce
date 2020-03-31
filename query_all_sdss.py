@@ -28,7 +28,7 @@ import os
 import math
 
 from podi_definitions import *
-import pyfits
+import astropy.io.fits as pyfits
 
 import podi_photcalib
 
@@ -196,6 +196,6 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
         tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
 
         hdulist = pyfits.HDUList([primhdu, tbhdu])
-        hdulist.writeto(cat_fitsfile, clobber=True)
+        hdulist.writeto(cat_fitsfile, overwrite=True)
 
         stdout_write(" done!\n")

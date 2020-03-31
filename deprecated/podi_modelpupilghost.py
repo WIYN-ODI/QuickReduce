@@ -23,7 +23,7 @@
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import ephem
 
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     primhdu.header.update("CD1_1", pixelscale/3600)
     primhdu.header.update("CD2_2", pixelscale/3600)
 
-    primhdu.writeto(outputfile, clobber=True)
+    primhdu.writeto(outputfile, overwrite=True)
     
     sys.exit(0)    
     

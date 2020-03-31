@@ -72,7 +72,7 @@ Warning
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import scipy
 import traceback

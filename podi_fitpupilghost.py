@@ -23,7 +23,7 @@
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 #import ephem
 import matplotlib.pyplot as plot
@@ -223,8 +223,8 @@ def load_frame(filename, pupilghost_centers, binfac, bpmdir):
 
         combined = merge_OTAs(hdus, centers)
         if (use_buffered_files):
-            pyfits.HDUList([pyfits.PrimaryHDU(), pyfits.ImageHDU(data=combined)]).writeto(combined_file, clobber=True)
-            #pyfits.PrimaryHDU(data=combined).writeto(combined_file, clobber=True)
+            pyfits.HDUList([pyfits.PrimaryHDU(), pyfits.ImageHDU(data=combined)]).writeto(combined_file, overwrite=True)
+            #pyfits.PrimaryHDU(data=combined).writeto(combined_file, overwrite=True)
 
 
     rotated_file = "pg_rotated_%+04d.fits" % numpy.around(rotator_angle)
@@ -237,8 +237,8 @@ def load_frame(filename, pupilghost_centers, binfac, bpmdir):
         #combined_rotated = rotate_around_center(combined, rotator_angle, mask_nans=False, spline_order=1)
         combined_rotated = rotate_around_center(combined, rotator_angle, mask_nans=True, spline_order=1)
         if (use_buffered_files):
-            pyfits.HDUList([pyfits.PrimaryHDU(), pyfits.ImageHDU(data=combined_rotated)]).writeto(rotated_file, clobber=True)
-            # pyfits.PrimaryHDU(data=combined_rotated).writeto(rotated_file, clobber=True)
+            pyfits.HDUList([pyfits.PrimaryHDU(), pyfits.ImageHDU(data=combined_rotated)]).writeto(rotated_file, overwrite=True)
+            # pyfits.PrimaryHDU(data=combined_rotated).writeto(rotated_file, overwrite=True)
 
     return combined_rotated, None, None, rotator_angle
 
@@ -328,7 +328,7 @@ def subtract_background(data, radius, angle, radius_range, binfac):
 
     #if (write_intermediate):
     #    bgsub_hdu = pyfits.PrimaryHDU(data=bg_sub)
-    #    bgsub_hdu.writeto("bgsub.fits", clobber=True)
+    #    bgsub_hdu.writeto("bgsub.fits", overwrite=True)
     
     return bg_sub
 
@@ -356,8 +356,8 @@ def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
         else:
             bgsub = subtract_background(data, radius, angle, radius_range, binfac)
             if (use_buffered_files):
-                pyfits.HDUList([pyfits.PrimaryHDU(), pyfits.ImageHDU(data=bgsub)]).writeto(bgsub_file, clobber=True)
-                # pyfits.PrimaryHDU(data=bgsub).writeto(bgsub_file, clobber=True)
+                pyfits.HDUList([pyfits.PrimaryHDU(), pyfits.ImageHDU(data=bgsub)]).writeto(bgsub_file, overwrite=True)
+                # pyfits.PrimaryHDU(data=bgsub).writeto(bgsub_file, overwrite=True)
 
         if (cmdline_arg_isset("-onlyprepfiles")):
             continue
@@ -385,14 +385,14 @@ def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
     #
 
     hdu = pyfits.PrimaryHDU(data = all_data)
-    hdu.writeto("all_data.fits", clobber=True)
+    hdu.writeto("all_data.fits", overwrite=True)
     hdu = pyfits.PrimaryHDU(data = all_bgsub)
-    hdu.writeto("all_bgsub.fits", clobber=True)
+    hdu.writeto("all_bgsub.fits", overwrite=True)
 
     pupil_sub, radial_profile, radial_2d = fit_radial_profile(all_data, all_radius, all_angle, all_bgsub, radius_range)
 
-    pyfits.PrimaryHDU(data=pupil_sub).writeto("pupilsub.fits", clobber=True)
-    pyfits.PrimaryHDU(data=radial_2d).writeto("radial2d.fits", clobber=True)
+    pyfits.PrimaryHDU(data=pupil_sub).writeto("pupilsub.fits", overwrite=True)
+    pyfits.PrimaryHDU(data=radial_2d).writeto("radial2d.fits", overwrite=True)
     # create_mapped_coordinates(all_data, all_radius, all_angle, all_bgsub, pupil_sub, radius_range, binfac)
 
     azimuthal_fits = fit_azimuthal_profiles(all_data, all_radius, all_angle, all_bgsub, pupil_sub, radius_range)
@@ -410,25 +410,25 @@ def do_work(filenames, pupilghost_centers, binfac, radius_range, bpmdir):
     azimuthal_2d = compute_pupilghost(out_data, out_radius, out_angle, radius_range, binfac,
                                       azimuthal_fits)
     
-    pyfits.PrimaryHDU(data=azimuthal_2d).writeto("fit_nonradial.fits", clobber=True)
+    pyfits.PrimaryHDU(data=azimuthal_2d).writeto("fit_nonradial.fits", overwrite=True)
 
     # Compute the 2-d radial profile. The extreme values beyond the fitting radius 
     # might be garbage, so set all pixels outside the pupil ghost radial range to 0
     radial_2d = radial_profile(out_radius.ravel()).reshape(out_radius.shape)
     radial_2d[(radius > r_outer/binfac) | (radius < r_inner/binfac)] = 0
 
-    pyfits.PrimaryHDU(data=radial_2d).writeto("fit_radial.fits", clobber=True)
+    pyfits.PrimaryHDU(data=radial_2d).writeto("fit_radial.fits", overwrite=True)
     try:
         full_2d = azimuthal_2d + radial_2d
         full_2d[full_2d<0] = 0
 
         print "Writing data"
-        pyfits.PrimaryHDU(data=full_2d).writeto("fit_rad+nonrad.fits", clobber=True)
+        pyfits.PrimaryHDU(data=full_2d).writeto("fit_rad+nonrad.fits", overwrite=True)
     except:
         pass
 
     #leftover = bg_sub - fullprofile
-    #    pyfits.PrimaryHDU(data=leftover).writeto("fit_leftover.fits", clobber=True)
+    #    pyfits.PrimaryHDU(data=leftover).writeto("fit_leftover.fits", overwrite=True)
 
 
     return
@@ -571,7 +571,7 @@ def fit_radial_profile(data, radius, angle, bgsub, radius_range, binfac=1, verbo
 
     #if (write_intermediate):
     pupil_sub_hdu = pyfits.PrimaryHDU(data = pupil_sub)
-    pupil_sub_hdu.writeto("all_pupilsub.fits", clobber=True)
+    pupil_sub_hdu.writeto("all_pupilsub.fits", overwrite=True)
 
     return pupil_sub, radial_profile, pupil_radial_2d
 
@@ -579,7 +579,7 @@ def fit_radial_profile(data, radius, angle, bgsub, radius_range, binfac=1, verbo
 #    template_radial = radial_profile(template_radius.ravel()).reshape(template_radius.shape)
 #    template_radial[(template_radius > r_outer) | (template_radius < r_inner)] = 0
 #    pupil_sub_hdu = pyfits.PrimaryHDU(data = template_radial)
-#    pupil_sub_hdu.writeto("template_radial.fits", clobber=True)
+#    pupil_sub_hdu.writeto("template_radial.fits", overwrite=True)
 
 
     return
@@ -626,7 +626,7 @@ def create_mapped_coordinates(all_data, all_radius, all_angle, all_bgsub, pupil_
             polar[r,phi] = median
     
     dummy = pyfits.PrimaryHDU(data=polar)
-    dummy.writeto("polar_fit.fits", clobber=True)
+    dummy.writeto("polar_fit.fits", overwrite=True)
 
     # matched = scipy.ndimage.map_coordinates
     
@@ -838,10 +838,10 @@ def fit_pupilghost(hdus, centers, rotator_angles, radius_range, dr_full,
     # write some intermediate data products
     if (write_intermediate):
         raw_hdu = pyfits.PrimaryHDU(data=data)
-        raw_hdu.writeto("raw.fits", clobber=True)
+        raw_hdu.writeto("raw.fits", overwrite=True)
 
         combined_hdu = pyfits.PrimaryHDU(data=combined)
-        combined_hdu.writeto("raw_combined.fits", clobber=True)
+        combined_hdu.writeto("raw_combined.fits", overwrite=True)
 
     sys.exit(0)
 
@@ -913,7 +913,7 @@ def fit_pupilghost(hdus, centers, rotator_angles, radius_range, dr_full,
 
     if (write_intermediate):
         bgsub_hdu = pyfits.PrimaryHDU(data=bg_sub)
-        bgsub_hdu.writeto("bgsub.fits", clobber=True)
+        bgsub_hdu.writeto("bgsub.fits", overwrite=True)
     
 
 
@@ -979,14 +979,14 @@ def fit_pupilghost(hdus, centers, rotator_angles, radius_range, dr_full,
 
     if (write_intermediate):
         pupil_sub_hdu = pyfits.PrimaryHDU(data = pupil_sub)
-        pupil_sub_hdu.writeto("pupilsub.fits", clobber=True)
+        pupil_sub_hdu.writeto("pupilsub.fits", overwrite=True)
 
 
     template_radius_1d = template_radius.ravel()
     template_radial = radial_profile(template_radius.ravel()).reshape(template_radius.shape)
     template_radial[(template_radius > r_outer) | (template_radius < r_inner)] = 0
     pupil_sub_hdu = pyfits.PrimaryHDU(data = template_radial)
-    pupil_sub_hdu.writeto("template_radial.fits", clobber=True)
+    pupil_sub_hdu.writeto("template_radial.fits", overwrite=True)
 
     sys.exit(0)
 
@@ -1123,18 +1123,18 @@ def fit_pupilghost(hdus, centers, rotator_angles, radius_range, dr_full,
     if (write_intermediate):
         print "Writing data"
         # Save non-radial as fits
-        pyfits.PrimaryHDU(data=nonradial_profile).writeto("fit_nonradial.fits", clobber=True)
-        pyfits.PrimaryHDU(data=pupil_radial_2d).writeto("fit_radial.fits", clobber=True)
+        pyfits.PrimaryHDU(data=nonradial_profile).writeto("fit_nonradial.fits", overwrite=True)
+        pyfits.PrimaryHDU(data=pupil_radial_2d).writeto("fit_radial.fits", overwrite=True)
 
         # print "nonradial=",nonradial_profile.shape
         # print "pupil2d=",pupil_radial_2d.shape
         # nonradial_profile = numpy.min([nonradial_profile, pupil_radial_2d])
-        # pyfits.PrimaryHDU(data=nonradial_profile).writeto("fit_nonradial2.fits", clobber=True)
+        # pyfits.PrimaryHDU(data=nonradial_profile).writeto("fit_nonradial2.fits", overwrite=True)
 
-        pyfits.PrimaryHDU(data=fullprofile).writeto("fit_rad+nonrad.fits", clobber=True)
+        pyfits.PrimaryHDU(data=fullprofile).writeto("fit_rad+nonrad.fits", overwrite=True)
 
         leftover = bg_sub - fullprofile
-        pyfits.PrimaryHDU(data=leftover).writeto("fit_leftover.fits", clobber=True)
+        pyfits.PrimaryHDU(data=leftover).writeto("fit_leftover.fits", overwrite=True)
 
     #------------------------------------------------------------------------------
     #
@@ -1302,5 +1302,5 @@ if __name__ == "__main__":
             #hdulist_out.append(hdu_ref[i])
 
     #hdu_out = pyfits.HDUList(hdulist_out)
-    #hdu_out.writeto(output_filename, clobber=True)
+    #hdu_out.writeto(output_filename, overwrite=True)
 

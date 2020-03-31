@@ -5,7 +5,7 @@ import sys
 import numpy
 import os
 from podi_definitions import *
-import pyfits
+import astropy.io.fits as pyfits
 import datetime
 import scipy
 import scipy.stats
@@ -38,8 +38,8 @@ rotated_mask = scipy.ndimage.interpolation.rotate(input=mask, angle=30, axes=(1,
 img = plot.imshow(rotated, interpolation='nearest', origin='lower', vmin=0., vmax=0.15)
 plot.show(block=False)
 
-pyfits.PrimaryHDU(data=rotated).writeto("rotated.fits", clobber=True)
-pyfits.PrimaryHDU(data=rotated_mask).writeto("rotated_mask.fits", clobber=True)
+pyfits.PrimaryHDU(data=rotated).writeto("rotated.fits", overwrite=True)
+pyfits.PrimaryHDU(data=rotated_mask).writeto("rotated_mask.fits", overwrite=True)
 
 rotated[rotated_mask > 0.1] = numpy.NaN
-pyfits.PrimaryHDU(data=rotated).writeto("rotated_masked.fits", clobber=True)
+pyfits.PrimaryHDU(data=rotated).writeto("rotated_masked.fits", overwrite=True)

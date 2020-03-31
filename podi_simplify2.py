@@ -5,7 +5,7 @@ import sys
 import numpy
 import os
 from podi_definitions import *
-import pyfits
+import astropy.io.fits as pyfits
 import datetime
 
 from astLib import astWCS
@@ -393,7 +393,7 @@ if __name__ == "__main__":
 
     # Finally, write the new WCS file to disk
     clobberfile(output_wcs)
-    out_hdulist.writeto(output_wcs, clobber=True)
+    out_hdulist.writeto(output_wcs, overwrite=True)
 
     sys.exit(0)
 

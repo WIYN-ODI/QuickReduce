@@ -2,7 +2,7 @@
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import scipy
 import scipy.stats
@@ -244,7 +244,7 @@ def imcombine(input_filelist, outputfile, operation):
     stdout_write(" writing results to file %s ..." % (outputfile))
     out_hdu = pyfits.HDUList(out_hdulist)
     clobberfile(outputfile)
-    out_hdu.writeto(outputfile, clobber=True)
+    out_hdu.writeto(outputfile, overwrite=True)
     out_hdu.close()
     del out_hdu
     del out_hdulist    

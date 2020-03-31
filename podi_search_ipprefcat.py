@@ -32,7 +32,7 @@ import logging
 
 from podi_definitions import *
 from podi_commandline import *
-import pyfits
+import astropy.io.fits as pyfits
 
 IPP_DIR = "/Volumes/odifile/Catalogs/IPPRefCat/catdir.synth.grizy/"
 
@@ -709,6 +709,6 @@ if __name__ == "__main__":
             ldac_data.name = 'LDAC_OBJECTS'
 
             hdulist = pyfits.HDUList([primhdu, ldac_hdr, ldac_data])
-            hdulist.writeto(out_fn, clobber=True)
+            hdulist.writeto(out_fn, overwrite=True)
 
     podi_logging.shutdown_logging(options)

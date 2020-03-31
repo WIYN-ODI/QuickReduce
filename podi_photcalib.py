@@ -101,7 +101,7 @@ import os
 from query_usno import query_usno
 from podi_definitions import *
 from podi_commandline import *
-import pyfits
+import astropy.io.fits as pyfits
 #import date
 import datetime
 from astLib import astWCS

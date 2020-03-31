@@ -75,7 +75,7 @@ Modules
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import scipy
 import dev_pgcenter
@@ -326,7 +326,7 @@ def compute_pupilghost_template_ota(input_hdu, pupil_hdu,
     #     # Now we have the right quadrant, search for center position in template
     #     imghdu = pyfits.ImageHDU(data=template_quadrant)
     #     imghdu.header['EXTNAME'] = extname
-    #     pyfits.HDUList([pyfits.PrimaryHDU(), imghdu]).writeto("template_%s.fits" % extname, clobber=True)
+    #     pyfits.HDUList([pyfits.PrimaryHDU(), imghdu]).writeto("template_%s.fits" % extname, overwrite=True)
     #     tx, ty, _, _, _, _ = dev_pgcenter.find_pupilghost_center(imghdu, verbose=False,
     #                                                              fixed_radius=vr)
     #     print "Found pg center at",tx, ty
@@ -764,7 +764,7 @@ def subtract_pupilghost_extension(input_hdu, rotator_angle, filtername, pupil_hd
         # Now we have the right quadrant, search for center position in template
         imghdu = pyfits.ImageHDU(data=template_quadrant)
         imghdu.header['EXTNAME'] = extname
-        pyfits.HDUList([pyfits.PrimaryHDU(), imghdu]).writeto("template_%s.fits" % extname, clobber=True)
+        pyfits.HDUList([pyfits.PrimaryHDU(), imghdu]).writeto("template_%s.fits" % extname, overwrite=True)
         tx, ty, _, _, _, _ = dev_pgcenter.find_pupilghost_center(imghdu, verbose=False,
                                                                  fixed_radius=vr)
         print("Found pg center at",tx, ty)
@@ -866,8 +866,8 @@ def create_azimuthal_template(filename, outputfilename):
                                               save_profile=outputfilename[:-5]+".profile.dat")
 
     # pyfits.writeto("radial_profile.fits", radial_profile)
-    # pyfits.writeto("pupilsub.fits", pupilsub, clobber=True)
-    # pyfits.writeto("pupil_radial_2d.fits", pupil_radial_2d, clobber=True)
+    # pyfits.writeto("pupilsub.fits", pupilsub, overwrite=True)
+    # pyfits.writeto("pupil_radial_2d.fits", pupil_radial_2d, overwrite=True)
 
     hdulist[1].data = pupil_radial_2d
     
@@ -1247,7 +1247,7 @@ if __name__ == "__main__":
         scaling, scale_std = get_pupilghost_scaling(sci_hdu, pg_hdu)
         subtract_pupilghost(sci_hdu, pg_hdu, scaling=scaling, rotate=False)
         
-        sci_hdu.writeto(output_frame, clobber=True)
+        sci_hdu.writeto(output_frame, overwrite=True)
 
     elif (cmdline_arg_isset("-gettemplate")):
 
@@ -1300,7 +1300,7 @@ if __name__ == "__main__":
 
             # out_hdu = pyfits.HDUList([
             #     pyfits.PrimaryHDU(data=pg_correction)])
-            # out_hdu.writeto(outfile[:-5]+extname+".fits", clobber=True)
+            # out_hdu.writeto(outfile[:-5]+extname+".fits", overwrite=True)
 
             scaling_samples, all_samples = get_pupilghost_scaling_ota(
                 science_hdu=in_hdu, 
@@ -1344,11 +1344,11 @@ if __name__ == "__main__":
         # pgsub = in_hdu.data - scaling * pg_correction
         # pgsub_hdu = pyfits.HDUList([
         #     pyfits.PrimaryHDU(data=pgsub)])
-        # pgsub_hdu.writeto(pgsubfile[:-5]+extname+".fits", clobber=True)
+        # pgsub_hdu.writeto(pgsubfile[:-5]+extname+".fits", overwrite=True)
         # 
         # ext.data -= (pg_correction * scaling)
         logger.info("writing results to %s" % (pgsubfile))
-        in_hdulist.writeto(pgsubfile, clobber=True)
+        in_hdulist.writeto(pgsubfile, overwrite=True)
         logger.info("all done!")
 
     elif (cmdline_arg_isset("-filterscale")):
@@ -1412,7 +1412,7 @@ if __name__ == "__main__":
 
 
         output_filename = sys.argv[3]
-        input_hdu.writeto(output_filename, clobber=True)
+        input_hdu.writeto(output_filename, overwrite=True)
 
     # Shutdown logging to shutdown cleanly
     podi_logging.shutdown_logging(options)

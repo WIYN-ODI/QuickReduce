@@ -38,7 +38,7 @@ import numpy
 import os
 from query_usno import query_usno
 from podi_definitions import *
-import pyfits
+import astropy.io.fits as pyfits
 #import date
 import datetime
 #import pywcs  

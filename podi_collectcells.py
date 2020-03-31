@@ -229,7 +229,7 @@ from __future__ import print_function
 import sys
 import os
 import signal
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import scipy
 import scipy.optimize
@@ -1471,7 +1471,7 @@ def collect_reduce_ota(filename,
                 process_id = os.getpid()
                 fitsfile = "%s/tmp.pid%d.%s_OTA%02d.fits" % (sitesetup.sextractor_cache_dir, process_id, obsid, ota)
                 catfile = "%s/tmp.pid%d.%s_OTA%02d.cat" % (sitesetup.sextractor_cache_dir, process_id, obsid, ota)
-                tmphdulist.writeto(fitsfile, clobber=True)
+                tmphdulist.writeto(fitsfile, overwrite=True)
                 logger.debug("Wrote temp file to %s" % (fitsfile))
                 sex_config_file = "%s/config/wcsfix.sex" % (sitesetup.exec_dir)
                 parameters_file = "%s/config/wcsfix.sexparam" % (sitesetup.exec_dir)
@@ -5111,7 +5111,7 @@ def collectcells(input, outputfile,
         logger.debug("Complete, writing output file %s" % (outputfile))
         start_time = time.time()
         clobberfile(outputfile)
-        hdulist.writeto(outputfile, clobber=True)
+        hdulist.writeto(outputfile, overwrite=True, output_verify='ignore')
         end_time = time.time()
         logger.debug("All work completed successfully, output written to %s (took %.3f seconds)" % (
             outputfile, (end_time-start_time)))
@@ -5127,7 +5127,7 @@ def collectcells(input, outputfile,
         return hdulist
 
     #     clobberfile(outputfile)
-    #     hdulist.writeto(outputfile, clobber=True)
+    #     hdulist.writeto(outputfile, overwrite=True)
     #     # afw.write(hdulist, outputfile)
 
     # else:

@@ -24,7 +24,7 @@
 from __future__ import print_function
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import scipy
 #import pywcs
@@ -279,7 +279,7 @@ def find_stars(hdu,
     #clobberfile(outfile)
     #prim = pyfits.PrimaryHDU(data=data, header=None)
     #out_hdulist = pyfits.HDUList([prim])
-    #out_hdulist.writeto(outfile, clobber=True)
+    #out_hdulist.writeto(outfile, overwrite=True)
 
     source_cat = numpy.array(source_list)
 

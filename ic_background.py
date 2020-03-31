@@ -3,7 +3,7 @@
 
 import os
 import sys
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import logging
 
@@ -210,14 +210,14 @@ def scale_subtract_background_model(in_filename, ic_file, out_filename,
 
         #logger.info("Saving skyframe")
         sky_hdu = pyfits.HDUList(skyframe)
-        #sky_hdu.writeto("skyframe.fits", clobber=True)
+        #sky_hdu.writeto("skyframe.fits", overwrite=True)
 
     #
     # save output
     #
     if (out_filename is not None):
         logger.info("Saving sky-model output to %s" % (out_filename))
-        imghdu.writeto(out_filename, clobber=True)
+        imghdu.writeto(out_filename, overwrite=True)
 
     if (twod_model):
         return imghdu, sky_hdu

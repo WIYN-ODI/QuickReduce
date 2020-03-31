@@ -42,7 +42,7 @@ What it does:
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import scipy
 import math
@@ -66,7 +66,7 @@ from podi_definitions import *
 from podi_commandline import *
 import podi_focalplanelayout
 
-def create_quickview(filename, output_directory, verbose=False, clobber=True):
+def create_quickview(filename, output_directory, verbose=False, overwrite=True):
 
     logger = logging.getLogger("QuickView")
 
@@ -321,6 +321,6 @@ if __name__ == "__main__":
         stdout_write("Activating no-clobber mode!\n")
 
     for filename in get_clean_cmdline()[2:]:
-        create_quickview(filename, output_directory, verbose=True, clobber=clobber)
+        create_quickview(filename, output_directory, verbose=True, overwrite=clobber)
 
     podi_logging.shutdown_logging(options)

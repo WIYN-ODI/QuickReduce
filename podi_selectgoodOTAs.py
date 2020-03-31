@@ -23,7 +23,7 @@
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 from podi_definitions import *
 from podi_commandline import *
@@ -120,6 +120,6 @@ if __name__ == "__main__":
 
     out_hdulist = pyfits.HDUList(out_list)
     stdout_write(" writing %s ..." % (outfits))
-    out_hdulist.writeto(outfits, clobber=True)
+    out_hdulist.writeto(outfits, overwrite=True)
     stdout_write(" done!\n")
 

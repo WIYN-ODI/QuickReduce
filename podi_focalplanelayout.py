@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import pyfits
+import astropy.io.fits as pyfits
 import logging
 import itertools
 import math, sys

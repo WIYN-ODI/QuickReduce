@@ -13,7 +13,7 @@ from __future__ import print_function
 import sys
 import numpy
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import datetime
 import scipy
 import scipy.stats

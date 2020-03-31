@@ -23,7 +23,7 @@
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import queue
 import traceback
 
@@ -80,7 +80,7 @@ class async_fits_writer_thread (threading.Thread):
             #hdulist.fileinfo()
             #time.sleep(2)
             clobberfile(filename)
-            hdulist.writeto(filename, clobber=True)
+            hdulist.writeto(filename, overwrite=True)
             if (True): stdout_write("File %s finished writing to disk\n" % (filename))
             self.queue.task_done()
 

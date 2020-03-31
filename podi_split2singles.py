@@ -23,7 +23,7 @@
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 from podi_definitions import is_image_extension
 
@@ -57,4 +57,4 @@ if __name__ == "__main__":
                 primhdu.header[key] = value
 
             out_hdulist = pyfits.HDUList([primhdu])
-            out_hdulist.writeto(outfits, clobber=True)
+            out_hdulist.writeto(outfits, overwrite=True)

@@ -2,7 +2,7 @@
 
 import os
 import sys
-import pyfits
+import astropy.io.fits as pyfits
 import podi_diagnosticplots
 
 if __name__ == "__main__":

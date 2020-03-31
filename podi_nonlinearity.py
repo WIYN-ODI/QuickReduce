@@ -78,7 +78,7 @@ Methods:
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import scipy
 import scipy.optimize
@@ -513,7 +513,7 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
 
     hdulist = pyfits.HDUList([primhdu, tbhdu])
     clobberfile(outputfits)
-    hdulist.writeto(outputfits, clobber=True)
+    hdulist.writeto(outputfits, overwrite=True)
     
     return 
 
@@ -1103,7 +1103,7 @@ Creating all fits
 
         stdout_write(" writing ...")
         outfile = get_clean_cmdline()[3]
-        hdulist.writeto(outfile, clobber=True)
+        hdulist.writeto(outfile, overwrite=True)
 
         stdout_write(" done!\n\n")
 
@@ -1136,7 +1136,7 @@ Creating all fits
             hdulist[ext].data = data
         stdout_write(" writing ...")
         outfile = get_clean_cmdline()[3]
-        hdulist.writeto(outfile, clobber=True)
+        hdulist.writeto(outfile, overwrite=True)
 
         stdout_write(" done!\n\n")
 

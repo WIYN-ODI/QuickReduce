@@ -64,7 +64,7 @@ Methods
 from __future__ import print_function
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 #numpy.seterr(divide='ignore', invalid='ignore')
 import scipy
@@ -152,7 +152,7 @@ def apply_illumination_correction(input_hdu, illumcorr_hdu, output_file=None,
 
     if (not input_is_hdu and output_file is not None):
         clobberfile(output_file)
-        input_hdu.writeto(output_file, clobber=True)
+        input_hdu.writeto(output_file, overwrite=True)
         return output_file
 
     
@@ -242,7 +242,7 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
             input2sex_file = "%s/%s" % (
                 sitesetup.swarp_singledir,
                 os.path.basename(fitsfile))
-            hdulist.writeto(input2sex_file, clobber=True)
+            hdulist.writeto(input2sex_file, overwrite=True)
 
         # Run Sextractor
         segmask = "%s/%s_segmentation.fits" % (tmp_dir, obsid)
@@ -364,7 +364,7 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
 
             clobberfile(masked_frame)
             hdulist_out = pyfits.HDUList(hdu_out)
-            hdulist_out.writeto(masked_frame, clobber=True)
+            hdulist_out.writeto(masked_frame, overwrite=True)
 
             mask_hdu.close()
 
@@ -509,7 +509,7 @@ def prepare_illumination_correction(filelist, outfile, tmpdir=".", redo=False,
         data_out[numpy.isnan(ext.data)] = numpy.NaN
         ext.data = data_out
 
-    combined.writeto(illumcorrfile, clobber=True)
+    combined.writeto(illumcorrfile, overwrite=True)
     logger.info("Work done, output written to %s" % (outfile))
 
     return

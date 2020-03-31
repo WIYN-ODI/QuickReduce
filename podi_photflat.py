@@ -2,7 +2,7 @@
 
 import os, sys
 import numpy
-import pyfits
+import astropy.io.fits as pyfits
 import scipy
 import scipy.spatial
 import scipy.interpolate
@@ -1081,7 +1081,7 @@ if __name__ == "__main__":
         smoothing=resolution,
     )
     clobberfile(output_filename)
-    hdulist.writeto(output_filename, clobber=True)
+    hdulist.writeto(output_filename, overwrite=True)
 
     podi_logging.shutdown_logging(options)
 

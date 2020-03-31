@@ -4,7 +4,7 @@
 import os
 import sys
 import numpy
-import pyfits
+import astropy.io.fits as pyfits
 from astLib import astWCS
 import ephem
 
@@ -94,4 +94,4 @@ if __name__ == "__main__":
 
             out_fn = os.path.join(cutout_dir, bn[:-5]+".%s.fits"%(name))
             print("Writing",out_fn)
-            out_hdu.writeto(out_fn, clobber=True)
+            out_hdu.writeto(out_fn, overwrite=True)

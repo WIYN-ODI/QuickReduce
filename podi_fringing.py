@@ -53,7 +53,7 @@ Methods
 from __future__ import print_function
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 #numpy.seterr(divide='ignore', invalid='ignore')
 import scipy
@@ -283,7 +283,7 @@ def make_fringing_template(input_filelist, outputfile, return_hdu=False,
     if (not return_hdu and outputfile != None):
         stdout_write(" writing results to file %s ..." % (outputfile))
         clobberfile(outputfile)
-        out_hdu.writeto(outputfile, clobber=True)
+        out_hdu.writeto(outputfile, overwrite=True)
         out_hdu.close()
         del out_hdu
         del out_hdulist
@@ -451,7 +451,7 @@ def match_subtract_fringing(data_filename, fringe_filename, verbose=True, output
         data_hdulist[ext].header["FRNG_STD"] = (std_scaling, "fringe scaling std.dev.")
 
     if (output != None):
-        data_hdulist.writeto(output, clobber=True)
+        data_hdulist.writeto(output, overwrite=True)
         data_hdulist.close()
         return median_scaling, std_scaling, None
 
@@ -591,7 +591,7 @@ if __name__ == "__main__":
 
             stdout_write("writing (%s)..." % (outputfile))
             out_hdulist = pyfits.HDUList(out_hdu)
-            out_hdulist.writeto(outputfile, clobber=True)
+            out_hdulist.writeto(outputfile, overwrite=True)
             stdout_write(" done!\n\n")
 
     elif (cmdline_arg_isset("-make_template")):
@@ -681,7 +681,7 @@ if __name__ == "__main__":
 
         stdout_write(" writing ...")
 
-        inputhdu.writeto(output, clobber=True)
+        inputhdu.writeto(output, overwrite=True)
         
         stdout_write(" done!\n")
 
@@ -804,11 +804,11 @@ if __name__ == "__main__":
 #            output_hdulist.append(pyfits.ImageHDU(data=(data - 0.5*fringe_scaling * fringe)))
 
 #            outhdulist = pyfits.HDUList(output_hdulist)
-#            outhdulist.writeto("output.fits", clobber=True)
+#            outhdulist.writeto("output.fits", overwrite=True)
 
             datahdu[ext].data -= skylevel #fringe_scaling * fringe
 
-        datahdu.writeto("corrected.fits", clobber=True)
+        datahdu.writeto("corrected.fits", overwrite=True)
 
 
     elif (cmdline_arg_isset("-rmfringe")):
@@ -878,7 +878,7 @@ if __name__ == "__main__":
         print(median_scaling, std_scaling)
 
 
-        #datahdu.writeto("corrected.fits", clobber=True)
+        #datahdu.writeto("corrected.fits", overwrite=True)
 
 
     elif (cmdline_arg_isset("-matchsubtract")):
@@ -891,7 +891,7 @@ if __name__ == "__main__":
 
         datahdu = match_subtract_fringing(dataframe, fringemap, output="matchsubtract.fits")
         
-        #datahdu.writeto("matchsubtract.out.fits", clobber=True)
+        #datahdu.writeto("matchsubtract.out.fits", overwrite=True)
 
 
     elif (cmdline_arg_isset("-esomethod")):
@@ -953,7 +953,7 @@ if __name__ == "__main__":
                 continue
             data_hdulist[extname].data -= (fringe_hdulist[extname].data * final_scaling)
 
-        data_hdulist.writeto(output_filename, clobber=True)
+        data_hdulist.writeto(output_filename, overwrite=True)
 
 
     else:

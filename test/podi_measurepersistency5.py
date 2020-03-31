@@ -25,7 +25,7 @@
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import scipy
 import scipy.optimize
@@ -173,7 +173,7 @@ if __name__ == "__main__":
                 
     sys.exit(0)
 
-    hdulist.writeto(output_base+".fits", clobber=True)
+    hdulist.writeto(output_base+".fits", overwrite=True)
 
     persfile = sys.argv[3]
     hdulist = pyfits.open(persfile)

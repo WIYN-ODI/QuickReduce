@@ -26,5 +26,5 @@ print("writing output")
 
 hdux = pyfits.HDUList(hduout)
 hdux.info()
-hdux.writeto(sys.argv[2], clobber=True)
+hdux.writeto(sys.argv[2], overwrite=True)
     

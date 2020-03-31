@@ -25,7 +25,7 @@ import os
 import sys
 import logging
 import numpy
-import pyfits
+import astropy.io.fits as pyfits
 
 def cmdline_arg_isset(arg):
     """

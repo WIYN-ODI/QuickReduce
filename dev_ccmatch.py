@@ -10,7 +10,7 @@ a frame by matching the source catalog to a catalog of reference stars.
 import sys
 import numpy
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import datetime
 import scipy
 import scipy.stats
@@ -1118,7 +1118,7 @@ def optimize_wcs_solution(ota_cat, hdr, optimize_header_keywords):
         if (create_debug_files):
             astwcs.header.totextfile(
                 "ccmatch.header-iter%02d--%d.%d" % (counter, len(optimize_header_keywords), hdr['OTA']),
-                clobber=True)
+                overwrite=True)
             numpy.savetxt("ccmatch.optwcs-iter%d--%d.%d" % (counter, len(optimize_header_keywords), hdr['OTA']), src_radec)
             counter += 1
         # This gives us the Ra/Dec values as 2-d array
@@ -2488,8 +2488,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     #print "writing results ..."
     #hduout = pyfits.HDUList(hdulist[0:3])
     #hduout.append(hdulist[13])
-    #hduout.writeto(outputfile, clobber=True)
-    # hdulist.writeto(outputfile, clobber=True)
+    #hduout.writeto(outputfile, overwrite=True)
+    # hdulist.writeto(outputfile, overwrite=True)
     return hdulist
 
 
@@ -2679,7 +2679,7 @@ if __name__ == "__main__":
             apply_nonsidereal_correction(ota_list, options)
 
             output_file = get_clean_cmdline()[2]
-            ota_list.writeto(output_file, clobber=True)
+            ota_list.writeto(output_file, overwrite=True)
         
     elif (cmdline_arg_isset("-debug")):
         
@@ -2700,7 +2700,7 @@ if __name__ == "__main__":
 
         if (len(get_clean_cmdline()) > 3):
             outfile = get_clean_cmdline()[3]
-            hdu_list.writeto(outfile, clobber=True)
+            hdu_list.writeto(outfile, overwrite=True)
 
         podi_logging.shutdown_logging(options)
 
@@ -2794,4 +2794,4 @@ if __name__ == "__main__":
         output_hdu = ccmatched['hdulist']
         outputfile = get_clean_cmdline()[3]
     
-        output_hdu.writeto(outputfile, clobber=True)
+        output_hdu.writeto(outputfile, overwrite=True)

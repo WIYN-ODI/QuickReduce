@@ -23,7 +23,7 @@
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 from podi_definitions import *
 
@@ -41,4 +41,4 @@ if __name__ == "__main__":
 
         print "writing",inputfile
         hdu_out = pyfits.HDUList(outlist)
-        hdu_out.writeto(inputfile+".notab.fits", clobber=True)
+        hdu_out.writeto(inputfile+".notab.fits", overwrite=True)

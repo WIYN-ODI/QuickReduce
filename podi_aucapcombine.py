@@ -37,7 +37,7 @@ To run
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import scipy
 
@@ -165,7 +165,7 @@ if __name__ == "__main__":
     hdulist = pyfits.HDUList(ota_list)
     if (os.path.isfile(outputfile)):
 	os.remove(outputfile)
-    hdulist.writeto(outputfile, clobber=True)
+    hdulist.writeto(outputfile, overwrite=True)
 
     stdout_write(" done!\n")
     stdout_write("### complete!\n")
