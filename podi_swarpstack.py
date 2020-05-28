@@ -346,6 +346,16 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
 
                 # Save the modified OTA list for later
                 hdulist = pyfits.HDUList(ota_list)
+                
+            if (hdulist[0].header['MJD-OBS'] > 58515):
+                # this data has a dead OTA 2,1
+                ota_list = []
+                for ext in hdulist:
+                    if (ext.name == "OTA21.SCI"):
+                        continue
+                    ota_list.append(ext)
+                hdulist = pyfits.HDUList(ota_list)
+
 
             if (not options['bpm_dir'] == None):
                 logger.debug("Applying bad-pixel masks")
