@@ -136,10 +136,11 @@ import ephem
 import ic_background
 
 try:
-    sys.path.append("/work/asteroids/")
+    sys.path.append("/work/quickreduce/merge_master_py3/test/")
     print(sys.path)
     import ephemerides
     import podi_ephemerides
+    print("Added the test durectory for ephems")
 except:
     pass
 
