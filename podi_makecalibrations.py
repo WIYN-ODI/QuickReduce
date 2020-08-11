@@ -84,7 +84,7 @@ Methods
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import scipy
 import time
@@ -616,7 +616,7 @@ def compute_techdata(calib_biaslist, flat_names, output_dir, options, n_frames=2
                 # Construct a filename and write the techdata hdu to file
                 #
                 logger.info("Assembling TECHDATA output file")
-                techdata_hdu.writeto(out_filename, clobber=True)
+                techdata_hdu.writeto(out_filename, overwrite=True)
                 logger.info("wrote TECHDATA output to file: %s" % (out_filename))
 
         # next filter
@@ -770,7 +770,7 @@ def compare_to_reference(hdulist, references, return_reference=False, save_diff=
         clobberfile(save_diff)
         diff[0].header['REFCOMP'] = (os.path.abspath(ref_return), "reference frame")
         diff[0].header['REFCMPOP'] = (op, "comparison operator")
-        diff.writeto(save_diff, clobber=True)
+        diff.writeto(save_diff, overwrite=True)
 
     return diff if not return_reference else diff, ref_return
 
@@ -1072,7 +1072,7 @@ podi_makecalibrations.py input.list calib-directory
                 # Relabel the file as 'master-bias" and save to disk
                 if (bias_hdu is not None):
                     bias_hdu[0].header['OBJECT'] = "master-bias"
-                    bias_hdu.writeto(bias_frame, clobber=True)
+                    bias_hdu.writeto(bias_frame, overwrite=True)
 
                 # compare to reference frame
                 if (reference is not None):
@@ -1154,7 +1154,7 @@ podi_makecalibrations.py input.list calib-directory
                 # Relabel the file as 'master-dark" and save to disk
                 if (dark_hdu is not None):
                     dark_hdu[0].header['OBJECT'] = "master-dark"
-                    dark_hdu.writeto(dark_frame, clobber=True)
+                    dark_hdu.writeto(dark_frame, overwrite=True)
 
                 # compare to reference frame
                 if (reference is not None):
@@ -1320,7 +1320,7 @@ podi_makecalibrations.py input.list calib-directory
                                         gain_readnoise_flat[binning].append(hdu_list)
                                     else:
                                         #clobberfile(flat_outfile_raw)
-                                        #hdu_list.writeto(flat_outfile_raw, clobber=True)
+                                        #hdu_list.writeto(flat_outfile_raw, overwrite=True)
                                         gain_readnoise_flat[binning].append(flat_outfile_raw)
 
                                 normalize_flatfield(None, flat_outfile, 
@@ -1401,7 +1401,7 @@ podi_makecalibrations.py input.list calib-directory
                                         continue
 
                                     pg_templates[ota_ext.name] = pg_template
-                                    pyfits.PrimaryHDU(data=pg_template).writeto("pg_%s.fits" % (ota_ext.name), clobber=True)
+                                    pyfits.PrimaryHDU(data=pg_template).writeto("pg_%s.fits" % (ota_ext.name), overwrite=True)
 
                                     #
                                     # Load the relative gain values for this OTA. This 
@@ -1419,13 +1419,13 @@ podi_makecalibrations.py input.list calib-directory
                                     nonlin_data = podi_nonlinearity.load_nonlinearity_correction_table(nonlinearity_file, ota)
 
                                     ff_data_tmp = numpy.array(ota_ext.data)
-                                    #pyfits.HDUList([pyfits.PrimaryHDU(data=ff_data_tmp)]).writeto("xx0_%d.fits" % (ota), clobber=True)
+                                    #pyfits.HDUList([pyfits.PrimaryHDU(data=ff_data_tmp)]).writeto("xx0_%d.fits" % (ota), overwrite=True)
                                     podi_nonlinearity.apply_gain_correction_fullOTA(ff_data_tmp, nonlin_data, binning)
-                                    #pyfits.HDUList([pyfits.PrimaryHDU(data=ff_data_tmp)]).writeto("xx1_%d.fits" % (ota), clobber=True)
+                                    #pyfits.HDUList([pyfits.PrimaryHDU(data=ff_data_tmp)]).writeto("xx1_%d.fits" % (ota), overwrite=True)
                                     # pack the new gain-corrected data in a proper HDU
                                     # copying the header from the original extension
                                     ff_hdu_tmp = pyfits.ImageHDU(data=ff_data_tmp, header=ota_ext.header)
-                                    #pyfits.HDUList([pyfits.PrimaryHDU(), ff_hdu_tmp]).writeto("xx_%d.fits" % (ota), clobber=True)
+                                    #pyfits.HDUList([pyfits.PrimaryHDU(), ff_hdu_tmp]).writeto("xx_%d.fits" % (ota), overwrite=True)
 
                                     #
                                     # XXX CHECK WHY REL_GAIN VALUES ARE SO CLOSE TO 1.0000
@@ -1473,7 +1473,7 @@ podi_makecalibrations.py input.list calib-directory
                                 #     # Also save a copy before the pupil ghost correction.
                                 #     if (cmdline_arg_isset("-keepprepg")):
                                 #         logger.debug("Writing flat-field before pupil ghost correction ...")
-                                #         flat_hdus.writeto(flat_frame[:-5]+".prepg.fits", clobber=True)
+                                #         flat_hdus.writeto(flat_frame[:-5]+".prepg.fits", overwrite=True)
 
                                 #     podi_matchpupilghost.subtract_pupilghost(flat_hdus, pg_hdu, scaling)
                                 #     flat_hdus[0].header["PUPLGOST"] = (pg_template, "p.g. template")
@@ -1484,7 +1484,7 @@ podi_makecalibrations.py input.list calib-directory
                                 logger.debug("Missing pg-template file: %s" % (pg_template))
 
                         # And finally write the (maybe pupilghost-corrected) flat-field to disk
-                        flat_hdus.writeto(flat_frame, clobber=True)
+                        flat_hdus.writeto(flat_frame, overwrite=True)
 
                         # compare to reference frame
                         if (reference is not None):

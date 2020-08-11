@@ -34,7 +34,7 @@ Usage:
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 from podi_definitions import *
 
@@ -73,4 +73,4 @@ if __name__ == "__main__":
     print("writing")
     hdu_out = pyfits.HDUList(outlist)
 
-    hdu_out.writeto(outputfile, clobber=True)
+    hdu_out.writeto(outputfile, overwrite=True)

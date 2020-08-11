@@ -34,7 +34,7 @@ Usage:
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 from podi_definitions import *
 from podi_commandline import *
@@ -70,7 +70,7 @@ if __name__ == "__main__":
             out_filename = "%s.%s.fits" % (basename[:-5], out_prefix)
             print " --> writing to",out_filename,
             hdu_out = pyfits.HDUList(outlist)
-            hdu_out.writeto(out_filename, clobber=True)
+            hdu_out.writeto(out_filename, overwrite=True)
             print "done!"
 
         else:

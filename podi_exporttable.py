@@ -34,7 +34,7 @@ Usage:
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 from podi_definitions import *
 

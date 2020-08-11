@@ -5,7 +5,7 @@ import sys
 import numpy
 import os
 from podi_definitions import *
-import pyfits
+import astropy.io.fits as pyfits
 import datetime
 
 from astLib import astWCS

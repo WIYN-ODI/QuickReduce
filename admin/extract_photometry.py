@@ -2,7 +2,7 @@
 
 import os
 import sys
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 
 
@@ -71,5 +71,5 @@ if __name__ == "__main__":
         pyfits.PrimaryHDU(header=hdulist[0].header),
         tbhdu,
     ])
-    output_hdu.writeto(output_fn, clobber=True)
+    output_hdu.writeto(output_fn, overwrite=True)
     print("done calibrating %s --> %s" % (input_fn, output_fn))

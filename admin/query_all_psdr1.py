@@ -48,7 +48,7 @@ sys.path.append(os.path.dirname(__file__)+"/../")
 from podi_definitions import *
 import podi_logging
 import logging
-import pyfits
+import astropy.io.fits as pyfits
 
 import podi_photcalib
 import urllib2
@@ -360,7 +360,7 @@ def convert_ascii_to_fits(raw_dir, out_dir, indexfile, start_at, end_at):
         tbhdu = pyfits.BinTableHDU.from_columns(coldefs)
 
         hdulist = pyfits.HDUList([primhdu, tbhdu])
-        hdulist.writeto(cat_fitsfile, clobber=True)
+        hdulist.writeto(cat_fitsfile, overwrite=True)
 
         print(" done!\n")
 
@@ -611,6 +611,6 @@ if __name__ == "__main__":
         # tbhdu = pyfits.new_table(coldefs, tbtype='BinTableHDU')
         #
         # hdulist = pyfits.HDUList([primhdu, tbhdu])
-        # hdulist.writeto(cat_fitsfile, clobber=True)
+        # hdulist.writeto(cat_fitsfile, overwrite=True)
         #
         # stdout_write(" done!\n")

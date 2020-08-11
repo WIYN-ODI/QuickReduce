@@ -2,7 +2,7 @@
 
 import os
 import sys
-import pyfits
+import astropy.io.fits as pyfits
 
 if __name__ == "__main__":
 
@@ -61,4 +61,4 @@ if __name__ == "__main__":
         out_list = [hdulist[0], tbhdu]
 
         out_hdulist = pyfits.HDUList(out_list)
-        out_hdulist.writeto(out_fn, clobber=True)
+        out_hdulist.writeto(out_fn, overwrite=True)

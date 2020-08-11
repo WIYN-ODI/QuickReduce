@@ -5,7 +5,7 @@ import sys
 import numpy
 import os
 from podi_definitions import *
-import pyfits
+import astropy.io.fits as pyfits
 import datetime
 
 from astLib import astWCS
@@ -271,7 +271,7 @@ if __name__ == "__main__":
 
         # hdulist[ext].data = numpy.ones((4000,4000))
         
-        hdulist.writeto(output_wcs, clobber=True)
+        hdulist.writeto(output_wcs, overwrite=True)
 
 
 

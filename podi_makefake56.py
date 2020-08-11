@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys, os
-import pyfits
+import astropy.io.fits as pyfits
 import datetime
 import warnings
 warnings.filterwarnings('ignore')
@@ -90,5 +90,5 @@ if __name__ == "__main__":
             outfilename = "%s/%s.%02d.fits" % (outdir, new_obsid, new)
             if (not os.path.isfile(outfilename)):
                 print "   writing output:",outfilename
-                hdulist.writeto(outfilename, clobber=True)
+                hdulist.writeto(outfilename, overwrite=True)
         

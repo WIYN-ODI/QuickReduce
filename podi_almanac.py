@@ -42,7 +42,7 @@ example, podi_makecalibrations.
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 from podi_definitions import get_binning, add_fits_header_title
 from podi_commandline import *
 import logging
@@ -341,7 +341,7 @@ def add_ephem_data_to_header(hdr, time_overwrite, debug=False):
     #for key in hdr:
     #    print "%-8s" % (key), " --> ", hdr[key]
 
-    # hdr.toTxtFile("ephemdebug.head", clobber=True)
+    # hdr.toTxtFile("ephemdebug.head", overwrite=True)
 
     #print wiyn.date+0.
 

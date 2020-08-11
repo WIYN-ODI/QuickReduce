@@ -4,7 +4,7 @@ import os
 import sys
 import numpy
 from podi_definitions import is_guide_ota, is_image_extension
-import pyfits
+import astropy.io.fits as pyfits
 from podi_commandline import *
 
 
@@ -26,8 +26,8 @@ if __name__ == "__main__":
             #     continue
 
             # is_guide, excesses, _mean, _median, skynoise, corners, centers =  is_guide_ota(hdulist[0], ext, debug=True)
-            # pyfits.HDUList(centers).writeto("guideota_centers.fits", clobber=True)
-            # pyfits.HDUList(corners).writeto("guideota_corners.fits", clobber=True)
+            # pyfits.HDUList(centers).writeto("guideota_centers.fits", overwrite=True)
+            # pyfits.HDUList(corners).writeto("guideota_corners.fits", overwrite=True)
             #
             # print(excesses)
             # print(skynoise)

@@ -3,7 +3,7 @@
 
 import os
 import sys
-import pyfits
+import astropy.io.fits as pyfits
 import scipy
 import scipy.optimize
 import numpy
@@ -434,7 +434,7 @@ class PSFquality (object):
                 )
                 out_hdu.append(img)
 
-            pyfits.HDUList(out_hdu).writeto("psfs.fits", clobber=True)
+            pyfits.HDUList(out_hdu).writeto("psfs.fits", overwrite=True)
 
         #
         # combine the remaining good PSFs
@@ -455,8 +455,8 @@ class PSFquality (object):
 
         if (self.write_debug):
             # print combined_psf.shape
-            pyfits.PrimaryHDU(data=combined_psf).writeto("median_psf.fits", clobber=True)
-            pyfits.PrimaryHDU(data=weighted).writeto("weighted_psf.fits", clobber=True)
+            pyfits.PrimaryHDU(data=combined_psf).writeto("median_psf.fits", overwrite=True)
+            pyfits.PrimaryHDU(data=weighted).writeto("weighted_psf.fits", overwrite=True)
 
         self.data = combined_psf
 
@@ -538,7 +538,7 @@ class PSFquality (object):
             pyfits.ImageHDU(data=(self.data-moffat_model), name="MOFFAT_RESIDUALS"),
         ]
         hdulist = pyfits.HDUList(out_list)
-        hdulist.writeto(fn, clobber=True)
+        hdulist.writeto(fn, overwrite=True)
 
 
 if __name__ == "__main__":

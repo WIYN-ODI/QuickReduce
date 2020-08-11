@@ -34,7 +34,7 @@ Usage:
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 from podi_definitions import *
 from podi_commandline import *
@@ -83,14 +83,14 @@ def extract_headers(inputfile, outputfile, extensions):
                 outlist[1].header[keyword] = (value, comment)
         hdu_out = pyfits.HDUList([pyfits.PrimaryHDU(header=outlist[1].header,
                                                     data=outlist[1].data)])
-        hdu_out.writeto(outputfile, clobber=True)
+        hdu_out.writeto(outputfile, overwrite=True)
         return
 
     if (len(outlist) > 0):
         print "writing"
         hdu_out = pyfits.HDUList(outlist)
         hdu_out.info()
-        hdu_out.writeto(outputfile, clobber=True)
+        hdu_out.writeto(outputfile, overwrite=True)
     else:
         print "couldn't find any extension"
 

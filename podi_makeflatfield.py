@@ -29,7 +29,7 @@ This module handles the normalization of flat-fields.
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import scipy
 
@@ -194,7 +194,7 @@ def normalize_flatfield(filename, outputfile,
 
     logger.debug("writing results to file (%s) ..." % (outputfile))
     clobberfile(outputfile)
-    hdulist.writeto(outputfile, clobber=True)
+    hdulist.writeto(outputfile, overwrite=True)
     logger.info("done!")
        
 if __name__ == "__main__":

@@ -31,7 +31,7 @@ a given input file.
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import scipy
 import scipy.stats
@@ -566,7 +566,7 @@ if __name__ == "__main__":
                 hdu_out = fit_background(hdulist, plotname, fit_order=fit_order, makeplots=plotting)
                 stdout_write("Writing output file %s ..." % (outfile))
                 clobberfile(outfile)
-                hdu_out.writeto(outfile, clobber=True)
+                hdu_out.writeto(outfile, overwrite=True)
                 stdout_write(" done!\n")
 
     elif (cmdline_arg_isset("-sample")):
@@ -615,5 +615,5 @@ if __name__ == "__main__":
         plotname = filename[:-5]
         hdu_out = fit_background(hdulist, plotname, fit_order=fit_order, makeplots=plotting)
         stdout_write("Writing output file %s ..." % (outfile))
-        hdu_out.writeto(outfile, clobber=True)
+        hdu_out.writeto(outfile, overwrite=True)
         stdout_write(" done!\n")

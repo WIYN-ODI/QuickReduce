@@ -1,6 +1,6 @@
 #!/usr/local/bin/python
 
-import pyfits
+import astropy.io.fits as pyfits
 import math
 import scipy
 import sys
@@ -71,9 +71,9 @@ def find_center(hdu_data, coord_x, coord_y,
     all_y = rebin_image(coord_y, prebin, operation=numpy.mean)
 
     if (debugname is not None):
-        pyfits.HDUList([pyfits.PrimaryHDU(data=ot33b.T)]).writeto("debug_"+debugname+"___data.fits", clobber=True)
-        pyfits.HDUList([pyfits.PrimaryHDU(data=all_x.T)]).writeto("debug_"+debugname+"___all_x.fits", clobber=True)
-        pyfits.HDUList([pyfits.PrimaryHDU(data=all_y.T)]).writeto("debug_"+debugname+"___all_y.fits", clobber=True)
+        pyfits.HDUList([pyfits.PrimaryHDU(data=ot33b.T)]).writeto("debug_"+debugname+"___data.fits", overwrite=True)
+        pyfits.HDUList([pyfits.PrimaryHDU(data=all_x.T)]).writeto("debug_"+debugname+"___all_x.fits", overwrite=True)
+        pyfits.HDUList([pyfits.PrimaryHDU(data=all_y.T)]).writeto("debug_"+debugname+"___all_y.fits", overwrite=True)
     ot33_orig = ot33b.copy()
 
     ot33b[numpy.isnan(ot33b)] = 0
@@ -86,7 +86,7 @@ def find_center(hdu_data, coord_x, coord_y,
     y33 = scipy.ndimage.sobel(ot33b, axis=1, mode='constant')
     abs33 = numpy.hypot(x33, y33)
     if (debugname is not None):
-        pyfits.HDUList([pyfits.PrimaryHDU(data=abs33.T)]).writeto("debug_"+debugname+"___sobel.fits", clobber=True)
+        pyfits.HDUList([pyfits.PrimaryHDU(data=abs33.T)]).writeto("debug_"+debugname+"___sobel.fits", overwrite=True)
 
     #
     # Create a mask of all valid images
@@ -111,7 +111,7 @@ def find_center(hdu_data, coord_x, coord_y,
     if (verbose): print("number valid pixels after growing", numpy.sum((mask_grown == False)))
 
     if (debugname is not None):
-        pyfits.HDUList([pyfits.PrimaryHDU(data=mask_grown_float.T)]).writeto("debug_"+debugname+"___mask.fits", clobber=True)
+        pyfits.HDUList([pyfits.PrimaryHDU(data=mask_grown_float.T)]).writeto("debug_"+debugname+"___mask.fits", overwrite=True)
 
     #
     # Apply the now widened mask to the gradient map
@@ -122,7 +122,7 @@ def find_center(hdu_data, coord_x, coord_y,
     abs33_binary[abs33 >= 0.1] = 1
     abs33[mask_grown] = numpy.NaN
     if (debugname is not None):
-        pyfits.HDUList([pyfits.PrimaryHDU(data=abs33.T)]).writeto("debug_"+debugname+"___sobel_filtered.fits", clobber=True)
+        pyfits.HDUList([pyfits.PrimaryHDU(data=abs33.T)]).writeto("debug_"+debugname+"___sobel_filtered.fits", overwrite=True)
     #
     # Now apply a threshold so we only deal with strong gradients and get rid 
     # of a lot of the underlying background noise
@@ -385,5 +385,5 @@ if __name__ == "__main__":
     print("variable radius:", vx, vy, vr)
 
     # hduout = hdu[0:5]
-    # hduout.writeto("/scratch/edges.fits", clobber=True)
+    # hduout.writeto("/scratch/edges.fits", overwrite=True)
 

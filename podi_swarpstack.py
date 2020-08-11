@@ -108,7 +108,7 @@ Additional command line options
 from __future__ import print_function
 import os
 import sys
-import pyfits
+import astropy.io.fits as pyfits
 import subprocess
 import math
 import shutil
@@ -352,6 +352,19 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
                 # Save the modified OTA list for later
                 hdulist = pyfits.HDUList(ota_list)
 
+            #
+            # Delete the dead OTA 2,1 for data taken past Feb 1st, 2019 (MJD ~ 58515)
+            # TODO: Add command line option to override this function
+            #
+            if (hdulist[0].header['MJD-OBS'] > 58515):
+                # this data has a dead OTA 2,1
+                ota_list = []
+                for ext in hdulist:
+                    if (ext.name == "OTA21.SCI"):
+                        continue
+                    ota_list.append(ext)
+                hdulist = pyfits.HDUList(ota_list)
+
             if (options['bpm_dir'] is not None):
                 logger.debug("Applying bad-pixel masks")
                 for ext in range(len(hdulist)):
@@ -449,7 +462,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
                         logger=logger,
                     )
                     skylevel = hdulist[0].header['SKYLEVEL']
-                    skyframe.writeto(corrected_filename[:-5]+".skybg.fits", clobber=True)
+                    skyframe.writeto(corrected_filename[:-5]+".skybg.fits", overwrite=True)
             elif (swarp_params['subtract_back'] == 'swarp'):
                 skylevel = hdulist[0].header['SKYLEVEL']
             elif (swarp_params['subtract_back'] == "_REGIONS_"):
@@ -551,7 +564,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
                 output_bn = os.path.splitext(outputfile)[0]
                 custom_photflat.writeto(
                     "custom_apf_for_%s_in_%s.fits" % (hdulist[0].header['OBSID'], output_bn),
-                    clobber=True
+                    overwrite=True
                 )
 
 
@@ -580,7 +593,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
             logger.debug("Writing correctly prepared file--> %s" % (corrected_filename))
 
             clobberfile(corrected_filename)
-            hdulist.writeto(corrected_filename, clobber=True)
+            hdulist.writeto(corrected_filename, overwrite=True)
 
             # Now change the filename of the input list to reflect 
             # the corrected file
@@ -614,7 +627,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
         # ... and write extension to file
         weight_filename = ret['corrected_file'][:-5]+".weight.fits"
         clobberfile(weight_filename)
-        weight_hdulist.writeto(weight_filename, clobber=True)
+        weight_hdulist.writeto(weight_filename, overwrite=True)
         logger.info("Wrote input weight map to %s" % (weight_filename))
 
         # Finally, close the input file
@@ -911,7 +924,7 @@ def mp_swarp_single(sgl_queue, dum):
                     mask_hdu[0].header['CRVAL1'] -= d_radec[0] / cos_dec
 
             clobberfile(this_mask)
-            mask_hdu.writeto(this_mask, clobber=True)
+            mask_hdu.writeto(this_mask, overwrite=True)
             mask_hdu.close()
             logger.info("wrote raw mask with fudged WCS: %s" % (this_mask))
 
@@ -1021,7 +1034,7 @@ def create_mask(fitsfile, swarp_params):
 
     _, fitsbase = os.path.split(os.path.abspath(fitsfile))
     image_only_fits = "%s/%s.primaryonly.fits" % (unique_singledir, fitsbase)
-    pyfits.HDUList([hdulist[0]]).writeto(image_only_fits, clobber=True)
+    pyfits.HDUList([hdulist[0]]).writeto(image_only_fits, overwrite=True)
 
     #
     # We use source-extractor to create the mask
@@ -1089,7 +1102,7 @@ def create_mask(fitsfile, swarp_params):
     maskhdu = pyfits.HDUList([pyfits.PrimaryHDU(data=weight, header=seghdu[0].header.copy())])
     maskfile = "%s/%s.mask.fits" % (unique_singledir, fitsbase)
     clobberfile(maskfile)
-    maskhdu.writeto(maskfile, clobber=True)
+    maskhdu.writeto(maskfile, overwrite=True)
 
     seghdu.close()
     maskhdu.close()

@@ -23,7 +23,7 @@
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import scipy
 
@@ -141,7 +141,7 @@ if __name__ == "__main__":
 
         output_filename = filename[0:-5]+"masked.fits"
         hdulist[0].data = data
-        hdulist.writeto(output_filename, clobber=True)
+        hdulist.writeto(output_filename, overwrite=True)
 
         hdulist.close()
         del hdulist

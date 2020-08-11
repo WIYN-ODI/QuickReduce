@@ -53,7 +53,7 @@ Standalone option:
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 #numpy.seterr(divide='ignore', invalid='ignore')
 import scipy
@@ -481,7 +481,7 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
     #     hdulist = pyfits.open(filelist[0])
     #     if (return_hdu):
     #         return hdulist
-    #     hdulist.writeto(outputfile, clobber=True)
+    #     hdulist.writeto(outputfile, overwrite=True)
     #     return
     
     # Read the input parameters
@@ -633,17 +633,17 @@ def imcombine(input_filelist, outputfile, operation, return_hdu=False,
         logger.debug(" writing results to file %s ..." % (outputfile))
         clobberfile(outputfile)
         try:
-            out_hdu.writeto(outputfile, clobber=True, checksum=True)
+            out_hdu.writeto(outputfile, overwrite=True, checksum=True)
         except TypeError:
             # this most likely is this error:
             # TypeError: object of type 'NoneType' has no len()
             # related to the checksum calculation
             clobberfile(outputfile)
-            out_hdu.writeto(outputfile, clobber=True)
+            out_hdu.writeto(outputfile, overwrite=True)
         except pyfits.VerifyError:
             logger.warning("Encountered FITS verification error, writing anyway")
             try:
-                out_hdu.writeto(outputfile, clobber=True, checksum=False, output_verify='ignore')
+                out_hdu.writeto(outputfile, overwrite=True, checksum=False, output_verify='ignore')
             except:
                 raise
         except:

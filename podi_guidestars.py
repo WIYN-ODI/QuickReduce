@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import pyfits, os, sys
+import astropy.io.fits as pyfits
+import os
+import sys
 import numpy
 import itertools
 

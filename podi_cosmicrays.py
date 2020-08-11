@@ -8,7 +8,7 @@ a stand-alone funtionality, based on Malte's demo program.
 """
 
 import ext_cosmics as cosmics
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 from podi_definitions import *
 from podi_commandline import *
@@ -152,7 +152,7 @@ if __name__ == "__main__":
 
 
         outputfile = get_clean_cmdline()[2]
-        hdulist.writeto(outputfile, clobber=True)
+        hdulist.writeto(outputfile, overwrite=True)
         podi_logging.shutdown_logging(options)
 
     elif (cmdline_arg_isset("-check")):
@@ -345,10 +345,10 @@ if __name__ == "__main__":
         # next fwhm
 
         hdulist_in = pyfits.HDUList(hdulist_in)
-        hdulist_in.writeto("crj_debug_in.fits", clobber=True)
+        hdulist_in.writeto("crj_debug_in.fits", overwrite=True)
 
         hdulist_out = pyfits.HDUList(hdulist_out)
-        hdulist_out.writeto("crj_debug_out.fits", clobber=True)
+        hdulist_out.writeto("crj_debug_out.fits", overwrite=True)
             
 
     else:
@@ -413,7 +413,7 @@ if __name__ == "__main__":
             p.join()
 
         outputfile = get_clean_cmdline()[2]
-        hdulist.writeto(outputfile, clobber=True)
+        hdulist.writeto(outputfile, overwrite=True)
 
         #yappi.get_thread_stats().print_all()
         #yappi.get_func_stats().debug_print() #print_all()

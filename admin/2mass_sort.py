@@ -23,7 +23,7 @@
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import math
 
@@ -160,7 +160,7 @@ def ascii2fits(asciifile, fitsfile):
 
     hdulist = pyfits.HDUList([primhdu, tbhdu])
 
-    hdulist.writeto(fitsfile, clobber=True)
+    hdulist.writeto(fitsfile, overwrite=True)
 
 
 

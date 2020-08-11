@@ -40,7 +40,7 @@ import os
 from query_usno import query_usno
 from podi_definitions import *
 from podi_commandline import *
-import pyfits
+import astropy.io.fits as pyfits
 #import date
 import datetime
 #import pywcs  
@@ -676,7 +676,7 @@ def fixwcs(fitsfile, output_filename, starfinder="findstars", refcatalog="ippref
 
     if (not cmdline_arg_isset('-computeonly')):
         stdout_write("Writing output file...\n")
-        hdulist.writeto(output_filename, clobber=True)
+        hdulist.writeto(output_filename, overwrite=True)
     else:
         stdout_write("Skipping the output file, you requested -computeonly\n")
 

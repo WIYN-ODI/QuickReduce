@@ -29,7 +29,7 @@ Module containing all code pertaining to creating the diagnostic plots.
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import math
 

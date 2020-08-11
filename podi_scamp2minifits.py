@@ -31,7 +31,7 @@ How-to use:
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import scipy
 import ephem
@@ -309,7 +309,7 @@ def scamp_header_to_minifits(filename, minifits_outputname, reference_fits,
     #     minifits_hdulist[ext].header['CRVAL2'] = d_dec
 
     # Last step: write the minifits to file
-    minifits_hdulist.writeto(minifits_outputname, clobber=True)
+    minifits_hdulist.writeto(minifits_outputname, overwrite=True)
     
     # That's it, all done!
     return 0

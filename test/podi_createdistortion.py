@@ -23,7 +23,7 @@
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 from astLib import astWCS
 import scipy
@@ -275,4 +275,4 @@ if __name__ == "__main__":
          #   ota_list[ext].header.update("D_CRVAL2", d_crval2)
 
     outfile = sys.argv[2]
-    hdulist.writeto(outfile, clobber=True)
+    hdulist.writeto(outfile, overwrite=True)

@@ -1,6 +1,6 @@
 #!/usr/local/bin/python
 
-import pyfits
+import astropy.io.fits as pyfits
 import math
 import scipy
 
@@ -74,8 +74,8 @@ def find_center(hdu, lx, ly, prebin=8, r_minmax=[100,200], x_minmax=[400,600], y
 
     abs33[numpy.isnan(ot33_orig)] = numpy.NaN
 
-    #pyfits.HDUList([pyfits.PrimaryHDU(data=ot33b)]).writeto("/scratch/ot33b.fits", clobber=True)
-    #pyfits.HDUList([pyfits.PrimaryHDU(data=abs33)]).writeto("/scratch/ot33_edge.fits", clobber=True)
+    #pyfits.HDUList([pyfits.PrimaryHDU(data=ot33b)]).writeto("/scratch/ot33b.fits", overwrite=True)
+    #pyfits.HDUList([pyfits.PrimaryHDU(data=abs33)]).writeto("/scratch/ot33_edge.fits", overwrite=True)
 
     abs33_binary = abs33.copy()
     abs33_binary[abs33 < 0.1] = 0
@@ -83,7 +83,7 @@ def find_center(hdu, lx, ly, prebin=8, r_minmax=[100,200], x_minmax=[400,600], y
 
     abs33[mask_grown] = numpy.NaN
 
-    #pyfits.HDUList([pyfits.PrimaryHDU(data=abs33_binary)]).writeto("/scratch/ot33_binary.fits", clobber=True)
+    #pyfits.HDUList([pyfits.PrimaryHDU(data=abs33_binary)]).writeto("/scratch/ot33_binary.fits", overwrite=True)
 
     # Figure out what contrast we need
     valid_pixels = numpy.isfinite(abs33)
@@ -190,5 +190,5 @@ if __name__ == "__main__":
 
         hdu[i].data = edge_frame
         print()
-    hdu.writeto("/scratch/edges.fits", clobber=True)
+    hdu.writeto("/scratch/edges.fits", overwrite=True)
 

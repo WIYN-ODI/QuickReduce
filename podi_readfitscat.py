@@ -1,5 +1,5 @@
 import logging
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import podi_logging
 

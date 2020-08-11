@@ -37,7 +37,7 @@ based on source and target-cell.
 import os
 import sys
 from podi_definitions import *
-import pyfits
+import astropy.io.fits as pyfits
 import scipy
 import scipy.stats
 import itertools
@@ -418,7 +418,7 @@ def complete_xtalk_matrix(data):
     imghdu2.name  = "XTALK.INV"
     p_hdu = pyfits.PrimaryHDU()
     hdulist = pyfits.HDUList([p_hdu, imghdu, imghdu2])
-    hdulist.writeto("matrix_inv.fits", clobber=True)
+    hdulist.writeto("matrix_inv.fits", overwrite=True)
         
     return matrix
 

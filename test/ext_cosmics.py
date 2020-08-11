@@ -22,7 +22,7 @@ np.seterr(all='ignore')
 import math
 import scipy.signal as signal
 import scipy.ndimage as ndimage
-import pyfits
+import astropy.io.fits as pyfits
 
 
 
@@ -424,7 +424,7 @@ def getsatstars(self, verbose = None):
 		cliped = conved.clip(min=0.0)
 		#cliped = np.abs(conved) # unfortunately this does not work to find holes as well ...
 		lplus = rebin2x2(cliped)
-		pyfits.HDUList([pyfits.PrimaryHDU(data=lplus)]).writeto("lplus.fits", clobber=True)
+		pyfits.HDUList([pyfits.PrimaryHDU(data=lplus)]).writeto("lplus.fits", overwrite=True)
 
 		if verbose:
 			print("Creating noise model ...")
@@ -434,12 +434,12 @@ def getsatstars(self, verbose = None):
 			mode='mirror')
 		 # We keep this m5, as I will use it later for the interpolation.
 		m5clipped = m5.clip(min=0.00001) # As we will take the sqrt
-		pyfits.HDUList([pyfits.PrimaryHDU(data=m5clipped)]).writeto("m5clipped.fits", clobber=True)
+		pyfits.HDUList([pyfits.PrimaryHDU(data=m5clipped)]).writeto("m5clipped.fits", overwrite=True)
 		print(self.gain)
 		print(self.readnoise)
 		noise = (1.0/self.gain) * \
 			np.sqrt(self.gain*m5clipped + self.readnoise*self.readnoise)
-		pyfits.HDUList([pyfits.PrimaryHDU(data=noise)]).writeto("noise.fits", clobber=True)
+		pyfits.HDUList([pyfits.PrimaryHDU(data=noise)]).writeto("noise.fits", overwrite=True)
 		print("pixel 20,20", m5clipped[20, 20], self.gain, self.readnoise, noise[20, 20])
 
 		if verbose:
@@ -448,13 +448,13 @@ def getsatstars(self, verbose = None):
 		# Laplacian signal to noise ratio :
 		s = lplus / (2.0 * noise) # the 2.0 is from the 2x2 subsampling
 		 # This s is called sigmap in the original lacosmic.cl
-		pyfits.HDUList([pyfits.PrimaryHDU(data=s)]).writeto("sigmap.fits", clobber=True)
+		pyfits.HDUList([pyfits.PrimaryHDU(data=s)]).writeto("sigmap.fits", overwrite=True)
 
 		 # We remove the large structures (s prime) :
 		s_smooth = ndimage.filters.median_filter(s, size=5, mode='mirror')
 		sp = s - s_smooth
-		pyfits.HDUList([pyfits.PrimaryHDU(data=s_smooth)]).writeto("s_smooth.fits", clobber=True)
-		pyfits.HDUList([pyfits.PrimaryHDU(data=sp)]).writeto("s_prime.fits", clobber=True)
+		pyfits.HDUList([pyfits.PrimaryHDU(data=s_smooth)]).writeto("s_smooth.fits", overwrite=True)
+		pyfits.HDUList([pyfits.PrimaryHDU(data=sp)]).writeto("s_prime.fits", overwrite=True)
 
 		if verbose:
 			print("Selecting candidate cosmic rays ...")
@@ -480,12 +480,12 @@ def getsatstars(self, verbose = None):
 			print("Building fine structure image ...")
 
 		# We build the fine structure image :
-		pyfits.HDUList([pyfits.PrimaryHDU(data=self.cleanarray)]).writeto("pre_m3.fits", clobber=True)
+		pyfits.HDUList([pyfits.PrimaryHDU(data=self.cleanarray)]).writeto("pre_m3.fits", overwrite=True)
 		m3 = ndimage.filters.median_filter(self.cleanarray, size=3,
 			mode='mirror')
-		pyfits.HDUList([pyfits.PrimaryHDU(data=m3)]).writeto("m3.fits", clobber=True)
+		pyfits.HDUList([pyfits.PrimaryHDU(data=m3)]).writeto("m3.fits", overwrite=True)
 		m37 = ndimage.filters.median_filter(m3, size=7, mode='mirror')
-		pyfits.HDUList([pyfits.PrimaryHDU(data=m37)]).writeto("m37.fits", clobber=True)
+		pyfits.HDUList([pyfits.PrimaryHDU(data=m37)]).writeto("m37.fits", overwrite=True)
 		f = m3 - m37
 		# In the article that's it, but in lacosmic.cl f is divided by
 		# the noise... Ok I understand why, it depends on if you use
@@ -494,7 +494,7 @@ def getsatstars(self, verbose = None):
 		# stick to the iraf implementation.
 		f = f / noise
 		f = f.clip(min=0.01) # as we will divide by f. like in the iraf version.
-		pyfits.HDUList([pyfits.PrimaryHDU(data=f)]).writeto("f.fits", clobber=True)
+		pyfits.HDUList([pyfits.PrimaryHDU(data=f)]).writeto("f.fits", overwrite=True)
 
 		if verbose:
 			print("Removing suspected compact bright objects ...")
@@ -507,7 +507,7 @@ def getsatstars(self, verbose = None):
 
 		xxx = np.zeros(shape=self.cleanarray.shape)
 		xxx[cosmics] = 1
-		pyfits.HDUList([pyfits.PrimaryHDU(data=xxx)]).writeto("firstsel.fits", clobber=True)
+		pyfits.HDUList([pyfits.PrimaryHDU(data=xxx)]).writeto("firstsel.fits", overwrite=True)
 
 		if verbose:
 			print("  %5i remaining candidate pixels" % nbcosmics)
@@ -541,7 +541,7 @@ def getsatstars(self, verbose = None):
 
 		yyy = np.zeros(shape=self.cleanarray.shape)
 		yyy[finalsel] = 1
-		pyfits.HDUList([pyfits.PrimaryHDU(data=yyy)]).writeto("finalsel.fits", clobber=True)
+		pyfits.HDUList([pyfits.PrimaryHDU(data=yyy)]).writeto("finalsel.fits", overwrite=True)
 
 		nbfinal = np.sum(finalsel)
 

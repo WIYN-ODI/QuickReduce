@@ -25,7 +25,7 @@ try:
     import scipy.ndimage as ndimage
 except:
     pass
-import pyfits
+import astropy.io.fits as pyfits
 
 
 

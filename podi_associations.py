@@ -38,7 +38,7 @@ By default, only the filenames of the associated input files are shown. With the
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 from podi_definitions import *
 from podi_commandline import *

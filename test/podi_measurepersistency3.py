@@ -25,7 +25,7 @@
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import scipy
 import scipy.optimize
@@ -136,5 +136,5 @@ if __name__ == "__main__":
                 numpy.savetxt(dump, combined)
                 print >>dump, "\n\n\n\n\n"
 
-    hdulist.writeto(output_base+".fits", clobber=True)
+    hdulist.writeto(output_base+".fits", overwrite=True)
 

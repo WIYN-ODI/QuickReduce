@@ -12,7 +12,7 @@ import numpy
 import os
 from podi_definitions import *
 from podi_commandline import *
-import pyfits
+import astropy.io.fits as pyfits
 import datetime
 import scipy
 import scipy.stats

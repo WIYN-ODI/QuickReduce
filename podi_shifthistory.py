@@ -28,7 +28,7 @@ import os
 import math
 
 from podi_definitions import *
-import pyfits
+import astropy.io.fits as pyfits
 import matplotlib.pyplot as plot
 import matplotlib.cm as cm
 import matplotlib

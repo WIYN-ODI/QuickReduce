@@ -2,7 +2,7 @@
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import scipy
 import scipy.stats
@@ -56,6 +56,6 @@ if __name__ == "__main__":
     # Now all the work is done, all final data is stored in img2, write results to new file                    
     stdout_write(" writing output ...")
     clobberfile(output)
-    hdu_1.writeto(output, clobber=True)
+    hdu_1.writeto(output, overwrite=True)
     stdout_write(" done!\n\n")
 

@@ -23,7 +23,7 @@
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 #import ephem
 import matplotlib.pyplot as plot
@@ -469,7 +469,7 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False,
         
     logger.info("All done!")
     HDUlist = pyfits.HDUList(hdulist)
-    HDUlist.writeto(output_filename, clobber=True)
+    HDUlist.writeto(output_filename, overwrite=True)
 
     return rotator_angle, norm_angle
 
@@ -612,7 +612,7 @@ def subtract_background(data, radius, angle, radius_range, binfac, logger=None):
     
     #if (write_intermediate):
     #    bgsub_hdu = pyfits.PrimaryHDU(data=bg_sub)
-    #    bgsub_hdu.writeto("bgsub.fits", clobber=True)
+    #    bgsub_hdu.writeto("bgsub.fits", overwrite=True)
     
 
 
@@ -741,7 +741,7 @@ def create_radial_pupilghost(filename, outputfile, radial_opts, verbose=True):
     # Now we are done with all profiles, write the results to the output file
     clobberfile(outputfile)
     stdout_write("writing output file ...")
-    hdulist.writeto(outputfile, clobber=True)
+    hdulist.writeto(outputfile, overwrite=True)
     #stdout_write(" done!\n")
 
 
@@ -927,11 +927,11 @@ def combine_pupilghost_slices(out_filename, filelist, op='sigclipmean'):
             logger.warning("Unable to find extension %s" % (name))
             pass
 
-    combined_hdulist.writeto("dummy.fits", clobber=True)
+    combined_hdulist.writeto("dummy.fits", overwrite=True)
 
     logger.info("Writing output to %s" % (out_filename))
     out_hdulist = pyfits.HDUList(out_hdulist) #[primhdu, combined, assoc_hdu])
-    out_hdulist.writeto(out_filename, clobber=True)
+    out_hdulist.writeto(out_filename, overwrite=True)
 
     logger.info("Work complete!")
 

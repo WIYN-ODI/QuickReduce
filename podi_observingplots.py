@@ -3,7 +3,7 @@
 import os
 import sys
 import numpy
-import pyfits
+import astropy.io.fits as pyfits
 
 try:
     import cPickle as pickle

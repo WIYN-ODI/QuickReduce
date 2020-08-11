@@ -71,7 +71,7 @@ Modules
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import scipy
 from astLib import astWCS
@@ -316,7 +316,7 @@ def create_saturation_catalog(filename, output_dir, verbose=True, mp=False, redo
     output_filename = "%s/%s.saturated.fits" % (output_dir, basename)
     clobberfile(output_filename)
     logger.debug("Writing output file %s" % (output_filename))
-    hdulist.writeto(output_filename, clobber=True)
+    hdulist.writeto(output_filename, overwrite=True)
 
     logger.debug("all done!")
     return
@@ -452,7 +452,7 @@ def create_saturation_catalog_ota(filename, output_dir, verbose=True,
     stdout_write("Writing output: %s\n" % (output_filename))
 
     clobberfile(output_filename)
-    out_hdulist.writeto(output_filename, clobber=True)
+    out_hdulist.writeto(output_filename, overwrite=True)
 
     if (verbose):
         print("some of the saturated pixels:\n",final_cat[0:10,:])
@@ -1262,7 +1262,7 @@ def create_new_persistency_map(shape=None, write_fits=None):
         stdout_write("Writing persistency map (%s) ..." % write_fits)
         fits_hdu = pyfits.HDUList(hdulist)
         clobberfile(write_fits)
-        fits_hdu.writeto(write_fits, clobber=True)
+        fits_hdu.writeto(write_fits, overwrite=True)
         stdout_write(" done!\n")
         return
     else:
@@ -1308,7 +1308,7 @@ if __name__ == "__main__":
             ota = int(inputhdu[i].header['EXTNAME'][3:5])
             print(ota)
             inputhdu[i].data = mask_saturation_defects(catalog_file, ota, inputhdu[i].data)
-        inputhdu.writeto(output_file, clobber=True)
+        inputhdu.writeto(output_file, overwrite=True)
 
     elif (cmdline_arg_isset("-findclosemjds")):
         input_file = get_clean_cmdline()[1]
@@ -1348,7 +1348,7 @@ if __name__ == "__main__":
             inputhdu[i].data = mask_saturation_defects(exact_filename, ota, inputhdu[i].data)
             inputhdu[i].data = correct_persistency_effects(ota, inputhdu[i].data, mjd, filelist)      
         print("Writing ", output_file)
-        inputhdu.writeto(output_file, clobber=True)
+        inputhdu.writeto(output_file, overwrite=True)
 
     else:
         inputfile = sys.argv[1]
@@ -1369,7 +1369,7 @@ if __name__ == "__main__":
 
         map_out = add_mask_to_map(mask_timeseries, mjd, map_in)
         persistency_hdu[1].data = map_out
-        persistency_hdu.writeto(persistency_map_out, clobber=True)
+        persistency_hdu.writeto(persistency_map_out, overwrite=True)
 
         for ext in range(0, len(hdulist)):
             if (not is_image_extension(hdulist[ext])):
@@ -1382,7 +1382,7 @@ if __name__ == "__main__":
                 # data[mask_time] = mjd
                 # data[saturated] = 0
 
-        #hdulist.writeto("persistency.fits", clobber=True)
+        #hdulist.writeto("persistency.fits", overwrite=True)
 
 
     podi_logging.shutdown_logging(options)

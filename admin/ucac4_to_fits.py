@@ -23,7 +23,7 @@
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import math
 
@@ -160,7 +160,7 @@ def ascii2fits(asciifile, fitsfile):
 
     hdulist = pyfits.HDUList([primhdu, tbhdu])
 
-    hdulist.writeto(fitsfile, clobber=True)
+    hdulist.writeto(fitsfile, overwrite=True)
 
 
 # col byte item   fmt unit       explanation                            notes
@@ -403,7 +403,7 @@ def import_ucac(catalog_dir, ucac_ascii):
             # print "Creating catalog",full_catalog_filename
             primhdu = pyfits.PrimaryHDU()
             hdulist = pyfits.HDUList([primhdu, tbhdu])
-            hdulist.writeto(full_catalog_filename, clobber=True)
+            hdulist.writeto(full_catalog_filename, overwrite=True)
             n_new += 1
             pass
 

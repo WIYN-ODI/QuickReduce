@@ -42,7 +42,7 @@ example, podi_makecalibrations.
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import math
 import datetime

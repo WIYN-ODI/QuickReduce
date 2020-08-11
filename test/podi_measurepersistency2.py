@@ -25,7 +25,7 @@
 
 import sys
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import numpy
 import scipy
 import scipy.optimize
@@ -242,4 +242,4 @@ obsid = hdu[0].header['OBSID']
         del this_hdu
 
     hduout = pyfits.HDUList(hdulist_out)
-    hduout.writeto(output_fits, clobber=True)
+    hduout.writeto(output_fits, overwrite=True)

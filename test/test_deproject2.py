@@ -5,7 +5,7 @@ import sys
 import numpy
 import os
 from podi_definitions import *
-import pyfits
+import astropy.io.fits as pyfits
 import datetime
 import scipy
 import scipy.stats
@@ -289,7 +289,7 @@ print(deprojected_2d.shape)
 print("Saving image back to fits")
 primhdu.data = deprojected_2d
 
-primhdu.writeto("deprojected.fits", clobber=True)
+primhdu.writeto("deprojected.fits", overwrite=True)
 
 
 sys.exit(0)
@@ -352,7 +352,7 @@ print(deproject.shape)
 
 deproject_2d = numpy.reshape(deproject, (xd,yd))
 
-pyfits.PrimaryHDU(data=img[:xd,:yd]).writeto("input.fits", clobber=True)
+pyfits.PrimaryHDU(data=img[:xd,:yd]).writeto("input.fits", overwrite=True)
 primhdu = pyfits.PrimaryHDU(data=deproject_2d)
 primhdu.header.update("CRPIX1", 1.0)
 primhdu.header.update("CRPIX2", 1.0)
@@ -365,4 +365,4 @@ primhdu.header.update("CUNIT2", 'deg')
 primhdu.header.update("CTYPE1", 'RA---TAN')
 primhdu.header.update("CTYPE2", 'DEC--TAN')
 
-primhdu.writeto("output.fits", clobber=True)
+primhdu.writeto("output.fits", overwrite=True)

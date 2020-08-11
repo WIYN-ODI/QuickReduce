@@ -4,7 +4,7 @@
 import sys
 import numpy
 import os
-import pyfits
+import astropy.io.fits as pyfits
 import datetime
 import scipy
 import scipy.stats
@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
 
     stdout_write(" writing ...")
-    hdulist.writeto(output, clobber=True)
+    hdulist.writeto(output, overwrite=True)
     stdout_write(" done!\n")
 
 
