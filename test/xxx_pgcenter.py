@@ -256,53 +256,53 @@ def xxx_find_pupilghost_center(hdu,
 
 #    cx, cy = pupilghost_center_guess[hdu.header["EXTNAME"]]
 
-print("transposing/copying input")
-rawdata = hdu.data.T.copy()
+    print("transposing/copying input")
+    rawdata = hdu.data.T.copy()
     # trim the edges generously
-#    rawdata[3980:,:] = numpy.NaN
- #   rawdata[:,3980:] = numpy.NaN
+    #    rawdata[3980:,:] = numpy.NaN
+    #   rawdata[:,3980:] = numpy.NaN
     print("creating input px/py")
-px, py = numpy.indices(rawdata.shape)
+    px, py = numpy.indices(rawdata.shape)
 
     search_width=250
 
     search_r = [1240,1320, 2]
     search_x = [cx-search_width, cx+search_width,10]
     search_y = [cy-search_width, cy+search_width,10]
-print("\n\ninitial search")
-print("search-r=", search_r)
-print("search-x=", search_x)
-print("search-y=", search_y)
-print("----")
-verbose=True
+    print("\n\ninitial search")
+    print("search-r=", search_r)
+    print("search-x=", search_x)
+    print("search-y=", search_y)
+    print("----")
+    verbose=True
     prebin=8
     x, y, r, bincount, edge_frame = find_center(rawdata, px, py,
-                                                search_r = search_r,
-                                                search_x = search_x,
-                                                search_y = search_y,
-                                                prebin=8,
-                                                debugname="xxx_pgcenter__",
-                                                fixed_radius=1270,
-                                                verbose=True
-                                                )
+                                                    search_r = search_r,
+                                                    search_x = search_x,
+                                                    search_y = search_y,
+                                                    prebin=8,
+                                                    debugname="xxx_pgcenter__",
+                                                    fixed_radius=1270,
+                                                    verbose=True
+                                                    )
     if (verbose): print(x, y, r, " ---> ", x, y, r)
-if (verbose): print(x, y, r, " ---> ", x / prebin, y / prebin, r / prebin)
+    if (verbose): print(x, y, r, " ---> ", x / prebin, y / prebin, r / prebin)
 
-# numpy.savetxt("bincount"+hdu[i].header["EXTNAME"], numpy.sum(numpy.sum(bincount, axis=0), axis=0))
-    # log = open("bincount"+hdu[i].header["EXTNAME"]+".full", "w")
-    # for x,y,z  in itertools.product(range(bincount.shape[0]), 
-    #                                 range(bincount.shape[1]), 
-    #                                 range(bincount.shape[2])):
-    #     print >>log, x, y, z, bincount[x,y,z]
-    # log.close()
+    # numpy.savetxt("bincount"+hdu[i].header["EXTNAME"], numpy.sum(numpy.sum(bincount, axis=0), axis=0))
+        # log = open("bincount"+hdu[i].header["EXTNAME"]+".full", "w")
+        # for x,y,z  in itertools.product(range(bincount.shape[0]),
+        #                                 range(bincount.shape[1]),
+        #                                 range(bincount.shape[2])):
+        #     print >>log, x, y, z, bincount[x,y,z]
+        # log.close()
 
-    # hdu[i].data = edge_frame
-    # print
+        # hdu[i].data = edge_frame
+        # print
 
-    # Now we have a rough idea where the center is.
-    # Extract a sub-region of the frame close to the center 
-    # that contains the signal plus some extra, re-run the 
-    # center-finding routine and refine the solution.
+        # Now we have a rough idea where the center is.
+        # Extract a sub-region of the frame close to the center
+        # that contains the signal plus some extra, re-run the
+        # center-finding routine and refine the solution.
     center_x = x#*prebin
     center_y = y#*prebin
     radius = r#*prebin
@@ -334,27 +334,27 @@ if (verbose): print(x, y, r, " ---> ", x / prebin, y / prebin, r / prebin)
 
     if (verbose): print("MID-resolution: ", x, y, r, " ---> ", fixed_r_x, fixed_r_y, fixed_r_r)
 
-search_r = [radius-20,radius+20,2]
-    search_x = [center_x-30,center_x+30,4]
-    search_y = [center_y-30,center_y+30,4]
-print("search-r=", search_r)
-print("search-x=", search_x)
-print("search-y=", search_y)
-prebin=4
-    var_r_x, var_r_y, var_r_r, bincount2, edge_frame2 = find_center(midres_filtered,
-                                                midres_px, midres_py,
-                                                search_r = search_r,
-                                                search_x = search_x,
-                                                search_y = search_y,
-                                                prebin=prebin,
-                                                #debugname=hdu[i].header["EXTNAME"]+"__midres__",
-                                                  threshold=0,
-                                                )
+    search_r = [radius-20,radius+20,2]
+        search_x = [center_x-30,center_x+30,4]
+        search_y = [center_y-30,center_y+30,4]
+    print("search-r=", search_r)
+    print("search-x=", search_x)
+    print("search-y=", search_y)
+    prebin=4
+        var_r_x, var_r_y, var_r_r, bincount2, edge_frame2 = find_center(midres_filtered,
+                                                    midres_px, midres_py,
+                                                    search_r = search_r,
+                                                    search_x = search_x,
+                                                    search_y = search_y,
+                                                    prebin=prebin,
+                                                    #debugname=hdu[i].header["EXTNAME"]+"__midres__",
+                                                      threshold=0,
+                                                    )
 
-    if (verbose): print("MID-resolution (variable r): ", x, y, r, " ---> ", var_r_x, var_r_y, var_r_r)
-print("MID-resolution (variable r): ", x, y, r, " ---> ", var_r_x / prebin, var_r_y / prebin, var_r_r / prebin)
+        if (verbose): print("MID-resolution (variable r): ", x, y, r, " ---> ", var_r_x, var_r_y, var_r_r)
+    print("MID-resolution (variable r): ", x, y, r, " ---> ", var_r_x / prebin, var_r_y / prebin, var_r_r / prebin)
 
-if (True):
+    if (True):
         print("dumping bincount2")
         dump = open("bincount.dump", "w")
         print(bincount2.shape)
@@ -378,7 +378,7 @@ if __name__ == "__main__":
 
     cx = float(sys.argv[3])
     cy = float(sys.argv[4])
-    fx, fy, fr, vx, vy, vr = xxx_find_pupilghost_center(hdu[extension], 
+    fx, fy, fr, vx, vy, vr = xxx_find_pupilghost_center(hdu[extension],
                                                         cx, cy,
                                                         verbose=False,)
     print("   fixed radius:", fx, fy, fr)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-print "importing sampy"
+print("importing sampy")
 import sys
 import os
 bd, _ = os.path.split(os.path.abspath(sys.argv[0]))
@@ -21,7 +21,7 @@ from podi_commandline import *
 message_queue = "odi.image.load"
 
 if __name__ == "__main__":
-    print "Starting SAMPY message sender"
+    print("Starting SAMPY message sender")
 
     # Create a client
     metadata = {"samp.name":"QR_sender",
@@ -34,12 +34,12 @@ if __name__ == "__main__":
 
     target = sys.argv[1]
 
-    print "Sending message"
+    print("Sending message")
 
     if (target == 'ds9'):
         queue = 'ds9.set'
         cmd = " ".join(sys.argv[2:])
-        print "queue=%s" % queue
+        print("queue=%s" % queue)
         cli1.enotifyAll(mtype=queue, cmd=cmd)
 
     elif (target == "ping"):
@@ -47,14 +47,14 @@ if __name__ == "__main__":
         while (True):
             try:
                 ret = cli1.ecallAndWait("hub", "samp.app.ping", "5")
-                print "SUCCESS\n",ret
+                print("SUCCESS\n",ret)
             except sampy.SAMPProxyError as e:
                 # If timeout expires than a SAMPProxyError is returned
-                print "Error (%s): %s" % (e.faultCode, e.faultString)
-                print "Ran into SAMPProxyError"
+                print("Error (%s): %s" % (e.faultCode, e.faultString))
+                print("Ran into SAMPProxyError")
                 pass
             except:
-                print "Problem with pinging"
+                print("Problem with pinging")
                 pass
 
             try:
@@ -65,7 +65,7 @@ if __name__ == "__main__":
 
     elif (target == 'qr'):
         filename = sys.argv[2]
-        print datetime.datetime.now().strftime("%H:%M:%S.%f")
+        print(datetime.datetime.now().strftime("%H:%M:%S.%f"))
         cli1.enotifyAll(mtype=message_queue, filename=filename)
 
     elif (target == 'translate'):
@@ -74,7 +74,7 @@ if __name__ == "__main__":
         import podi_collectcells
         out = podi_collectcells.format_filename(input_filename, formatstring)
 
-        print out
+        print(out)
 
     elif (target == 'stack'):
         trackrate = 'none'
@@ -84,8 +84,8 @@ if __name__ == "__main__":
         for fn in filelist:
             abspath_filelist.append(os.path.abspath(fn))
 
-        print trackrate
-        print filelist
+        print(trackrate)
+        print(filelist)
 
         # Create the extra_kws
         extra_kws = {"pixelscale": "0.4",
@@ -109,10 +109,10 @@ if __name__ == "__main__":
                         )
     else:
         # This is not understood
-        print "I don't understand this target: only qr and ds9 are known"
+        print("I don't understand this target: only qr and ds9 are known")
         pass
 
-    print "message sent"
+    print("message sent")
 
     # time.sleep(5)
 

@@ -11,7 +11,7 @@ hdr = pyfits.Header().fromtextfile(sys.argv[2])
 astwcs = astWCS.WCS(hdr, mode='pyfits')
 xy  = cat[:, 2:4] - [1., 1.]
 radec = numpy.array(astwcs.pix2wcs(xy[:, 0], xy[:, 1]))
-print radec[0]
+print(radec[0])
 
 
 

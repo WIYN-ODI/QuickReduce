@@ -38,9 +38,9 @@ def add_circle(buffer, center_x, center_y, radius, amplitude):
     dy = y - center_y
     d2 = dx*dx + dy*dy
 
-    print dx[0:10,0:10]
-    print dy[0:10,0:10]
-    print d2[0:10,0:10]
+    print(dx[0:10,0:10])
+    print(dy[0:10,0:10])
+    print(d2[0:10,0:10])
 
     #print d2[995:1005, 995:1005]
     
@@ -79,7 +79,7 @@ def create_from_template(command_file, buffer):
     # Load command file 
     cmdfile = open(command_file, "r")
     cmds = cmdfile.readlines()
-    print cmds
+    print(cmds)
     
     for i in range(len(cmds)):
         line = cmds[i]
@@ -87,7 +87,7 @@ def create_from_template(command_file, buffer):
             continue
         
         items = line.strip().split()
-        print items
+        print(items)
 
         shape = items[0]
         if (shape == "fillcircle"):
@@ -180,16 +180,16 @@ if __name__ == "__main__":
             if (extension in pupilghost_centers[filter]):
                 center_y, center_x = pupilghost_centers[filter][extension]
             else:
-                print"Couldn't find center for this extension"
+                print("Couldn't find center for this extension")
                 sys.exit(0)
         else:
-            print "Could find this filter in list"
+            print("Could find this filter in list")
             sys.exit(0)
     else:
         center_y = float(sys.argv[3])
         center_x = float(sys.argv[4])
 
-    print "Using center position %d, %d" % (center_y, center_x)
+    print ("Using center position %d, %d" % (center_y, center_x))
 
     # Loop over all extensions
     # For now only use the first one, hard enough
@@ -206,7 +206,7 @@ if __name__ == "__main__":
             # Now create the radial profile
             print("found extension %s\n" % (extname))
             
-            ota.data = ota_data[
+            ota.data = ota_data
 
             prebinned = rebin_image(ota.data[smaller_box:, smaller_box:], 4)
             x, y = numpy.indices(prebinned.shape)
@@ -217,11 +217,11 @@ if __name__ == "__main__":
 
             output = open(data_output_file, "w")
             for i in range(values.shape[0]):
-                print >>output, values[i,2], values[i,3], values[i,0], values[i,1]
+                print (values[i,2], values[i,3], values[i,0], values[i,1], file=output)
             output.close()
             
             output = open(data_output_file+".samples", "w")
             for i in range(0, radius_1d.shape[0]):
-                print >>output, i, radius_1d[i], data_1d[i]
+                print (i, radius_1d[i], data_1d[i], file=output)
             output.close()
     

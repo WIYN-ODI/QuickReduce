@@ -58,11 +58,11 @@ dzp_limit_min = -3.
 
 def create_zptrend_plot(files, output_filename, show_plot=False, zpoffset=0.):
 
-    print "Reading data"
+    print("Reading data")
     direntry, arrays = read_data_from_files(files)
     obstype, exptime, filtername, photzp, photzpe, mjd, dateobs, airmass = arrays
 
-    print "Plotting"
+    print("Plotting")
     fig, ax = matplotlib.pyplot.subplots()
     # tfig, tax = matplotlib.pyplot.subplots()
 
@@ -80,7 +80,7 @@ def create_zptrend_plot(files, output_filename, show_plot=False, zpoffset=0.):
     # print all_dzps
     for thisfilter in set(filtername):
 
-        print thisfilter
+        print(thisfilter)
 
         legendname = None
         color = 'grey'
@@ -238,7 +238,7 @@ def create_zptrend_plot(files, output_filename, show_plot=False, zpoffset=0.):
 
     # Set output size to 900x500 pixels
     fig.set_size_inches(9, 5)
-    print "Saving output to file", output_filename
+    print("Saving output to file", output_filename)
     fig.savefig(output_filename, dpi=100)
 
     if (show_plot):
@@ -263,7 +263,7 @@ if __name__ == "__main__":
         # select all of tonights files, starting from noon
         import datetime, glob, time
         now = datetime.datetime.today() + datetime.timedelta(days=day_offset)
-        print now
+        print(now)
 
         if (now.hour < 12):
             # it's morning
@@ -274,19 +274,19 @@ if __name__ == "__main__":
             start_day = now
             end_day = now + datetime.timedelta(days=1)
 
-        print start_day, end_day
+        print(start_day, end_day)
 
         afternoon = start_day.strftime("%Y%m%d")+"T1[2-9]*.fits"
         night_firsthalf = start_day.strftime("%Y%m%d")+"T2[0-4]*.fits"
         night_secondhalf = end_day.strftime("%Y%m%d")+"T0[0-9]*.fits"
         wildcards = "%s %s %s" % (afternoon, night_firsthalf, night_secondhalf)
-        print wildcards
+        print(wildcards)
 
         while (True):
             files = glob.glob(afternoon) + glob.glob(night_firsthalf) + glob.glob(night_secondhalf)
 
             if (len(files) > len(old_filelist)):
-                print files
+                print(files)
                 create_zptrend_plot(files, output_filename, zpoffset=zpoffset)
 
             old_filelist = files

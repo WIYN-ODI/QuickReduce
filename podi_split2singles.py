@@ -33,7 +33,7 @@ if __name__ == "__main__":
     for filename in sys.argv[1:]:
 
         #filename = sys.argv[1]
-        print filename
+        print(filename)
 
         hdulist = pyfits.open(filename)
 

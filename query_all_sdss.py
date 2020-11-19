@@ -86,8 +86,8 @@ if __name__ == "__main__":
 
     outputfile = skytable.field("name")
 
-    print r_min
-    print outputfile[0:5]
+    print(r_min)
+    print(outputfile[0:5])
 
     for i in range(startat, len(outputfile)):
         directory, name = os.path.split(outputfile[i])
@@ -102,16 +102,16 @@ if __name__ == "__main__":
             hdu = pyfits.open(cat_fitsfile)
             expected = hdu[0].header['EXPCOUNT']
             read = hdu[0].header['CNTSRECV']
-            print "%s: exp. %d, completed %d" % (cat_fitsfile, expected, read)
+            print("%s: exp. %d, completed %d" % (cat_fitsfile, expected, read))
             hdu.close()
             if (read >= expected):
-                print "This file already is complete, continuing with the next one"
+                print("This file already is complete, continuing with the next one")
                 continue
             else:
-                print "#########################"
-                print "This file was started, but not complete, trying again:"
-                print "@@@", cat_fitsfile
-                print "#########################"
+                print("#########################")
+                print("This file was started, but not complete, trying again:")
+                print("@@@", cat_fitsfile)
+                print("#########################")
             
             
         count_entries = """\
@@ -142,11 +142,11 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
         #print "___",answer,"___"
 
         if (len(answer) > 2):
-            print ''.join(answer)
+            print(''.join(answer))
             continue
 
         count = int(answer[1].strip())
-        print "---> expecting %s stars as result" % (count)
+        print("---> expecting %s stars as result" % (count))
         #print ''.join(answer)
 
         if (count > 0):
@@ -159,7 +159,7 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
         else:
             sqlquery = "No results expected, did not query"
             sdss_cat = numpy.zeros(shape=(0,12))
-            print "nothing expected..."
+            print("nothing expected...")
 
         # Create a catalog to hold the results:
         

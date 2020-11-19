@@ -39,6 +39,6 @@ if __name__ == "__main__":
             if (is_image_extension(ext)):
                 outlist.append(ext)
 
-        print "writing",inputfile
+        print("writing",inputfile)
         hdu_out = pyfits.HDUList(outlist)
         hdu_out.writeto(inputfile+".notab.fits", overwrite=True)

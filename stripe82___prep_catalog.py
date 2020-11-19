@@ -133,12 +133,12 @@ compatible_file = "stripe82calibStars_v2.6.4np"
 
 if (not os.path.isfile(compatible_file)):
     cmd = "awk '{if (substr($0,0,1)!=\"#\") print substr($0,11,10000);}' %s > %s" % (raw_file, compatible_file)
-    print cmd
+    print(cmd)
     os.system(cmd)
 
-print "Loading the catalog file"
+print("Loading the catalog file")
 full_cat = numpy.loadtxt(compatible_file)
-print "Done loading, found",full_cat.shape[0],"objects"
+print("Done loading, found",full_cat.shape[0],"objects")
 
 # Now take apart catalog
 
@@ -178,5 +178,5 @@ for i in range(len(filters)):
     
     # Write it to file, as a numpy binary array
     catalog_filename = "stripe82__%s.cat" % filters[i]
-    print "Writing catalog to file (%s)" % (catalog_filename)
+    print("Writing catalog to file (%s)" % (catalog_filename))
     numpy.save(catalog_filename, catalog)

@@ -94,23 +94,23 @@ def compute_quad_ratios(ref_coord):
     #area_ratios[0] = sorted_areas[2] / sorted_areas[3]
     #area_ratios[1] = sorted_areas[1] / sorted_areas[3]
 
-    print "all-areas:\n",all_areas[0:5,:]
+    print("all-areas:\n",all_areas[0:5,:])
 
     sortindex = numpy.argsort(all_areas, axis=1)
-    print "sortindex\n",sortindex[0:5,:]
+    print("sortindex\n",sortindex[0:5,:])
 
     xxx = numpy.ravel_multi_index((numpy.arange(all_areas.shape[0])[:, None], sortindex), dims=all_areas.shape)
     
-    print "xxx=\n",xxx[0:5,:]
+    print("xxx=\n",xxx[0:5,:])
 
     sorted_xxx = (all_areas.ravel()[xxx]).reshape(all_areas.shape)
     all_areas = sorted_xxx
 
-    print "test-sorted=\n", sorted_xxx[0:5,:]
+    print("test-sorted=\n", sorted_xxx[0:5,:])
 
-    print "indices before sort\n",indices[0:5,:]
+    print("indices before sort\n",indices[0:5,:])
     indices = (indices.ravel()[xxx]).reshape(indices.shape)
-    print "indices after sort\n",indices[0:5,:]
+    print("indices after sort\n",indices[0:5,:])
 
     ratios[:,0] = all_areas[:,2] / all_areas[:,3]
     ratios[:,1] = all_areas[:,1] / all_areas[:,3]
@@ -127,7 +127,7 @@ def find_optimal_transformation(reference_coords, catalog_coords, verbose=False,
 
     ref_ratios, ref_indices, ref_areas = compute_quad_ratios(ref_coord)
     if (verbose):
-        print "ref-ratios:\n",ref_ratios,"\nend of ref_ratios",ref_ratios.shape
+        print("ref-ratios:\n",ref_ratios,"\nend of ref_ratios",ref_ratios.shape)
 
     search_tree = scipy.spatial.cKDTree(ref_ratios)
 
@@ -150,10 +150,10 @@ def find_optimal_transformation(reference_coords, catalog_coords, verbose=False,
     # print matches
 
     if (verbose):
-        print "# matches=",len(matches)
-        print "# ref quads",ref_ratios.shape
-        print "# cat quads",cat_ratios.shape
-        print cat_ratios[:10,:]
+        print("# matches=",len(matches))
+        print("# ref quads",ref_ratios.shape)
+        print("# cat quads",cat_ratios.shape)
+        print(cat_ratios[:10,:])
 
 
     # Count how many pais we are going to find
@@ -167,19 +167,19 @@ def find_optimal_transformation(reference_coords, catalog_coords, verbose=False,
             continue
 
         if (verbose):
-            print 
-            print matches[i]
+            print()
+            print(matches[i])
 
         match_indices = matches[i]
         for j in range(len(match_indices)):
 
             if (verbose):
-                print "input #",i,"/",len(matches),", match #",j+1," --> "
-                print "       ",match_indices[j], ref_ratios[i], cat_ratios[match_indices[j]], cat_indices[match_indices[j]], ref_indices[i]
-                print "       ",reference_coords[ref_indices[i,0]], brightest_cat_radec[cat_indices[match_indices[j],0]]
-                print "       ",reference_coords[ref_indices[i,1]], brightest_cat_radec[cat_indices[match_indices[j],1]]
-                print "       ",reference_coords[ref_indices[i,2]], brightest_cat_radec[cat_indices[match_indices[j],2]]
-                print "       ",reference_coords[ref_indices[i,3]], brightest_cat_radec[cat_indices[match_indices[j],3]]
+                print("input #",i,"/",len(matches),", match #",j+1," --> ")
+                print("       ",match_indices[j], ref_ratios[i], cat_ratios[match_indices[j]], cat_indices[match_indices[j]], ref_indices[i])
+                print("       ",reference_coords[ref_indices[i,0]], brightest_cat_radec[cat_indices[match_indices[j],0]])
+                print("       ",reference_coords[ref_indices[i,1]], brightest_cat_radec[cat_indices[match_indices[j],1]])
+                print("       ",reference_coords[ref_indices[i,2]], brightest_cat_radec[cat_indices[match_indices[j],2]])
+                print("       ",reference_coords[ref_indices[i,3]], brightest_cat_radec[cat_indices[match_indices[j],3]])
 
             ref_x, ref_y, cat_x, cat_y = numpy.zeros(shape=(4)), numpy.zeros(shape=(4)), numpy.zeros(shape=(4)), numpy.zeros(shape=(4))
             for p in range(4):
@@ -189,8 +189,8 @@ def find_optimal_transformation(reference_coords, catalog_coords, verbose=False,
                 cat_y[p] = brightest_cat_radec[cat_indices[match_indices[j],p],1]
 
             if (verbose):
-                print "       Ref:", ref_x, "    Cat:",cat_x
-                print "       Ref:", ref_y, "    Cat:",cat_y
+                print("       Ref:", ref_x, "    Cat:",cat_x)
+                print("       Ref:", ref_y, "    Cat:",cat_y)
 
             # Now we have a set of corresponding points, so work out what coordinate transformation we need 
             # Coordinate transformation is as follows:
@@ -227,7 +227,7 @@ def find_optimal_transformation(reference_coords, catalog_coords, verbose=False,
             all_transformations[cur_match, :] = transformation_xy
 
             if (verbose):
-                print "       ",transformation_xy
+                print("       ",transformation_xy)
 
             # all_transformations = numpy.append(all_transformations, transformation_xy, axis=0)
             cur_match += 1
@@ -236,10 +236,10 @@ def find_optimal_transformation(reference_coords, catalog_coords, verbose=False,
         # print cat_ratios[i,:]
         # print [ref_ratios[matches[i][j]] for j in range(len(matches[i]))]
         if (verbose):
-            print
+            print()
 
     if (verbose):
-        print all_transformations
+        print(all_transformations)
 
     all_transformations = all_transformations[:cur_match,:]
 
@@ -261,7 +261,7 @@ def find_optimal_transformation(reference_coords, catalog_coords, verbose=False,
 
     # print matching_transforms
     if (verbose):
-        print "Number of matches:\n",n_matches
+        print("Number of matches:\n",n_matches)
 
     numpy.savetxt("test_quad.n_matches", n_matches)
 
@@ -272,8 +272,8 @@ def find_optimal_transformation(reference_coords, catalog_coords, verbose=False,
 
     best_transformation = all_transformations[idx_best_transformation]
     if (verbose):
-        print "Found a best transformation:"
-        print "    ",best_transformation
+        print("Found a best transformation:")
+        print("    ",best_transformation)
 
     return best_transformation, n_matches[idx_best_transformation]
 
@@ -342,8 +342,8 @@ if __name__ == "__main__":
 
         brightest_cat_radec += [0.2,0.1]
         scatter = numpy.random.randn(brightest_cat_radec.shape[0], brightest_cat_radec.shape[1]) * (0.3 / 3600.)
-        print "scatter=",scatter.shape, brightest_cat_radec.shape
-        print scatter * 3600.
+        print("scatter=",scatter.shape, brightest_cat_radec.shape)
+        print(scatter * 3600.)
 
 
         brightest_cat_radec += scatter
@@ -365,8 +365,8 @@ if __name__ == "__main__":
 
         best_transformation = find_optimal_transformation(ref_coord, brightest_cat_radec)
 
-        print "Found a best transformation:"
-        print "    ",best_transformation
+        print("Found a best transformation:")
+        print("    ",best_transformation)
 
         sys.exit(0)
 
@@ -396,16 +396,16 @@ if __name__ == "__main__":
 
         # print src_radec
         # print ref_radec
-        print "\n\nReference catalog:"
+        print("\n\nReference catalog:")
         numpy.savetxt(sys.stdout, ref_radec)
-        print "\n\nSource catalog:"
+        print("\n\nSource catalog:")
         numpy.savetxt(sys.stdout, src_radec)
 
-        print "\n\nGoing to work"
+        print("\n\nGoing to work")
         best_transformation = find_optimal_transformation(ref_radec, src_radec)
 
-        print "Found a best transformation:"
-        print "    ",best_transformation
+        print("Found a best transformation:")
+        print("    ",best_transformation)
 
         sys.exit(0)
 
@@ -433,14 +433,14 @@ if __name__ == "__main__":
         # Load the reference catalog
         # ra = numpy.median(src_cat[:,0])
         # dec = numpy.median(src_cat[:,1])
-        print src_cat[:,0]
+        print(src_cat[:,0])
         ra = scipy.stats.nanmedian(src_cat[:,0])
         dec = scipy.stats.nanmedian(src_cat[:,1])
-        print "Center of field ~", ra, dec
+        print("Center of field ~", ra, dec)
 
         # ipp_cat = podi_search_ipprefcat.get_reference_catalog(ra, dec, 0.7, "/Volumes/odifile/Catalogs/2mass_fits/")
         ipp_cat = podi_search_ipprefcat.get_reference_catalog(ra, dec, 0.7, "/datax/2mass_fits/")
-        print "Found in 2mass",ipp_cat.shape
+        print("Found in 2mass",ipp_cat.shape)
 
         matched_cat = match_catalog_areas(src_radec, ipp_cat, (2./60.))
         numpy.savetxt("ref.cat.raw", ipp_cat) 
@@ -454,22 +454,22 @@ if __name__ == "__main__":
         ref_radec = ref_radec[(ref_mag[:,0] > 13) & (ref_mag[:,0]<16)]
         ref_mag = ref_mag[(ref_mag[:,0] > 13) & (ref_mag[:,0]<16)]
         ref_radec, ref_mag = select_brightest(matched_cat, ref_mag, ref_count)
-        print ref_radec.shape, ref_count
+        print(ref_radec.shape, ref_count)
 
         numpy.savetxt("test_quad.ref_radec", ref_radec)
         numpy.savetxt("test_quad.src_radec", src_radec)
 
         # print src_radec
         # print ref_radec
-        print "\n\nReference catalog:"
+        print("\n\nReference catalog:")
         numpy.savetxt(sys.stdout, ref_radec)
-        print ref_radec.shape
+        print(ref_radec.shape)
 
-        print "\n\nSource catalog:"
+        print("\n\nSource catalog:")
         numpy.savetxt(sys.stdout, src_radec)
-        print src_radec.shape
+        print(src_radec.shape)
 
-        print "\n\nGoing to work"
+        print("\n\nGoing to work")
 
         #import cProfile, pstats
         ##cProfile.run("""best_transformation = find_optimal_transformation(ref_radec, src_radec)""", "profiler")
@@ -482,9 +482,9 @@ if __name__ == "__main__":
 
         # best_transformation = find_optimal_transformation(ref_radec[:,0:2], src_radec)
 
-        print "Found a best transformation:"
-        print "    ",best_transformation
-        print " # matches =",n_matches
+        print("Found a best transformation:")
+        print("    ",best_transformation)
+        print(" # matches =",n_matches)
 
 
         sys.exit(0)

@@ -19,7 +19,7 @@ from podi_wcs import *
 
 def delete_distortion_headers(hdr):
     # now delete all PV headers if requested
-    print "deleting headers:", len(hdr.cards)
+    print("deleting headers:", len(hdr.cards))
 
     deleted_one = True
     while (deleted_one):
@@ -34,7 +34,7 @@ def delete_distortion_headers(hdr):
                 break
 
                 # print hdr[key]
-    print "done deleting headers:", len(hdr.cards)
+    print("done deleting headers:", len(hdr.cards))
 
 
 
@@ -139,7 +139,7 @@ if __name__ == "__main__":
         hdr = hdulist[ext].header
 
         extname = hdr['EXTNAME']
-        print extname
+        print(extname)
 
         #hdr['NAXIS'] = 2
         #hdr['NAXIS1'] = 4000
@@ -149,8 +149,8 @@ if __name__ == "__main__":
 
         # Create a bunch of random x/y coordinates
         xy = numpy.random.random((n_stars,2)) * 4000.
-        print xy.shape
-        print xy[:5,:]
+        print(xy.shape)
+        print(xy[:5,:])
 
 
         # From the x/y, compute Ra/decs
@@ -211,8 +211,8 @@ if __name__ == "__main__":
 
         numpy.savetxt("optimize.%s.x" % (extname), catalog)
 
-        print "imghdu -> \n",radec[:5,:]
-        print "newhdu -> \n",radec_new[:5,:]
+        print("imghdu -> \n",radec[:5,:])
+        print("newhdu -> \n",radec_new[:5,:])
 
 #        header_keywords  = ('CRPIX1', 'CRPIX2',
 #                            'CD1_1', 'CD1_2', 'CD2_1', 'CD2_2',)
@@ -236,9 +236,9 @@ if __name__ == "__main__":
         # The new header values are still in the wcs_out class
         #print "before xxx", wcs_out.header['CRPIX1']
         #wcs_out.header['CRPIX1'] += 100
-        print "before fit", wcs_out.header['CRPIX1']
+        print("before fit", wcs_out.header['CRPIX1'])
         dev_ccmatch.optimize_wcs_solution(catalog, wcs_out.header, header_keywords)
-        print "after  fit", wcs_out.header['CRPIX1']
+        print("after  fit", wcs_out.header['CRPIX1'])
 
         # Activate the changes to the WCS headers
         # print "\n"*20
@@ -258,7 +258,7 @@ if __name__ == "__main__":
         numpy.savetxt("optimize.%s" % (extname), catalog_out)
 
         dradec = radec - radec_new #catalog[:,0:2]  - catalog[:,4:6]
-        print dradec[:5,:] * 3600. * 1000.
+        print(dradec[:5,:] * 3600. * 1000.)
 
         # Update all headers with the new fitted values
         for keyname in hdr:
@@ -266,7 +266,7 @@ if __name__ == "__main__":
             if (keyname in wcs_out.header):
                 hdulist[ext].header[keyname] = wcs_out.header[keyname]
                 if (wcs_out.header[keyname] != wcs_in.header[keyname]):
-                    print "found change in key",keyname,", was:",wcs_in.header[keyname],"  now: ",wcs_out.header[keyname]
+                    print("found change in key",keyname,", was:",wcs_in.header[keyname],"  now: ",wcs_out.header[keyname])
 
 
         # hdulist[ext].data = numpy.ones((4000,4000))
@@ -295,24 +295,24 @@ def dummy():
     # Compute how much offset we need to compensate via a change to CRPIX
     d_crval1_crpix = d_crval1 - crval_1_shift
     d_crval2_crpix = d_crval2 - crval_2_shift
-    print "Left to compensate via crpix:", d_crval1_crpix, d_crval2_crpix
+    print("Left to compensate via crpix:", d_crval1_crpix, d_crval2_crpix)
 
     # Invert the new CD' matrix
     cd_prime_inverse = cd_prime.I
 
     # print cd_prime
 
-    print "\nCD'^-1=\n",cd_prime_inverse
+    print("\nCD'^-1=\n",cd_prime_inverse)
 
     # Just as a sanity check, the product of CD and cd_inverse should be one
     unity = cd_prime.dot(cd_prime_inverse)
-    print unity
+    print(unity)
 
     d_crval_for_crpix = numpy.array([[d_crval1_crpix], [d_crval2_crpix]])
-    print "\nD-CRVAL=\n",d_crval_for_crpix
+    print("\nD-CRVAL=\n",d_crval_for_crpix)
 
     d_crpix = cd_prime_inverse.dot(d_crval_for_crpix)
-    print "delta crpix=\n",d_crpix
+    print("delta crpix=\n",d_crpix)
 
-    print "CRPIX (unchanged):", crpix_1, crpix_2
+    print("CRPIX (unchanged):", crpix_1, crpix_2)
 

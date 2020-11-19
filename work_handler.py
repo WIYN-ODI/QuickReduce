@@ -74,7 +74,7 @@ class reduce_collect_otas (object):
         should_be_working = []
         process_ids = []
 
-        print "Starting to feed workers"
+        print("Starting to feed workers")
         x = 0
         while (not self.quit):
             #
@@ -94,7 +94,7 @@ class reduce_collect_otas (object):
                 ps = psutil.Process(pid)
                 if (ps.status() in [psutil.STATUS_ZOMBIE,
                                     psutil.STATUS_DEAD]):
-                    print "Found dead process: %d" % (pid)
+                    print("Found dead process: %d" % (pid))
                     process.terminate()
                     process.join(timeout=0.01)
                     self.info[fn]['process'] = None
@@ -102,20 +102,20 @@ class reduce_collect_otas (object):
                     continue
 
                 workers_alive += 1
-            print "%d workers still alive" % (workers_alive)
+            print("%d workers still alive" % (workers_alive))
 
             #
             # Start new workers if we have CPUs available
             #
             if (self.active_workers < self.number_cpus):
-                print "we have some capacity to start new workers"
+                print("we have some capacity to start new workers")
                 # Check all workers, and start one if we find one that's not alive
                 started_new_process = False
                 for fn in self.files_to_reduce: #self.info:
                     if (self.info[fn]['process'] is None):
                         
                         #if (not self.info[fn]['process'].is_alive()):
-                        print "starting worker for %s" % (fn)
+                        print("starting worker for %s" % (fn))
 
                         p = multiprocessing.Process(target=parallel_collect_reduce_ota, 
                                                     kwargs=self.info[fn]['args'])
@@ -137,12 +137,12 @@ class reduce_collect_otas (object):
                     continue
             x += 1
             if (x%10 == 0): 
-                print "still feeding workers"
-                print ",".join(["%d" % (p) for p in process_ids])
+                print("still feeding workers")
+                print(",".join(["%d" % (p) for p in process_ids]))
             time.sleep(1)
         
     def collect_intermediate_results(self):
-        print "Starting to collect intermediate results", len(self.info)
+        print("Starting to collect intermediate results", len(self.info))
         self.intermediate_results_collected = 0
 
         while (self.intermediate_results_collected < len(self.info) and
@@ -153,11 +153,11 @@ class reduce_collect_otas (object):
             except Queue.Empty:
                 continue
 
-            print "received some results!"
+            print("received some results!")
             self.intermediate_results_collected += 1
             self.active_workers -= 1
 
-        print "***\n"*5,"All intermediate progress data received","\n***"*5
+        print("***\n"*5,"All intermediate progress data received","\n***"*5)
         self.intermediate_results_done.release()
         self.intermediate_results_complete = True
 
@@ -170,15 +170,15 @@ class reduce_collect_otas (object):
         self.quit = True
         if (not self.intermediate_results_complete):
             self.intermediate_results_done.release()
-        print "Terminating feeder"
+        print("Terminating feeder")
         #self.feed_worker_thread.terminate()
         for fn in self.info:
             try:
-                print "terminating process for %s" % (fn)
+                print("terminating process for %s" % (fn))
                 p = self.info[fn]['process']
                 p.terminate()
                 p.join()
-                print "done!"
+                print("done!")
             except:
                 pass
 
@@ -187,7 +187,7 @@ class reduce_collect_otas (object):
         if (not filename in self.info):
             self.info[filename] = {}
         else:
-            print "we are already working on %s" % (filename)
+            print("we are already working on %s" % (filename))
 
         #
         # Setup a new process for this file
@@ -199,7 +199,7 @@ class reduce_collect_otas (object):
         self.info[filename]['args']['shmem_id'] = len(self.info)
         self.info[filename]['intermediate_data'] = None
 
-        print "Setting up reduction for %s" % (filename)
+        print("Setting up reduction for %s" % (filename))
         self.info[filename]['process'] = None
 
         self.files_to_reduce.append(filename)
@@ -237,7 +237,7 @@ if __name__ == "__main__":
     except (SystemExit, KeyboardInterrupt):
         worker.abort()
 
-    print "All data received!"
+    print("All data received!")
     worker.abort()
 
     podi_logging.shutdown_logging(options)

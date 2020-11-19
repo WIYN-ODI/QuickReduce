@@ -256,8 +256,7 @@ def convert_ascii_to_fits(raw_dir, out_dir, indexfile, start_at, end_at):
             # 79: r mean kron magnitude - to isolate stars
             if (not os.path.isfile(fn)):
                 print("missing file %s for %s" % (fn, cat_fitsfile))
-                print("missing file %s for %s" % (
-                fn, cat_fitsfile, file=error_log)
+                print("missing file %s for %s" % (fn, cat_fitsfile), file=error_log)
                 error_abort=True
                 break
             try:
