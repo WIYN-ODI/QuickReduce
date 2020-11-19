@@ -41,7 +41,7 @@ def run_query(sql_query):
     # Filter out comments starting with "--"
     fsql = ""
     for line in sql_query.split('\n'):
-        fsql += line.split('--')[0] + ' ' + os.linesep;
+        fsql += line.split('--')[0] + ' ' + os.linesep
     #print "_______",fsql,"_________"
     params = urllib.urlencode({'cmd': fsql, 'format': 'csv'})
     #print params

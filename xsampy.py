@@ -1111,7 +1111,7 @@ if BDB_SUPPORT:
     def report_401(self):
       # Report a 401 error
       self.send_response(401)
-      self.send_header("WWW-Authenticate", "Basic realm=\"Protected access\"");
+      self.send_header("WWW-Authenticate", "Basic realm=\"Protected access\"")
       self.end_headers()
       # shut down the connection
       self.connection.shutdown(1)

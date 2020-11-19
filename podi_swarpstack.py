@@ -1773,7 +1773,6 @@ def swarpstack(outputfile,
                    'bgsub_file': bgsub_file,
                    'bgsub_weight_file': bgsub_weight_file,
                    'bgopts': bg_opts,
-                   'inputfile': prepared_file,
                    'fileid': fileid,
                    'delete_tmpfiles': "N" if swarp_params['keep_resamp_files'] else "Y",
                }

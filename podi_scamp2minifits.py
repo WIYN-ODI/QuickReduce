@@ -102,7 +102,7 @@ def scamp_header_to_minifits(filename, minifits_outputname, reference_fits,
 
     refhdu = pyfits.open(reference_fits)
     # Count how many image extensions exist in the reference frame
-    n_imageext = 0;
+    n_imageext = 0
     ota_names = []
     for i in range(len(refhdu)):
         if (is_image_extension(refhdu[i])):

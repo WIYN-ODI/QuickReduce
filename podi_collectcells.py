@@ -464,7 +464,6 @@ def collect_reduce_ota(filename,
         "fringe_scaling": None,
         "fringe-template": None,
         "source-cat": None,
-        "tech-header": None,
         'pupilghost-scaling': None,
         'pupilghost-template': None,
         'reduction_files_used': None,
@@ -3284,7 +3283,7 @@ def collectcells(input, outputfile,
         exclude_ota = fpl.blocked_out_otas[filtername]
         unblocked_otas = []
         for (ox, oy) in list_of_otas_to_collect:
-            ota = ox * 10 + oy;
+            ota = ox * 10 + oy
             if (not ota in exclude_ota):
                 unblocked_otas.append((ox,oy))
         list_of_otas_to_collect = unblocked_otas

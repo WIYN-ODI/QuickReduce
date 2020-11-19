@@ -179,7 +179,7 @@ AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
     # Filter out comments starting with "--"
     fsql = ""
     for line in sql_query.split('\n'):
-        fsql += line.split('--')[0] + ' ' + os.linesep;
+        fsql += line.split('--')[0] + ' ' + os.linesep
     params = urllib.urlencode({'cmd': fsql, 'format': 'csv'})
     url = 'http://skyserver.sdss3.org/dr8/en/tools/search/x_sql.asp'
     sdss = urllib.urlopen(url+'?%s' % params)
