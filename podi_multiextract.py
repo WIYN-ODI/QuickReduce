@@ -49,7 +49,7 @@ if __name__ == "__main__":
 
         _,basename = os.path.split(inputfile)
 
-        print "Extracting from",inputfile,
+        print("Extracting from",inputfile,)
         hdulist = pyfits.open(inputfile)
 
         if (cmdline_arg_isset("-cleanprimary")):
@@ -62,16 +62,16 @@ if __name__ == "__main__":
         try:
             outlist.append(hdulist[extension_name])
         except:
-            print "--> extension not found"
+            print("--> extension not found")
             continue
 
         
         if (len(outlist) > 1):
             out_filename = "%s.%s.fits" % (basename[:-5], out_prefix)
-            print " --> writing to",out_filename,
+            print(" --> writing to",out_filename,)
             hdu_out = pyfits.HDUList(outlist)
             hdu_out.writeto(out_filename, overwrite=True)
-            print "done!"
+            print("done!")
 
         else:
-            print "couldn't find any extension"
+            print("couldn't find any extension")

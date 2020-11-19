@@ -68,7 +68,7 @@ if __name__ == "__main__":
     out_list = [hdulist[0]]
 
     if (os.path.isfile(outfits) and cmdline_arg_isset("-noclobber")):
-        print " file exists, skipping"
+        print(" file exists, skipping")
         sys.exit(0)
 
 

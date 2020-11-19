@@ -52,7 +52,7 @@ if __name__ == "__main__":
         extname_list = []
 
         for fn in get_clean_cmdline()[1:-1]:
-            print "Adding", fn
+            print("Adding", fn)
             hdulist = pyfits.open(fn)
             for ext in hdulist:
                 if (not type(ext)== pyfits.hdu.image.ImageHDU):
@@ -120,7 +120,7 @@ if __name__ == "__main__":
             wcs = astWCS.WCS(hdr, mode='pyfits')
             wcs.updateFromHeader()
             x,y = corners[ota]
-            print numpy.array(wcs.pix2wcs(x,y))
+            print(numpy.array(wcs.pix2wcs(x,y)))
             radec_ref[idx,:] = numpy.array(wcs.pix2wcs(x,y))
         except:
             # ignore OTAs that are missing
@@ -132,12 +132,12 @@ if __name__ == "__main__":
     ref_point = bottleneck.nanmean(radec_ref, axis=0)
     # ref_point += wcs_offset
 
-    print "REF:",ref_point
+    print("REF:",ref_point)
 
     crval = numpy.array([hdulist[1].header['CRVAL1'], hdulist[1].header['CRVAL2']])
 
     d_crval = ref_point - crval
-    print "current CRVAL:", hdulist[1].header['CRVAL1'], hdulist[1].header['CRVAL2']
+    print("current CRVAL:", hdulist[1].header['CRVAL1'], hdulist[1].header['CRVAL2'])
 
     #
     #
@@ -181,7 +181,7 @@ if __name__ == "__main__":
             #    continue
 
             extname = hdulist[ext].name
-            print extname
+            print(extname)
 
             # Read input WCS
             hdr = hdulist[ext].header.copy()
@@ -191,7 +191,7 @@ if __name__ == "__main__":
             hdr['CRVAL1'] = math.fmod(hdr['CRVAL1'] + wcs_offset[0], 360.0)
             hdr['CRVAL2'] += wcs_offset[1]
 
-            print "input:", hdr['CRVAL1'], hdr['CRVAL2']
+            print("input:", hdr['CRVAL1'], hdr['CRVAL2'])
             # hdulist[ext].header['NAXIS'] = 2
             # hdulist[ext].header['NAXIS1'] = 4096
             # hdulist[ext].header['NAXIS2'] = 4096
@@ -216,7 +216,7 @@ if __name__ == "__main__":
             # compute the pixel position of the reference Ra/Dec point
             #
             ref_crpix = in_wcs.wcs2pix(ref_point[0], ref_point[1])
-            print hdulist[ext].name, ref_point, ref_crpix
+            print(hdulist[ext].name, ref_point, ref_crpix)
             # Set these coordinates to align with the reference point 
             # in_wcs.header['CRPIX1'] = ref_crpix[0]
             # in_wcs.header['CRPIX2'] = ref_crpix[1]
@@ -229,7 +229,7 @@ if __name__ == "__main__":
             out_hdr['PV2_1'] = 1.0
             out_hdr['CRPIX1'] = ref_crpix[0]
             out_hdr['CRPIX2'] = ref_crpix[1]
-            print "output pre-fit:", out_hdr['CRVAL1'], out_hdr['CRVAL2']
+            print("output pre-fit:", out_hdr['CRVAL1'], out_hdr['CRVAL2'])
             out_wcs = astWCS.WCS(out_hdr, mode='pyfits')
 
     #        out_hdr['CRVAL1'] -= d_crval[0]
@@ -281,7 +281,7 @@ if __name__ == "__main__":
                 #print fit
                 p_final = fit[0]
             except:
-                print "fit failed:",extname
+                print("fit failed:",extname)
                 p_final = p_start
 
             #print xy.shape
@@ -331,7 +331,7 @@ if __name__ == "__main__":
             wcs = astWCS.WCS(hdr, mode='pyfits')
             wcs.updateFromHeader()
             x,y = corners[ota]
-            print numpy.array(wcs.pix2wcs(x,y))
+            print(numpy.array(wcs.pix2wcs(x,y)))
             radec_ref[idx,:] = numpy.array(wcs.pix2wcs(x,y))
         except:
             # ignore OTAs that are missing
@@ -340,16 +340,16 @@ if __name__ == "__main__":
             podi_logging.log_exception()
             pass
 
-    print radec_ref
+    print(radec_ref)
     ref_point = bottleneck.nanmean(radec_ref, axis=0) - wcs_offset
-    print "computed ref-point:", ref_point 
+    print("computed ref-point:", ref_point)
 
 
     if (cmdline_arg_isset("-offset")):
         _off = get_cmdline_arg("-offset").split(",")
         ref_point[0] = float(_off[0])
         ref_point[1] = float(_off[1])
-        print "overwriting ref-point:", ref_point 
+        print("overwriting ref-point:", ref_point)
 
 
     if (zero_crval):
@@ -360,11 +360,11 @@ if __name__ == "__main__":
             crval = out_hdulist[idx].header['CRVAL1'] - ref_point[0]
             out_hdulist[idx].header['CRVAL1'] = math.fmod((crval - math.floor(crval/360.)*360), 360.0)
             out_hdulist[idx].header['CRVAL2'] -= ref_point[1]
-            print "%s %18.15f %18.15f" % (
+            print("%s %18.15f %18.15f" % (
                 out_hdulist[idx].name, 
                 out_hdulist[idx].header['CRVAL1'], 
                 out_hdulist[idx].header['CRVAL2']
-            )
+            ))
     #
     # Cleanup the FITS headers, and remove all headers that are not WCS-related
     #

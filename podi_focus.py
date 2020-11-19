@@ -884,7 +884,7 @@ def create_focus_plot(plotdata, stats, obsid, plotfile, real_numbers):
 
     fig.tight_layout()
 
-    print "Saving plot to",plotfile
+    print("Saving plot to",plotfile)
     fig.savefig(plotfile)
 
     return

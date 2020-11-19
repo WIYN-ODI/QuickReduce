@@ -54,7 +54,7 @@ def extract_headers(inputfile, outputfile, extensions):
 
     for extension in extensions:
 
-        print extension, extension=='PRIMARY'
+        print(extension, extension=='PRIMARY')
         try:
             if (extension == 'PRIMARY'):
                 ext = pyfits.ImageHDU(header=hdulist[0].header,
@@ -67,12 +67,12 @@ def extract_headers(inputfile, outputfile, extensions):
                 iext = int(extension)
                 ext = hdulist[iext]
             except:
-                print "couldn't find extension",extension
+                print("couldn't find extension",extension)
                 continue
         except:
             raise
 
-        print "Adding ext", ext.name
+        print("Adding ext", ext.name)
         outlist.append(ext)
 
     if (cmdline_arg_isset("-singleext")):
@@ -87,12 +87,12 @@ def extract_headers(inputfile, outputfile, extensions):
         return
 
     if (len(outlist) > 0):
-        print "writing"
+        print("writing")
         hdu_out = pyfits.HDUList(outlist)
         hdu_out.info()
         hdu_out.writeto(outputfile, overwrite=True)
     else:
-        print "couldn't find any extension"
+        print("couldn't find any extension")
 
 
 
@@ -102,6 +102,6 @@ if __name__ == "__main__":
     outputfile = get_clean_cmdline()[-1]
     extensions = get_clean_cmdline()[2:-1]
 
-    print extensions
+    print(extensions)
 
     extract_headers(inputfile, outputfile, extensions)

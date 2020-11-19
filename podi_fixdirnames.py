@@ -48,14 +48,14 @@ if __name__ == "__main__":
                 #print dirname,"-->",basename
 
                 if (os.path.isdir(basename)):
-                    print "Directory",basename,"already exists, skipping!"
+                    print("Directory",basename,"already exists, skipping!")
                 else:
-                    print "Renaming directory %s --> %s" % (dirname, basename)
+                    print("Renaming directory %s --> %s" % (dirname, basename))
                     mv_cmd = "mv %s %s" % (dirname, basename)
                     os.system(mv_cmd)
 
                 break
-    print "All done!\n"
+    print("All done!\n")
 
 
 

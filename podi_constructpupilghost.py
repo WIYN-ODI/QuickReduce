@@ -661,7 +661,7 @@ def create_radial_pupilghost(filename, outputfile, radial_opts, verbose=True):
         data_fullres = hdulist[ext].data
         center = (data_fullres.shape[0]/2, data_fullres.shape[1]/2)
         (r_inner, r_outer, dr) = radial_opts
-        print radial_opts
+        print(radial_opts)
 
         stdout_write("reading extension %d ..." % ext) #(hdulist[ext].header['EXTNAME']))
         # to cut down on computing, bin the frame
@@ -705,7 +705,7 @@ def create_radial_pupilghost(filename, outputfile, radial_opts, verbose=True):
         if (n_knots > 75): 
             n_knots=75
         radial_knots = numpy.linspace(r_inner+0.7*dr, r_outer-0.7*dr, n_knots)
-        if (verbose): print "radial knots=",radial_knots[0:5],"...",radial_knots[-5:]
+        if (verbose): print("radial knots=",radial_knots[0:5],"...",radial_knots[-5:])
 
         stdout_write(" fitting ...")
         radial_profile = scipy.interpolate.LSQUnivariateSpline(
@@ -717,19 +717,19 @@ def create_radial_pupilghost(filename, outputfile, radial_opts, verbose=True):
         # original positions so we can compare things
         pupilghost_profile[:,3] = radial_profile(pupilghost_profile[:,0])
 
-        print >>profile_txt, "#", extname
+        print ("#"+extname, file=profile_txt)
         numpy.savetxt(profile_txt, pupilghost_profile)
-        print >>profile_txt, "\n\n\n\n\n"
+        print("\n\n\n\n\n", file=profile_txt)
 
         #
         # Compute the 2-d radial profile
         #
         radius_fullres_asbinned = radius_fullres / binfac
         radius_1d = radius_fullres_asbinned.ravel()
-        print "rad-1d",radius_1d.shape
+        print("rad-1d",radius_1d.shape)
 
         radial_pupilghost = radial_profile(radius_1d).reshape(radius_fullres.shape)
-        print "rad pg",radial_pupilghost.shape
+        print("rad pg",radial_pupilghost.shape)
 
         # set all pixels outside the pupil ghost radial range to 0
         radial_pupilghost[(radius_fullres_asbinned > r_outer) | (radius_fullres_asbinned < r_inner)] = 0
@@ -812,7 +812,7 @@ def combine_pupilghost_slices(out_filename, filelist, op='sigclipmean'):
 
     logger = logging.getLogger("CombinePG")
 
-    print filelist
+    print(filelist)
     
     # 
     # Gather information about rotation angles and center positions
@@ -869,7 +869,7 @@ def combine_pupilghost_slices(out_filename, filelist, op='sigclipmean'):
         return_hdu=True,
         subtract=None, scale=None)
 
-    print combined_hdulist
+    print(combined_hdulist)
     combined = combined_hdulist['COMBINED']
 
     combined.header['STACK_OP'] = op
@@ -900,11 +900,11 @@ def combine_pupilghost_slices(out_filename, filelist, op='sigclipmean'):
                 #primhdu.header[keyname] = headers[idx][keyname]
                 first_hdr = keyname if first_hdr is None else first_hdr
                 if (prev_hdr is None):
-                    print "adding header",keyname," somewhere"
+                    print("adding header",keyname," somewhere")
                     primhdu.header.append((keyname, headers[idx][keyname]))
                     prev_hdr = keyname
                 else:
-                    print "adding header",keyname,"after",prev_hdr
+                    print("adding header",keyname,"after",prev_hdr)
                     primhdu.header.insert(prev_hdr, (keyname, headers[idx][keyname]), after=True)
                 prev_hdr = keyname
 
@@ -915,7 +915,7 @@ def combine_pupilghost_slices(out_filename, filelist, op='sigclipmean'):
         podi_logging.log_exception()
         pass
 
-    print assoc_table
+    print(assoc_table)
     assoc_hdu = podi_associations.create_association_table(assoc_table)
 
     out_hdulist = [primhdu, combined, assoc_hdu]
@@ -946,7 +946,7 @@ if __name__ == "__main__":
     options = read_options_from_commandline(None)
     podi_logging.setup_logging(options)
     
-    print """\
+    print("""\
 
   fit-pupilghost tool
   part of the pODI QuickReduce pipeline
@@ -954,7 +954,7 @@ if __name__ == "__main__":
   Contact the author with questions and comments.
   Website: members.galev.org/rkotulla
            --> Research --> podi-pipeline
-"""
+""")
 
     # Read in the input parameters
     binfac = int(cmdline_arg_set_or_default("-prebin", 1))
@@ -989,7 +989,7 @@ if __name__ == "__main__":
                 continue
      
             angle_error = compute_angular_misalignment(ext.header)
-            print "Angle_Misalignment (%s) = %f deg" % (ext.name, angle_error)
+            print("Angle_Misalignment (%s) = %f deg" % (ext.name, angle_error))
 
     elif (cmdline_arg_isset("-combine")):
 
@@ -1007,7 +1007,7 @@ if __name__ == "__main__":
         filenames = get_clean_cmdline()[1:]
         ncpus = int(cmdline_arg_set_or_default("-ncpu", multiprocessing.cpu_count()))
 
-        print filenames
+        print(filenames)
 
         radius_range = (r_inner, r_outer, dr)
 

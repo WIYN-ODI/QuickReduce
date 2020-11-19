@@ -45,7 +45,7 @@ if __name__ == "__main__":
     outputfile = get_clean_cmdline()[3]
 
     if (not os.path.isfile(inputfile)):
-        print "Unable to open file %s" % (inputfile)
+        print("Unable to open file %s" % (inputfile))
         sys.exit(0)
 
     try:
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     try:
         table = hdulist[tablename]
     except:
-        print "File %s does not contain table %s" % (inputfile, tablename)
+        print("File %s does not contain table %s" % (inputfile, tablename))
         pass
         sys.exit(0)
 
@@ -67,7 +67,7 @@ if __name__ == "__main__":
         stdout_write("(%s) writing header ..." % (inputfile))
         for i in range(len(table.columns)):
             col = table.columns[i]
-            print >>of, "# Column %02d: %-20s %-50s [%-10s]" % (i+1, col.name, col.disp, col.unit)
+            print("# Column %02d: %-20s %-50s [%-10s]" % (i+1, col.name, col.disp, col.unit), file=of)
 
 
         n_rows = table.data.field(0).shape[0]
@@ -75,8 +75,8 @@ if __name__ == "__main__":
 
         for row in range(n_rows):
             for field in range(n_fields):
-                print >>of, table.data.field(field)[row],
-            print >>of
+                print(table.data.field(field)[row],file=of)
+            print("", file=of)
             stdout_write("\r(%s) Writing row %d of %d ..." % (inputfile, row+1, n_rows))
         stdout_write("done!\n")
 

@@ -40,14 +40,14 @@ def read_data_from_files(filelist):
     if (os.path.isfile(pickled_file)):
         try:
             pickle_dict = open(pickled_file, "rb")
-            print "Reading pickled file..."
+            print("Reading pickled file...")
             direntry = pickle.load(pickle_dict)
             close(pickle_dict)
         except:
             pass
 
 
-    print filelist
+    print(filelist)
     for filename in filelist:
 
         if (not os.path.isfile(filename)):
@@ -59,7 +59,7 @@ def read_data_from_files(filelist):
             #(_obstype, _exptime, expmea_filtername, _photzp, _photzpe, _mjdobs, _dateobs) = direntry[filename]
 
         else:
-            print "Getting info for file", filename
+            print("Getting info for file", filename)
             try:
                 hdulist = pyfits.open(filename)
                 hdr = hdulist[0].header
@@ -105,7 +105,7 @@ def read_data_from_files(filelist):
 
     # Now pickle the dir_entry for later use
     picklejar = "index.pickle"
-    print "Pickling data..."
+    print("Pickling data...")
     with open(picklejar, "wb") as pf:
         pickle.dump(direntry, pf)
         pf.close()

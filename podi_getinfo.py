@@ -76,7 +76,7 @@ if __name__ == "__main__":
         ra = hdr['RA']
         dec = hdr['DEC']
 
-        print "%(filename)s %(dateobs)s %(obstype)6s %(binning)d %(filter)15s %(exptime)8.3f %(expmeas)8.3f %(object)60s %(ra)14s %(dec)14s" % {
+        print("%(filename)s %(dateobs)s %(obstype)6s %(binning)d %(filter)15s %(exptime)8.3f %(expmeas)8.3f %(object)60s %(ra)14s %(dec)14s" % {
             "filename": filename, 
             "dateobs": dateobs, 
             "obstype": obstype, 
@@ -87,5 +87,5 @@ if __name__ == "__main__":
             "object": object, 
             "ra": ra, 
             "dec": dec
-        }
+        })
         

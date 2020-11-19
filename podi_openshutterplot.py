@@ -58,7 +58,7 @@ from podi_commandline import *
 
 if __name__ == "__main__":
 
-    print "Reading data"
+    print("Reading data")
     direntry, arrays = read_data_from_files(get_clean_cmdline()[1:])
     obstype, exptime, filtername, photzp, photzpe, mjd, dateobs, airmass = arrays
 
@@ -71,14 +71,14 @@ if __name__ == "__main__":
     time_start = numpy.min(mjd)-mjd_zeropoint
     time_end = numpy.max(numpy.array(mjd)+numpy.array(exptime)/86400)-mjd_zeropoint
 
-    print time_start*24, time_end*24.
+    print(time_start*24, time_end*24.)
     hour_start = math.floor(time_start*24.)
     hour_end = math.ceil(time_end*24.)
     n_hours = int(hour_end - hour_start)
-    print n_hours, hour_start, hour_end
+    print(n_hours, hour_start, hour_end)
 
     
-    print "setting up plot"
+    print("setting up plot")
     fig = matplotlib.pyplot.figure()
 
     all_axes = []
@@ -145,7 +145,7 @@ if __name__ == "__main__":
 
     poly_for_axes = [[]] * n_hours
     polyc_for_axes = [[]] * n_hours
-    print poly_for_axes
+    print(poly_for_axes)
 
     for filename in direntry:
         
@@ -162,7 +162,7 @@ if __name__ == "__main__":
         
         # Determine which hour we need
         hour_slot = int( math.floor(init*24.) - hour_start )
-        print hour_start, init*24, hour_slot
+        print(hour_start, init*24, hour_slot)
         hour_slot=0
 
         this_color = 'grey'
@@ -220,7 +220,7 @@ if __name__ == "__main__":
     # Set output size to 900x500 pixels
     fig.set_size_inches(9,5)
     output_filename = cmdline_arg_set_or_default("-output", "shutter_open.png")
-    print "Saving output to file",output_filename
+    print("Saving output to file",output_filename)
     fig.savefig(output_filename, dpi=100)
 
     #tfig.savefig("transparency_trend.png")

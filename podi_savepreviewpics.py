@@ -67,7 +67,7 @@ def create_quickview(filename, output_directory, z1=None, z2=None, verbose=False
     dirname, filebase = os.path.split(filename)
     pos = filebase.find(".fits")
     filename_without_fits = filebase[:pos]
-    print filename_without_fits
+    print(filename_without_fits)
     
     hdulist = pyfits.open(filename)
 

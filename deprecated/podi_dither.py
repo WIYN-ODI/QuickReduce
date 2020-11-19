@@ -72,13 +72,13 @@ def handle_command(sum_dx, sum_dy):
     cmd = check_for_command()
     if (cmd == "pause"):
         reset_command()
-        print """\
+        print("""\
 ################
 #
 # Received pause command, waiting for resume or abort!
 #
 ################
-"""
+""")
 
         # Wait 1 second and check again
         counter = 0
@@ -93,23 +93,23 @@ def handle_command(sum_dx, sum_dy):
             sys.stdout.flush()
             cmd = check_for_command()
             
-        print """\
+        print("""\
 ################
 #
 # Received resume command, continuing dither sequence!
 #
-################"""
+################""")
         reset_command()
 
     if (cmd == "abort"):
         reset_command()
         # Return telescope to initial position and abort the dither sequence
-        print """\
+        print("""\
 ################
 #
 # Received abort command, undoing offsets and exiting script!
 #
-################"""
+################""")
         offset_scope(-sum_dx, -sum_dy)
         sys.exit(0)
 
@@ -141,12 +141,12 @@ if __name__ == "__main__":
     if (cmd == "pause" or
         cmd == "abort" or
         cmd == "resume"):
-        print """\
+        print("""\
 #
 # Sending '%s' command
-#""" % (cmd)
+#""" % (cmd))
         file = open(cmd_file, "w")
-        print >>file, cmd
+        print(cmd, file=file)
         file.close
         sys.exit(0)
     elif (cmd == "expose" or 
@@ -170,11 +170,11 @@ if __name__ == "__main__":
                     preexptime = float(sys.argv[start+1])
                     start += 2
                 else:
-                    print "unknown parameter:",next
+                    print("unknown parameter:",next)
             else:
                 break
     else:
-        print "Unknown command:",cmd
+        print("Unknown command:",cmd)
         sys.exit(0)
 
     reset_command()
@@ -191,10 +191,10 @@ if __name__ == "__main__":
     if (dither_pos_start > dither_pos_end):
         dither_pos_start, dither_pos_end = dither_pos_end, dither_pos_start
 
-    print "start-argv=",start
+    print("start-argv=",start)
     if (len(sys.argv)-start<3):
         # Not enough parameters
-        print """
+        print("""
 To run this dither-sequence, run:
 ~/bin/podi_dither.py command "target name" exptime declination
 
@@ -213,7 +213,7 @@ Additional commands:
 - resume - resume script after a pause command
 - abort  - terminate script and return telescope to origin
 
-"""
+""")
         sys.exit(0)
     
     target_name = sys.argv[start]
@@ -222,10 +222,10 @@ Additional commands:
 
     declination = float(sys.argv[start+2])
 
-    print "Starting dither sequence"
-    print "Object Name:  ", target_name
-    print "Exposure time:", exptime
-    print "Declination:  ", declination
+    print("Starting dither sequence")
+    print("Object Name:  ", target_name)
+    print("Exposure time:", exptime)
+    print("Declination:  ", declination)
 
     
     sum_dx, sum_dy = 0,0
@@ -243,11 +243,11 @@ Additional commands:
         dy = target_y - sum_dy
         
         handle_command(sum_dx, sum_dy)
-        print "#"
-        print "#  Applying dither offset - position %d:" % (i)
-        print "#     relative to last position: %+ 5d %+ 5d" % (dx, dy)
-        print "#     relative to origin:        %+ 5d %+ 5d" % (target_x, target_y)
-        print "#"
+        print("#")
+        print("#  Applying dither offset - position %d:" % (i))
+        print("#     relative to last position: %+ 5d %+ 5d" % (dx, dy))
+        print("#     relative to origin:        %+ 5d %+ 5d" % (target_x, target_y))
+        print("#")
         offset_scope(dx, dy)
 
         sum_dx += dx

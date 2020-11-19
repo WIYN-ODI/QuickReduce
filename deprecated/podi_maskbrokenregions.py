@@ -53,15 +53,15 @@ def mask_broken_regions(datablock, regionfile):
             counter += 1
 
     file.close()
-    print "Marked",counter,"bad pixel regions"
+    print("Marked",counter,"bad pixel regions")
     return datablock
 
 
 if __name__ == "__main__":
 
     cmd_name = sys.argv[0]
-    print cmd_name
-    print "files are in ",os.path.dirname(cmd_name)
+    print(cmd_name)
+    print("files are in ",os.path.dirname(cmd_name))
 
     starting_dir = os.path.dirname(cmd_name)
     for filename in sys.argv[1:]:
@@ -103,7 +103,7 @@ if __name__ == "__main__":
 
             # Form the output filename and write the masked frame
             output_filename = filename[0:-5]+".masked.fits"
-            print output_filename
+            print(output_filename)
             hdulist[0].data = image_data
             hdulist.writeto(output_filename, overwrite=True)
 

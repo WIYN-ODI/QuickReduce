@@ -39,7 +39,7 @@ def rsync(queue, target):
 
         rsync_cmd = 'rsync -au "%s" %s' % (file, target)
             
-        print rsync_cmd
+        print(rsync_cmd)
         os.system(rsync_cmd)
 
         queue.task_done()
@@ -47,8 +47,8 @@ def rsync(queue, target):
 
 if __name__ == "__main__":
     if (len(sys.argv) <= 3):
-        print "Usage:"
-        print "./par_run.py (executable) (#CPUs) list of config files ..."
+        print("Usage:")
+        print("./par_run.py (executable) (#CPUs) list of config files ...")
         sys.exit(0)
 
     target = sys.argv[1]

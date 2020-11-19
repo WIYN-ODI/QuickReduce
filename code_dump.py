@@ -56,7 +56,7 @@ def wcserr_shift(p, ref, odi):
 
 def improve_wcs_solution(ota_list, matched_cat, fixwcs_odi_sourcecat):
 
-    print "Improving WCS solution..."
+    print("Improving WCS solution...")
     for ext in range(1, len(ota_list)):
         ota = int(ota_list[ext].header['EXTNAME'][3:5])
 
@@ -75,7 +75,7 @@ def improve_wcs_solution(ota_list, matched_cat, fixwcs_odi_sourcecat):
 
         # Merge both catalogs and dump to temporary file
         if (False):
-            print "Writing matchcat files"
+            print("Writing matchcat files")
             dump_matchcat = numpy.zeros((nearby_matches.shape[0],4))
             dump_matchcat[:,0:2] = sources_ota[:,2:4]
             #dump_matchcat[:,2:4] = matched_ota[:,0:2]
@@ -142,7 +142,7 @@ def improve_wcs_solution(ota_list, matched_cat, fixwcs_odi_sourcecat):
             ota_list[ext].header.update("D_CRVAL1", d_crval1)
             ota_list[ext].header.update("D_CRVAL2", d_crval2)
 
-            print "BF_CRVAL:",out[0][0], wcs.header['CRVAL1']
+            print("BF_CRVAL:",out[0][0], wcs.header['CRVAL1'])
 
             ota_list[ext].header['CRVAL1'] = out[0][0]
             ota_list[ext].header['CRVAL2'] = out[0][1]
@@ -157,7 +157,7 @@ def improve_wcs_solution(ota_list, matched_cat, fixwcs_odi_sourcecat):
             out = scipy.optimize.leastsq(errfunc, pinit,
                                          args=(ref, odi), full_output=1)
 
-            print "Final shift", out[0], out[0]*3600.
+            print("Final shift", out[0], out[0]*3600.)
             ota_list[ext].header['CRVAL1'] -= out[0][0]
             ota_list[ext].header['CRVAL2'] -= out[0][1]
 

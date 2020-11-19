@@ -204,7 +204,7 @@ def create_quickview(filename, output_directory, verbose=False, overwrite=True):
         greyscale[greyscale<0] = 0
         greyscale[greyscale>=1] = 1
 
-        print "ASINH?", (scaling  in ['arcsinh','asinh'])
+        print("ASINH?", (scaling  in ['arcsinh','asinh']))
         if (scaling == 'sqrt'):
             greyscale = numpy.sqrt(greyscale)
         elif (scaling in ['arcsinh','asinh']):

@@ -53,7 +53,7 @@ if __name__ == "__main__":
 
         outfits = "%s/%s.central3x3.fits" % (output_dir, filename[:-5])
         if (os.path.isfile(outfits)):
-            print " file exists, skipping"
+            print(" file exists, skipping")
             continue
 
         for extension in range(1, len(hdulist)):

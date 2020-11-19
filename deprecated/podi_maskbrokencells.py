@@ -95,7 +95,7 @@ def insert_into_array(data, from_region, target, target_region):
     tx1, tx2, ty1, ty2 = break_region_string(target_region)
 
     if (fx2-fx1 != tx2-tx1 or fy2-fy1 != ty2-ty1):
-        print "Dimensions do not match, doing nothing"
+        print("Dimensions do not match, doing nothing")
     else:
         target[ty1:ty2+1, tx1:tx2+1] = data[fy1:fy2+1, fx1:fx2+1]
 
@@ -110,14 +110,14 @@ if __name__ == "__main__":
     mask_hdulist = pyfits.open(maskname)
 
     fppos_list = []
-    print "Loading mask ...",
+    print("Loading mask ...",)
     for hdu in mask_hdulist[1:]:
         #print hdu.header['FPPOS']
         fppos_list.append(hdu.header['FPPOS'])
-    print "done!"
+    print("done!")
 
     for filename in sys.argv[2:]:
-        print "Opening file",filename,
+        print("Opening file",filename,)
         hdulist = pyfits.open(filename)
 
         fppos = hdulist[0].header['FPPOS']
@@ -127,7 +127,7 @@ if __name__ == "__main__":
         except:
             continue
 
-        print "found index",index,
+        print("found index",index,)
 
         # Open file
         data = hdulist[0].data
@@ -145,6 +145,6 @@ if __name__ == "__main__":
 
         hdulist.close()
         del hdulist
-        print "done!"
+        print("done!")
 
     sys.exit(0)
