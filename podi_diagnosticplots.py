@@ -10,7 +10,7 @@
 # up-to-date reference to use). Also if you find any problems 
 # or have suggestiosn on how to improve the code or its 
 # functionality please let me know. Comments and questions are 
-# always welcome. 
+# always welcome.
 #
 # The code is made publicly available. Feel free to share the link
 # with whoever might be interested. However, I do ask you to not 
@@ -741,7 +741,8 @@ def photocalib_zeropoint(output_filename,
     # Plot it as a horizontal bar histogram with a single bin.
     #
     #ax.barh(zp_median-zp_std, (sdss_maxint-sdss_minint), height=2*zp_std,
-    ax.barh(bottom=zp_median, height=2*zp_std,
+    ax.barh(y=0, # CHECK
+            bottom=zp_median, height=2*zp_std,
             left=sdss_minint, width=(sdss_maxint - sdss_minint),
             label=u"1$\sigma$ range",
             color="#a0a0a0", edgecolor='#a0a0a0')
