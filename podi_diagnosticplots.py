@@ -1008,7 +1008,7 @@ def plot_zeropoint_map(details, ota_select, ota_outlines, output_filename, optio
     # Invert the x-axis to have north up and east to the left
     ax.set_xlim(ax.get_xlim()[::-1])
 
-    colorbar = matplotlib.pyplot.colorbar(cmap=matplotlib.pyplot.cm.get_cmap(colormap_name))
+    colorbar = matplotlib.pyplot.colorbar(sc) #cmap=matplotlib.pyplot.cm.get_cmap(colormap_name))
     colorbar.set_label("phot. zeropoint")
 
     if (output_filename is None):
