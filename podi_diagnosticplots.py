@@ -1180,7 +1180,7 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
     # Invert the x-axis to have north up and east to the left
     ax.set_xlim(ax.get_xlim()[::-1])
 
-    colorbar = matplotlib.pyplot.colorbar(cmap=matplotlib.pyplot.cm.get_cmap(colormap_name)) #spectral
+    colorbar = matplotlib.pyplot.colorbar(sc) #cmap=matplotlib.pyplot.cm.get_cmap(colormap_name)) #spectral
     colorbar.set_label("FWHM [arcsec]")
 
     if (output_filename is None):
