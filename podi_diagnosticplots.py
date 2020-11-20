@@ -50,6 +50,7 @@ import queue
 import multiprocessing
 import podi_logging, logging
 
+import matplotlib.patches
 
 #####################################################################################
 #
@@ -741,12 +742,17 @@ def photocalib_zeropoint(output_filename,
     # Plot it as a horizontal bar histogram with a single bin.
     #
     #ax.barh(zp_median-zp_std, (sdss_maxint-sdss_minint), height=2*zp_std,
-    ax.barh(y=0, # CHECK
-            bottom=zp_median, height=2*zp_std,
-            left=sdss_minint, width=(sdss_maxint - sdss_minint),
-            label=u"1$\sigma$ range",
-            color="#a0a0a0", edgecolor='#a0a0a0')
-
+    # ax.barh(y=0, # CHECK
+    #         bottom=zp_median, height=2*zp_std,
+    #         left=sdss_minint, width=(sdss_maxint - sdss_minint),
+    #         label=u"1$\sigma$ range",
+    #         color="#a0a0a0", edgecolor='#a0a0a0')
+    ax.add_patch(matplotlib.patches.Rectangle(
+        xy=(sdss_minint, zp_median-zp_std),
+        width=sdss_maxint-sdss_minint,
+        height=2*zp_std,
+        color="#a0a0a0", edgecolor='#a0a0a0',
+    ))
 
     #
     # Compute and plot a histogram showing the distribution of ZPs
