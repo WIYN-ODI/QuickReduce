@@ -764,7 +764,7 @@ def photocalib_zeropoint(output_filename,
     small_errors = details['odi_sdss_matched_smallerrors']
     zp_good = small_errors[:, details['photref_col_mag']] \
               - small_errors[:, details['odi_col_mag']]
-    count, edges = numpy.histogram(zp_good, bins=nbins, range=[zp_min, zp_max], normed=True)
+    count, edges = numpy.histogram(zp_good, bins=nbins, range=[zp_min, zp_max], density=True)
     # Normalize histogram
     count = count * (zp_std*math.sqrt(2*math.pi)) / numpy.sum(count) / binwidth
 
