@@ -178,7 +178,7 @@ def make_psf_plot(ota_listing, title=None,
     fig.subplots_adjust(wspace=0, hspace=0)
     # fig.set_tight_layout(True)
     fig.set_size_inches(9,7)
-    fig.show()
+    # fig.show()
 
     if (plotformat is None):
         plotformat = ['png']
