@@ -751,7 +751,7 @@ def photocalib_zeropoint(output_filename,
         xy=(sdss_minint, zp_median-zp_std),
         width=sdss_maxint-sdss_minint,
         height=2*zp_std,
-        color="#a0a0a0", edgecolor='#a0a0a0',
+        facecolor="#a0a0a0", edgecolor='#a0a0a0',
     ))
 
     #
