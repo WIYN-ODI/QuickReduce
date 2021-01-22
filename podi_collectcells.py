@@ -251,6 +251,9 @@ import bottleneck
 import errno
 import psutil
 
+from astropy.io.fits.verify import VerifyWarning
+warnings.simplefilter('ignore', category=VerifyWarning)
+
 from podi_plotting import *
 
 #
