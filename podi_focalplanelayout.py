@@ -46,10 +46,15 @@ class FocalPlaneLayout(object):
         self.valid = True
         self.logger.debug("HDU type is now %s" % (str(type(self.hdu))))
 
+
         #
         # Set internal values to a safe value
         #
         self.wcs = None
+
+        # Find date of exposure
+        self.mjd_obs = self.hdu.header['MJD-OBS'] if ('MJD-OBS' in self.hdu.header) else -9999.99
+        self.logger.debug("Found MJD OBS date: %f" % (self.mjd_obs))
 
         self.logger.debug("Setting up general properties!")
         self.setup_general()
@@ -76,11 +81,7 @@ class FocalPlaneLayout(object):
             # If nothing else works, default binning to 1
             self.hw_binning = 1
 
-        # Find date of exposure
-        mjd_obs = self.hdu.header['MJD-OBS'] if ('MJD-OBS' in self.hdu.header) else -9999.99
-        self.logger.debug("Found MJD OBS date: %f" % (mjd_obs))
-
-        if (mjd_obs < 57023):
+        if (self.mjd_obs < 57023):
             # This exposure was obtained BEFORE 01/01/2015
             # --> use original pODI layout (3x3 + 4)
             self.setup_podi_layout()
@@ -325,7 +326,14 @@ class FocalPlaneLayout(object):
                          14,24,34,44,54,
                          13,23,33,43,53,
                          12,22,32,42,52,
-                         11,21,31,41,51,]
+                         11,   31,41,51,]
+        if (self.mjd_obs < 58530):
+            # some time in mid/late February 2019
+            self.logger.debug("This exposure was taken before OTA 2,1 died, including it on the processing")
+            self.all_otas.append(21)
+        else:
+            self.logger.debug("This exposure was taken with a dead OTA 2,1, excluding it from processing")
+
         self.central_2x2 = [22,23,32,33]
         self.central_3x3 = [22,23,24,32,33,34,42,43,44]
         self.non_vignetted = self.central_2x2
@@ -438,7 +446,10 @@ class FocalPlaneLayout(object):
         #
         #for ota in self.broken_cells:
         #    self.broken_cells[ota] = []
-
+        if (self.mjd_obs > 58530):
+            # TODO: FIX THE DATE - NEED TO ASK WILSON
+            self.broken_cells['17121'].append((7,1))
+            self.broken_cells['17121'].append((0,0))
 
     def is_cell_broken(self, ota_id, cx, cy):
         cell_xy = (cx,cy)
