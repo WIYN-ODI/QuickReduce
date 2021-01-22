@@ -4669,8 +4669,12 @@ def collectcells(input, outputfile,
                     continue
                 try:
                     ff = pf_hdu[ext.name].data
-                    logger.debug("Applying photometric flat-field to OTA %s" % (ext.name))
-                    ext.data /= ff
+                    logger.debug("Applying photometric flat-field to OTA %s [sky: %f]" % (ext.name, sky_global_median))
+
+                    if (sky_global_median is not None):
+                        ext.data = (ext.data - sky_global_median) / ff + sky_global_median
+                    else:
+                        ext.data /= ff
                 except KeyError:
                     logger.warning("No auto-photflat data for OTA %s" % (ext.name))
                     photflat_allsuccess = False
