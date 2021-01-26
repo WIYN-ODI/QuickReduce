@@ -52,6 +52,9 @@ import podi_logging, logging
 
 import matplotlib.patches
 
+import pickle
+import time
+from multiprocessing.queues import _ForkingPickler
 #####################################################################################
 #
 #
@@ -260,9 +263,10 @@ def wcsdiag_scatter(matched_radec_odi,
                 "title": title,
                 "high_s2n": (matched_odierror<0.02),
             }
-    p = multiprocessing.Process(target=plot_wcsdiag_scatter, kwargs=plot_args)
-    p.start()
-    processes.append(p)
+    plot_wcsdiag_scatter(**plot_args)
+    # p = multiprocessing.Process(target=plot_wcsdiag_scatter, kwargs=plot_args)
+    # p.start()
+    # processes.append(p)
     # plot_wcsdiag_scatter(d_ra, d_dec, filename, extension_list, 
     #                      title=title,
     #                      ota_stats=None, ota_global_stats=ota_global_stats)
@@ -307,9 +311,10 @@ def wcsdiag_scatter(matched_radec_odi,
                         "ota_stats": ota_stats,
                         "ota_global_stats": ota_global_stats,
                     }
-            p = multiprocessing.Process(target=plot_wcsdiag_scatter, kwargs=plot_args)
-            p.start()
-            processes.append(p)
+            plot_wcsdiag_scatter(**plot_args)
+            # p = multiprocessing.Process(target=plot_wcsdiag_scatter, kwargs=plot_args)
+            # p.start()
+            # processes.append(p)
 
             # plot_wcsdiag_scatter(d_ra[in_this_ota], d_dec[in_this_ota], ota_plotfile, extension_list,
             #                      title=title,
@@ -533,9 +538,10 @@ def wcsdiag_shift(matched_radec_odi,
                  "ota_outlines": None,
                  "title": title,
              }
-    p = multiprocessing.Process(target=plot_wcsdiag_shift, kwargs=plot_args)
-    p.start()
-    processes.append(p)
+    plot_wcsdiag_shift(**plot_args)
+    # p = multiprocessing.Process(target=plot_wcsdiag_shift, kwargs=plot_args)
+    # p.start()
+    # processes.append(p)
  
     # Now break down the plots by OTA
     if (also_plot_singleOTAs):
@@ -569,9 +575,10 @@ def wcsdiag_shift(matched_radec_odi,
                          "ota_outlines": None,
                          "title": title,
                      }
-            p = multiprocessing.Process(target=plot_wcsdiag_shift, kwargs=plot_args)
-            p.start()
-            processes.append(p)
+            # p = multiprocessing.Process(target=plot_wcsdiag_shift, kwargs=plot_args)
+            # p.start()
+            # processes.append(p)
+            plot_wcsdiag_shift(**plot_args)
 
     for p in processes:
         p.join()
@@ -670,6 +677,7 @@ def photocalib_zeropoint(output_filename,
                          options=None,
                          also_plot_singleOTAs=False,
                          details=None,
+                         plot_formats=None,
                          ):
 
     """
@@ -951,7 +959,7 @@ def photocalib_zeropoint(output_filename,
 #
 #####################################################################################
 
-def plot_zeropoint_map(details, ota_select, ota_outlines, output_filename, options, zp_range):
+def plot_zeropoint_map(details, ota_select, ota_outlines, output_filename, zp_range, options=None, plot_formats=None):
     """
 
     Plot the photometric zeropoint, color-coded, as function of position
@@ -1021,8 +1029,8 @@ def plot_zeropoint_map(details, ota_select, ota_outlines, output_filename, optio
         fig.show()
     else:
         fig.set_size_inches(8,6)
-        if (options is not None):
-            for ext in options['plotformat']:
+        if (plot_formats is not None):
+            for ext in plot_formats:
                 if (ext != ''):
                     fig.savefig(output_filename+"."+ext, dpi=100, bbox_inches='tight')
                     logger.debug("saving plot to %s.%s" % (output_filename, ext))
@@ -1053,7 +1061,8 @@ def photocalib_zeropoint_map(details,
 
     processes = []
 
-    
+    # print(details)
+
     zp_median = details['median'] 
     zp_raw = details['odi_sdss_matched'][:, details['photref_col_mag']] \
              - details['odi_sdss_matched'][:, details['odi_col_mag']]
@@ -1070,16 +1079,19 @@ def photocalib_zeropoint_map(details,
               "ota_select": None,
               "ota_outlines": ota_outlines,
               "output_filename": output_filename,
-              "options": options, 
+              #"options": options,
               "zp_range": zp_range,
+              'plot_formats': options['plotformat']
     }
-    if (not allow_parallel):
-        plot_zeropoint_map(details, None, ota_outlines, output_filename, options, zp_range)
-    else:
-        p = multiprocessing.Process(target=plot_zeropoint_map, 
-                                    kwargs=kwargs)
-        p.start()
-        processes.append(p)
+    # if (not allow_parallel):
+    plot_zeropoint_map(**kwargs) #details, None, ota_outlines, output_filename, options, zp_range)
+    # else:
+    #     # print(kwargs)
+    #     p = multiprocessing.Process(target=plot_zeropoint_map,
+    #                                 kwargs=kwargs)
+    #     p.daemon = True
+    #     p.start()
+    #     processes.append(p)
 
 #    return
 
@@ -1100,21 +1112,23 @@ def photocalib_zeropoint_map(details,
                       "ota_select": this_ota,
                       "ota_outlines": None,
                       "output_filename": ota_plotfile,
-                      "options": options, 
+                      #"options": options,
                       "zp_range": zp_range,
+                      'plot_formats': options['plotformat']
             }
-            if (not allow_parallel):
-                plot_zeropoint_map(ra_ota, dec_ota, zp_ota, None, ota_plotfile, options, zp_range)
-            else:
-                p = multiprocessing.Process(target=plot_zeropoint_map, 
-                                            kwargs=kwargs)
-                p.start()
-                processes.append(p)
+            # if (not allow_parallel or True):
+            plot_zeropoint_map(**kwargs) #details, ota_select=this_ota, ota_outlines, output_filename, options, zp_range)
+                #ra_ota, dec_ota, zp_ota, None, ota_plotfile, options, zp_range)
 
     for p in processes:
         p.join()
 
     logger.debug("done!")
+
+    # import time
+    # time.sleep(2)
+    # print("done with zpmap")
+    # time.sleep(2)
 
     return
 
@@ -1141,7 +1155,8 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
                      fwhm_range,
                      title=None,
                      ota_outlines=None,
-                     options=None
+                     options=None,
+                     plot_formats=None,
                      ):
     """
 
@@ -1193,8 +1208,8 @@ def plot_psfsize_map(ra, dec, fwhm, output_filename,
         fig.show()
     else:
         fig.set_size_inches(8,6)
-        if (options is not None):
-            for ext in options['plotformat']:
+        if (plot_formats is not None):
+            for ext in plot_formats:
                 if (ext != ''):
                     fig.savefig(output_filename+"."+ext, dpi=100,bbox_inches='tight')
                     logger.debug("saving plot to %s.%s" % (output_filename, ext))
@@ -1251,11 +1266,15 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
                  "fwhm_range": fwhm_range,
                  "title": title,
                  "ota_outlines": ota_outlines, 
-                 "options": options,
+                 #"options": options,
+                 "plot_formats": options['plotformat']
+
     }
-    p = multiprocessing.Process(target=plot_psfsize_map, kwargs=plot_args)
-    p.start()
-    processes.append(p)
+    plot_psfsize_map(**plot_args)
+    # p = multiprocessing.Process(target=plot_psfsize_map, kwargs=plot_args)
+    # p.daemon = True
+    # p.start()
+    # processes.append(p)
    
     # plot_psfsize_map(ra, dec, fwhm, output_filename, 
     #                  fwhm_range=fwhm_range,
@@ -1282,7 +1301,7 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
             if (title_info is not None):
                 title_info['OTA'] = this_ota
                 try:
-                    title = "FWHM map - %(OBSID)s OTA %(OTA)02d\n%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec)" % title_info
+                    title = "FWHM map - %(OBSID)s OTA %(OTA)02d\n(%(OBJECT)s - %(FILTER)s - %(EXPTIME)dsec)" % title_info
                 except:
                     pass
 
@@ -1295,11 +1314,23 @@ def diagplot_psfsize_map(ra, dec, fwhm, ota, output_filename,
                          "fwhm_range": fwhm_range,
                          "title": title,
                          "ota_outlines": None,
-                         "options": options,
+                         #"options": options,
+                         "plot_formats": options['plotformat']
             }
-            p = multiprocessing.Process(target=plot_psfsize_map, kwargs=plot_args)
-            p.start()
-            processes.append(p)
+            # print(plot_args)
+            # _obj = _ForkingPickler.dumps(plot_args)
+            # print(_obj)
+            #
+            # pickle.dumps(plot_args)
+            # # continue
+            # p = multiprocessing.Process(target=plot_psfsize_map, kwargs=dict(plot_args))
+            # p.daemon = True
+            # p.start()
+            # processes.append(p)
+
+            plot_psfsize_map(**plot_args)
+
+            #time.sleep(1)
 
 
     for p in processes:
@@ -1322,6 +1353,7 @@ def plot_psfshape_map(ra, dec, elongation, angle, fwhm,
                       title='test',
                       ota_outlines=None,
                       show_round_stars=True,
+                      plot_formats=None
                       ):
 
     logger = logging.getLogger("DiagPlot_PSFShape")
@@ -1427,8 +1459,8 @@ def plot_psfshape_map(ra, dec, elongation, angle, fwhm,
         fig.show()
     else:
         fig.set_size_inches(8,6)
-        if (options is not None):
-            for ext in options['plotformat']:
+        if (plot_formats is not None):
+            for ext in plot_formats:
                 if (ext != ''):
                     fig.savefig(output_filename+"."+ext, dpi=100,bbox_inches='tight')
                     logger.debug("saving plot to %s.%s" % (output_filename, ext))
@@ -1448,7 +1480,8 @@ def  diagplot_psfshape_map(ra, dec, elongation, angle, fwhm, ota,
                            title='test',
                            title_info=None,
                            ota_outlines = None,
-                           also_plot_singleOTAs=False
+                           also_plot_singleOTAs=False,
+                           plot_formats=None,
 ):
 
 
@@ -1483,12 +1516,14 @@ def  diagplot_psfshape_map(ra, dec, elongation, angle, fwhm, ota,
                  "output_filename": output_filename, 
                  "title": title,
                  "ota_outlines": ota_outlines, 
-                 "options": options,
+                 #"options": options,
                  "show_round_stars": False,
+                 "plot_formats": options['plotformat']
     }
-    p = multiprocessing.Process(target=plot_psfshape_map, kwargs=plot_args)
-    p.start()
-    processes.append(p)
+    plot_psfshape_map(**plot_args)
+    # p = multiprocessing.Process(target=plot_psfshape_map, kwargs=plot_args)
+    # p.start()
+    # processes.append(p)
    
     # plot_psfsize_map(ra, dec, fwhm, output_filename, 
     #                  fwhm_range=fwhm_range,
@@ -1532,12 +1567,13 @@ def  diagplot_psfshape_map(ra, dec, elongation, angle, fwhm, ota,
                          "title": title,
                          "ota_outlines": ota_outlines, 
                          #"ota_outlines": None,
-                         "options": options,
+                         #"options": options,
+                         "plot_formats": options['plotformat']
             }
-            p = multiprocessing.Process(target=plot_psfshape_map, kwargs=plot_args)
-            p.start()
-            processes.append(p)
-
+            # p = multiprocessing.Process(target=plot_psfshape_map, kwargs=plot_args)
+            # p.start()
+            # processes.append(p)
+            plot_psfshape_map(**plot_args)
 
     for p in processes:
         p.join()
@@ -1553,6 +1589,7 @@ def diagplot_photflat(extnames, data, one_sigma=None,
                       options=None,
                       n_sigma=3,
                       force_symmetric=False,
+                      plot_formats=None,
                       ):
 
     logger = logging.getLogger("DiagPlot_PhotFlat")
@@ -1631,8 +1668,8 @@ def diagplot_photflat(extnames, data, one_sigma=None,
         fig.show()
     else:
         fig.set_size_inches(8,6)
-        if (options is not None):
-            for ext in options['plotformat']:
+        if (plot_formats is not None):
+            for ext in plot_formats:
                 if (ext != ''):
                     fig.savefig(output_filename+"."+ext, dpi=100,bbox_inches='tight')
                     logger.debug("saving plot to %s.%s" % (output_filename, ext))
