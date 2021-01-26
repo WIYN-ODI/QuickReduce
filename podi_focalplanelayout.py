@@ -450,6 +450,7 @@ class FocalPlaneLayout(object):
             # TODO: FIX THE DATE - NEED TO ASK WILSON
             self.broken_cells['17121'].append((7,1))
             self.broken_cells['17121'].append((0,0))
+            self.broken_cells['17144'].append((0,5))
 
     def is_cell_broken(self, ota_id, cx, cy):
         cell_xy = (cx,cy)
