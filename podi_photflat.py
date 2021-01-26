@@ -592,6 +592,13 @@ def expand_to_fullres_worker(job_queue, photflat, blocksize, shmem_out, shmem_sh
         #if (ix>=15 or iy>=15):
         #    print ix,iy, f_00, f_01, f_10, f_11
 
+        # handle bad values
+        filler_value = numpy.nanmean([f_00, f_01, f_10, f_11])
+        f_00 = f_00 if numpy.isfinite(f_00) else filler_value
+        f_01 = f_01 if numpy.isfinite(f_01) else filler_value
+        f_10 = f_10 if numpy.isfinite(f_10) else filler_value
+        f_11 = f_11 if numpy.isfinite(f_11) else filler_value
+
         out = f_00 * omx_omy + f_10 * omx_y + f_01 * x_omy + f_11 * x_y
         # out = f_00 * omx_omy + f_10 * x_omy + f_01 * omx_y + f_11 * x_y
         #out[:,:] = f_00
@@ -775,9 +782,14 @@ def create_photometric_flatfield_single_ota(
         full_zperr_list = full_zperr_list[good_data]
 
         # compute the weighted mean correction factor
-        photflat[_x, _y] = numpy.sum(
-            full_zp_list / full_zperr_list) / numpy.sum(1. / full_zperr_list)
-        photflat_err[_x, _y] = numpy.std(full_zp_list)
+        logger.debug("%s [%d/%d]: %d %d" % (extname, x, y, full_zp_list.shape[0], full_zperr_list.shape[0]))
+        if (full_zp_list.shape[0] > 0 and full_zperr_list.shape[0] > 0):
+            photflat[_x, _y] = numpy.sum(
+                full_zp_list / full_zperr_list) / numpy.sum(1. / full_zperr_list)
+            photflat_err[_x, _y] = numpy.std(full_zp_list)
+        else:
+            photflat[_x,_y] = numpy.NaN
+            photflat_err[_x, _y] = numpy.NaN
 
         # numpy.savetxt(dump,
         #               numpy.array([full_zp_list, full_zperr_list,
