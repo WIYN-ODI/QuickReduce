@@ -800,15 +800,15 @@ def create_photometric_flatfield_single_ota(
 
         # photflat[_x,_y] = numpy.median(full_zp_list)
 
-    combined = numpy.empty((n_samples ** 2, 4))
-    combined[:, 0] = ix.ravel()
-    combined[:, 1] = iy.ravel()
-    combined[:, 2] = photflat.ravel()
-    numpy.savetxt("photflat.%02d.combined" % (ota), combined)
-    numpy.savetxt("photflat.%02d.photflat" % (ota), photflat)
-
-    combined[:, 3] = photflat_err.ravel()
-    numpy.savetxt("photflat.%02d.err" % (ota), combined)
+    # combined = numpy.empty((n_samples ** 2, 4))
+    # combined[:, 0] = ix.ravel()
+    # combined[:, 1] = iy.ravel()
+    # combined[:, 2] = photflat.ravel()
+    # numpy.savetxt("photflat.%02d.combined" % (ota), combined)
+    # numpy.savetxt("photflat.%02d.photflat" % (ota), photflat)
+    #
+    # combined[:, 3] = photflat_err.ravel()
+    # numpy.savetxt("photflat.%02d.err" % (ota), combined)
 
     fullres = expand_to_fullres(photflat, blocksize=sampling)
     imghdu = pyfits.ImageHDU(data=fullres, name=extname)
