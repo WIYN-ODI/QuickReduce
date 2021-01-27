@@ -1287,16 +1287,10 @@ def format_filename(input_filename_or_header, outputfile):
         elif (outputfile[start:start+7] == "%OBJECT"):
             # The object name might contain spaces, replace them with underscores
             # Also replace all other special characters with underscores
-            objectname = header['OBJECT'].replace(' ', '_')
-            objectname = objectname.replace(',', '_')
-            objectname = objectname.replace('(', '_')
-            objectname = objectname.replace(')', '_')
-            objectname = objectname.replace('/', '_')
-            objectname = objectname.replace('\\', '_')
-            objectname = objectname.replace('`', '_')
-            objectname = objectname.replace('"', '_')
-            objectname = objectname.replace('\'', '_')
-            objectname = objectname.replace(')', '_')
+            objectname = header['OBJECT']
+            strings_to_replace = [',', '(', ')', '/', '\\', '`', '"', '\'', '{', '}', '[', ']', '&', ' ']
+            for _s in strings_to_replace:
+                objectname = objectname.replace(_s, '_')
             outputfile = outputfile[:start] + objectname  + outputfile[start+7:]
         elif (outputfile[start:start+6] == "%OBSID"):
             outputfile = outputfile[:start] + header['OBSID'] + outputfile[start+6:]
