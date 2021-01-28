@@ -1353,24 +1353,44 @@ def wipecells(ext, wipecells_list, binning=1, fillvalue=numpy.NaN):
 
     return
 
-def is_guide_ota(primhdu, ext, w=20):
+def is_guide_ota(primhdu, ext, w=20, binning=None, skylevel=None, skynoise=None, gain=None, data=None):
 
     logger = logging.getLogger("IsGuideOTA")
 
-    binning = primhdu.header['BINNING']
-    skylevel = primhdu.header['SKYLEVEL']
-    gain = primhdu.header['GAIN']
-    skynoise = primhdu.header['SKYNOISE']
+
+    if (primhdu is not None):
+        _binning = primhdu.header['BINNING']
+        _skylevel = primhdu.header['SKYLEVEL']
+        _gain = primhdu.header['GAIN']
+        _skynoise = primhdu.header['SKYNOISE']
+    else:
+        _binning = 1
+        _skylevel = 0
+        _skynoise = 0
+        _gain = 2
+    if (binning is None):
+        binning = _binning
+    if (skylevel is None):
+        skylevel = _skylevel
+    if (skynoise is None):
+        skynoise = _skynoise
+    if (gain is None):
+        gain = _gain
 
     logger.debug("Checking OTA %s (bin=%d, sky=%.1f, skynoise=%.2f)" % (
         ext.name, binning, skylevel, skynoise))
 
-    if (not is_image_extension(ext)):
+    if (data is not None):
+        logger.debug("Ignoring the check vor valid extension")
+    elif (not is_image_extension(ext)):
         logger.debug("extension is not a valid image extension")
         return False
 
     excesses = numpy.empty((8,8))
     excesses[:,:] = numpy.NaN
+
+    if (data is None):
+        data = ext.data
 
     for cx, cy in itertools.product(range(8), repeat=2):
 
@@ -1382,10 +1402,10 @@ def is_guide_ota(primhdu, ext, w=20):
         x21 = (x2-x1)//2
 
         # extract the mean value in the bottom corner
-        corner = bottleneck.nanmean(ext.data[y1:y1+w, x1:x1+w].astype(numpy.float32))
+        corner = bottleneck.nanmean(data[y1:y1+w, x1:x1+w].astype(numpy.float32))
 
         # also get the value in the bottom center
-        center = bottleneck.nanmean(ext.data[y1:y1+w, x1+x21-w//2:x1+x21+w//2].astype(numpy.float32))
+        center = bottleneck.nanmean(data[y1:y1+w, x1+x21-w//2:x1+x21+w//2].astype(numpy.float32))
 
         excess = corner - center
         #print ext.name, cx, cy, corner, center, excess
