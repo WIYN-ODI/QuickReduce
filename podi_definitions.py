@@ -1288,7 +1288,8 @@ def format_filename(input_filename_or_header, outputfile):
             # The object name might contain spaces, replace them with underscores
             # Also replace all other special characters with underscores
             objectname = header['OBJECT']
-            strings_to_replace = [',', '(', ')', '/', '\\', '`', '"', '\'', '{', '}', '[', ']', '&', ' ']
+            strings_to_replace = [',', '(', ')', '/', '\\', '`', '"', '\'', '{', '}', '[', ']', '&',
+                                      ' ', '*', '?']
             for _s in strings_to_replace:
                 objectname = objectname.replace(_s, '_')
             outputfile = outputfile[:start] + objectname  + outputfile[start+7:]
