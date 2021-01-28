@@ -1240,28 +1240,33 @@ def collect_reduce_ota(filename,
             reduction_files_used['fringemap'] = fringe_filename
             reduction_files_used['fringevector'] = fringe_vector_file
 
-            # Do not determine fringe scaling if this OTA is marked as video cell
-            if (hdu.header['CELLMODE'].find("V") >= 0 or
-                is_guide_ota(primhdu=None, ext=hdu, data=merged)):
-                logger.info("Ignoring guide-OTA during fringe scaling")
-                reduction_log.success('fringe')
-            else:
-                fringe_hdu = pyfits.open(fringe_filename)
-                for ext in fringe_hdu[1:]:
-                    if (extname == ext.header['EXTNAME']):
-                        if (options['verbose']): print("Working on fringe scaling for",extname)
+            guide_ota = (hdu.header['CELLMODE'].find("V") >= 0) or is_guide_ota(primhdu=None, ext=hdu, data=merged)
+            fringe_hdu = pyfits.open(fringe_filename)
+            for ext in fringe_hdu[1:]:
+                if (extname == ext.header['EXTNAME']):
+                    if (options['verbose']): print("Working on fringe scaling for",extname)
+
+                    if (guide_ota):
+                        logger.info("Ignoring guide-OTA during fringe scaling")
+                        reduction_log.success('fringe')
+                    else:
                         fringe_scaling = podi_fringing.get_fringe_scaling(merged, ext.data, fringe_vector_file)
-                        # numpy.savetxt("fringe_%s" % (extname), fringe_scaling)
-                        data_products['fringe-template'] = ext.data
-                        if (fringe_scaling is not None):
-                            good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])
-                            fringe_scaling_median = numpy.nanmedian(good_scalings)
-                            fringe_scaling_std    = numpy.nanstd(good_scalings)
-                        break
-                hdu.header.add_history("fringe map: %s" % fringe_filename)
-                hdu.header.add_history("fringe vector: %s" % fringe_vector_file)
-                fringe_hdu.close()
-            if (numpy.isfinite(fringe_scaling_median) and numpy.isfinite(fringe_scaling_std)):
+
+                    #  numpy.savetxt("fringe_%s" % (extname), fringe_scaling)
+                    data_products['fringe-template'] = ext.data
+                    if (fringe_scaling is not None):
+                        good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])
+                        fringe_scaling_median = numpy.nanmedian(good_scalings)
+                        fringe_scaling_std    = numpy.nanstd(good_scalings)
+                    break
+            hdu.header.add_history("fringe map: %s" % fringe_filename)
+            hdu.header.add_history("fringe vector: %s" % fringe_vector_file)
+            fringe_hdu.close()
+
+            # Do not determine fringe scaling if this OTA is marked as video cell
+            if (guide_ota):
+                pass
+            elif (numpy.isfinite(fringe_scaling_median) and numpy.isfinite(fringe_scaling_std)):
                 hdu.header["FRNG_SCL"] = fringe_scaling_median
                 hdu.header["FRNG_STD"] = fringe_scaling_std
                 hdu.header["FRNG_OK"] = (fringe_scaling is not None)
