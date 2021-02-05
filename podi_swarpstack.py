@@ -2468,10 +2468,13 @@ if __name__ == "__main__":
 
         # Read command line and store all results in params dictionary
         outputfile = get_clean_cmdline()[1]
-        inputlist = []
-        for f in get_clean_cmdline()[2:]:
-            if (os.path.isfile(f)):
-                inputlist.append(f)
+
+        raw_filelist = get_clean_cmdline()[2:]
+        inputlist = read_list(raw_filelist, )
+        # inputlist = []
+        # for f in get_clean_cmdline()[2:]:
+        #     if (os.path.isfile(f)):
+        #         inputlist.append(f)
         params = read_swarp_params(inputlist)
         
         # print params

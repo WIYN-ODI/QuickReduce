@@ -45,6 +45,7 @@ import itertools
 import logging
 import bottleneck
 from bottleneck import nanmean, nanmedian
+import shlex
 
 from podi_commandline import *
 import podi_sitesetup as sitesetup
@@ -1420,3 +1421,38 @@ def is_guide_ota(primhdu, ext, w=20, binning=None, skylevel=None, skynoise=None,
         _mean, _median, "YES" if is_guideota else "NO"))
 
     return is_guideota
+
+
+def read_list(rawlist, not_file_list=False):
+    """Generate a full filelist from an mixed list of files and filelists.
+
+    :param rawlist: List of files and IRAF-style filelists. Lists must start with a @ prefixed to the
+    filename, and should contain a list of files, one per line.
+    :return: Full list of filenames, with @filelists read and inserted where appropriate
+    """
+
+    logger = logging.getLogger("ReadList")
+
+    final_list = []
+    for entry in rawlist:
+        if (entry.startswith("@") and os.path.isfile(entry[1:])):
+            logger.debug("Handling @ file: %s" % (entry))
+            with open(entry[1:], "r") as f:
+                lines = f.readlines()
+                for l in lines:
+                    if l.startswith("#"):
+                        continue
+                    items = shlex.split(l, posix=True) #.split()
+                    # get first item - make sure to respect quotes to handle spaces
+
+                    if (os.path.isfile(items[0]) or not_file_list):
+                        final_list.append(items[0])
+                        # logger.debug("ADDING: %s" % (items[0]))
+
+        if (os.path.isfile(entry) or not_file_list):
+            final_list.append(entry)
+
+    # logger.debug("TOTAL LIST LENGTH: %d" % (len(final_list)))
+    logger.debug("Expanded raw-list from %d to %d" % (len(rawlist), len(final_list)))
+    return final_list
+
