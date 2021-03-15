@@ -425,6 +425,27 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
                         continue
                     wipecells(ext, swarp_params['wipe_cells'], binning=binning)
 
+            # clear out the bottom few rows in each OTA cell to account for the fat-zero problem
+            if (swarp_params['cheese_grate'] is not None):
+                if (swarp_params['cheese_grate'] == 'auto'):
+                    # TODO: change the equation for the auto scaling
+                    _skylevel = hdulist[0].header['SKYLEVEL']
+                    n_lines = (100 - sky_level) / 10
+                    if (n_lines <= 0):
+                        n_lines = 0
+                    logger.info("Apply de-cheese-grating [auto-mode]: %d lines", n_lines)
+                else:
+                    n_lines = swarp_params['cheese_grate']
+                    logger.info("Apply de-cheese-grating [manual mode]: %d lines", n_lines)
+                for ext in hdulist:
+                        if (not is_image_extension(ext)):
+                            continue
+                        # TODO: skip the newer LOT7 detectors that don't have this problem
+                        for _x in range(8):
+                            for _y in range(8):
+                                x1,x2,y1,y2 = cell2ota__get_target_region(_x, _y, trimcell=0)
+                                ext.data[y1:y1+n_lines+1, x1:x2+1] = numpy.NaN
+
             skylevel = 0.
             if (not swarp_params['subtract_back'] == False and
                 not swarp_params['subtract_back'] in ['swarp', "_REGIONS_"] and
@@ -1172,6 +1193,8 @@ def swarpstack(outputfile,
         # swarp_params['mask'] = maskfile
 
     logger.info("Removing some OTAs from input: %s" % (str(options['skip_otas'])))
+
+    logger.info("Using de-cheese-grate parameter: %s" % (str(swarp_params['cheese_grate'])))
 
     ############################################################################
     # Prepare the meta-data we need for the auto-phot.-flatfielding
@@ -2413,7 +2436,16 @@ def read_swarp_params(filelist):
                 elif (opt_name == "res"):
                     params['apf_resolution'] = float(opt_value)
 
-
+    cheese_grate = cmdline_arg_set_or_default("-cheesegrate", None)
+    if (cheese_grate is None):
+        params['cheese_grate'] = None
+    elif (cheese_grate == "auto"):
+        params['cheese_grate'] = 'auto'
+    else:
+        try:
+            params['cheese_grate'] = int(cheese_grate)
+        except:
+            params['cheese_grate'] = None
 
     return params
 
