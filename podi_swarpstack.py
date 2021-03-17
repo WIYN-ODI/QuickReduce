@@ -134,15 +134,16 @@ import itertools
 import bottleneck
 import ephem
 import ic_background
+from podi_focalplanelayout import FocalPlaneLayout
 
-try:
-    sys.path.append("/work/quickreduce/merge_master_py3/test/")
-    print(sys.path)
-    import ephemerides
-    import podi_ephemerides
-    print("Added the test durectory for ephems")
-except:
-    pass
+# try:
+#     # sys.path.append("/work/quickreduce/merge_master_py3/test/")
+#     # print(sys.path)
+#     import ephemerides
+#     import podi_ephemerides
+#     print("Added the test durectory for ephems")
+# except:
+#     pass
 
 
 
@@ -437,10 +438,15 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
                 else:
                     n_lines = swarp_params['cheese_grate']
                     logger.info("Apply de-cheese-grating [manual mode]: %d lines", n_lines)
+                fpl = FocalPlaneLayout(hdulist)
                 for ext in hdulist:
                         if (not is_image_extension(ext)):
                             continue
-                        # TODO: skip the newer LOT7 detectors that don't have this problem
+                        if (fpl.get_detector_generation(ext.header) >= 7):
+                            # this is a lot-7 detector, nothing to do
+                            logger.info("Skipping de-cheese-grate for lot-7 OTA %s" % (ext.name))
+                            continue
+
                         for _x in range(8):
                             for _y in range(8):
                                 x1,x2,y1,y2 = cell2ota__get_target_region(_x, _y, trimcell=0)
