@@ -1650,7 +1650,7 @@ def estimate_match_fraction(src_cat, primary_header, meanTeff = 5000):
         mean_star_color = 0.5
 
     estimated_Jband = cal_mags - mean_star_color
-    numpy.savetxt("cal_mags", cal_mags)
+    # numpy.savetxt("cal_mags", cal_mags)
 
     n_brighter_than_2MASS_cutoff = numpy.sum(estimated_Jband < 15.8)
     n_total = cal_mags.shape[0]
@@ -1971,6 +1971,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
 
 
     # max_pointing_error_list = numpy.array([numpy.max(numpy.array(max_pointing_error_list))])
+    have_one_extra = False
     for i in range(max_pointing_error_list.shape[0]):
 
         pointing_error = max_pointing_error_list[i]
@@ -2023,8 +2024,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         #
         # Now perform the actual first step of WCS calibration
         #
-        numpy.savetxt("debug.src", src_cat)
-        numpy.savetxt("debug.ref", ref_cat)
+        # numpy.savetxt("debug.src", src_cat)
+        # numpy.savetxt("debug.ref", ref_cat)
         initial_guess, n_random_matches, contrast, all_results = \
                 find_best_guess(src_cat, ref_cat,
                                 center_ra, center_dec,
@@ -2053,13 +2054,19 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                                        shift=current_best_shift,
                                        verbose=False)
         gm = kd_match_catalogs(gc, ref_cat, crossmatch_radius, max_count=1)
-        numpy.savetxt("matched_%f" % (pointing_error), gm)
-        numpy.savetxt("match_src", src_cat_long)
+        # numpy.savetxt("matched_%f" % (pointing_error), gm)
+        # numpy.savetxt("match_src", src_cat_long)
 
         if (contrast > min_contrast and f_matches_found > sitesetup.wcs_match_multiplier * f_matched_expected):
-            logger.debug("Found good WCS solution (%.2f sigma, search radius: %.2f arcmin)" % (
-                contrast, pointing_error))
-            break
+
+            if (have_one_extra):
+                logger.info("Found good WCS solution (%.2f sigma, search radius: %.2f arcmin)" % (
+                    contrast, pointing_error))
+                break
+            else:
+                logger.info("Found good WCS solution (%.2f sigma, search radius: %.2f arcmin), but going another step just to make sure" % (
+                    contrast, pointing_error))
+            have_one_extra = True
 
     if (contrast > min_contrast and 
         f_matches_found < sitesetup.wcs_match_multiplier * f_matched_expected):
