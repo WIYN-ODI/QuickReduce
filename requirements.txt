@@ -12,7 +12,7 @@ matplotlib == 3.3.2
 numpy == 1.19.2
 pil-compat == 1.0.0
 pillow-pil == 0.1dev
-psutil == 5.4.8
+psutil == 5.6.6
 pyfits == 3.5
 requests == 2.24.0
 scipy == 1.5.2
