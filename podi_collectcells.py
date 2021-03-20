@@ -1207,7 +1207,7 @@ def collect_reduce_ota(filename,
             else:
                 # Extract only the filenames from the filelist dictionary
                 persistency_files_used = []
-                for assoc_persistency_file, assoc_mjd in filelist.iteritems():
+                for assoc_persistency_file, assoc_mjd in filelist.items():
                     persistency_files_used.append(assoc_persistency_file)
                 logger.debug("Using persistency catalogs in %s" % (str(persistency_files_used)))
                 reduction_files_used['persistency'] = persistency_files_used

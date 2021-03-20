@@ -648,7 +648,7 @@ def save_saturation_table_list(filename, mjd_catalog_list):
         filename = "%s/index.cat" % (filename)
 
     file_listing = ['%s --> %.12f %.3f' % (catfile, mjd, exptime) 
-                    for catfile, (mjd, exptime) in mjd_catalog_list.iteritems()]
+                    for catfile, (mjd, exptime) in mjd_catalog_list.items()]
 
     with open(filename, "w") as fh:
         fh.write("\n".join(file_listing)+"\n")
@@ -754,7 +754,7 @@ def select_from_saturation_tables(mjd_catalog_list, search_mjd, delta_mjd_range=
     close_mjd_files = {}
     # print "\n"*3,search_mjd, delta_mjd_range,"\n"*3
 
-    for full_filename, (mjd, exptime) in mjd_catalog_list.iteritems():
+    for full_filename, (mjd, exptime) in mjd_catalog_list.items():
 
         #mjd = mjd_catalog_list[full_filename]
 
@@ -839,7 +839,7 @@ def correct_persistency_effects(ota, data, mjd, filelist):
     # extract all mjds
     mjds = []
     catalog = []
-    for catfilename, (cat_mjd, exptime) in filelist.iteritems():
+    for catfilename, (cat_mjd, exptime) in filelist.items():
         #print mjd, catfilename
         mjds.append(mjd)
         catalog.append( (cat_mjd, catfilename, exptime) )
