@@ -461,7 +461,7 @@ def match_subtract_fringing(data_filename, fringe_filename, verbose=True, output
 
 
 
-def get_fringe_scaling(data, fringe, region_file):
+def get_fringe_scaling(data, fringe, region_file, logger=None, extname=None):
     """
     This routine implements the technique for determining the optimal
     fringe scaling outlined in Snodgrass & Carry 2013, ESO Messenger 152, 14.
@@ -496,7 +496,8 @@ def get_fringe_scaling(data, fringe, region_file):
     if (not os.path.isfile(region_file)):
         return None
 
-    logger = logging.getLogger("FringeScaling")
+    if (logger is None):
+        logger = logging.getLogger("FringeScaling")
 
     # Read the region file
     logger.debug("Reading fringe vectors from %s" % (region_file))
@@ -508,8 +509,14 @@ def get_fringe_scaling(data, fringe, region_file):
     data = numpy.array(data, dtype=numpy.float32)
     fringe = numpy.array(fringe, dtype=numpy.float32)
 
+    # dump_fn = "fringedump_%s.fits" % (extname)
+    # pyfits.PrimaryHDU(data=data).writeto(dump_fn, overwrite=True)
+    # logger.info("Done dumping debug file to %s" % (dump_fn))
+
+    # dummylist = [pyfits.PrimaryHDU()]
+
     all_vectors = []
-    for line in entries:
+    for i, line in enumerate(entries):
         #print line
         if (line.find("vector(") < 0):
             continue
@@ -529,7 +536,8 @@ def get_fringe_scaling(data, fringe, region_file):
 
         darkx, darky = origx, origy
         lightx, lighty = int(origx+dx), int(origy+dy)
-
+        # logger.debug("%s %d :: %s" % (extname,i,line))
+        # logger.debug("%s %d -->   %d,%d -- %d,%d   /// %s" % (extname,i,darkx,darky,lightx,lighty, str(data.shape)))
         #print darkx, darky, lightx, lighty
 
         boxwidth = 10
@@ -539,9 +547,21 @@ def get_fringe_scaling(data, fringe, region_file):
         fringe_dark = bottleneck.nanmedian(fringe[darky-boxwidth:darky+boxwidth,darkx-boxwidth:darkx+boxwidth])
         fringe_light = bottleneck.nanmedian(fringe[lighty-boxwidth:lighty+boxwidth,lightx-boxwidth:lightx+boxwidth])
 
+        data_dark = numpy.nanmedian(data[darky-boxwidth:darky+boxwidth,darkx-boxwidth:darkx+boxwidth])
+        data_light = numpy.nanmedian(data[lighty-boxwidth:lighty+boxwidth,lightx-boxwidth:lightx+boxwidth])
+        fringe_dark = numpy.nanmedian(fringe[darky-boxwidth:darky+boxwidth,darkx-boxwidth:darkx+boxwidth])
+        fringe_light = numpy.nanmedian(fringe[lighty-boxwidth:lighty+boxwidth,lightx-boxwidth:lightx+boxwidth])
+
+        data_cutout = data[darky-boxwidth:darky+boxwidth,darkx-boxwidth:darkx+boxwidth]
+        # logger.debug(data_cutout.shape)
+        # dummylist.append(pyfits.ImageHDU(data=data[darky-boxwidth:darky+boxwidth,darkx-boxwidth:darkx+boxwidth]))
+
         data_diff = data_light - data_dark
         fringe_diff = fringe_light - fringe_dark
         #logger.info("data: %f / fringe: %f" % (data_diff, fringe_diff))
+
+        logger.debug("%s fringe %d: %.1f/%.1f  vs  %.1f/%.1f // %s" % (
+            extname, i, data_dark, data_light, fringe_dark, fringe_light, str(data_cutout.shape)))
 
         if (data_diff != 0 and fringe_diff != 0):
             scaling = data_diff / fringe_diff
@@ -551,6 +571,7 @@ def get_fringe_scaling(data, fringe, region_file):
             all_vectors.append(one_vector)
 
     vecs = numpy.array(all_vectors)
+    # pyfits.HDUList(dummylist).writeto("fringecutouts_%s.fits" % (extname), overwrite=True)
 
     return vecs
 

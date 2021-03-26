@@ -1250,11 +1250,12 @@ def collect_reduce_ota(filename,
                         logger.info("Ignoring guide-OTA during fringe scaling")
                         reduction_log.success('fringe')
                     else:
-                        fringe_scaling = podi_fringing.get_fringe_scaling(merged, ext.data, fringe_vector_file)
+                        fringe_scaling = podi_fringing.get_fringe_scaling(merged, ext.data, fringe_vector_file, extname=extname)
 
                     #  numpy.savetxt("fringe_%s" % (extname), fringe_scaling)
                     data_products['fringe-template'] = ext.data
                     if (fringe_scaling is not None):
+                        # numpy.savetxt("fringescaling_%s.txt" % (extname), fringe_scaling)
                         good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])
                         fringe_scaling_median = numpy.nanmedian(good_scalings)
                         fringe_scaling_std    = numpy.nanstd(good_scalings)
@@ -3852,7 +3853,7 @@ def collectcells(input, outputfile,
     # Compute the global fringe scaling 
     # 
     fringe_scaling_median = fringe_scaling_std = 0
-    if (options['fringe_dir'] is not None and not type(fringe_scaling) == type(None)): #.shape[0] > 0):
+    if (options['fringe_dir'] is not None and fringe_scaling is not None): #.shape[0] > 0):
         logger.debug("Computing average fringe scaling amplitude")
         # Determine the global scaling factor
         good_scalings = three_sigma_clip(fringe_scaling[:,6], [0, 1e9])
