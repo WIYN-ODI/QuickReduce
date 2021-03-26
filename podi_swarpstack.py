@@ -431,7 +431,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
                 if (swarp_params['cheese_grate'] == 'auto'):
                     # TODO: change the equation for the auto scaling
                     _skylevel = hdulist[0].header['SKYLEVEL']
-                    n_lines = (100 - sky_level) / 10
+                    n_lines = int((120 - _skylevel) / 10 * 1.5)
                     if (n_lines <= 0):
                         n_lines = 0
                     logger.info("Apply de-cheese-grating [auto-mode]: %d lines", n_lines)
