@@ -168,15 +168,29 @@ class ODICalibrations(object):
                 fringe_dir = "%s/fringe/%s/%s" % (self.mastercal_dir, detector, filtername)
 
             history_fn = "%s/fringe_bin%d.history" % (fringe_dir, binning)
+
+
             if (not os.path.isfile(history_fn)):
+                self.logger.debug("Could not find fringe history file (%s)" % (history_fn))
                 return None
-            hist = CalibrationHistory(history_fn)
+
+            self.logger.debug("Checking fringe history file in %s ..." % (history_fn))
+            hist = CalibrationHistory(history_fn, self.logger)
             fn = hist.find(mjd)
             if (fn is None):
                 return None
 
-            full_filename = "%s/%s" % (sitesetup.mastercal_cache, fn)
+            # check if the file is installed locally
+            check_dirs = [fringe_dir, sitesetup.mastercal_cache]
+            for cd in check_dirs:
+                full_filename = os.path.join(cd, fn)
+                if (os.path.isfile(full_filename)):
+                    self.logger.debug("Found fringe frame: %s" % (full_filename))
+                    break
 
+                # full_filename = "%s/%s" % (sitesetup.mastercal_cache, fn)
+                # if (os.path.isfile(full_filename)):
+                #     self.logger.debug("Found fringe frame: %s" % (full_filename))
         # print "Fringe template", full_filename
         return self.verify_fn(full_filename)
 
@@ -435,12 +449,16 @@ class ODICalibrations(object):
 
 class CalibrationHistory(object):
 
-    def __init__(self, filename):
+    def __init__(self, filename, logger=None):
         self.filename = filename
 
         self.mjd = []
         self.filenames = []
         self.url = []
+
+        if (logger is None):
+            logger = logging.getLogger("CalibHistory")
+        self.logger = logger
 
         self.read()
 
@@ -448,6 +466,7 @@ class CalibrationHistory(object):
 
     def read(self):
         if (not os.path.isfile(self.filename)):
+            self.logger.debug("Unable to read calibration history in %s" % (self.filename))
             return
 
         with open(self.filename) as f:
@@ -465,9 +484,10 @@ class CalibrationHistory(object):
 
                 _url = items[2] if len(items) > 2 else None
                 self.url.append(_url)
+        self.logger.debug("Read a total of %d entries from %s" % (len(self.filenames), self.filename))
 
     def find(self, mjd):
-
+        self.logger.debug("Searching for calibration product for MJD = %.5f" % (mjd))
         fn = None
         for i, i_mjd in enumerate(self.mjd):
             # print "FIND: ", mjd, i_mjd, self.filenames[i]
@@ -475,6 +495,7 @@ class CalibrationHistory(object):
                 fn = self.filenames[i]
             else:
                 break
+        self.logger.debug("Found: %s" % (fn))
         if (fn is not None):
             return fn
         return None
