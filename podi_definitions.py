@@ -1366,9 +1366,9 @@ def is_guide_ota(primhdu, ext, w=20, binning=None, skylevel=None, skynoise=None,
         _skynoise = primhdu.header['SKYNOISE']
     else:
         _binning = 1
-        _skylevel = 0
-        _skynoise = 0
-        _gain = 2
+        _skylevel = numpy.NaN
+        _skynoise = numpy.NaN
+        _gain = 1.4
     if (binning is None):
         binning = _binning
     if (skylevel is None):
@@ -1377,12 +1377,13 @@ def is_guide_ota(primhdu, ext, w=20, binning=None, skylevel=None, skynoise=None,
         skynoise = _skynoise
     if (gain is None):
         gain = _gain
+    _readnoise = 9
 
     logger.debug("Checking OTA %s (bin=%d, sky=%.1f, skynoise=%.2f)" % (
         ext.name, binning, skylevel, skynoise))
 
     if (data is not None):
-        logger.debug("Ignoring the check vor valid extension")
+        logger.debug("Ignoring the check for valid extension")
     elif (not is_image_extension(ext)):
         logger.debug("extension is not a valid image extension")
         return False
@@ -1392,6 +1393,9 @@ def is_guide_ota(primhdu, ext, w=20, binning=None, skylevel=None, skynoise=None,
 
     if (data is None):
         data = ext.data
+
+    centers = numpy.zeros((8,8))
+    corners = numpy.zeros((8,8))
 
     for cx, cy in itertools.product(range(8), repeat=2):
 
@@ -1412,13 +1416,27 @@ def is_guide_ota(primhdu, ext, w=20, binning=None, skylevel=None, skynoise=None,
         #print ext.name, cx, cy, corner, center, excess
             
         excesses[cx,cy] = excess
+        centers[cx,cy] = center
+        corners[cx,cy] = corner
+
+    if (not numpy.isfinite(skynoise) ):
+        # we don't have a valid estimate for skynoise
+        valid_centers = numpy.isfinite(centers)
+        if (numpy.sum(valid_centers)):
+            skylevel = numpy.nanmedian(centers[valid_centers])
+            _skynoise2 = numpy.nanstd(centers[valid_centers])
+            _skynoise = numpy.sqrt( skylevel*gain + _readnoise**2 ) / gain
+            skynoise = numpy.max([_skynoise, _skynoise2])
+            logger.debug("alternative skynoises: %f / %f ==> %f" % (_skynoise, _skynoise2, skynoise))
+        else:
+            skynoise = 10
 
     _mean = bottleneck.nanmean(excesses)
     _median = bottleneck.nanmedian(excesses)
 
     is_guideota = (_median > 10*skynoise)
-    logger.debug("Found corner excess mean=%.1f, median=%.1f --> guide-OTA: %s" % (
-        _mean, _median, "YES" if is_guideota else "NO"))
+    logger.debug("Found corner excess mean=%.1f, median=%.1f (Sky: level=%.1f, noise=%.2f) --> guide-OTA: %s" % (
+        _mean, _median, skylevel, skynoise, "YES" if is_guideota else "NO"))
 
     return is_guideota
 
