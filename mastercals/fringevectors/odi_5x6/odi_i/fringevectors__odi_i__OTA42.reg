@@ -1,31 +1,30 @@
 # Region file format: DS9 version 4.1
-# Filename: /Users/wliu/ODI_data/templates/fringes_i_feb17/fringe__odi_i_5x6_bin1_feb17.fits[OTA42.SCI]
-global color=green dashlist=8 3 width=1 font="helvetica 10 normal" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1
-physical
-# vector(20000.916,11807.916,221.82657,73.033852) vector=1
-# vector(20144.761,11998.511,134.98693,228.2397) vector=1
-# vector(19979.339,10854.939,334.44074,270) vector=1
-# vector(19979.339,11106.669,384.93786,88.393997) vector=1
-# vector(17746.138,11394.36,393.57579,12.131321) vector=1
-# vector(18476.154,10887.305,219.83547,195.17292) vector=1
-# vector(18253.193,9948.7129,457.2188,92.704876) vector=1
-# vector(18249.597,9387.7155,477.691,189.53323) vector=1
-# vector(18544.48,10304.73,253.59778,71.821981) vector=1
-# vector(17681.407,9912.7515,111.48025,90) vector=1
-# vector(18001.464,10876.516,330.57087,149.25003) vector=1
-# vector(18497.73,9441.6576,209.47305,348.11134) vector=1
-# vector(19134.247,8945.3907,404.06564,110.85446) vector=1
-# vector(19317.65,9002.9289,529.46324,97.41463) vector=1
-# vector(19839.09,11933.781,138.81275,253.44293) vector=1
-# vector(18087.771,9549.5417,282.61152,104.74356) vector=1
-# vector(18289.155,9376.9271,435.84527,261.93675) vector=1
-# vector(17580.716,10380.249,204.6957,71.565051) vector=1
-# vector(18641.576,10984.4,390.19329,80.450866) vector=1
-# vector(19001.19,9779.6945,461.76415,217.40536) vector=1
-# vector(18993.997,9991.8665,262.54263,156.59531) vector=1
-# vector(19058.728,8805.1414,243.39764,167.19573) vector=1
-# vector(20169.934,8355.6242,90.190656,184.57392) vector=1
-# vector(20040.473,10362.269,346.44445,260.4399) vector=1
-# vector(18073.386,10804.594,266.11414,270) vector=1
-# vector(17796.484,11297.264,271.83561,242.41797) vector=1
-# vector(17710.176,9427.273,147.83579,131.05481) vector=1
+global color=green dashlist=8 3 width=1 font="helvetica 10 normal roman" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1
+image
+# vector(3616.916,3615.916,221.82657,73.033852) vector=1 font="helvetica 10 normal"
+# vector(3760.761,3806.511,134.98693,228.2397) vector=1 font="helvetica 10 normal"
+# vector(3595.339,2662.939,334.44074,270) vector=1 font="helvetica 10 normal"
+# vector(3595.339,2914.669,384.93786,88.393997) vector=1 font="helvetica 10 normal"
+# vector(1362.138,3202.36,393.57579,12.131321) vector=1 font="helvetica 10 normal"
+# vector(2092.154,2695.305,219.83547,195.17292) vector=1 font="helvetica 10 normal"
+# vector(1869.193,1756.7129,457.2188,92.704876) vector=1 font="helvetica 10 normal"
+# vector(1865.597,1195.7155,477.691,189.53323) vector=1 font="helvetica 10 normal"
+# vector(2160.48,2112.73,253.59778,71.821981) vector=1 font="helvetica 10 normal"
+# vector(1297.407,1720.7515,111.48025,90) vector=1 font="helvetica 10 normal"
+# vector(1617.464,2684.516,330.57087,149.25003) vector=1 font="helvetica 10 normal"
+# vector(2113.73,1249.6576,209.47305,348.11134) vector=1 font="helvetica 10 normal"
+# vector(2750.247,753.3907,404.06564,110.85446) vector=1 font="helvetica 10 normal"
+# vector(2933.65,810.9289,529.46324,97.41463) vector=1 font="helvetica 10 normal"
+# vector(3455.09,3741.781,138.81275,253.44293) vector=1 font="helvetica 10 normal"
+# vector(1703.771,1357.5417,282.61152,104.74356) vector=1 font="helvetica 10 normal"
+# vector(1905.155,1184.9271,435.84527,261.93675) vector=1 font="helvetica 10 normal"
+# vector(1196.716,2188.249,204.6957,71.565051) vector=1 font="helvetica 10 normal"
+# vector(2257.576,2792.4,390.19329,80.450866) vector=1 font="helvetica 10 normal"
+# vector(2617.19,1587.6945,461.76415,217.40536) vector=1 font="helvetica 10 normal"
+# vector(2609.997,1799.8665,262.54263,156.59531) vector=1 font="helvetica 10 normal"
+# vector(2674.728,613.1414,243.39764,167.19573) vector=1 font="helvetica 10 normal"
+# vector(3785.934,163.6242,90.190656,184.57392) vector=1 font="helvetica 10 normal"
+# vector(3656.473,2170.269,346.44445,260.4399) vector=1 font="helvetica 10 normal"
+# vector(1689.386,2612.594,266.11414,270) vector=1 font="helvetica 10 normal"
+# vector(1412.484,3105.264,271.83561,242.41797) vector=1 font="helvetica 10 normal"
+# vector(1326.176,1235.273,147.83579,131.05481) vector=1 font="helvetica 10 normal"

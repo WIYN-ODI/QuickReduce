@@ -1,43 +1,42 @@
 # Region file format: DS9 version 4.1
-# Filename: /Users/wliu/ODI_data/templates/fringes_i_feb17/fringe__odi_i_5x6_bin1_feb17.fits[OTA21.SCI]
-global color=green dashlist=8 3 width=1 font="helvetica 10 normal" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1
-physical
-# vector(11517.629,6313.0184,139.6487,304.50852) vector=1
-# vector(11567.975,5820.3477,141.85382,210.46554) vector=1
-# vector(12006.703,5802.367,178.54376,152.4027) vector=1
-# vector(11902.415,5284.5233,163.06013,48.576334) vector=1
-# vector(10136.712,6356.1721,444.36672,113.86833) vector=1
-# vector(9877.7902,6766.1317,469.27865,283.2908) vector=1
-# vector(9493.0035,6683.4205,180.38131,66.501434) vector=1
-# vector(8942.7946,6733.7665,141.53438,117.21611) vector=1
-# vector(9881.3863,5809.5593,209.07137,116.56505) vector=1
-# vector(8985.9482,6291.4416,188.78863,162.25533) vector=1
-# vector(8813.3336,5910.2511,121.313,11.976132) vector=1
-# vector(9072.2555,5687.2906,164.1667,118.81079) vector=1
-# vector(8838.5066,5241.3696,211.0721,76.200515) vector=1
-# vector(9611.676,5205.4083,293.23404,146.50482) vector=1
-# vector(11024.958,6460.4601,215.10792,231.78897) vector=1
-# vector(11003.381,6676.2283,271.90696,69.887412) vector=1
-# vector(11348.61,6485.633,137.69026,310.76361) vector=1
-# vector(11629.109,6018.1352,277.74193,318.6745) vector=1
-# vector(11298.264,6064.885,257.44423,282.09476) vector=1
-# vector(11384.572,6784.1124,126.47977,284.82648) vector=1
-# vector(10557.46,6704.9974,307.77975,149.83994) vector=1
-# vector(10280.558,7028.6497,400.6103,196.15734) vector=1
-# vector(10568.248,5698.079,325.84255,42.316225) vector=1
-# vector(11165.207,5712.4636,160.21991,135.90938) vector=1
-# vector(9992.8665,5223.3889,449.18615,14.370002) vector=1
-# vector(11578.763,4748.6989,175.76982,149.23728) vector=1
-# vector(11916.8,4781.0641,191.1373,78.055823) vector=1
-# vector(9417.4846,4676.7761,366.96459,65.695451) vector=1
-# vector(8457.3161,5280.9271,192.25044,82.47618) vector=1
-# vector(8468.1045,5698.079,305.92538,252.20401) vector=1
-# vector(8453.7199,6251.8841,474.59472,353.03653) vector=1
-# vector(8518.4504,5719.6558,448.1485,324.14164) vector=1
-# vector(9561.3301,6417.3064,218.38946,162.75854) vector=1
-# vector(9633.2529,6568.3442,94.119911,223.45184) vector=1
-# vector(9787.8867,5485.9069,284.98109,79.824489) vector=1
-# vector(10866.728,6740.9587,279.76004,316.04163) vector=1
-# vector(11283.88,5320.4846,246.66983,7.5394451) vector=1
-# vector(10320.115,5435.561,487.22016,188.48894) vector=1
-# vector(10794.805,5342.0615,363.12081,7.9696104) vector=1
+global color=green dashlist=8 3 width=1 font="helvetica 10 normal roman" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1
+image
+# vector(3325.629,2217.0184,139.6487,304.50852) vector=1 font="helvetica 10 normal"
+# vector(3375.975,1724.3477,141.85382,210.46554) vector=1 font="helvetica 10 normal"
+# vector(3814.703,1706.367,178.54376,152.4027) vector=1 font="helvetica 10 normal"
+# vector(3710.415,1188.5233,163.06013,48.576334) vector=1 font="helvetica 10 normal"
+# vector(1944.712,2260.1721,444.36672,113.86833) vector=1 font="helvetica 10 normal"
+# vector(1685.7902,2670.1317,469.27865,283.2908) vector=1 font="helvetica 10 normal"
+# vector(1301.0035,2587.4205,180.38131,66.501434) vector=1 font="helvetica 10 normal"
+# vector(750.7946,2637.7665,141.53438,117.21611) vector=1 font="helvetica 10 normal"
+# vector(1689.3863,1713.5593,209.07137,116.56505) vector=1 font="helvetica 10 normal"
+# vector(793.9482,2195.4416,188.78863,162.25533) vector=1 font="helvetica 10 normal"
+# vector(621.3336,1814.2511,121.313,11.976132) vector=1 font="helvetica 10 normal"
+# vector(880.2555,1591.2906,164.1667,118.81079) vector=1 font="helvetica 10 normal"
+# vector(646.5066,1145.3696,211.0721,76.200515) vector=1 font="helvetica 10 normal"
+# vector(1419.676,1109.4083,293.23404,146.50482) vector=1 font="helvetica 10 normal"
+# vector(2832.958,2364.4601,215.10792,231.78897) vector=1 font="helvetica 10 normal"
+# vector(2811.381,2580.2283,271.90696,69.887412) vector=1 font="helvetica 10 normal"
+# vector(3156.61,2389.633,137.69026,310.76361) vector=1 font="helvetica 10 normal"
+# vector(3437.109,1922.1352,277.74193,318.6745) vector=1 font="helvetica 10 normal"
+# vector(3106.264,1968.885,257.44423,282.09476) vector=1 font="helvetica 10 normal"
+# vector(3192.572,2688.1124,126.47977,284.82648) vector=1 font="helvetica 10 normal"
+# vector(2365.46,2608.9974,307.77975,149.83994) vector=1 font="helvetica 10 normal"
+# vector(2088.558,2932.6497,400.6103,196.15734) vector=1 font="helvetica 10 normal"
+# vector(2376.248,1602.079,325.84255,42.316225) vector=1 font="helvetica 10 normal"
+# vector(2973.207,1616.4636,160.21991,135.90938) vector=1 font="helvetica 10 normal"
+# vector(1800.8665,1127.3889,449.18615,14.370002) vector=1 font="helvetica 10 normal"
+# vector(3386.763,652.6989,175.76982,149.23728) vector=1 font="helvetica 10 normal"
+# vector(3724.8,685.0641,191.1373,78.055823) vector=1 font="helvetica 10 normal"
+# vector(1225.4846,580.7761,366.96459,65.695451) vector=1 font="helvetica 10 normal"
+# vector(265.3161,1184.9271,192.25044,82.47618) vector=1 font="helvetica 10 normal"
+# vector(276.1045,1602.079,305.92538,252.20401) vector=1 font="helvetica 10 normal"
+# vector(261.7199,2155.8841,474.59472,353.03653) vector=1 font="helvetica 10 normal"
+# vector(326.4504,1623.6558,448.1485,324.14164) vector=1 font="helvetica 10 normal"
+# vector(1369.3301,2321.3064,218.38946,162.75854) vector=1 font="helvetica 10 normal"
+# vector(1441.2529,2472.3442,94.119911,223.45184) vector=1 font="helvetica 10 normal"
+# vector(1595.8867,1389.9069,284.98109,79.824489) vector=1 font="helvetica 10 normal"
+# vector(2674.728,2644.9587,279.76004,316.04163) vector=1 font="helvetica 10 normal"
+# vector(3091.88,1224.4846,246.66983,7.5394451) vector=1 font="helvetica 10 normal"
+# vector(2128.115,1339.561,487.22016,188.48894) vector=1 font="helvetica 10 normal"
+# vector(2602.805,1246.0615,363.12081,7.9696104) vector=1 font="helvetica 10 normal"
