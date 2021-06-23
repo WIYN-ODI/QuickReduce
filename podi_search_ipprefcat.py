@@ -377,9 +377,12 @@ def get_reference_catalog(ra, dec, radius, basedir, cattype="2mass_opt", verbose
 
     #print skytable[needed_catalogs]
     
-    files_to_read = skytable['NAME'][needed_catalogs]
-    files_to_read = [f.strip() for f in files_to_read]
-    logger.debug(files_to_read)
+    _files_to_read = skytable['NAME'][needed_catalogs]
+    _files_to_read = [f.strip() for f in _files_to_read]
+    # make sure there are no duplicates, otherwise we run into trouble when running fixwcs
+    files_to_read = list(set(_files_to_read))
+    logger.debug(files_to_read) #RK hack
+    logger.info("Reading from catalog: %d files (raw: %d)" % (len(files_to_read), len(_files_to_read)))
 
     # Now quickly go over the list and take care of all filenames that still have a 0x00 in them
     for i in range(len(files_to_read)):
