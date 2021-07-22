@@ -4423,7 +4423,7 @@ def collectcells(input, outputfile,
         good_fwhm_values = (global_source_cat[:, SXcolumn['flags']] == 0) & \
                            (global_source_cat[:, SXcolumn['elongation']] < 1.3) & \
                            (global_source_cat[:, SXcolumn['mag_err_3.0']] <= 0.2)
-        seeing = global_source_cat[:, SXcolumn['fwhm_world']] * 3600. # convert to arcsec
+        seeing = global_source_cat[:, SXcolumn['fwhm_world']] #* 3600. # convert to arcsec
         seeing_all = numpy.median(seeing)
         seeing_clipped = three_sigma_clip(seeing)
         seeing_filtered = numpy.median(seeing_clipped)
