@@ -1020,7 +1020,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         if (photcalib_odi_aperture == "fwhm_x_3"):
             logger.debug("Using seeing-based photcalib aperture")
             # If set to auto, base the magnitude on the seeing to be > 2.5 * FWHM
-            seeing = numpy.median(odi_sdss_matched[:, SXcolumn['fwhm_world']+2]) * 3600.
+            seeing = numpy.median(odi_sdss_matched[:, SXcolumn['fwhm_world']+2])
             logger.debug("Found seeing = %.2f" % (seeing))
             detailed_return['aperture_mode'] = "fwhm_x_3"
             for i in range(len(SXapertures)):

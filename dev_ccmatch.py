@@ -1616,7 +1616,7 @@ def estimate_match_fraction(src_cat, primary_header, meanTeff = 5000):
     # again.
     #
     seeing_data = three_sigma_clip(src_cat[:, SXcolumn['fwhm_world']])
-    seeing = numpy.median(seeing_data) * 3600. # --> in arcsec
+    seeing = numpy.median(seeing_data) # --> in arcsec
     logger.debug("Found seeing measurement: %.3f" % (seeing))
 
     # Now estimate a zeropoint for the specified filter ...
@@ -1898,7 +1898,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # Eliminate all stars that are just barely detected (mag err > 0.3mag, 
     # equiv to S/N ~ 3) and/or too compact (FWHM < 0.3'') to be "real" stars
     #
-    likely_real_stars = (full_src_cat[:,SXcolumn['fwhm_world']] > 0.3/3600.) & \
+    likely_real_stars = (full_src_cat[:,SXcolumn['fwhm_world']] > 0.3) & \
                         (full_src_cat[:,SXcolumn['mag_err_4.0']] < 0.3)
     full_src_cat = full_src_cat[likely_real_stars]
     if (create_debug_files): numpy.savetxt("ccmatch.src_cat2", full_src_cat[:,0:2])
@@ -1917,12 +1917,12 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         if (create_debug_files): numpy.savetxt("ccmatch.odi_isolated", isolated_stars)
         logger.debug("Down-selected source catalog to %d isolated stars" % (full_src_cat.shape[0]))
     else:
-        isolated_stars = full_src_cat
+        isolated_stars =  numpy.array(full_src_cat)
 
     if (isolated_stars.shape[0] <= 0):
         logger.warning("Could not find any isolated stars. This is bad")
         logger.warning("Please tell kotulla@uwm.edu about this")
-        isolated_stars = full_src_cat
+        isolated_stars = numpy.array(full_src_cat)
         logger.debug("Using full catalog instead of only isolated stars")
 
     #

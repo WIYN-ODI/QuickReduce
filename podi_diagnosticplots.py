@@ -1405,7 +1405,7 @@ def plot_psfshape_map(ra, dec, elongation, angle, fwhm,
     # print dy[:25]
 
     # convert FWHM from degrees to arcseconds
-    fwhm *= 3600. 
+    # fwhm *= 3600.
     # only use stars with reasonable seeing - this is for color-mapping only
     seeing_range = [0.4, 2.5]
     rel_seeing = fwhm - seeing_range[0] / (seeing_range[1] - seeing_range[0])

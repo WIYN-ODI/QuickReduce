@@ -1571,6 +1571,10 @@ def collect_reduce_ota(filename,
                             if (n_bad > 0):
                                 logger.debug("Excluded %d sources with invalid center positions" % (n_bad))
 
+                            # also convert all physical (pixel) FWHMs into arcseconds
+                            source_cat[:, SXcolumn['fwhm_world']] = source_cat[:, SXcolumn['fwhm_image']] * 0.11
+                            # print(source_cat[:, SXcolumn['fwhm_world']])
+
                             flags = source_cat[:,SXcolumn['flags']]
                             no_flags = (flags == 0)
                             logger.debug("Found %d sources, %d with no flags" % (source_cat.shape[0], numpy.sum(no_flags)))
@@ -4435,7 +4439,6 @@ def collectcells(input, outputfile,
         ota_list[0].header['SEEING'] = (seeing_all, "Seeing [arcsec]")
         ota_list[0].header['SEEING_N'] = (seeing_clipped.shape[0], "number of stars in seeing comp")
 
-        
     logger.debug("Next up: fixwcs & qaplots")
     if (options['fixwcs'] 
         and options['create_qaplots']
@@ -4469,11 +4472,11 @@ def collectcells(input, outputfile,
 
         # Create the WCS scatter plot
         plotfilename = create_qa_filename(outputfile, "wcs1", options)
-        podi_diagnosticplots.wcsdiag_scatter(matched_radec_odi=odi_2mass_matched[:,0:2], 
+        podi_diagnosticplots.wcsdiag_scatter(matched_radec_odi=odi_2mass_matched[:,0:2],
                                              matched_radec_2mass=odi_2mass_matched[:,-2:],
                                              matched_ota=odi_2mass_matched[:,SXcolumn['ota']],
                                              matched_odierror=odi_2mass_matched[:, SXcolumn['mag_err_auto']],
-                                             filename=plotfilename, 
+                                             filename=plotfilename,
                                              options=options,
                                              ota_wcs_stats=ota_wcs_stats,
                                              also_plot_singleOTAs=options['otalevelplots'],
@@ -4484,7 +4487,7 @@ def collectcells(input, outputfile,
         podi_diagnosticplots.wcsdiag_shift(matched_radec_odi=odi_2mass_matched[:,0:2],
                                            matched_radec_2mass=odi_2mass_matched[:,-2:],
                                            matched_ota=odi_2mass_matched[:,SXcolumn['ota']],
-                                           filename=plotfilename, #outputfile[:-5]+".wcs2", 
+                                           filename=plotfilename, #outputfile[:-5]+".wcs2",
                                            options=options,
                                            ota_wcs_stats=ota_wcs_stats,
                                            ota_outlines=ota_outlines,
@@ -4492,15 +4495,15 @@ def collectcells(input, outputfile,
                                            title_info=title_info)
 
         plotfilename = create_qa_filename(outputfile, "psfshape", options)
-        podi_diagnosticplots.diagplot_psfshape_map(ra=global_source_cat[:, SXcolumn['ra']], 
-                                                   dec=global_source_cat[:, SXcolumn['dec']], 
-                                                   elongation=global_source_cat[:, SXcolumn['elongation']], 
-                                                   angle=global_source_cat[:, SXcolumn['position_angle']], 
-                                                   fwhm=global_source_cat[:, SXcolumn['fwhm_world']], 
-                                                   ota=global_source_cat[:, SXcolumn['ota']], 
+        podi_diagnosticplots.diagplot_psfshape_map(ra=global_source_cat[:, SXcolumn['ra']],
+                                                   dec=global_source_cat[:, SXcolumn['dec']],
+                                                   elongation=global_source_cat[:, SXcolumn['elongation']],
+                                                   angle=global_source_cat[:, SXcolumn['position_angle']],
+                                                   fwhm=global_source_cat[:, SXcolumn['fwhm_world']],
+                                                   ota=global_source_cat[:, SXcolumn['ota']],
                                                    output_filename=plotfilename,
                                                    title=diagnostic_plot_title,
-                                                   ota_outlines=ota_outlines, 
+                                                   ota_outlines=ota_outlines,
                                                    options=options,
                                                    also_plot_singleOTAs=options['otalevelplots'],
                                                    title_info=title_info)
@@ -4577,6 +4580,7 @@ def collectcells(input, outputfile,
     #
     # If requested, perform photometric calibration
     #
+
     logger.debug("Next up: photcalib")
 
     if (not options['photcalib']):
@@ -4862,10 +4866,11 @@ def collectcells(input, outputfile,
             ota_list.append(match_tablehdu)
 
             # Also use the matched catalog to determine the seeing of only stars
-            star_seeing = odi_sdss_matched[:, SXcolumn['fwhm_world']+2] * 3600.
+            star_seeing = odi_sdss_matched[:, SXcolumn['fwhm_world']+2]
+            print(star_seeing)
             cleaned = three_sigma_clip(star_seeing)
             seeing = numpy.median(cleaned)
-            logger.debug("Seeing is %.2fdeg = %.2f arcsec" % (seeing, seeing*3600.))
+            logger.debug("Seeing is %.2f arcsec" % (seeing))
             ota_list[0].header['FWHMSTAR'] = (seeing, "median FWHM of SDSS-matched stars")
             ota_list[0].header['SEEING'] = (seeing, "Seeing [arcsec]")
             ota_list[0].header['SEEING_N'] = (cleaned.shape[0], "number of stars in seeing comp")
@@ -5554,7 +5559,7 @@ def odi_sources_to_tablehdu(source_cat):
                pyfits.Column(name='FWHM_IMAGE',     format='E', unit='pixel',
                              array=source_cat[:,SXcolumn['fwhm_image']],
                              disp='F6.2'),
-               pyfits.Column(name='FWHM_WORLD',     format='E', unit='deg',
+               pyfits.Column(name='FWHM_WORLD',     format='E', unit='arcsec',
                              array=source_cat[:,SXcolumn['fwhm_world']],
                              disp='F10.6'),
                pyfits.Column(name='BACKGROUND',     format='E', unit='counts',
