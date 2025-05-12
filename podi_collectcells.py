@@ -4867,7 +4867,7 @@ def collectcells(input, outputfile,
 
             # Also use the matched catalog to determine the seeing of only stars
             star_seeing = odi_sdss_matched[:, SXcolumn['fwhm_world']+2]
-            print(star_seeing)
+            # print(star_seeing)
             cleaned = three_sigma_clip(star_seeing)
             seeing = numpy.median(cleaned)
             logger.debug("Seeing is %.2f arcsec" % (seeing))

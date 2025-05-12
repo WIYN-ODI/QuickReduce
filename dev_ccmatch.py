@@ -472,6 +472,7 @@ def kd_match_catalogs(src_cat, ref_cat, matching_radius, max_count=1):
 
     # match the catalogs using a kD-tree
     match_indices = src_tree.query_ball_tree(ref_tree, matching_radius, p=2)
+    # print(match_indices)
 
     # print src_tree.count_neighbors(ref_tree, matching_radius, p=2)
 
