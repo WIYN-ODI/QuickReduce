@@ -906,7 +906,8 @@ def mp_swarp_single(sgl_queue, dum):
             # single_prepared_files.append(single_file)
         except OSError as e:
             podi_logging.log_exception()
-            print >>sys.stderr, "Execution failed:", e
+            # print("Execution failed: %s" % (e), file=sys.stderr)
+            
 
         #
         # Apply the mask if requested
