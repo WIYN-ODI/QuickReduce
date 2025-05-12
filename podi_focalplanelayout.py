@@ -13,6 +13,11 @@ import podi_sitesetup as sitesetup
 
 class FocalPlaneLayout(object):
 
+    lot6 = ['13838', '13880', '13835', '13901', '13968', '13974',
+            '13879', '13923', '13792', '13902', '13947', '13946','13837']
+    lot3 = []
+    lot7 = []
+    has_fat_zero = lot6 + lot3
 
     def __init__(self, inp=None, binning=0):
 
