@@ -88,6 +88,7 @@ import astropy.io.fits as pyfits
 import numpy
 import scipy
 import time
+import scipy.ndimage
 
 gain_correct_frames = False
 from podi_definitions import *
@@ -776,6 +777,48 @@ def compare_to_reference(hdulist, references, return_reference=False, save_diff=
 
 
 
+
+
+def improve_signal_to_noise(data, kernel_size=5, ext_name="???"):
+
+    for cx, cy in itertools.product(range(8), range(8)):
+        # TODO: set binning and trimcell to match setup call
+        x1, x2, y1, y2 = cell2ota__get_target_region(cx, cy, binning=1, trimcell=None)
+        cell = data[y1:y2, x1:x2]
+
+        # smoothed = scipy.ndimage.gaussian_filter(
+        #     input=cell,
+        #     sigma=smooth_bias_kernel,
+        #     order=0,
+        #     mode='nearest',
+        #     truncate=2,
+        # )
+        # print("smoothing kernel", kernel_size)
+        smoothed = scipy.ndimage.median_filter(
+            input=cell,
+            size=kernel_size,
+            mode='nearest',
+            #mode='reflect',
+        )
+
+        # figure out which pixels can be smoothed
+        img_noise = numpy.nanpercentile(smoothed, [16, 50, 84])
+
+        smoothed[~numpy.isfinite(smoothed)] = img_noise[1]
+
+        # data[y1:y2, x1:x2] = smoothed
+        logger.debug("%s [%d,%d]: %s" % (ext_name, cx, cy, str(img_noise)))
+        if (numpy.isfinite(img_noise).all()):
+            _median = img_noise[1]
+            _sigma = 0.5 * (img_noise[2] - img_noise[0])
+            significant = (smoothed > (_median + 3 * _sigma)) | (smoothed < (_median - 3 * _sigma))
+            # TODO: grow significant map by smoothing width to account for all potentially significant pixels
+            data[y1:y2, x1:x2][~significant] = smoothed[~significant]
+        else:
+            logger.warning("bad stats in cell %d,%d of %s, not applying post-processing" % (cx, cy, ext.name))
+
+    return data
+
 valid_PG_filters = [
     'odi_g', 'odi_r', 'odi_i', 'odi_z'
     ]
@@ -903,6 +946,34 @@ podi_makecalibrations.py input.list calib-directory
     calib_flat_list = {}
     calib_tflat_list = {}
     calib_dflat_list = {}
+
+    smooth_bias = smooth_dark = smooth_flat = False
+    smooth_bias_kernel = smooth_dark_kernel = smooth_flat_kernel = 5
+    if (cmdline_arg_isset("-boosts2n")):
+        boost_s2n = cmdline_arg_set_or_default("-boosts2n", "")
+        smooth_bias = boost_s2n.find("b") >= 0
+        smooth_dark = boost_s2n.find("d") >= 0
+        smooth_flat = boost_s2n.find("f") >= 0
+
+        items = boost_s2n.split(":")
+        for i in items:
+            _i = i.split("=")
+            if (len(_i) != 2):
+                continue
+            if _i[0] == "b":
+                smooth_bias_kernel = float(_i[1])
+            elif (_i[0] == "d"):
+                smooth_dark_kernel = float(_i[1])
+            elif (_i[0] == "f"):
+                smooth_flat_kernel = float(_i[1])
+        logger.info("Improving S/N: BIAS: %s/%.1f // DARK: %s/%.1f // FLAT: %s/%.1f" % (
+            smooth_bias, smooth_bias_kernel,
+            smooth_dark, smooth_dark_kernel,
+            smooth_flat, smooth_flat_kernel
+        ))
+
+    # smooth_dark = False
+    # smooth_dark_kernel = 5
 
     for full_filename in input_file_list:
         if (len(full_filename)<=1):
@@ -1071,6 +1142,20 @@ podi_makecalibrations.py input.list calib-directory
 
                 # Relabel the file as 'master-bias" and save to disk
                 if (bias_hdu is not None):
+
+                    if (smooth_bias):
+                        # apply some gaussian smoothing
+                        for ext in bias_hdu:
+                            if (not is_image_extension(ext)):
+                                continue
+                            # apply some gaussian smoothing
+                            # for better results this needs to be done on a cell-by-cell level to avoid blurring out the
+                            # gaps between individual OTA cells
+                            logger.info("Applying calibration smoothing to %s (kernel-size: %f)" % (
+                            ext.name, smooth_bias_kernel))
+                            ext.data = improve_signal_to_noise(
+                                ext.data, kernel_size=smooth_bias_kernel, ext_name=ext.name)
+
                     bias_hdu[0].header['OBJECT'] = "master-bias"
                     bias_hdu.writeto(bias_frame, overwrite=True)
 
@@ -1150,10 +1235,24 @@ podi_makecalibrations.py input.list calib-directory
                 #break ## RK no imcombine
                 logger.info("Stacking %d frames into %s ..." % (len(darks_to_stack), dark_frame))
                 dark_hdu = imcombine(darks_to_stack, dark_frame, "sigmaclipmean", return_hdu=True)
-                
+
                 # Relabel the file as 'master-dark" and save to disk
                 if (dark_hdu is not None):
                     dark_hdu[0].header['OBJECT'] = "master-dark"
+
+                    if (smooth_dark):
+                        # apply some gaussian smoothing
+                        for ext in dark_hdu:
+                            if (not is_image_extension(ext)):
+                                continue
+                            # apply some gaussian smoothing
+                            # for better results this needs to be done on a cell-by-cell level to avoid blurring out the
+                            # gaps between individual OTA cells
+                            logger.info("Applying calibration smoothing to %s (kernel-size: %f)" % (
+                            ext.name, smooth_dark_kernel))
+                            ext.data = improve_signal_to_noise(
+                                ext.data, kernel_size=smooth_dark_kernel, ext_name=ext.name)
+
                     dark_hdu.writeto(dark_frame, overwrite=True)
 
                 # compare to reference frame
@@ -1482,6 +1581,20 @@ podi_makecalibrations.py input.list calib-directory
                             else:
                                 logger.info("Couldn't find the pupilghost template for level %d" % (filter_level))
                                 logger.debug("Missing pg-template file: %s" % (pg_template))
+
+                        if (smooth_flat):
+                            # apply some gaussian smoothing
+                            for ext in flat_hdus:
+                                if (not is_image_extension(ext)):
+                                    continue
+                                # apply some gaussian smoothing
+                                # for better results this needs to be done on a cell-by-cell level to avoid blurring out the
+                                # gaps between individual OTA cells
+                                logger.info("Applying calibration smoothing to %s (kernel-size: %f)" % (
+                                    ext.name, smooth_flat_kernel))
+                                ext.data = improve_signal_to_noise(
+                                    ext.data, kernel_size=smooth_flat_kernel, ext_name=ext.name)
+
 
                         # And finally write the (maybe pupilghost-corrected) flat-field to disk
                         flat_hdus.writeto(flat_frame, overwrite=True)
