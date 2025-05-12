@@ -1088,7 +1088,7 @@ def verify_wcs_model(cat, hdulist):
 
 
 counter = 1
-def optimize_wcs_solution(ota_cat, hdr, optimize_header_keywords):
+def optimize_wcs_solution(ota_cat, hdr, optimize_header_keywords, wrap=False):
 
     """
 
@@ -1104,6 +1104,10 @@ def optimize_wcs_solution(ota_cat, hdr, optimize_header_keywords):
     
     global counter
     counter = 1
+
+    if (wrap):
+        # shift RA WCS by 180 degree to avoid wrap around 0
+        hdr['CRVAL1'] = numpy.fmod(hdr['CRVAL1'] + 180., 360)
 
     def minimize_wcs_error(p, src_xy, ref_radec, astwcs, optimize_header_keywords):
         global counter
@@ -1153,6 +1157,10 @@ def optimize_wcs_solution(ota_cat, hdr, optimize_header_keywords):
     # Copy the optimized values into the header
     for i in range(len(optimize_header_keywords)):
         hdr[optimize_header_keywords[i]] = better_wcs[i]
+
+    if (wrap):
+        # undo the 180 degree flip in RA
+        hdr['CRVAL1'] = numpy.fmod(hdr['CRVAL1'] + 180., 360)
 
     return p_init, better_wcs
 
@@ -1400,11 +1408,11 @@ def parallel_optimize_wcs_solution(queue_in, queue_out):
             return
             
         # Extract all necessary data from command queue
-        catalog, header, headers_to_optimize, extension_id = data_in
+        catalog, header, headers_to_optimize, extension_id, wrap = data_in
 
         logger.debug("Starting work for OTA %s..." % (header['EXTNAME']))
 
-        optimize_wcs_solution(catalog, header, headers_to_optimize)
+        optimize_wcs_solution(catalog, header, headers_to_optimize, wrap)
 
         # Now that we have the optimized WCS solution, recompute the source 
         # Ra/Dec values with the better system
@@ -1460,6 +1468,7 @@ def improve_wcs_solution(src_catalog,
                          min_ota_catalog_size=15,
                          output_catalog = None,
                          allow_parallel = True,
+                         wrap=False,
                          ):
     """
 
@@ -1810,6 +1819,11 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     hdulist[0].header['WCS_MODE'] = ('none',
                                      "method to calibrate WCS")
 
+    #
+    # Test if we are close to RA=0. If so account for cases where some coordinates are
+    # close to 23h59 and others are close to 0h00m
+    #
+    unwrap_possible = False
 
     #
     # compute the center of the field
@@ -2264,6 +2278,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
                              matching_radius=(3./3600),
                              min_ota_catalog_size=4,
                              output_catalog = "ccmatch.after_otashift",
+                             wrap=unwrap_possible,
                          )
 
 
