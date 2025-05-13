@@ -1,6 +1,6 @@
 
 # Start from an openSuSE image to mirror the development platform
-FROM opensuse:latest
+FROM opensuse/leap:latest
 
 # Install (using the suse package manager) all system requirements to
 # deploy the OS and python framework, including all its library dependencies.
@@ -23,7 +23,10 @@ RUN zypper install --no-confirm \
            python3-matplotlib \
            python3-Django \
            python3-Pillow \
-           python3-Cython
+           python3-Cython \
+           python3-pip-wheel \
+           python3-wheel \
+           python3-setuptools-wheel
 
 
 
