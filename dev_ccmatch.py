@@ -192,7 +192,7 @@ def count_matches(src_cat, ref_cat,
             #                                             bins=grid_size, 
             #                                             range=[[-pointing_error*3600, pointing_error*3600],
             #                                                    [-pointing_error*3600, pointing_error*3600]], 
-            #                                             normed=False, 
+            #                                             density=False,
             #                                             weights=None)
             # count_grid_2d += this_2d
 
@@ -207,7 +207,7 @@ def count_matches(src_cat, ref_cat,
                                                     bins=grid_size, 
                                                     range=[[-pointing_error*3600, pointing_error*3600],
                                                            [-pointing_error*3600, pointing_error*3600]], 
-                                                    normed=False, 
+                                                    density=False,
                                                     weights=None)
         count_grid_2d += this_2d.astype(numpy.float32)
         if (create_debug_files2): numpy.savetxt("cc_countgrid_%+0.3f_chunk%03d" % (debugangle, chunk), count_grid_2d)
