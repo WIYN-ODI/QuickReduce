@@ -908,8 +908,22 @@ def fit_best_rotation_shift(src_cat, ref_cat,
     # match in the reference catalog
     #
     valid_matches = numpy.isfinite(src_ref_pairs[:,2])
-    matched_src = src_cat[valid_matches]
-    matched_ref = src_ref_pairs[:,2:4][valid_matches]
+    # numpy.savetxt("XXXX_src_ref_pairs.txt", src_ref_pairs)
+    n_valid_matches = numpy.sum(valid_matches)
+
+    center_radec = (center_ra, center_dec)
+    if (n_valid_matches <= 10):
+        logger.warning("Unable to optimize WCS, only found %d star-pairs (raw: %d)" % (
+            n_valid_matches, src_ref_pairs.shape[0]
+        ))
+        best_fit = best_guess
+
+        matched_src = src_cat
+        matched_ref = src_ref_pairs[:,2:4]
+
+    else:
+        matched_src = src_cat[valid_matches]
+        matched_ref = src_ref_pairs[:,2:4][valid_matches]
 
         args = (matched_src, matched_ref, center_radec, True)
         if (create_debug_files):
