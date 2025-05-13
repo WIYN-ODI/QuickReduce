@@ -151,7 +151,7 @@ def add_ephem_data_to_header(hdr, time_overwrite, debug=False):
         moon.alt, moon.az, moon.ra, moon.dec, moon.moon_phase)) 
 
     # Compute the position of the target on sky
-    body = ephem.FixedBody(target)
+    body = ephem.FixedBody() #target)
     body._ra = target.ra
     body._dec = target.dec
     body._epoch = target.epoch
