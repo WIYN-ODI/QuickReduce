@@ -911,16 +911,17 @@ def fit_best_rotation_shift(src_cat, ref_cat,
     matched_src = src_cat[valid_matches]
     matched_ref = src_ref_pairs[:,2:4][valid_matches]
 
-    center_radec = (center_ra, center_dec)
-    args = (matched_src, matched_ref, center_radec, True)
-    if (create_debug_files):
-        numpy.savetxt("ccm.matched_src", matched_src)
-        numpy.savetxt("ccm.matched_ref", matched_ref)
+        args = (matched_src, matched_ref, center_radec, True)
+        if (create_debug_files):
+            numpy.savetxt("ccm.matched_src", matched_src)
+            numpy.savetxt("ccm.matched_ref", matched_ref)
 
-    fit = scipy.optimize.leastsq(difference_source_reference_cat, 
-                                 p_init, 
-                                 args=args, 
-                                 full_output=1)
+        logger.info("Starting guess: %s (%s / %s)" % (
+            str(p_init), str(matched_src.shape), str(matched_ref.shape)))
+        fit = scipy.optimize.leastsq(difference_source_reference_cat,
+                                     p_init,
+                                     args=args,
+                                     full_output=1)
 
     best_fit = fit[0]
 
