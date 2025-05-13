@@ -2485,11 +2485,11 @@ class reduce_collect_otas (object):
 
         # Make all threads daemons - that way they don't keep the program from
         # not shutting down
-        self.feed_worker_thread.setDaemon(True)
-        self.collect_intermediate_results_thread.setDaemon(True)
-        self.collect_intermediate_data_broadcast_thread.setDaemon(True)
-        self.acknowledge_intermediate_data_thread.setDaemon(True)
-        self.collect_final_results_thread.setDaemon(True)
+        self.feed_worker_thread.daemon = True
+        self.collect_intermediate_results_thread.daemon = True
+        self.collect_intermediate_data_broadcast_thread.daemon = True
+        self.acknowledge_intermediate_data_thread.daemon = True
+        self.collect_final_results_thread.daemon = True
         
         self.intermediate_results_complete = False
 
