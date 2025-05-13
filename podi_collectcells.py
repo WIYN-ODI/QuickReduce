@@ -3102,7 +3102,7 @@ def collectcells(input, outputfile,
 
     **********************************************************************
     * This is podi_collectcells                                          *
-    * (c) 2012-2017: Ralf Kotulla, kotulla@wisc.edu                      *
+    * (c) 2012-2025: Ralf Kotulla, kotulla@wisc.edu                      *
     *                University of Wisconsin - Madison                   *
     *                WIYN Observatory, Inc                               *
     *                                                                    *
