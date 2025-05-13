@@ -621,7 +621,7 @@ class FocalPlaneLayout(object):
         # sortedxy = all_xy[si]
 
         # # numpy.savetxt(sys.stdout, sortedxy, "% 2d % 2d %.0f % 6d % 6d")
-        # return list(numpy.array(sortedxy[:,0]*10+sortedxy[:,1], dtype=numpy.int))
+        # return list(numpy.array(sortedxy[:,0]*10+sortedxy[:,1], dtype=int))
 
         #
         # Compact version

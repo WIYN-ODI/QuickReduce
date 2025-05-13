@@ -4401,7 +4401,7 @@ def collectcells(input, outputfile,
                        pyfits.Column(name='REF_DEC', format='D', unit='degrees',
                                      array=odi_2mass_cat[:, -1], disp='F12.8'),
                        pyfits.Column(name='OTA', format='I', unit='',
-                                     array=odi_2mass_cat[:, 8].astype(numpy.int), disp='I2.2'),
+                                     array=odi_2mass_cat[:, 8].astype(int), disp='I2.2'),
             ]
             coldefs = pyfits.ColDefs(columns)
             matchedhdu = pyfits.BinTableHDU.from_columns(coldefs)
@@ -5455,7 +5455,7 @@ def create_odi_sdss_matched_tablehdu(odi_sdss_matched, photcalib_details=None,
     )
     columns.append(pyfits.Column(name='ODI_OTA',
                                      format='I', unit='',
-                                     array=odi_sdss_matched[:,SXcolumn['ota']+2].astype(numpy.int),
+                                     array=odi_sdss_matched[:,SXcolumn['ota']+2].astype(int),
                                      disp='I2.2'
                                  )
     )

@@ -47,7 +47,7 @@ if __name__ == "__main__":
     boxes = numpy.array(boxes)
 
     print(boxes.shape)
-    # numpy.savetxt(sys.stdout, boxes.astype(numpy.int))
+    # numpy.savetxt(sys.stdout, boxes.astype(int))
 
     # get model amplitudes
     absolute, _ = measure_frame(sys.argv[2], boxes)

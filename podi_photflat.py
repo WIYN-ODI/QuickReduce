@@ -1048,8 +1048,8 @@ def lookup_corrections(ota, x, y, photflat):
 
         this_ota = (ota == _ota)
         pf_data = photflat[extname].data
-        _x = numpy.clip(numpy.round(x[this_ota], 0).astype(numpy.int), 0, pf_data.shape[1]-1)
-        _y = numpy.clip(numpy.round(y[this_ota], 0).astype(numpy.int), 0, pf_data.shape[0]-1)
+        _x = numpy.clip(numpy.round(x[this_ota], 0).astype(int), 0, pf_data.shape[1]-1)
+        _y = numpy.clip(numpy.round(y[this_ota], 0).astype(int), 0, pf_data.shape[0]-1)
 
 
         #print extname, _y.shape, _x.shape, _y, _x

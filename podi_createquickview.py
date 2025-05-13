@@ -216,7 +216,7 @@ def create_quickview(filename, output_directory, verbose=False, overwrite=True):
 
         ffp_x = fp_x * 512
         ffp_y = fp_y * 512
-        full_focalplane[ffp_x:ffp_x+512, ffp_y:ffp_y+512] = greyscale[:,:] #.astype(numpy.int)
+        full_focalplane[ffp_x:ffp_x+512, ffp_y:ffp_y+512] = greyscale[:,:] #.astype(int)
 
         #image = Image.fromarray(numpy.uint8(greyscale*255))
         #image_filename = "%s/%s_%s.%02d.jpg" % (output_directory, obsid, object, fppos)

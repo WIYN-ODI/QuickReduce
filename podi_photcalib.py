@@ -1380,7 +1380,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
                 numpy.sum(saturated), saturation_limit
             ))
 
-        # numpy.savetxt("use_for_calib.1", use_for_calibration.astype(numpy.int))
+        # numpy.savetxt("use_for_calib.1", use_for_calibration.astype(int))
 
         small_reference_errors = odi_sdss_matched[:, photref_col_err] < error_cutoff
         if (numpy.sum(small_reference_errors) > 5):
@@ -1449,7 +1449,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
         _, clipping_mask = three_sigma_clip(zp, return_mask=True)
         use_for_calibration[use_for_calibration] &= clipping_mask
 
-        # numpy.savetxt("use_for_calib.2", use_for_calibration.astype(numpy.int))
+        # numpy.savetxt("use_for_calib.2", use_for_calibration.astype(int))
 
         zp_clipped = zp[clipping_mask]
         zperr_clipped = zp_err[clipping_mask]

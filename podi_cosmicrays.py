@@ -251,7 +251,7 @@ if __name__ == "__main__":
                         cr_pos = numpy.array(numpy.random.random((nrandom,2))
                                              * centering * imagesize
                                              + 0.5*(1.-centering)*imagesize,
-                                             dtype=numpy.int)
+                                             dtype=int)
 
                         for n in range(nrandom):
 

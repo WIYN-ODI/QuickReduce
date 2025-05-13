@@ -290,9 +290,9 @@ def create_nonlinearity_fits(data, outputfits, polyorder=3,
     #print otas
 
     result_count = 0 
-    result_ota = numpy.zeros(shape=(data.shape[0]), dtype=numpy.int)
-    result_cellx = numpy.zeros(shape=(data.shape[0]), dtype=numpy.int)
-    result_celly = numpy.zeros(shape=(data.shape[0]), dtype=numpy.int)
+    result_ota = numpy.zeros(shape=(data.shape[0]), dtype=int)
+    result_cellx = numpy.zeros(shape=(data.shape[0]), dtype=int)
+    result_celly = numpy.zeros(shape=(data.shape[0]), dtype=int)
     result_coeffs = numpy.zeros(shape=(data.shape[0],polyorder-1))
     result_coeffuncert = numpy.zeros(shape=(data.shape[0],polyorder-1))
     result_lampgain = numpy.zeros(shape=(data.shape[0]))

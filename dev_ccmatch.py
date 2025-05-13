@@ -103,7 +103,7 @@ def count_matches(src_cat, ref_cat,
     # bin-size is 1 arcsec^2, with side-length +/- pointing_errors [in degrees]
     #
     grid_size = int(pointing_error * 3600 * 2 + 1)
-    count_grid_2d = numpy.zeros((grid_size, grid_size))#, dtype=numpy.int)
+    count_grid_2d = numpy.zeros((grid_size, grid_size))#, dtype=int)
 
     idx_x, idx_y = numpy.indices(count_grid_2d.shape)
     idx_x -= (grid_size-1)//2
