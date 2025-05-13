@@ -930,7 +930,7 @@ def fit_best_rotation_shift(src_cat, ref_cat,
             numpy.savetxt("ccm.matched_src", matched_src)
             numpy.savetxt("ccm.matched_ref", matched_ref)
 
-        logger.info("Starting guess: %s (%s / %s)" % (
+        logger.debug("Starting guess: %s (%s / %s)" % (
             str(p_init), str(matched_src.shape), str(matched_ref.shape)))
         fit = scipy.optimize.leastsq(difference_source_reference_cat,
                                      p_init,
