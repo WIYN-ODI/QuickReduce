@@ -67,7 +67,7 @@ def hdu_imarith(hdu1, op, hdu2, simple=False, numeric_2=None, rebin_fac=1.):
         img1 = pyfits.ImageHDU(data=hdu1[idx_img1].data,
                                header=hdu1[idx_img1].header,
                                name=hdu1[idx_img1].name)
-        img1.data = img1.data.astype(numpy.float)
+        img1.data = img1.data.astype(float)
 
         fppos1 = img1.header['EXTNAME'] if ('EXTNAME' in img1.header and not simple) else idx_img1
         # stdout_write("\rComputing extension %s (%2d of %2d) ..." % (str(fppos1), idx_img1, len(hdu1) - 1))
@@ -92,7 +92,7 @@ def hdu_imarith(hdu1, op, hdu2, simple=False, numeric_2=None, rebin_fac=1.):
                 img2 = hdu2[fppos2]
                 if (fppos2 == fppos1):
                     # This is the one
-                    img2.data = img2.data.astype(numpy.float)
+                    img2.data = img2.data.astype(float)
 
                     if (op == "+"):
                         img1.data += img2.data

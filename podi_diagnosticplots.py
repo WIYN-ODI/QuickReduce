@@ -1598,7 +1598,7 @@ def diagplot_photflat(extnames, data, one_sigma=None,
     fig = matplotlib.pyplot.figure()
     ax = fig.add_subplot(111)
 
-    px_y, px_x = numpy.indices((9,9), dtype=numpy.float)
+    px_y, px_x = numpy.indices((9,9), dtype=float)
     px_x *= 512.
     px_y *= 512.
     ota_px_size = 1

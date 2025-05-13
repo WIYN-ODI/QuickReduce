@@ -539,7 +539,7 @@ def expand_to_fullres_worker(job_queue, photflat, blocksize, shmem_out, shmem_sh
 
     logger = logging.getLogger("PF_expand2fullres")
     # Prepare the relative coordinates
-    x, y = numpy.indices((blocksize, blocksize), dtype=numpy.float)
+    x, y = numpy.indices((blocksize, blocksize), dtype=float)
     y /= blocksize
     x /= blocksize
     # print x[:5,:5], x[-5:,-5:]

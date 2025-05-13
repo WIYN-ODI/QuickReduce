@@ -32,7 +32,7 @@ def make_psf_plot(ota_listing, title=None,
     ny = 6
     axes = fig.subplots(6,5,sharex=True,sharey=True)
 
-    #_y,_x = numpy.indices(ota_listing[33].data.shape, dtype=numpy.float)
+    #_y,_x = numpy.indices(ota_listing[33].data.shape, dtype=float)
     #print _y.shape, _x.shape
     #r = numpy.hypot((_x-32.), (_y-32.)) * pixelscale
 
@@ -460,7 +460,7 @@ class PSFquality (object):
 
         self.data = combined_psf
 
-        self.y, self.x = numpy.indices(combined_psf.shape, dtype=numpy.float)
+        self.y, self.x = numpy.indices(combined_psf.shape, dtype=float)
         self.x -= 0.5 * combined_psf.shape[1]
         self.y -= 0.5 * combined_psf.shape[0]
         self.r = numpy.hypot(self.x, self.y) * self.pixelscale

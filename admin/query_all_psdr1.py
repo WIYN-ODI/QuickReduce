@@ -232,8 +232,8 @@ def convert_ascii_to_fits(raw_dir, out_dir, indexfile, start_at, end_at):
         n_ra = (r_upper - r_lower) / boxsize
         n_dec = (d_upper - d_lower) / boxsize
 
-        list_ra = numpy.arange(int(n_ra), dtype=numpy.float) * boxsize + r_lower
-        list_dec = numpy.arange(int(n_ra), dtype=numpy.float) * boxsize + d_lower
+        list_ra = numpy.arange(int(n_ra), dtype=float) * boxsize + r_lower
+        list_dec = numpy.arange(int(n_ra), dtype=float) * boxsize + d_lower
         print(list_ra[0], list_ra[-1], list_dec[0], list_dec[-1])
 
         collected_catalog = None
