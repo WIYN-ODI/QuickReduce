@@ -1547,7 +1547,7 @@ def improve_wcs_solution(src_catalog,
                 #
                 # Do the work in parallel
                 #
-                task = (ota_cat, hdulist[ext].header, headers_to_optimize, ext)
+                task = (ota_cat, hdulist[ext].header, headers_to_optimize, ext, wrap)
                 queue_cmd.put(task)
                 number_tasks += 1
 
