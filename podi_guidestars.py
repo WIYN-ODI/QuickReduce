@@ -49,8 +49,8 @@ def draw_guidestarplot(filelist, title=None, plot_filename=None):
     #
     fig = plot.figure()
     fig.set_facecolor('#e0e0e0')
-    fig.canvas.set_window_title(
-        title if title is not None else "Guide Star details")
+    # fig.canvas.set_window_title(
+    #     title if title is not None else "Guide Star details")
     fig.suptitle(
         title if title is not None else "Guide Star details")
     #
