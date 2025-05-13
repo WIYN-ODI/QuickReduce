@@ -50,8 +50,6 @@ colorfade_bluewhite = {'red':   ((0.0, 1.0, 1.0),
                                  (1.0, 218./255., 0.0))
                        }
 cmap_bluewhite = matplotlib.colors.LinearSegmentedColormap('BlueWhite', colorfade_bluewhite)
-
-import matplotlib.pyplot
-matplotlib.pyplot.register_cmap(cmap=cmap_bluewhite)
+matplotlib.colormaps.register(cmap=cmap_bluewhite)
 
 import matplotlib.patches
