@@ -133,7 +133,7 @@ def get_median_level(data, radii, ri, ro):
         cutout = numpy.array(data[selected], dtype=numpy.float32)
         median = bottleneck.nanmean(cutout)
     else:
-        median = numpy.NaN
+        median = numpy.nan
 
     return median, pixelcount
 
@@ -167,7 +167,7 @@ def get_radii_angles(data_fullres, center, binfac):
 def merge_OTAs(hdus, centers):
 
     combined = numpy.zeros(shape=(9000,9000), dtype=numpy.float32)
-    combined[:,:] = numpy.NaN
+    combined[:,:] = numpy.nan
 
     stdout_write("   Adding OTA")
     for i in range(len(hdus)):
@@ -278,7 +278,7 @@ def subtract_background(data, radius, angle, radius_range, binfac):
     radii = numpy.arange(0, max_radius, dr)
     background_levels = numpy.zeros(shape=(n_radii))
     background_level_errors = numpy.ones(shape=(n_radii)) * 1e9
-    background_levels[:] = numpy.NaN
+    background_levels[:] = numpy.nan
     for i in range(n_radii):
 
         ri = i * dr
@@ -711,7 +711,7 @@ def fit_azimuthal_profiles(data, radius, angle, bgsub, pupil_sub, radius_range):
             diff_angle = numpy.fabs(angle_knots[i] - valid_angles)
             min_diffangle = numpy.min(diff_angle)
             if (min_diffangle > 3 * mean_da or angle_knots[i] <= min_angle or angle_knots[i] >= max_angle):
-                angle_knots[i] = numpy.NaN
+                angle_knots[i] = numpy.nan
         good_angle_knots = angle_knots[numpy.isfinite(angle_knots)]
 
         # sort all points in this ring, otherwise LSQUnivariateSplie chokes
@@ -863,7 +863,7 @@ def fit_pupilghost(hdus, centers, rotator_angles, radius_range, dr_full,
     radii = numpy.arange(0, max_radius, dr)
     background_levels = numpy.zeros(shape=(n_radii))
     background_level_errors = numpy.ones(shape=(n_radii)) * 1e9
-    background_levels[:] = numpy.NaN
+    background_levels[:] = numpy.nan
     for i in range(n_radii):
 
         ri = i * dr
@@ -1047,7 +1047,7 @@ def fit_pupilghost(hdus, centers, rotator_angles, radius_range, dr_full,
             diff_angle = numpy.fabs(angle_knots[i] - valid_angles)
             min_diffangle = numpy.min(diff_angle)
             if (min_diffangle > 3 * mean_da or angle_knots[i] <= min_angle or angle_knots[i] >= max_angle):
-                angle_knots[i] = numpy.NaN
+                angle_knots[i] = numpy.nan
         good_angle_knots = angle_knots[numpy.isfinite(angle_knots)]
 
         # sort all points in this ring, otherwise LSQUnivariateSplie chokes

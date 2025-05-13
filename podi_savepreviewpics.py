@@ -80,7 +80,7 @@ def create_quickview(filename, output_directory, z1=None, z2=None, verbose=False
     sizey /= 8
 
     dataframe = numpy.zeros(shape=(sizey,sizex))
-    dataframe[:,:] = numpy.NaN
+    dataframe[:,:] = numpy.nan
     
     #
     # For all cells, perform an overscan subtraction and insert the binned

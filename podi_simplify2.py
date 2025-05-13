@@ -100,7 +100,7 @@ if __name__ == "__main__":
     # reference position 
     #
     radec_ref = numpy.empty((4,2))
-    radec_ref[:,:] = numpy.NaN
+    radec_ref[:,:] = numpy.nan
 
     corners = {
         'OTA33.SCI': (4096, 4096),
@@ -319,7 +319,7 @@ if __name__ == "__main__":
     # values to have the center of the WCS system be close to the center of 
     # the focal plane
     # 
-    radec_ref[:,:] = numpy.NaN
+    radec_ref[:,:] = numpy.nan
     for idx, ota in enumerate(corners):
         try:
             hdr = out_hdulist[ota].header.copy()

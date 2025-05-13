@@ -67,7 +67,7 @@ def mask_broken_regions(datablock, regionfile, verbose=False):
                 x2 = numpy.min([datablock.shape[1], x+dx])
                 y1 = numpy.max([0, y-dy])
                 y2 = numpy.min([datablock.shape[0], y+dy])
-                datablock[y1:y2, x1:x2] = numpy.NaN
+                datablock[y1:y2, x1:x2] = numpy.nan
 
                 # print x,x+dx,y,y+dy
             counter += 1
@@ -136,7 +136,7 @@ if __name__ == "__main__":
         # Insert the new image data. This also makes sure that the headers
         # NAXIS, NAXIS1, NAXIS2 are set correctly
         data_4K = numpy.ones(shape=(4096,4096), dtype=numpy.float32)
-        data_4K[:,:] = numpy.NaN
+        data_4K[:,:] = numpy.nan
         size_x = numpy.min([data_4K.shape[0], hdulist[0].data.shape[0]])
         size_y = numpy.min([data_4K.shape[1], hdulist[0].data.shape[1]])
         data_4K[0:size_x, 0:size_y] = hdulist[0].data[0:size_x, 0:size_y]

@@ -178,7 +178,7 @@ def imcombine(input_filelist, outputfile, operation):
         buffer = shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len(filelist)))
 
         # Set the full buffer to NaN
-        buffer[:,:,:] = numpy.NaN
+        buffer[:,:,:] = numpy.nan
         
         # Copy the reference data
         buffer[:,:,0] = ref_hdulist[cur_ext].data[:,:]

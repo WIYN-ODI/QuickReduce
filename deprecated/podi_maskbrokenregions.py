@@ -47,7 +47,7 @@ def mask_broken_regions(datablock, regionfile):
                 x2 = numpy.min([datablock.shape[1], x+dx])
                 y1 = numpy.max([0, y-dy])
                 y2 = numpy.min([datablock.shape[0], y+dy])
-                datablock[y1:y2, x1:x2] = numpy.NaN
+                datablock[y1:y2, x1:x2] = numpy.nan
 
                 # print x,x+dx,y,y+dy
             counter += 1

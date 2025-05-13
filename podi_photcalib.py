@@ -1157,7 +1157,7 @@ def photcalib(source_cat, output_filename, filtername, exptime=1,
             logger.warning("Photometric reference catalog does not contain uncertainty %s" % (sdss_filter_error))
             err_col = -1
             sdss_magerr = numpy.zeros_like(sdss_mag)
-            photref_col_err = numpy.NaN
+            photref_col_err = numpy.nan
 
         #pc = sdss_photometric_column[sdss_filter]
         detailed_return['reference_filter'] = sdss_filter

@@ -72,7 +72,7 @@ def find_center(hdu, lx, ly, prebin=8, r_minmax=[100,200], x_minmax=[400,600], y
 
     print("number valid pixels after growing", numpy.sum((mask_grown == False)))
 
-    abs33[numpy.isnan(ot33_orig)] = numpy.NaN
+    abs33[numpy.isnan(ot33_orig)] = numpy.nan
 
     #pyfits.HDUList([pyfits.PrimaryHDU(data=ot33b)]).writeto("/scratch/ot33b.fits", overwrite=True)
     #pyfits.HDUList([pyfits.PrimaryHDU(data=abs33)]).writeto("/scratch/ot33_edge.fits", overwrite=True)
@@ -81,7 +81,7 @@ def find_center(hdu, lx, ly, prebin=8, r_minmax=[100,200], x_minmax=[400,600], y
     abs33_binary[abs33 < 0.1] = 0
     abs33_binary[abs33 >= 0.1] = 1
 
-    abs33[mask_grown] = numpy.NaN
+    abs33[mask_grown] = numpy.nan
 
     #pyfits.HDUList([pyfits.PrimaryHDU(data=abs33_binary)]).writeto("/scratch/ot33_binary.fits", overwrite=True)
 

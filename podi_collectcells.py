@@ -964,8 +964,8 @@ def collect_reduce_ota(filename,
                             if (pgheader in ff_ext.header):
                                 hdu.header[pgheader] = (ff_ext.header[pgheader], ff_ext.header.comments[pgheader])
 
-                        pupilghost_center_x = ff_ext.header['PGCNTR_X'] if 'PGCNTR_X' in ff_ext.header else numpy.NaN
-                        pupilghost_center_y = ff_ext.header['PGCNTR_Y'] if 'PGCNTR_Y' in ff_ext.header else numpy.NaN
+                        pupilghost_center_x = ff_ext.header['PGCNTR_X'] if 'PGCNTR_X' in ff_ext.header else numpy.nan
+                        pupilghost_center_y = ff_ext.header['PGCNTR_Y'] if 'PGCNTR_Y' in ff_ext.header else numpy.nan
 
                         # if ('PGCNTR_X' in ff_ext.header):
                         #     pupilghost_center_x = ff_ext.header['PGCNTR_X']

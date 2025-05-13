@@ -41,5 +41,5 @@ plot.show(block=False)
 pyfits.PrimaryHDU(data=rotated).writeto("rotated.fits", overwrite=True)
 pyfits.PrimaryHDU(data=rotated_mask).writeto("rotated_mask.fits", overwrite=True)
 
-rotated[rotated_mask > 0.1] = numpy.NaN
+rotated[rotated_mask > 0.1] = numpy.nan
 pyfits.PrimaryHDU(data=rotated).writeto("rotated_masked.fits", overwrite=True)

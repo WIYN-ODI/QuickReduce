@@ -255,7 +255,7 @@ def fit_background(hdulist, plotname=None, exclude_videocells=True, fit_order=3,
     # step convert back into pixel coordinates
 
     fit_regions = []
-    #min_ra, max_ra, min_dec, max_dec = numpy.NaN, numpy.NaN, numpy.NaN, numpy.NaN
+    #min_ra, max_ra, min_dec, max_dec = numpy.nan, numpy.nan, numpy.nan, numpy.nan
     minmax_radec =  [1e9, -1e9, 1e9, -1e9] 
 
     all_ra, all_dec = None, None

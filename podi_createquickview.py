@@ -98,7 +98,7 @@ def create_quickview(filename, output_directory, verbose=False, overwrite=True):
     # Allocate some memory to hold the data we need to determine the
     # most suitable intensity levels
     binned_data = numpy.zeros(shape=(13*512*512), dtype=numpy.float32)
-    binned_data[:] = numpy.NaN
+    binned_data[:] = numpy.nan
 
     #
     #

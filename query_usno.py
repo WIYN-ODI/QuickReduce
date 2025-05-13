@@ -29,7 +29,7 @@ def my_float(s):
     try:
         return float(s)
     except:
-        return 999.99 #numpy.NaN
+        return 999.99 #numpy.nan
     return 0
 
 # functions for converting input fields to usable data

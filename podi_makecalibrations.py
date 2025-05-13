@@ -214,7 +214,7 @@ def compute_readnoise(biases, binning):
             all_data = numpy.array(readnoise[ext])
 
             # mask out all negative (=invalid) numbers so we can compute the average
-            all_data[all_data < 0] = numpy.NaN
+            all_data[all_data < 0] = numpy.nan
 
             # average the readnoise values from each pair of frames
             combined = bottleneck.nanmean(all_data, axis=0)
@@ -391,7 +391,7 @@ def compute_techdata_from_bias_flat(flatlist, biaslist, ota):
     # print all_data.shape
 
     # mask out all negative (=invalid) numbers so we can compute the average
-    all_data[all_data < 0] = numpy.NaN
+    all_data[all_data < 0] = numpy.nan
 
     # average the readnoise values from each pair of frames
     avg = bottleneck.nanmean(all_data, axis=0)
@@ -563,7 +563,7 @@ def compute_techdata(calib_biaslist, flat_names, output_dir, options, n_frames=2
 
                     # set all image data to 64x64 pixels filled with NaNs
                     img_raw = numpy.zeros((64,64))
-                    img_raw[:,:] = numpy.NaN
+                    img_raw[:,:] = numpy.nan
 
                     # Create one ImageHDU to hold the image 
                     value_hdu = pyfits.ImageHDU(data=img_raw)

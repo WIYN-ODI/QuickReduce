@@ -209,7 +209,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
         #
         # Compute on how to scale the flux values
         #
-        fluxscale_value = numpy.NaN
+        fluxscale_value = numpy.nan
         magzero = hdulist[0].header['PHOTZP_X'] if 'PHOTZP_X' in hdulist[0].header else -99.
         if (magzero > 0 and not swarp_params['no-fluxscale']):
             fluxscale_value = math.pow(10, 0.4*(swarp_params['target_magzero']-magzero))
@@ -333,7 +333,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
                 logger.debug("Pre-correction Ra/Dec was: %12.7f  %+12.7f" % (orig_ra, orig_dec))
                 logger.debug("Post-corrected Ra/Dec is: %12.7f %+12.7f" % (orig_ra + d_ra, orig_dec + d_dec))
                 
-                ret["nonsidereal-dradec"] = numpy.array([numpy.NaN, -d_dec, -d_ra])
+                ret["nonsidereal-dradec"] = numpy.array([numpy.nan, -d_dec, -d_ra])
 
 
             if (options['skip_otas'] != []):
@@ -407,7 +407,7 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
                 for ext in hdulist:
                     if (not is_image_extension(ext)):
                         continue
-                    ext.data[ext.data > swarp_params['mask_saturated']] = numpy.NaN
+                    ext.data[ext.data > swarp_params['mask_saturated']] = numpy.nan
 
             if (options['illumcorr_dir'] is not None):
                 illum_file = podi_illumcorr.get_illumination_filename(
@@ -450,13 +450,13 @@ def mp_prepareinput(input_queue, output_queue, swarp_params, options, apf_data=N
                         for _x in range(8):
                             for _y in range(8):
                                 x1,x2,y1,y2 = cell2ota__get_target_region(_x, _y, trimcell=0)
-                                ext.data[y1:y1+n_lines+1, x1:x2+1] = numpy.NaN
+                                ext.data[y1:y1+n_lines+1, x1:x2+1] = numpy.nan
 
             skylevel = 0.
             if (not swarp_params['subtract_back'] == False and
                 not swarp_params['subtract_back'] in ['swarp', "_REGIONS_"] and
                 not swarp_params['subtract_back'].startswith("IC,")):
-                skylevel = numpy.NaN
+                skylevel = numpy.nan
                 if (swarp_params['subtract_back'] in hdulist[0].header):
                     skylevel = hdulist[0].header[swarp_params['subtract_back']]
                 else:
@@ -1265,12 +1265,12 @@ def swarpstack(outputfile,
     ###########################################################################
     logger.info("Checking flux-scaling factors")
     all_zp = numpy.empty((len(inputlist)))
-    all_zp[:] = numpy.NaN
+    all_zp[:] = numpy.nan
     all_saturation = numpy.zeros_like(all_zp)
     for idx, fn in enumerate(inputlist):
         if (os.path.isfile(fn)):
             _hdu = pyfits.open(fn)
-            magzero = _hdu[0].header['PHOTZP_X'] if 'PHOTZP_X' in _hdu[0].header else numpy.NaN
+            magzero = _hdu[0].header['PHOTZP_X'] if 'PHOTZP_X' in _hdu[0].header else numpy.nan
             logger.debug("ZP (%s) = %.4f" % (fn, magzero))
             all_zp[idx] = magzero
 

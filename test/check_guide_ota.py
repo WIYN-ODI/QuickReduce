@@ -31,9 +31,9 @@ if __name__ == "__main__":
             continue
 
         excesses = numpy.empty((8,8))
-        excesses[:,:] = numpy.NaN
+        excesses[:,:] = numpy.nan
         # skyvalue = numpy.empty((8,8))
-        # skyvalue[:,:] = numpy.NaN
+        # skyvalue[:,:] = numpy.nan
 
         for cx, cy in itertools.product(range(8), repeat=2):
 

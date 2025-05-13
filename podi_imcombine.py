@@ -290,7 +290,7 @@ def imcombine_data(datas, operation="nanmean"):
     # shmem_as_ndarray(shmem_buffer).reshape((size_x, size_y, len(datas)))
 
     # Set the full buffer to NaN
-    buffer[:,:,:] = numpy.NaN
+    buffer[:,:,:] = numpy.nan
 
     # Now open all the other files, look for the right extension, and copy their image data to buffer
     for data_id in range(len(datas)):
@@ -399,7 +399,7 @@ def imcombine_subprocess(extension, filelist, shape, operation, queue, verbose,
     buffer = shmem_buffer.to_ndarray()
 
     # Set the full buffer to NaN
-    buffer[:,:,:] = numpy.NaN
+    buffer[:,:,:] = numpy.nan
 
     # Now open all files, look for the right extension, and copy their image data to buffer
     cur_frame = 0

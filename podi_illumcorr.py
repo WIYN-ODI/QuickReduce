@@ -346,8 +346,8 @@ def compute_illumination_frame(queue, return_queue, tmp_dir=".", redo=False,
 
                         # Set all detected pixels to NaN to ignore them during the
                         # final imcombine
-#                        ext.data[mask_ext.data > 0] = numpy.NaN
-                        ext.data[mask_grown > 0] = numpy.NaN
+#                        ext.data[mask_ext.data > 0] = numpy.nan
+                        ext.data[mask_grown > 0] = numpy.nan
 
                         if (apply_correction):
                             # Rescale with the global sky-level
@@ -506,7 +506,7 @@ def prepare_illumination_correction(filelist, outfile, tmpdir=".", redo=False,
                                                        size=3,
                                                        mode='constant', cval=1.0)
 
-        data_out[numpy.isnan(ext.data)] = numpy.NaN
+        data_out[numpy.isnan(ext.data)] = numpy.nan
         ext.data = data_out
 
     combined.writeto(illumcorrfile, overwrite=True)

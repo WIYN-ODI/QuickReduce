@@ -586,7 +586,7 @@ def mask_saturation_defects(catfilename, ota, data):
 
     # Now we have the full mask, mark all pixels as invalid
     #print mask[0:10,0:10]
-    data[mask == 1] = numpy.NaN
+    data[mask == 1] = numpy.nan
 
     return data
 
@@ -923,7 +923,7 @@ def correct_persistency_effects(ota, data, mjd, filelist):
 
     # Now we have the full mask, mark all pixels as invalid
     correction = mask > 0
-    data[correction] = numpy.NaN
+    data[correction] = numpy.nan
 
     return data
 
@@ -1171,7 +1171,7 @@ def add_mask_to_map(mask, mjd, map_in):
 def apply_mask_to_data(mask, data):
 
     out = data
-    out[mask] = numpy.NaN
+    out[mask] = numpy.nan
 
     return out
 

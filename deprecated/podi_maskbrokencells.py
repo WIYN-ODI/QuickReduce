@@ -137,7 +137,7 @@ if __name__ == "__main__":
 
         mask_match = mask[0:data.shape[0], 0:data.shape[1]]
 
-        data[mask_match == 0] = numpy.NaN
+        data[mask_match == 0] = numpy.nan
 
         output_filename = filename[0:-5]+"masked.fits"
         hdulist[0].data = data

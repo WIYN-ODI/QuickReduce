@@ -218,7 +218,7 @@ Calibration data:
         options['indef_pixelvalue'] = -1e31
     
     try:
-        tmp = float(cmdline_arg_set_or_default('-indefval', numpy.NaN))
+        tmp = float(cmdline_arg_set_or_default('-indefval', numpy.nan))
         options['indef_pixelvalue'] = tmp
     except:
         pass
@@ -480,7 +480,7 @@ def set_default_options(options_in=None):
     options['fixwcs'] = False
     options['wcs_distortion'] = None
 
-    options['indef_pixelvalue'] = numpy.NaN
+    options['indef_pixelvalue'] = numpy.nan
 
     options['offset_pointing'] = [0,0]
     options['offset_dither'] = [0,0]

@@ -63,7 +63,7 @@ def get_median_level(data, radii, ri, ro):
         cutout = numpy.array(data[selected], dtype=numpy.float32)
         median = bottleneck.nanmean(cutout)
     else:
-        median = numpy.NaN
+        median = numpy.nan
 
     return median, pixelcount
 
@@ -192,7 +192,7 @@ def mp_pupilghost_slice(job_queue, result_queue, bpmdir, binfac):
         # Insert this raw frame into the larger frame
         #
         combined = numpy.zeros(shape=(9000/binfac,9000/binfac), dtype=numpy.float32)
-        combined[:,:] = numpy.NaN
+        combined[:,:] = numpy.nan
 
         # Use center position to add the new frame into the combined frame
         # bx, by are the pixel position of the bottom left corner of the frame to be inserted
@@ -343,7 +343,7 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False,
         interpol = scipy.interpolate.interp1d(
             x=prof[:,0], y=prof[:,3], 
             kind='linear', axis=-1, copy=True, 
-            bounds_error=False, fill_value=numpy.NaN,
+            bounds_error=False, fill_value=numpy.nan,
             assume_sorted=False)
         profile_interpol[extname] = interpol
         profiles_matched[:,idx] = interpol(norm_radius)
@@ -352,7 +352,7 @@ def make_pupilghost_slice(filename, binfac, bpmdir, radius_range, clobber=False,
         interpol_raw = scipy.interpolate.interp1d(
             x=prof[:,0], y=prof[:,1], 
             kind='linear', axis=-1, copy=True, 
-            bounds_error=False, fill_value=numpy.NaN,
+            bounds_error=False, fill_value=numpy.nan,
             assume_sorted=False)
         profile_interpol_raw[extname] = interpol_raw
         profiles_matched_raw[:,idx] = interpol_raw(norm_radius)
@@ -516,7 +516,7 @@ def subtract_background(data, radius, angle, radius_range, binfac, logger=None):
     radii = numpy.arange(0, max_radius, dr)
     background_levels = numpy.zeros(shape=(n_radii))
     background_level_errors = numpy.ones(shape=(n_radii)) * 1e9
-    background_levels[:] = numpy.NaN
+    background_levels[:] = numpy.nan
     for i in range(n_radii):
 
         ri = i * dr

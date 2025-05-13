@@ -753,19 +753,19 @@ if __name__ == "__main__":
 #            x = fringe.copy()
 #            output_hdulist.append(pyfits.ImageHDU(data=x))
 #            x = fringe.copy()
-#            x[x < top10] = numpy.NaN
+#            x[x < top10] = numpy.nan
 #            output_hdulist.append(pyfits.ImageHDU(data=x))
 #            x = fringe.copy()
-#            x[x > bottom10] = numpy.NaN
+#            x[x > bottom10] = numpy.nan
 #            output_hdulist.append(pyfits.ImageHDU(data=x))
 
 #            x = data.copy()
 #            output_hdulist.append(pyfits.ImageHDU(data=x))
 #            x = data.copy()
-#            x[fringe < top10] = numpy.NaN
+#            x[fringe < top10] = numpy.nan
 #            output_hdulist.append(pyfits.ImageHDU(data=x))
 #            x = data.copy()
-#            x[fringe > bottom10] = numpy.NaN
+#            x[fringe > bottom10] = numpy.nan
 #            output_hdulist.append(pyfits.ImageHDU(data=x))
 
             

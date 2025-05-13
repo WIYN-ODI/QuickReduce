@@ -234,8 +234,8 @@ if __name__ == "__main__":
                     for cosmicflux in cosmicfluxes:
 
                         # Reset the output buffer
-                        tile_in[:,:] = numpy.NaN
-                        tile_out[:,:] = numpy.NaN
+                        tile_in[:,:] = numpy.nan
+                        tile_out[:,:] = numpy.nan
 
                         print(bg, peak, cosmicflux, fwhm)
                         

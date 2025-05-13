@@ -861,7 +861,7 @@ def fit_best_rotation_shift(src_cat, ref_cat,
 
     src_ref_pairs = numpy.ones(shape=(src_rotated.shape[0],4))
     src_ref_pairs[:,0:2] = src_rotated[:,0:2]
-    src_ref_pairs[:,2:4] = numpy.NaN
+    src_ref_pairs[:,2:4] = numpy.nan
 
     #
     # Merge the two catalogs to make fitting easier
@@ -937,9 +937,9 @@ def fit_best_rotation_shift(src_cat, ref_cat,
                                      args=args,
                                      full_output=1)
 
-    best_fit = fit[0]
+        best_fit = fit[0]
 
-    logger.debug("optimized parameters: " + str(best_fit))
+        logger.debug("optimized parameters: " + str(best_fit))
 
     # print "\n\nbefore/after fit"
     # print p_init
@@ -1967,7 +1967,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     else:
         src_cat = isolated_stars
 
-    # 
+    #
     # Get rid of all data except the coordinates
     # 
     src_cat_long = numpy.array(src_cat)
@@ -2314,8 +2314,7 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
         return_value['success'] = True
 
         logger.debug("All done here, returning")
-        return return_value 
-
+        return return_value
 
     #
     # Next refinement step, allow for smaller scale distortion by allowing for 

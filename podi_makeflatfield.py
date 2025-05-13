@@ -67,7 +67,7 @@ def normalize_flatfield(filename, outputfile,
     flatfield_data = numpy.zeros(
         shape=(len(list_of_otas_to_normalize)*4096*4096//(binning_x*binning_y)),
         dtype=numpy.float32)
-    flatfield_data[:] = numpy.NaN
+    flatfield_data[:] = numpy.nan
 
     # also prepare to store the global gain value
     gain_sum = 0
@@ -154,11 +154,11 @@ def normalize_flatfield(filename, outputfile,
 
     #     data = hdulist[extension].data.copy()
     #     data /= ff_median_level
-    #     data[data < 0.1] = numpy.NaN
+    #     data[data < 0.1] = numpy.nan
     #     new_hdu = pyfits.ImageHDU(data=data, header=hdulist[extension].header)
 
     #     #hdulist[extension].data /= ff_median_level
-    #     #hdulist[extension].data[hdulist[extension].data < 0.1] = numpy.NaN
+    #     #hdulist[extension].data[hdulist[extension].data < 0.1] = numpy.nan
     #     new_hdu.header.add_history("FF-level: %.1f" % (ff_median_level))
     #     hdu_out.append(new_hdu)
         
@@ -172,13 +172,13 @@ def normalize_flatfield(filename, outputfile,
 
         # data = hdulist[extension].data.copy()
         # data /= ff_median_level
-        # data[data < 0.1] = numpy.NaN
+        # data[data < 0.1] = numpy.nan
         # new_hdu = pyfits.ImageHDU(data=data, header=hdulist[extension].header)
         extension.data /= ff_median_level
-        extension.data[extension.data < 0.1] = numpy.NaN
+        extension.data[extension.data < 0.1] = numpy.nan
 
         #hdulist[extension].data /= ff_median_level
-        #hdulist[extension].data[hdulist[extension].data < 0.1] = numpy.NaN
+        #hdulist[extension].data[hdulist[extension].data < 0.1] = numpy.nan
         # new_hdu.header.add_history("FF-level: %.1f" % (ff_median_level))
         # hdu_out.append(new_hdu)
         

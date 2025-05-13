@@ -226,7 +226,7 @@ def create_safe_cutout(
     dimension = corner_max - corner_min
     cutout = numpy.zeros((dimension[0], dimension[1]))
 
-    # cutout[:,:] = numpy.NaN
+    # cutout[:,:] = numpy.nan
     # print "image dimension:", dimension
 
     trunc_min = numpy.max([corner_min, [0, 0]], axis=0)
@@ -384,7 +384,7 @@ class PSFquality (object):
                 mag, mag_err, fwhm, elongation,
             ]).T
             numpy.savetxt("data_all", merged)
-            merged[~all_good, :] = numpy.NaN
+            merged[~all_good, :] = numpy.nan
             numpy.savetxt("data_good", merged)
 
         # print numpy.sum(good)
@@ -396,7 +396,7 @@ class PSFquality (object):
 
         if (self.use_vignets_from_catalog):
             vignets = cat[6]
-            vignets[vignets < -1e29] = numpy.NaN
+            vignets[vignets < -1e29] = numpy.nan
 
             psfs = (vignets / flux.reshape((-1, 1, 1)))[all_good]
 

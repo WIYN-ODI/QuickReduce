@@ -136,7 +136,7 @@ def count_matches(ota_x, ota_y, ref_x, ref_y, verbose=False, max_offset=0.1, mat
     #print index_ota[280,150], index_ref[280,150]
 
     match_results = numpy.zeros(shape=(ota_count, ref_count, 3))
-    match_results[:,:,:] = numpy.NaN
+    match_results[:,:,:] = numpy.nan
 
     #for o in range(ota_count):
     #    print "PO",ota_x[o], ota_y[o]

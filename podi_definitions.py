@@ -644,7 +644,7 @@ def mask_broken_regions(datablock, regionfile, verbose=False, reduction_log=None
                 x2 = numpy.min([datablock.shape[1], x+dx])
                 y1 = numpy.max([0, y-dy])
                 y2 = numpy.min([datablock.shape[0], y+dy])
-                datablock[y1:y2, x1:x2] = numpy.NaN
+                datablock[y1:y2, x1:x2] = numpy.nan
                 logger.debug("Masking block X=%d-%d, y=%d-%d" % (x1,x2,y1,y2))
 
                 # print x,x+dx,y,y+dy
@@ -674,11 +674,11 @@ def mask_broken_regions(datablock, regionfile, verbose=False, reduction_log=None
                             vert = True
 
                         if (horiz): 
-                            datablock[y, x1:x2] = numpy.NaN
+                            datablock[y, x1:x2] = numpy.nan
                             logger.debug("Masking line x=%d-%d, y=%d" % (x1,x2,y))
 
                         if (vert): 
-                            datablock[y1:y2, x] = numpy.NaN
+                            datablock[y1:y2, x] = numpy.nan
                             logger.debug("Masking column x=%d, y=%d-%d" % (x,y1,y2))
                             #print line,"vertical",x,y
                            
@@ -801,8 +801,8 @@ def rotate_around_center(data, angle, mask_limit = 0.1, verbose=True, safety=1, 
         filter_gaussed = scipy.ndimage.filters.gaussian_filter(input=rotated_mask, order=0, sigma=safety)
 
         # And finally apply the mask
-        # rotated[rotated_mask > mask_limit] = numpy.NaN
-        rotated[filter_gaussed > mask_limit] = numpy.NaN
+        # rotated[rotated_mask > mask_limit] = numpy.nan
+        rotated[filter_gaussed > mask_limit] = numpy.nan
         
     # and return the results
     logger.debug("done!")
@@ -1334,7 +1334,7 @@ def read_wipecells_list():
 
     return wipecells
 
-def wipecells(ext, wipecells_list, binning=1, fillvalue=numpy.NaN):
+def wipecells(ext, wipecells_list, binning=1, fillvalue=numpy.nan):
 
     logger = logging.getLogger("WipeCells")
     
@@ -1366,8 +1366,8 @@ def is_guide_ota(primhdu, ext, w=20, binning=None, skylevel=None, skynoise=None,
         _skynoise = primhdu.header['SKYNOISE']
     else:
         _binning = 1
-        _skylevel = numpy.NaN
-        _skynoise = numpy.NaN
+        _skylevel = numpy.nan
+        _skynoise = numpy.nan
         _gain = 1.4
     if (binning is None):
         binning = _binning
@@ -1389,7 +1389,7 @@ def is_guide_ota(primhdu, ext, w=20, binning=None, skylevel=None, skynoise=None,
         return False
 
     excesses = numpy.empty((8,8))
-    excesses[:,:] = numpy.NaN
+    excesses[:,:] = numpy.nan
 
     if (data is None):
         data = ext.data

@@ -489,7 +489,7 @@ def get_pupilghost_scaling_ota(science_hdu, pupilghost_frame,
 
         profile = scipy.interpolate.interp1d(
             radius, mean_profile, kind='linear', 
-            fill_value = numpy.NaN,
+            fill_value = numpy.nan,
             copy=True, bounds_error=False) #, assume_sorted=True
         #print "yyy"
 
@@ -1192,8 +1192,8 @@ def iterate_reject_scaling_factors(samples, iterations=3, significant_only=True)
             bad = (errors[in_bin] > n_sigma*one_sigma) | (errors[in_bin] < -n_sigma*one_sigma)
             good = ~bad
             #print bin, _x1, _x2, sigmas, one_sigma, in_bin.shape, numpy.sum(bad)
-            pg_x[in_bin][bad] = numpy.NaN
-            sci_y[in_bin][bad] = numpy.NaN
+            pg_x[in_bin][bad] = numpy.nan
+            sci_y[in_bin][bad] = numpy.nan
 
             _x = pg_x[in_bin][good] if type(_x) == type(None) else numpy.append(_x, pg_x[in_bin][good])
             _y = sci_y[in_bin][good] if type(_y) == type(None) else numpy.append(_y, sci_y[in_bin][good])

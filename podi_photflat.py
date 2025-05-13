@@ -334,7 +334,7 @@ class PhotFlatFrame(object):
 #         ref_err = "SDSS_ERR_%s" % (self.ref_filter.upper())
 #
 #         self.zeropoints = numpy.empty((self.catalog.shape[0], self.apertures.shape[0]))
-#         self.zeropoints[:, :] = numpy.NaN
+#         self.zeropoints[:, :] = numpy.nan
 #
 #         for idx, ap in enumerate(self.apertures):
 #
@@ -407,7 +407,7 @@ class PhotFlatFrame(object):
 #
 #         # prepare the result buffer
 #         all_corrections = numpy.empty((ra_dec.shape[0], self.zeropoints_relative.shape[1]))
-#         all_corrections[:, :] = numpy.NaN
+#         all_corrections[:, :] = numpy.nan
 #
 #         for idx in range(ra_dec.shape[0]):
 #             # print idx, ra_dec[idx], xy[idx]
@@ -553,7 +553,7 @@ def expand_to_fullres_worker(job_queue, photflat, blocksize, shmem_out, shmem_sh
     x_y = x * y
 
     # out_buffer = numpy.zeros((4096,4096))
-    # out_buffer[:,:] = numpy.NaN
+    # out_buffer[:,:] = numpy.nan
 
     # print ix,iy
 
@@ -629,7 +629,7 @@ def expand_to_fullres(photflat, blocksize, out_dimension=None, mag2flux=True):
 
     # out_shmem = multiprocessing.RawArray(ctypes.c_float, _x*_y)
     # out_buffer = shmem_as_ndarray(out_shmem).reshape(out_dimension)
-    out_buffer[:, :] = numpy.NaN
+    out_buffer[:, :] = numpy.nan
     job_queue = multiprocessing.JoinableQueue()
     data_lock = multiprocessing.Lock()
 
@@ -788,8 +788,8 @@ def create_photometric_flatfield_single_ota(
                 full_zp_list / full_zperr_list) / numpy.sum(1. / full_zperr_list)
             photflat_err[_x, _y] = numpy.std(full_zp_list)
         else:
-            photflat[_x,_y] = numpy.NaN
-            photflat_err[_x, _y] = numpy.NaN
+            photflat[_x,_y] = numpy.nan
+            photflat_err[_x, _y] = numpy.nan
 
         # numpy.savetxt(dump,
         #               numpy.array([full_zp_list, full_zperr_list,

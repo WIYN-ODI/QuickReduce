@@ -116,11 +116,11 @@ def find_center(hdu_data, coord_x, coord_y,
     #
     # Apply the now widened mask to the gradient map
     #
-    abs33[numpy.isnan(ot33_orig)] = numpy.NaN
+    abs33[numpy.isnan(ot33_orig)] = numpy.nan
     abs33_binary = abs33.copy()
     abs33_binary[abs33 < 0.1] = 0
     abs33_binary[abs33 >= 0.1] = 1
-    abs33[mask_grown] = numpy.NaN
+    abs33[mask_grown] = numpy.nan
     if (debugname is not None):
         pyfits.HDUList([pyfits.PrimaryHDU(data=abs33.T)]).writeto("debug_"+debugname+"___sobel_filtered.fits", overwrite=True)
     #
@@ -259,8 +259,8 @@ def xxx_find_pupilghost_center(hdu,
     print("transposing/copying input")
     rawdata = hdu.data.T.copy()
     # trim the edges generously
-    #    rawdata[3980:,:] = numpy.NaN
-    #   rawdata[:,3980:] = numpy.NaN
+    #    rawdata[3980:,:] = numpy.nan
+    #   rawdata[:,3980:] = numpy.nan
     print("creating input px/py")
     px, py = numpy.indices(rawdata.shape)
 

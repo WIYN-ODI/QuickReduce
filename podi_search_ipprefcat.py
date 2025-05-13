@@ -64,7 +64,7 @@ def twomass_from_cds(ra, dec, radius, verbose):
         flags = items[5].split()
         for i in range(3):
             if (not flags[0][i] in ('A', 'B', 'C', 'D')):
-                mags[i] = numpy.NaN
+                mags[i] = numpy.nan
 
         entry = [ra, dec, mags[0], mags[1], mags[2]]
         catalog.append(entry)

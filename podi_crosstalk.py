@@ -368,7 +368,7 @@ def complete_xtalk_matrix(data):
     # format is:
     # row, src_column, target_column
     matrix = numpy.empty((8,8,8))
-    matrix[:,:,:] = numpy.NaN
+    matrix[:,:,:] = numpy.nan
     
     for src_x, row_y in itertools.product(range(8), repeat=2):
         src_cell = src_x * 10 + row_y

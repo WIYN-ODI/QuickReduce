@@ -62,8 +62,8 @@ def ascii2fits(asciifile, fitsfile):
         mag_jhk = numpy.zeros(shape=(3))
         err_jhk = numpy.zeros(shape=(3))
 
-        mag_jhk[:] = numpy.NaN
-        err_jhk[:] = numpy.NaN
+        mag_jhk[:] = numpy.nan
+        err_jhk[:] = numpy.nan
 
         try:
             mag_jhk[0], err_jhk[0] = float(items[6]), float(items[8])
@@ -88,11 +88,11 @@ def ascii2fits(asciifile, fitsfile):
 
             if (ccflag[i] != '0'):
                 # Photometry affected by persistence, spikes, etc.
-                err_jhk[i] = numpy.NaN
+                err_jhk[i] = numpy.nan
             elif (rdflag[i] == 0):
                 # Undetected
-                mag_jhk[i] = numpy.NaN
-                err_jhk[i] = numpy.NaN
+                mag_jhk[i] = numpy.nan
+                err_jhk[i] = numpy.nan
             elif (rdflag[i] in ('6', '9')):
                 # Upper limit
                 err_jhk[i] = -99.9
@@ -105,13 +105,13 @@ def ascii2fits(asciifile, fitsfile):
         try:
             mag_b = float(items[53])
         except:
-            mag_b = numpy.NaN
+            mag_b = numpy.nan
             pass
 
         try:
             mag_vr = float(items[54])
         except:
-            mag_vr = numpy.NaN
+            mag_vr = numpy.nan
             pass
 
 
