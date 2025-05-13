@@ -950,7 +950,7 @@ def fit_best_rotation_shift(src_cat, ref_cat,
     # best_shift_rotation_solution = fit[0]
 
 
-    diff_afterfit = difference_source_reference_cat(fit[0], 
+    diff_afterfit = difference_source_reference_cat(best_fit,
                                                     matched_src, 
                                                     matched_ref, 
                                                     center_radec, 
@@ -1972,6 +1972,8 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # 
     src_cat_long = numpy.array(src_cat)
     src_cat = src_cat[:,0:2]
+    # print("SRC CAT SIMPLE\n", src_cat[:10,:])
+
 
     #
     # Set fall-back solution: No correction
@@ -2268,7 +2270,13 @@ def ccmatch(source_catalog, reference_catalog, input_hdu, mode,
     # numpy.savetxt("ccmatch.newcat-afterrot", newcat)
     # matched_newcat = kd_match_catalogs(newcat, ref_close, matching_radius=(2./3600.), max_count=1)
     # numpy.savetxt("ccmatch.newcat-afterrot2", matched_newcat)
-    
+
+
+    # all other reduction steps use X/Y coordinates and convert them to ra/dec as part of the optimization
+    # since we now have matched catalogs, we can undo the wrap since it's no longer a problem
+
+    # numpy.savetxt("pre_opt.src", src_rotated)
+    # numpy.savetxt("pre_opt.ref", ref_close)
 
     #
     #   |
