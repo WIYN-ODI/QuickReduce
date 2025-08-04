@@ -3099,7 +3099,7 @@ def collectcells(input, outputfile,
 
     if (showsplash):
         splash = """\
-
+ 
     **********************************************************************
     * This is podi_collectcells                                          *
     * (c) 2012-2025: Ralf Kotulla, kotulla@wisc.edu                      *
